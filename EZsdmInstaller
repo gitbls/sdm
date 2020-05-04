@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+# EZ Installer. Run from the bash command line:
+#
+#    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+
+#!/bin/bash
+
+[ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
+
+[ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
+
+$sudo mkdir -p $dir $dir/sdm-1piboot
+
+for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-logit \
+	     sdm-firstboot sdm-apt-cacher sdm-customphase \
+	     sdm-base-installs sdm-X-installs \
+	     sdm-1piboot/1piboot.conf \
+	     sdm-1piboot/010-disable-triggerhappy.sh \
+	     sdm-1piboot/020-ssh-switch.sh \
+	     sdm-1piboot/030-disable-rsyslog.sh
+do
+    $sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/$f -o $dir/$f
+done
+
+chmod -R 755 $dir/*
+
+echo ""
+echo "Invoke sdm with $dir/sdm"
+
