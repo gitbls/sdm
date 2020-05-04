@@ -23,7 +23,7 @@ do
     $sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/$f -o $dir/$f
 done
 
-chmod -R 755 $dir/*
+$sudo chmod -R 755 $dir/*
 
 echo ""
 echo "Invoke sdm with $dir/sdm"
