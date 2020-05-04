@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+# This file is sourced by some sdm-related scripts
+#
+[[ "${BASH_SOURCE[0]}" =~ "/mnt/sdm" ]] && i="/mnt/sdm" || i=""
+sifs=$IFS; IFS=":"
+while read rpifun value
+do
+    if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
+        then
+            value="${value%%\#*}"    # Del EOL comments
+            value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+            value="${value%\"}"     # Del opening double-quotes 
+            value="${value#\"}"     # Del closing double-quotes 
+            value="${value%\'}"     # Del opening single-quotes 
+            value="${value#\'}"     # Del closing single-quotes 
+	    case "$rpifun" in
+		eeprom)
+		    eeprom="$value"
+		    ;;
+		src)
+		    src="$value"
+		    ;;
+		myuser)
+		    myuser="$value"
+		    ;;
+		myuid)
+		    myuid="$value"
+		    ;;
+		rootpwd)
+		    rootpwd="$value"
+		    ;;
+		aptcache)
+		    aptcache="$value"
+		    ;;
+		aptconfirm)
+		    aptconfirm="$value"
+		    ;;
+		hdmigroup)
+		    hdmigroup="$value"
+		    ;;
+		hdmimode)
+		    hdmimode="$value"
+		    ;;
+		csrc)
+		    csrc="$value"
+		    ;;
+		poptions)
+		    poptions="$value"
+		    ;;
+		cscript)
+		    cscript="$value"
+		    ;;
+		custom1)
+		    custom1="$value"
+		    ;;
+		custom2)
+		    custom2="$value"
+		    ;;
+		custom3)
+		    custom3="$value"
+		    ;;
+		custom4)
+		    custom4="$value"
+		    ;;
+	    esac
+    fi
+done < $i/etc/sdm/cparams
+IFS=$sifs

@@ -1,0 +1,362 @@
+#!/bin/bash
+#
+# Manage, customize, or burn an SD Card from a Raspbian image
+#
+# Useful for maintaining one or more Pis. The general idea is to keep a "golden" image
+# fully configured to suit you. Then, whenever you need a new SD Card (testing, new Pi, etc),
+# start with the golden master. Also, when new Raspbian releases come out, sdm can be used
+# to easily build a fresh SD Card image for the new release.
+#
+# This script provides the infrastructure for your customization scripts to work
+# in a repeatable manner against an RPF-provided IMG file. When it's time for a
+# new SD card, use this script also.
+#
+# sdm [switches] image-name
+# sdm --help will provide help on all available switches
+#
+# RPi SD Card Image management phases. See README.md for details
+# Phase   Tasks
+#     0   Copy files into unzipped IMG file (sdm calls phase0 script)
+#         IMG file mounted so files can easily be copied into the IMG file
+#     1   Nspawn into image to execute in the image context (via sdm)
+#         APT packages can be installed in phase 1 so available on every SD card
+#         Your custom script can be as automatic or manual as you choose
+#         See sdm-base-installs and sdm-X-installs for examples
+#     2   Write SD card from the IMG file (via sdm)
+#         Target system name is inserted onto the card after it's written
+#     3   Boot the newly-created SD card
+#
+
+function docleanup() {
+    umount -v /mnt/sdm/{boot,}
+    [ "$loop" != "" ] && losetup -d $loop
+    sync
+}
+
+function domount() {
+    echo "Mounting IMG file '$dimg'"
+    [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
+    loop=$(losetup --show -P -f $dimg)
+    mount -v ${loop}p2 /mnt/sdm
+    mount -v ${loop}p1 /mnt/sdm/boot
+}
+
+function extendimage() {
+    local ldimg=$1 limgext=$2
+    local line dsiz
+    dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg
+
+    # Get the actual size of the image file from parted
+    while read line ; do
+	if [[ "$line" =~ "Disk" ]] 
+	then
+	    if [[ ! "$line" =~ "Flags:" ]]   # Only want the Disk size line, not one with "Disk Flags"
+	    then
+                                     # Disk img-file-name.img:    nnnnMB
+		dsiz="${line##*:}"   # Get String following ":"
+		dsiz="${dsiz##\ }"   # Strip leading spaces
+		dsiz="${dsiz%%\ }"   # Strip trailing spaces
+	    fi
+	fi
+    done < <(parted $ldimg <<EOF
+print
+EOF
+) # This closes the above parted command
+    echo "Resizing partition 2 and file system"
+    parted $ldimg <<EOF
+resizepart 2 $dsiz
+EOF
+}
+
+function writeconfig() {
+    #
+    # Write config parameters into the image
+    # Don't forget to edit sdm-cparams as well when adding new parameters
+    #
+    [ -f /mnt/sdm/etc/sdm/cparams ] && rm -f $paramfile
+    echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
+    echo "src:$src" >> $paramfile
+    echo "csrc:$csrc" >> $paramfile
+#    echo "tsrc:$tsrc" >> $paramfile
+    echo "myuser:$myuser" >> $paramfile
+    echo "myuid:$myuid" >> $paramfile
+    echo "rootpwd:$rootpwd" >> $paramfile
+    echo "aptcache:$aptserver" >> $paramfile
+    echo "eeprom:$eeprom" >> $paramfile
+    echo "hdmimode:$hdmimode" >> $paramfile
+    echo "hdmigroup:$hdmigroup" >> $paramfile
+    echo "aptconfirm:$aptconfirm" >> $paramfile
+    echo "cscript:$cscript" >> $paramfile
+    echo "poptions:$poptions" >> $paramfile
+    echo "custom1:$custom1" >> $paramfile
+    echo "custom2:$custom2" >> $paramfile
+    echo "custom3:$custom3" >> $paramfile
+    echo "custom4:$custom4" >> $paramfile
+    echo "$(date +'%Y-%m-%d %H:%M:%S') sdm Configuration Started" > /mnt/sdm/etc/sdm/history
+    # Use the sdm-logit in the mounted image so it knows to write into the image
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Parameters:"
+    /mnt/sdm/usr/local/sdm/sdm-logit "  poptions: $poptions"
+}
+
+#
+# Initialize and Parse the command
+#
+# The first 4 variables can be changed to suit your preferences for defaults
+#
+myuser=""      #Non-root user to create unless 
+myuid=""       #UID for non-root user if created
+csrc=""        #Source directory for use by Custom Phase script
+tsrc=""        #Target in image for sdm scripts [/usr/local/sdm]
+cscript=""     #Custom Phase script
+imgext=2048    #Number of MB to extend IMG (2048MB = 2GB)
+               #Must be large enough to accomodate all packages you want to install
+eeprom=""      #If set, edit /etc/default/rpi-eeprom-update
+hdmigroup=""   #If set, edit /boot/config.txt and set
+hdmimode=""    #If set, edit /boot/config.txt and set
+aptconfirm=0   #1=Pause before apt commands in sdm-apt-install and sdm-X-install
+fextendonly=0  #1=extend image by xmb MB and then exit
+fdomount=0     #1=Do a mount and drop into bash
+noextend=0     #1=Do not extend image
+fexplore=0     #1=Just fire up nspawn to explore the system
+burn=0         #1=Burn the image to the SD card
+burndev=""     #SD card device name for --burn
+hname=""       #Host name when using --burn
+rootpwd=0      #1=Set root password as well
+aptserver=""   #IP address of apt-cacher-ng server
+poptions=""    #Phase options
+custom1=""     #For custom use
+custom2=""     #For custom use
+custom3=""     #For custom use
+custom4=""     #For custom use
+#
+# custom.ized is created in the image so that we only do the customization once
+#
+sdmdone="/mnt/sdm/etc/sdm/custom.ized"
+paramfile="/mnt/sdm/etc/sdm/cparams"
+
+[[ ! $EUID -eq 0 ]] && echo "? Please run as root: sudo $0 $*" && exit 1
+[ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && echo "? Please 'sudo apt install systemd-container' first" && exit
+#
+# Parse the command line
+#
+OARGS=$(getopt -o h --longoptions help,eeprom:,hdmigroup:,hdmimode:,aptconfirm,aptcache:,burn:,host:,mount,explore,noextend,cscript:,xmb:,extend,rootpwd,user:,uid:,csrc:,tsrc:,,poptions:,custom1:,custom2:,custom3:,custom4: -n 'sdm' -- "$@")
+[ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
+eval set -- "$OARGS"
+
+while true
+do
+    case "$1" in
+	# 'shift 2' if switch has argument, else just 'shift'
+	--cscript)     cscript=$2   ; shift 2 ;;
+	--noextend)    noextend=1   ; shift   ;;
+	--xmb)         imgext=$2    ; shift 2 ;;
+	--extend)      fextendonly=1 ; shift ;;
+	--csrc)        csrc=$2      ; shift 2 ;;
+	--tsrc)        tsrc=$2      ; shift 2 ;;
+	--user)        myuser=$2    ; shift 2 ;;
+	--uid)         myuid=$2     ; shift 2 ;;
+	--rootpwd)     rootpwd=1    ; shift  ;;
+	--explore)     fexplore=1   ; shift ;;
+	--mount)       fdomount=1   ; shift ;;
+	--burn)        burn=1 ;
+		       burndev=$2   ; shift 2 ;;
+	--host)        hname=$2     ; shift 2 ;;
+	--aptcache)    aptserver=$2 ; shift 2 ;;
+	--eeprom)      eeprom=$2    ; shift 2 ;;
+	--hdmigroup)   hdmigroup=$2 ; shift 2 ;;
+	--hdmimode)    hdmimode=$2  ; shift 2 ;;
+	--aptconfirm)  aptconfirm=1 ; shift ;;
+	--poptions)    poptions=$2  ; shift 2 ;;
+	--custom1)     custom1=$2   ; shift 2 ;;
+	--custom2)     custom2=$2   ; shift 2 ;;
+	--custom3)     custom3=$2   ; shift 2 ;;
+	--custom4)     custom4=$2   ; shift 2 ;;
+	--)            shift ; break ;;
+	-h|--help)     echo "Usage:" ;
+echo "sudo sdm [switches] disk-image-file" ;
+echo "" ;
+echo "Customize an SD Card image (no --burn, --explore, or --extend)" ;
+echo "   sudo sdm sd-image-file" ;
+echo " or drop into an nspawn shell in the SD Card image (--explore)" ;
+echo "   sudo sdm --explore sd-image-file" ;
+echo " or burn an SD Card image to an SD Card (--burn)" ;
+echo "   sudo sdm --burn /dev/sdx --host target-hostname sd-image-file" ;
+#echo " or mount SD Card image into file system for inspection/modification (Be VERY Careful!)" ;
+#echo "   sudo sdm --mount sd-image-file" ;
+echo "" ;
+echo "Switches" ;
+echo " --explore           Explore (nspawn shell) into image" ;
+echo " --mount             Mount IMG file partitions and drop into bash" ;
+echo " --burn devname      Copy the image to the SD card" ;
+echo " --host hostname     Hostname to burn into the image with --burn" ;
+echo "  * Customization switches (no --burn or --explore) *" ;
+echo " --cscript script    Custom Phase Configuration script" ;
+echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
+#echo " --tsrc dir          Directory in image for sdm scripts [/usr/local/sdm]" ;
+echo " --extend            Only extend the image; no other customizations" ;
+echo " --noextend          Don't extend the image file" ;
+echo " --xmb n             Extend image file by n MB [2048]" ;
+echo " --user username     Non-root user to create" ;
+echo " --uid uid           UID for non-root user [next free]" ;
+echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
+echo " --rootpwd           Set a root password into the image" ;
+echo " --custom[1-4] str   Can be used in Custom cscripts" ;
+shift ; exit ;;
+	*) echo "? $0: Internal error!" ; exit 1 ;;
+    esac
+done
+
+dimg="$1"
+src=$(dirname $0)
+
+[ "$dimg" == "" ] && echo "? No disk image specified" && exit
+[ ! -f "$dimg" ] && echo "? Disk image file '$dimg' does not exist" && exit
+#
+# Adjust settings based on switches and check for conflicting switches
+# and erroneous switch values
+#
+[ $fexplore -eq 1 ] && noextend=1
+
+if [ "$cscript" != "" ]
+then
+    if [ ! -x "$cscript" ]
+    then
+	fn="$src/$(basename $cscript)"
+	if [ -x "$fn" ]
+	then
+	    cscript=$fn
+	fi
+    fi
+fi
+[ $burn -eq 1 -a $fdomount -eq 1 ] && echo "? Conflicting switches: --burn and --mount" && exit
+[ $burn -eq 1 -a $fexplore -eq 1 ] && echo "? Conflicting switches: --burn and --explore" && exit
+[ $fdomount -eq 1 -a $fexplore -eq 1 ] && echo "? Conflicting switches: --mount and --explore" && exit
+[ "$src" != "" -a ! -d "$src" ] && echo "? Source directory '$src' not found" && exit
+[ "$csrc" != "" -a ! -d "$csrc" ] && echo "? Custom source directory '$csrc' not found" && exit
+[ $burn -eq 1 -a "$hname" == "" ] && echo "? --host required with --burn'" && exit
+[ "$hdmimode" != "" -a "$hdmigroup" == "" ] && echo "? --hdmimode set but not --hdmigroup" && exit
+[ "$hdmigroup" != "" -a "$hdmimode" == "" ] && echo "? --hdmigroup set but not --hdmimode" && exit
+[ "$cscript" != "" -a ! -x "$cscript" ] && echo "? cscript '$cscript' is not executable or does not exist" && exit
+#[ "$tsrc" == "" ] && tsrc="usr/local/sdm" || tsrc="${tsrc#/}"     #Don't want leading "/"
+if [ "$eeprom" != "" ]
+then
+    if [[ ! "$critical/stable/beta" =~ "$eeprom" ]]
+    then
+	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
+    fi
+fi    
+#
+# Process the command. Actions are burn, mount, extend, explore, or customize
+#
+if [ $burn -eq 1 ]
+then
+    [ "$burndev" == "" ] && echo "? No SD card specified" && exit
+    if grep -qs $burndev /proc/mounts
+    then
+	echo "? Device '$burndev' is mounted"
+	exit
+    fi
+    echo "Copying $dimg to SD card..."
+    echo ""
+    dd if=$dimg of=$burndev bs=16M status=progress oflag=direct
+    echo ""
+    sync    #Help ensure mount success?
+    mount -v ${burndev}1 /mnt/sdm
+    if [ "$hname" != "" -a -d /mnt/sdm/sdm-1piboot -a -f /mnt/sdm/sdm-1piboot/1piboot.conf ]
+    then
+	echo "Setting host name '$hname' onto SD card image for sdm-firstboot"
+        sed -i "s/xxxxx/$hname/" /mnt/sdm/sdm-1piboot/1piboot.conf
+    else
+	echo "% Could not mount SD Card partition 1 to write hostname"
+    fi
+    [ -d /mnt/sdm/sdm-1piboot ] && umount -v /mnt/sdm
+    mount -v ${burndev}2 /mnt/sdm
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Created SD Card from $dimg"
+#    echo "$(date +'%Y-%m-%d %H:%M:%S') sdm Created SD Card from $dimg" >> /mnt/sdm/etc/sdm/history
+    umount -v /mnt/sdm
+    echo ""
+    echo "Done"
+    exit
+fi
+
+if [ $fdomount -eq 1 ]
+then
+    domount
+    echo ""
+    echo "IMG file mounted on /mnt/sdm. BE VERY CAREFUL!"
+    echo "Exit the Bash shell to unmount the IMG file"
+    echo ""
+    bash < $(tty)
+    docleanup
+    exit
+fi
+
+if [ $noextend -eq 0 ]
+then
+    echo "Extending disk image by ${imgext}MB..."
+    extendimage "$dimg" "$imgext"
+    #
+    # Mount the image file into a loop device and resize the file system
+    #
+    domount
+    echo " * (Ignore on-line resizing message) *"
+    resize2fs ${loop}p2
+else
+    [ $fextendonly -eq 0 ] && domount
+fi
+
+if [ $fextendonly -eq 1 ]
+then
+    docleanup
+    exit
+fi
+
+[ $fexplore -eq 0 -a ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm
+[ $fexplore -eq 0 -a ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm
+
+if [ -f $sdmdone -o $fexplore -eq 1 ]
+then
+    #
+    # Don't want to do the customization twice, so check for that.
+    # If it's already run, just drop into the image for hands on access
+    #
+    if [ $fexplore -eq 0 ]
+    then
+	echo ""
+	echo "% It appears this image has already been customized"
+	echo "% Dropping into nspawn for you to have a look at it..."
+    else
+	echo ""
+	echo "Ready to nspawn into the new image"
+    fi
+else
+    echo ""
+    echo "Starting Phase 0 image customization"
+    flags=""
+    echo "$(date +'%Y-%m-%d %H:%M:%S') sdm Configuration Started" > /mnt/sdm/etc/sdm/history
+    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-cparse,sdm-apt-cacher,sdm-base-installs,sdm-X-installs} /mnt/sdm/usr/local/sdm
+    [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
+    writeconfig                                         #Write arguments into IMG
+    /mnt/sdm/usr/local/sdm/sdm-phase0
+    touch $sdmdone
+    
+    echo ""
+    echo "Ready to nspawn into the new image for Phase 1"
+    echo "Perform any desired inspection and manual configuration such as:"
+    echo " * /usr/local/sdm/sdm-phase1        Set account passwords, apt-cacher-ng if set"
+    echo "                                     run custom Phase 1 script"
+    echo "                                     and any installs selected with --poptions"
+    echo "  You have selected '$poptions' Install options"
+    echo "   out of 'firstboot', 'base', 'xwindows', and 'xdmconsole'"
+fi
+
+echo ""
+echo "Type 'exit' when complete"
+echo ""
+systemd-nspawn --directory=/mnt/sdm < $(tty)
+docleanup
+
+echo "Done"
+echo ""
+exit

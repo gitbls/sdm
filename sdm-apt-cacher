@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function dosed() {
+    if ! (grep $1 /etc/apt/sources.list > /dev/null 2>&1)
+    then
+	sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list
+	sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list.d/raspi.list
+    fi
+}
+
+[ "$2" != "" ] && serverip=$2
+port=3142
+mode="$1"
+[ "$mode" == "" ] && mode=client && echo "% 'client' or 'server' not specified; assuming 'client'" 
+
+if [ "$mode" == "client" ]
+then
+    dosed $serverip:$port          # Point the client to the apt caching server
+else
+    echo "% Setting up apt caching server"
+    echo "% Answer NO to enabling HTTPS tunnels"
+    apt install -y apt-cacher-ng
+    dosed 127.0.0.1:$port
+    rm -rf /var/lib/apt/lists
+    rm -rf /var/cache/apt/*
+fi

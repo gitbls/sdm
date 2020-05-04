@@ -1,0 +1,81 @@
+#!/bin/bash
+#
+# Example sdm customizations
+#
+# $1 is the phase: 0 or 1
+
+phase=$1
+
+if [ $phase == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image
+    # must be preceded by /mnt/sdm
+    #
+    echo ""
+    echo "Starting Custom Phase 0..."
+    source /mnt/sdm/usr/local/sdm/sdm-cparse
+
+    /mnt/sdm/usr/local/sdm/sdm-logit "xxx sdm-customphase Phase 0 Starting"
+
+    echo "Copy wpa_supplicant.conf"
+    cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/boot
+    # Can also copy to the specific device wpa_supplicant if desired
+    cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+    cp -f $csrc/etc/wpa_supplicant/wpa_supplicant-NoAP.conf /mnt/sdm/etc/wpa_supplicant
+
+    # Make directories for NFS mounting
+    for f in a b c d e f g h i j k l m n o p q r s t u v w x y z
+    do
+	[ ! -d /mnt/sdm/$f ] && mkdir /mnt/sdm/$f
+    done
+    
+    cp -f $csrc/etc/fstab.lan /mnt/sdm/etc
+    echo "/        192.168.92.0/24(rw,no_root_squash,no_subtree_check,insecure)" >> /mnt/sdm/etc/.exports
+    
+    echo "Copy /usr/local/bin config scripts" 
+    
+    for f in \
+		     wlanset \
+		     xdmset
+    do
+        cp -f $csrc/local/$f /mnt/sdm/usr/local/bin
+    done
+    
+    if [ "$myuser" != "" ]
+    then
+	echo "Copy $myuser login files to /mnt/sdm/home/$myuser"
+	[ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser   # Should be created in sdm-phase0, but just to be safe
+	cp -f /home/$myuser/{.bashrc,.emacs,.inputrc,.vimrc} /mnt/sdm/home/$myuser
+	echo "source /home/$myuser/.bashrc" > /mnt/sdm/home/$myuser/.bash_profile
+	chmod 755 /mnt/sdm/home/$myuser/.bash_profile
+    fi
+    
+#    echo "Copy systemd services (xvnc, iptables, wpaping)"
+#    cp $csrc/systemd/*.service         /mnt/sdm/etc/systemd/system
+#    cp $csrc/systemd/*.socket          /mnt/sdm/etc/systemd/system
+#    cp $csrc/systemd/*.timer           /mnt/sdm/etc/systemd/system
+#    cp $csrc/systemd/network/*.network /mnt/sdm/etc/systemd/network
+#    [ -f /mnt/sdm/etc/systemd/timesyncd.conf ] && mv /mnt/sdm/etc/systemd/timesyncd.conf /mnt/sdm/etc/systemd/timesyncd.conf.orig
+#    cp $csrc/systemd/timesyncd.conf /mnt/sdm/etc/systemd
+
+    echo "Custom Phase 0 completed..."
+    /mnt/sdm/usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 0 Completed" 
+else
+    #
+    # Phase 1 (in nspawn)
+    #
+    # In Phase 1 all references to directories in the image can be direct
+    #
+    source /usr/local/sdm/sdm-cparse
+    echo "Starting Custom Phase 1..."
+   /usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 1 Starting"
+
+#   echo "Enabling systemd VNC sockets..."
+#   systemctl enable xvnc0.socket
+#   systemctl enable xvnc1.socket
+#   systemctl enable xvnc2.socket
+
+   echo "Custom Phase 1 completed..."
+   /usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 1 Completed"
+fi

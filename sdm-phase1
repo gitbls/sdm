@@ -1,0 +1,110 @@
+#!/bin/bash
+# This script can be run either in an nspawn or on the running system
+#
+# It helps set up account passwords
+#
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function getpwd() {
+    local pmpt="$1" tmp
+    echo -n "$pmpt: " ; read -s tmp
+    eval "${2}=\"$tmp\""
+}
+
+function changepwd() {
+    local user="$1" upwd tpwd="$2"
+    [ -f /tmp/pwd.txt ] && rm -f /tmp/pwd.txt
+    if [ "$tpwd" == "" ]
+    then
+	echo ""
+	echo -n "Password for user $1: " && read -s upwd
+	echo ""
+    else
+	upwd="$tpwd"
+    fi
+    echo "$upwd" > /tmp/pwd.txt
+    echo "$upwd" >> /tmp/pwd.txt
+    echo ""
+    echo "Changing user $1 password..."
+    passwd $user < /tmp/pwd.txt
+    rm -f /tmp/pwd.txt
+}
+
+#
+# Read configuration information from sdm
+#
+source /usr/local/sdm/sdm-cparse
+/usr/local/sdm/sdm-logit "sdm Phase 1 Starting"
+
+puser="'pi'"
+susers="user"
+[ "$myuser" != "" ] && puser="${puser} and '$myuser'" && susers="users"
+[ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
+
+samepwd=""
+if askyn "Use same password for $susers $puser" "-n 1"
+then
+    echo ""
+    getpwd "Password" samepwd
+fi
+
+echo ""
+if [ $rootpwd -eq 1 ]
+then
+    echo "Changing root password..."
+    changepwd root "$samepwd"
+    echo ""
+else
+    echo "Not changing root password"
+fi
+
+if [ "$myuser" != "" ]; then
+    [ $myuid != "" ] && xuid="--uid $myuid" || xuid=""
+    echo "adding user $myuser..."
+    # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
+    useradd -M -d /home/$myuser $xuid $myuser
+    usermod --gid users $myuser
+    usermod --groups dialout,cdrom,floppy,audio,video,plugdev,users $myuser
+    changepwd $myuser "$samepwd"
+    chown -R $myuser.users /home/$myuser
+fi
+
+changepwd pi "$samepwd"
+#
+# Set up apt-cacher-ng client if requested
+#
+if [ "$aptcache" != "" ]
+then
+    /usr/local/sdm/sdm-apt-cacher client $aptcache
+    echo ""
+    echo "Image set as an apt-cacher-ng client with caching server $aptcache"
+    echo ""
+    echo "Performing apt update to confirm apt-cacher-ng is working..."
+    apt update
+fi
+
+if [ "$cscript" != "" ]
+then
+    csfn="/usr/local/sdm/$(basename $cscript)"
+    /usr/local/sdm/sdm-logit "sdm Phase 1 Custom Script '$csfn'" 
+    $csfn 1
+fi
+
+#
+# These are enabled by use of the --poptions switch
+# For example: --poptions firstboot:base          does firstboot customization and installs your personal base set of apps
+#              --poptions firstboot:base:xwindows does all 3
+#
+[[ "$poptions" =~ "firstboot" ]] && /usr/local/sdm/sdm-firstboot
+[[ "$poptions" =~ "base" ]]      && /usr/local/sdm/sdm-base-installs
+[[ "$poptions" =~ "xwindows" ]]  && /usr/local/sdm/sdm-X-installs
+
+/usr/local/sdm/sdm-logit "sdm Phase 1 Completed"

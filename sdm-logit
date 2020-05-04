@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+# $1 has the message
+#
+
+#
+# Prefix path to history log if we've been run from phase 0
+# Otherwise, we're in the nspawn so prefix not required
+#
+[[ "$0" =~ "/mnt/sdm" ]] && i="/mnt/sdm" || i=""
+echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $i/etc/sdm/history

@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# Copies personalization files into an SD card image
+#
+
+#
+# Read configuration information from sdm (/etc/sdm/cparams)
+#
+
+source /mnt/sdm/usr/local/sdm/sdm-cparse
+
+/mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Starting"
+
+echo "Setting up ssh in boot partition"
+echo " (wpa_supplicant.conf will be done later)"
+touch /mnt/sdm/boot/ssh
+#
+# Set HDMI configuration as requested
+#
+if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
+then
+    echo "Setting hdmigroup and hdmimode in /boot/config.txt configuration"
+    sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
+    sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
+fi
+
+#
+# Set up sdm-firstboot service. This service sets the wifi country and hostname
+# on the first boot of the system. Other parameters are set via 0piboot
+# in the nspawn
+#
+echo "Setting up sdm-firstboot service"
+cp -f $src/sdm-firstboot /mnt/sdm/boot/
+cp -f $src/sdm-firstboot /mnt/sdm/usr/local/sdm
+[ ! -d /mnt/sdm/boot/sdm-1piboot ] && mkdir /mnt/sdm/boot/sdm-1piboot
+[ ! -d /mnt/sdm/usr/local/sdm/sdm-1piboot ] && mkdir /mnt/sdm/usr/local/sdm/sdm-1piboot
+cp -f $src/sdm-1piboot/* /mnt/sdm/boot/sdm-1piboot
+[ -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service ] && rm -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service
+cat > /mnt/sdm/etc/systemd/system/sdm-firstboot.service <<EOF
+[Unit]
+Description=sdm System FirstBoot Configuration
+After=network.target
+Before=rc-local.service
+ConditionFileNotEmpty=/boot/sdm-firstboot
+
+[Service]
+ExecStart=/boot/sdm-firstboot /boot/sdm-1piboot/1piboot.conf 1
+ExecStartPost=/bin/mv /boot/sdm-firstboot /boot/sdm-firstboot.done
+Type=oneshot
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable the service if it isn't already enabled
+[ ! -h /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service ] && ln -s /etc/systemd/system/sdm-firstboot.service /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service
+
+if [ "$myuser" != "" ]
+then
+    #
+    # do what we can now. Can't create the new user until nspawn. Done in sdm-phase1
+    # home directory ownership fixed then as well
+    #
+    echo "Add '$myuser' to sudoers.d"
+    echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
+    chmod 440 /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
+    [ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser
+fi
+
+if [ "$eeprom" != "" ]
+then
+    echo "set rpi-eeprom to '$eeprom'"
+    sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
+fi
+
+
+if [ "$cscript" != "" ]
+then
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Custom Script '$cscript'"
+    $cscript 0
+fi
+
+/mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Completed"

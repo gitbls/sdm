@@ -1,0 +1,130 @@
+#!/bin/bash
+#
+# This script runs in nspawn or at first boot to perform desired configuration
+# Arguments:
+#        $1   config file [Default: /boot/sdm-1piboot/1piboot.conf]
+#        $2   Omitted or 0: Running inside an nspawned image
+#                        1: Running at first system boot
+# Processed in nspawn:     locale, keymap, timezone
+# Processed at first boot: hostname, wifi country, enable/disable service, and custom scripts
+#
+
+function dolog() {
+    local arg1="$1"
+    local fboot=$((${arg1:0:1}))   # first character is flag 0 (nspawn) or 1 (first boot)
+    local msg="${arg1}"
+    [ $fboot -eq 0 ] && echo "* $msg" || logger "$msg"
+}
+
+function doconfig() {
+    cfgfile="$1"
+    fboot=$2    # 0=in nspawn, 1=boot time
+    pibootx="${fboot}piboot"
+    [ ! -f $cfgfile ] && dolog "$pibootx Config file $cfgfile not found...skipping" && exit
+    dolog "$pibootx Starting Configuration..."
+    IFS=":="
+    while read rpifun value
+    do
+	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
+	then
+	    value="${value%%\#*}"    # Del EOL comments
+	    value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	    value="${value%\"}"     # Del opening double-quotes 
+	    value="${value#\"}"     # Del closing double-quotes 
+	    value="${value%\'}"     # Del opening single-quotes 
+	    value="${value#\'}"     # Del closing single-quotes 
+	    case "$rpifun" in
+		locale)
+		    if [ $fboot -eq 0 ]   # Only done in nspawn
+		    then
+			dolog "$pibootx Setting Locale to $value..."
+			raspi-config do_change_locale "$value" nonint
+			declare -x LANG="$LOCALE"
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Set Locale to '$value'"
+		    fi
+		    ;;
+		keymap)
+		    if [ $fboot -eq 0 ]   # Only done in nspawn
+		    then
+			dolog "$pibootx Setting Keyboard to $value..."
+			dolog "$pibootx Ignore invoke-rc.d messages..."
+			raspi-config do_configure_keyboard "$value" nonint
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Set Keymap to '$value'"
+		    fi
+		    ;;
+		timezone)
+		    if [ $fboot -eq 0 ]   # Only done in nspawn
+		    then
+			dolog "$pibootx Setting Timezone to $value..."
+			raspi-config do_change_timezone "$value" nonint
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Set Timezone to '$value'"
+		    fi
+		    ;;
+		hostname)
+		    if [ $fboot -eq 1 ]   # Only done on first boot
+		    then
+			dolog "$pibootx Setting Hostname to $value..."
+			raspi-config do_hostname "$value" nonint
+			hostnamectl set-hostname $value
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Set Hostname to '$value'"
+		    fi
+		    ;;
+		wifi-country)
+		    if [ $fboot -eq 1 ]   # Only done on first boot
+		    then
+			dolog "$pibootx Setting WiFi country to $value..."
+			raspi-config do_wifi_country "$value" nonint
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Set WiFi Country to '$value'"
+		    fi
+		    ;;
+		service-enable)
+		    if [ $fboot -eq 1 ]   # Only done on first boot
+		    then
+			dolog "$pibootx Enabling Service $value"
+			systemctl enable $value
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Enable Service '$value'"
+		    fi
+		    ;;
+		service-disable)
+		    if [ $fboot -eq 1 ]   # Only done on first boot
+		    then
+			dolog "$pibootx Disabling Service $value"
+			systemctl disable $value
+			/usr/local/sdm/sdm-logit "sdm FirstBoot Disable Service '$value'"
+		    fi
+		    ;;
+		custom-scripts)
+		    if [ $fboot -eq 1 ]           # Only done on first boot
+		    then
+			if [ "$value" == "True" ]
+			then
+			    for f in /boot/sdm-1piboot/0*-*.sh
+			    do
+				if [ -x $f ]
+				then
+				    dolog "$pibootx Executing custom $pibootx script $f"
+				    /usr/local/sdm/sdm-logit "sdm Executing custom $pibootx script '$f'"
+				    sh $f
+				else
+				    dolog "$pibootx custom $pibootx script '$f' does not have execute permission"
+				    /usr/local/sdm/sdm-logit "sdm custom $pibootx script '$f' does not have execute permission"
+				fi
+			    done
+			else
+			    dolog "$pibootx Skipping custom $pibootx scripts"
+			    /usr/local/sdm/sdm-logit "sdm Skipping custom $pibootx scripts"
+			fi
+		    fi
+		    ;;
+		*)
+		    [ "$rpifun" != "" ] && $dolog "$pibootx Unrecognized command line: '$rpifun'" && /usr/local/sdm/sdm-logit "$sdm pibootx Unrecognized command line: '$rpifun'"
+		    ;;
+	    esac
+	fi
+    done < $cfgfile
+}
+
+[ "$1" != "" ] && conf0="$1" || conf0="/boot/sdm-1piboot/1piboot.conf"
+[ "$2" == "" ] && boot0=0 || boot0=1        #Default is inside the nspawned image
+
+doconfig $conf0 $boot0
