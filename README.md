@@ -21,6 +21,34 @@ sdm only runs on Raspbian, and requires a USB SD Card reader for writing a new S
 
 ## Installing sdm
 
+Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. The simplest download is:
+
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+
+or download the Installer script to examine it before running:
+
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o ./EZsdmInstaller
+    ./EZsdmInstaller
+
+Or, download it the really long way:
+
+    sudo mkdir -p /usr/local/sdm /usr/local/sdm/sdm-1piboot
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm -o /usr/local/sdm/sdm
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-phase0 -o /usr/local/sdm/sdm-phase0
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-phase1 -o /usr/local/sdm/sdm-phase1
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-cparse -o /usr/local/sdm/sdm-cparse
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-logit -o /usr/local/sdm/sdm-logit
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-firstboot -o /usr/local/sdm/sdm-firstboot
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-apt-cacher -o /usr/local/sdm/sdm-apt-cacher
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-customphase -o /usr/local/sdm/sdm-customphase
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-base-installs -o /usr/local/sdm/sdm-base-installs
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-X-installs -o /usr/local/sdm/sdm-X-installs
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/1piboot.conf -o /usr/local/sdm/sdm-1piboot/1piboot.conf
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/010-disable-triggerhappy.sh -o /usr/local/sdm/sdm-1piboot/010-disable-triggerhappy.sh
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/020-ssh-switch.sh -o /usr/local/sdm/sdm-1piboot/020-ssh-switch.sh
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/sdm-1piboot/030-disable-rsyslog.sh
+    sudo chmod -R 755 /usr/local/sdm/*
+
 ## Details
 
 sdm manages the SD Card image in Phases:
