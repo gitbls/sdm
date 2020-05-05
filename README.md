@@ -21,7 +21,7 @@ sdm only runs on Raspbian, and requires a USB SD Card reader for writing a new S
 
 ## Installing sdm
 
-Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. **The simplest download is to use EZsdmInstaller**, which performs the commands listed below:
+Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. **The simplest download is to use EZsdmInstaller**, which performs the commands listed in *the really long way*:
 
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 
@@ -103,7 +103,7 @@ sdm consists of a primary script `sdm` and several supporting scripts:
 
     * Calls the Custom Phase script for Phase 0
 
-* **sdm-phase1 -** Asks for and changes the password for the *pi* user. Optionally, if you used the sdm --user switch, creates your personal account, sets its password, protections, etc. If `--aptcache` was specified, the system is enabled as an apt-cacher-ng client. See below for details on apt-cacher-ng.
+* **sdm-phase1 -** Asks for and changes the password for the *pi* user. Optionally, if you used the sdm `--user` switch, creates your personal account, sets its password, protections, etc. If `--aptcache` was specified, the system is enabled as an apt-cacher-ng client. See below for details on apt-cacher-ng.
 
 * **sdm-base-installs -** Installs your favorite applications. Edit as desired.
 
