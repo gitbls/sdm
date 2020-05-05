@@ -8,4 +8,9 @@
 # Otherwise, we're in the nspawn so prefix not required
 #
 [[ "$0" =~ "/mnt/sdm" ]] && i="/mnt/sdm" || i=""
-echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $i/etc/sdm/history
+if [ -f "$i/etc/sdm/history" ]
+then
+    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $i/etc/sdm/history
+else
+    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" > $i/etc/sdm/history
+fi

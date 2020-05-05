@@ -48,6 +48,15 @@ do
 		poptions)
 		    poptions="$value"
 		    ;;
+		batch)
+		    batch="$value"
+		    ;;
+		bootconfig)
+		    bootconfig="$value"
+		    ;;
+		bootadd)
+		    bootadd="$value"
+		    ;;
 		cscript)
 		    cscript="$value"
 		    ;;

@@ -44,40 +44,44 @@ function changepwd() {
 source /usr/local/sdm/sdm-cparse
 /usr/local/sdm/sdm-logit "sdm Phase 1 Starting"
 
+samepwd=""
 puser="'pi'"
 susers="user"
-[ "$myuser" != "" ] && puser="${puser} and '$myuser'" && susers="users"
-[ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
-
-samepwd=""
-if askyn "Use same password for $susers $puser" "-n 1"
+if [ $rootpwd -eq 1 -o "$myuser" != "" ]
 then
-    echo ""
-    getpwd "Password" samepwd
-fi
+    [ "$myuser" != "" ] && puser="${puser} and '$myuser'" && susers="users"
+    [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
 
-echo ""
-if [ $rootpwd -eq 1 ]
-then
-    echo "Changing root password..."
-    changepwd root "$samepwd"
-    echo ""
-else
-    echo "Not changing root password"
-fi
+    if askyn "* Use same password for $susers $puser" "-n 1"
+    then
+	echo ""
+	getpwd "Password" samepwd
+    fi
 
-if [ "$myuser" != "" ]; then
-    [ $myuid != "" ] && xuid="--uid $myuid" || xuid=""
-    echo "adding user $myuser..."
-    # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
-    useradd -M -d /home/$myuser $xuid $myuser
-    usermod --gid users $myuser
-    usermod --groups dialout,cdrom,floppy,audio,video,plugdev,users $myuser
-    changepwd $myuser "$samepwd"
-    chown -R $myuser.users /home/$myuser
+    echo ""
+    if [ $rootpwd -eq 1 ]
+    then
+	echo "Changing root password..."
+	changepwd root "$samepwd"
+	echo ""
+    else
+	echo "* Not changing root password"
+    fi
+
+    if [ "$myuser" != "" ]; then
+	[ $myuid != "" ] && xuid="--uid $myuid" || xuid=""
+	echo "* Adding user $myuser..."
+	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
+	useradd -M -d /home/$myuser $xuid $myuser
+	usermod --gid users $myuser
+	usermod --groups dialout,cdrom,floppy,audio,video,plugdev,users $myuser
+	changepwd $myuser "$samepwd"
+	chown -R $myuser.users /home/$myuser
+    fi
 fi
 
 changepwd pi "$samepwd"
+echo ""
 #
 # Set up apt-cacher-ng client if requested
 #
@@ -85,9 +89,9 @@ if [ "$aptcache" != "" ]
 then
     /usr/local/sdm/sdm-apt-cacher client $aptcache
     echo ""
-    echo "Image set as an apt-cacher-ng client with caching server $aptcache"
+    echo "* Image set as an apt-cacher-ng client with caching server $aptcache"
     echo ""
-    echo "Performing apt update to confirm apt-cacher-ng is working..."
+    echo "* Performing apt update to confirm apt-cacher-ng is working..."
     apt update
 fi
 
@@ -108,3 +112,16 @@ fi
 [[ "$poptions" =~ "xwindows" ]]  && /usr/local/sdm/sdm-X-installs
 
 /usr/local/sdm/sdm-logit "sdm Phase 1 Completed"
+
+echo ""
+if [ $batch -eq 0 ]
+then
+    /usr/local/sdm/sdm-logit "sdm Phase 1 Command Prompt"
+    echo "* Dropping to a shell prompt..."
+    echo ""
+    exec bash -i
+else
+    /usr/local/sdm/sdm-logit "sdm Phase 1 Batch Mode exiting"
+    echo "* Batch Mode exiting..."
+    echo ""
+fi

@@ -6,30 +6,68 @@
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
-
 source /mnt/sdm/usr/local/sdm/sdm-cparse
 
 /mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Starting"
+echo "* Starting Phase 0 image customization"
 
-echo "Setting up ssh in boot partition"
-echo " (wpa_supplicant.conf will be done later)"
+echo "  Setting up ssh in boot partition"
+echo "  (wpa_supplicant.conf will be done later)"
 touch /mnt/sdm/boot/ssh
 #
-# Set HDMI configuration as requested
+# Set HDMI configuration if requested
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    echo "Setting hdmigroup and hdmimode in /boot/config.txt configuration"
+    echo "  Setting hdmigroup and hdmimode in /boot/config.txt configuration"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
 fi
-
+#
+# Set other config.txt settings (if any)
+#
+if [ "$bootconfig" != "" ]
+then
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Updating /boot/config.txt"
+    echo "  Updating /boot/config.txt for bootconfig: $bootconfig"
+    readarray -d, citems <<< $bootconfig
+    for c in ${citems[@]}
+    do
+	IFS=":=" read key value <<< $c
+	value="${value%,}"
+	sed -i "s/\#$key=.*/$key=$value/" /mnt/sdm/boot/config.txt
+	/mnt/sdm/usr/local/sdm/sdm-logit "sdm   $key=$value"
+	echo "  $key=$value"
+    done
+fi
+if [ "$bootadd" != "" ]
+then
+    if ! grep -q 'Following items added by sdm --bootadd' /mnt/sdm/boot/config.txt
+    then
+	/mnt/sdm/usr/local/sdm/sdm-logit "sdm Adding new keys to /boot/config.txt"
+	echo "  Updating /boot/config.txt for bootadd: $bootadd"
+	echo "# Following items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
+	readarray -d, citems <<< $bootadd
+	for c in ${citems[@]}
+	do
+	    IFS=":=" read key value <<< $c
+	    value="${value%,}"
+	    echo "$key=$value" >> /mnt/sdm/boot/config.txt
+	    /mnt/sdm/usr/local/sdm/sdm-logit "sdm   $key=$value"
+	    echo "  $key=$value"
+	done
+	echo "# Above items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
+    else
+	/mnt/sdm/usr/local/sdm/sdm-logit "sdm /boot/config.txt already updated for --bootadd; skipping"
+	echo "  /boot/config.txt already updated for --bootadd; skipping"
+    fi
+fi
 #
 # Set up sdm-firstboot service. This service sets the wifi country and hostname
 # on the first boot of the system. Other parameters are set via 0piboot
 # in the nspawn
 #
-echo "Setting up sdm-firstboot service"
+echo "  Setting up sdm-firstboot service"
 cp -f $src/sdm-firstboot /mnt/sdm/boot/
 cp -f $src/sdm-firstboot /mnt/sdm/usr/local/sdm
 [ ! -d /mnt/sdm/boot/sdm-1piboot ] && mkdir /mnt/sdm/boot/sdm-1piboot
@@ -62,7 +100,7 @@ then
     # do what we can now. Can't create the new user until nspawn. Done in sdm-phase1
     # home directory ownership fixed then as well
     #
-    echo "Add '$myuser' to sudoers.d"
+    echo "  Add '$myuser' to sudoers.d"
     echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
     chmod 440 /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
     [ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser
@@ -70,7 +108,7 @@ fi
 
 if [ "$eeprom" != "" ]
 then
-    echo "set rpi-eeprom to '$eeprom'"
+    echo "  Set rpi-eeprom to '$eeprom'"
     sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
 fi
 
@@ -82,3 +120,4 @@ then
 fi
 
 /mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Completed"
+echo "* Phase 0 Completed"

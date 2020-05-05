@@ -77,7 +77,6 @@ function writeconfig() {
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     echo "src:$src" >> $paramfile
     echo "csrc:$csrc" >> $paramfile
-#    echo "tsrc:$tsrc" >> $paramfile
     echo "myuser:$myuser" >> $paramfile
     echo "myuid:$myuid" >> $paramfile
     echo "rootpwd:$rootpwd" >> $paramfile
@@ -88,14 +87,13 @@ function writeconfig() {
     echo "aptconfirm:$aptconfirm" >> $paramfile
     echo "cscript:$cscript" >> $paramfile
     echo "poptions:$poptions" >> $paramfile
+    echo "batch:$fbatch" >> $paramfile
+    echo "bootconfig:$bootconfig" >> $paramfile
+    echo "bootadd:$bootadd" >> $paramfile
     echo "custom1:$custom1" >> $paramfile
     echo "custom2:$custom2" >> $paramfile
     echo "custom3:$custom3" >> $paramfile
     echo "custom4:$custom4" >> $paramfile
-    echo "$(date +'%Y-%m-%d %H:%M:%S') sdm Configuration Started" > /mnt/sdm/etc/sdm/history
-    # Use the sdm-logit in the mounted image so it knows to write into the image
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Parameters:"
-    /mnt/sdm/usr/local/sdm/sdm-logit "  poptions: $poptions"
 }
 
 #
@@ -103,31 +101,35 @@ function writeconfig() {
 #
 # The first 4 variables can be changed to suit your preferences for defaults
 #
-myuser=""      #Non-root user to create unless 
-myuid=""       #UID for non-root user if created
-csrc=""        #Source directory for use by Custom Phase script
-tsrc=""        #Target in image for sdm scripts [/usr/local/sdm]
-cscript=""     #Custom Phase script
-imgext=2048    #Number of MB to extend IMG (2048MB = 2GB)
-               #Must be large enough to accomodate all packages you want to install
-eeprom=""      #If set, edit /etc/default/rpi-eeprom-update
-hdmigroup=""   #If set, edit /boot/config.txt and set
-hdmimode=""    #If set, edit /boot/config.txt and set
-aptconfirm=0   #1=Pause before apt commands in sdm-apt-install and sdm-X-install
-fextendonly=0  #1=extend image by xmb MB and then exit
-fdomount=0     #1=Do a mount and drop into bash
-noextend=0     #1=Do not extend image
-fexplore=0     #1=Just fire up nspawn to explore the system
-burn=0         #1=Burn the image to the SD card
-burndev=""     #SD card device name for --burn
-hname=""       #Host name when using --burn
-rootpwd=0      #1=Set root password as well
-aptserver=""   #IP address of apt-cacher-ng server
-poptions=""    #Phase options
-custom1=""     #For custom use
-custom2=""     #For custom use
-custom3=""     #For custom use
-custom4=""     #For custom use
+myuser=""                   #Non-root user to create. Default is no non-root user created
+myuid=""                    #UID for non-root user if created
+csrc=""                     #Source directory for use by Custom Phase script
+cscript=""                  #Custom Phase script
+imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
+                            #Must be large enough to accomodate all packages you want to install
+eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
+hdmigroup=""                #If set, edit /boot/config.txt and set
+hdmimode=""                 #If set, edit /boot/config.txt and set
+bootconfig=""               #/boot/config.txt items to set
+bootadd=""                  #Items to add to /boot/config.txt
+aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
+fextendonly=0               #1=extend image by xmb MB and then exit
+fdomount=0                  #1=Do a mount and drop into bash
+noextend=0                  #1=Do not extend image
+fexplore=0                  #1=Just fire up nspawn to explore the system
+burn=0                      #1=Burn the image to the SD card
+burndev=""                  #SD card device name for --burn
+hname=""                    #Host name when using --burn
+rootpwd=0                   #1=Set root password as well
+aptserver=""                #IP address of apt-cacher-ng server
+poptions=""                 #Phase options
+fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
+custom1=""                  #For custom use
+custom2=""                  #For custom use
+custom3=""                  #For custom use
+custom4=""                  #For custom use
+nspawnsw=""                 #Switches for nspawn
+ddsw="bs=16M oflag=direct"  #Switches for dd
 #
 # custom.ized is created in the image so that we only do the customization once
 #
@@ -139,7 +141,8 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 #
 # Parse the command line
 #
-OARGS=$(getopt -o h --longoptions help,eeprom:,hdmigroup:,hdmimode:,aptconfirm,aptcache:,burn:,host:,mount,explore,noextend,cscript:,xmb:,extend,rootpwd,user:,uid:,csrc:,tsrc:,,poptions:,custom1:,custom2:,custom3:,custom4: -n 'sdm' -- "$@")
+cmdline="$0 $*"
+OARGS=$(getopt -o h --longoptions help,eeprom:,hdmigroup:,hdmimode:,aptconfirm,aptcache:,burn:,host:,mount,explore,noextend,cscript:,xmb:,extend,rootpwd,user:,uid:,csrc:,,poptions:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,batch,bootconfig:,bootadd: -n 'sdm' -- "$@")
 [ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
 eval set -- "$OARGS"
 
@@ -152,7 +155,6 @@ do
 	--xmb)         imgext=$2    ; shift 2 ;;
 	--extend)      fextendonly=1 ; shift ;;
 	--csrc)        csrc=$2      ; shift 2 ;;
-	--tsrc)        tsrc=$2      ; shift 2 ;;
 	--user)        myuser=$2    ; shift 2 ;;
 	--uid)         myuid=$2     ; shift 2 ;;
 	--rootpwd)     rootpwd=1    ; shift  ;;
@@ -171,6 +173,11 @@ do
 	--custom2)     custom2=$2   ; shift 2 ;;
 	--custom3)     custom3=$2   ; shift 2 ;;
 	--custom4)     custom4=$2   ; shift 2 ;;
+	--ddsw)        ddsw=$2      ; shift 2 ;;
+	--nspawnsw)    nspawnsw=$2  ; shift 2 ;;
+	--batch)       fbatch=1     ; shift ;;
+	--bootconfig)  bootconfig=$2 ; shift 2 ;;
+	--bootadd)     bootadd=$2   ; shift 2 ;;
 	--)            shift ; break ;;
 	-h|--help)     echo "Usage:" ;
 echo "sudo sdm [switches] disk-image-file" ;
@@ -192,7 +199,6 @@ echo " --host hostname     Hostname to burn into the image with --burn" ;
 echo "  * Customization switches (no --burn or --explore) *" ;
 echo " --cscript script    Custom Phase Configuration script" ;
 echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
-#echo " --tsrc dir          Directory in image for sdm scripts [/usr/local/sdm]" ;
 echo " --extend            Only extend the image; no other customizations" ;
 echo " --noextend          Don't extend the image file" ;
 echo " --xmb n             Extend image file by n MB [2048]" ;
@@ -201,6 +207,11 @@ echo " --uid uid           UID for non-root user [next free]" ;
 echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
 echo " --rootpwd           Set a root password into the image" ;
 echo " --custom[1-4] str   Can be used in Custom cscripts" ;
+echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
+echo " --nspawnsw str      Additional switches for nspawn command" ;
+echo " --batch             Perform Phase 1 in the container and exit" ;
+echo " --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt" ;
+echo " --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt" ;
 shift ; exit ;;
 	*) echo "? $0: Internal error!" ; exit 1 ;;
     esac
@@ -237,7 +248,6 @@ fi
 [ "$hdmimode" != "" -a "$hdmigroup" == "" ] && echo "? --hdmimode set but not --hdmigroup" && exit
 [ "$hdmigroup" != "" -a "$hdmimode" == "" ] && echo "? --hdmigroup set but not --hdmimode" && exit
 [ "$cscript" != "" -a ! -x "$cscript" ] && echo "? cscript '$cscript' is not executable or does not exist" && exit
-#[ "$tsrc" == "" ] && tsrc="usr/local/sdm" || tsrc="${tsrc#/}"     #Don't want leading "/"
 if [ "$eeprom" != "" ]
 then
     if [[ ! "$critical/stable/beta" =~ "$eeprom" ]]
@@ -256,26 +266,26 @@ then
 	echo "? Device '$burndev' is mounted"
 	exit
     fi
-    echo "Copying $dimg to SD card..."
+    echo "* Copying $dimg to SD card $burndev..."
+    echo "dd if=$dimg of=$burndev status=progress $ddsw"
+    dd if=$dimg of=$burndev status=progress $ddsw
     echo ""
-    dd if=$dimg of=$burndev bs=16M status=progress oflag=direct
-    echo ""
-    sync    #Help ensure mount success?
+    sync    #Help ensure mount success? (had a mount error once)
     mount -v ${burndev}1 /mnt/sdm
-    if [ "$hname" != "" -a -d /mnt/sdm/sdm-1piboot -a -f /mnt/sdm/sdm-1piboot/1piboot.conf ]
+    if [ -d /mnt/sdm/sdm-1piboot -a -f /mnt/sdm/sdm-1piboot/1piboot.conf ]
     then
-	echo "Setting host name '$hname' onto SD card image for sdm-firstboot"
+	echo "* Setting host name '$hname' onto SD card image for sdm-firstboot"
         sed -i "s/xxxxx/$hname/" /mnt/sdm/sdm-1piboot/1piboot.conf
     else
 	echo "% Could not mount SD Card partition 1 to write hostname"
     fi
     [ -d /mnt/sdm/sdm-1piboot ] && umount -v /mnt/sdm
+    echo "* Writing burn log entry on the SD Card..."
     mount -v ${burndev}2 /mnt/sdm
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Burn command line: $cmdline"
     /mnt/sdm/usr/local/sdm/sdm-logit "sdm Created SD Card from $dimg"
-#    echo "$(date +'%Y-%m-%d %H:%M:%S') sdm Created SD Card from $dimg" >> /mnt/sdm/etc/sdm/history
     umount -v /mnt/sdm
-    echo ""
-    echo "Done"
+    echo "* SD Card is Ready"
     exit
 fi
 
@@ -316,6 +326,7 @@ fi
 
 if [ -f $sdmdone -o $fexplore -eq 1 ]
 then
+    cmd=""
     #
     # Don't want to do the customization twice, so check for that.
     # If it's already run, just drop into the image for hands on access
@@ -331,30 +342,35 @@ then
     fi
 else
     echo ""
-    echo "Starting Phase 0 image customization"
-    flags=""
-    echo "$(date +'%Y-%m-%d %H:%M:%S') sdm Configuration Started" > /mnt/sdm/etc/sdm/history
+    cmd="/usr/local/sdm/sdm-phase1"
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-cparse,sdm-apt-cacher,sdm-base-installs,sdm-X-installs} /mnt/sdm/usr/local/sdm
     [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
+
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Configuration Started"
+    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Command Line: $cmdline"
+
     writeconfig                                         #Write arguments into IMG
     /mnt/sdm/usr/local/sdm/sdm-phase0
     touch $sdmdone
     
     echo ""
-    echo "Ready to nspawn into the new image for Phase 1"
-    echo "Perform any desired inspection and manual configuration such as:"
-    echo " * /usr/local/sdm/sdm-phase1        Set account passwords, apt-cacher-ng if set"
+    echo "* Ready to nspawn into the new image for Phase 1"
+    echo ""
+    echo "  sdm will:"
+    echo "   * Run /usr/local/sdm/sdm-phase1   Set account passwords, apt-cacher-ng if set"
     echo "                                     run custom Phase 1 script"
     echo "                                     and any installs selected with --poptions"
-    echo "  You have selected '$poptions' Install options"
-    echo "   out of 'firstboot', 'base', 'xwindows', and 'xdmconsole'"
+    echo "     You have selected '$poptions' Install options"
+    echo "       out of possible 'firstboot', 'base', 'xwindows', and 'xdmconsole'"
+    echo ""
+    [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
 fi
 
 echo ""
 echo "Type 'exit' when complete"
 echo ""
-systemd-nspawn --directory=/mnt/sdm < $(tty)
+systemd-nspawn --directory=/mnt/sdm $nspawnsw $cmd < $(tty)
 docleanup
 
 echo "Done"

@@ -13,12 +13,12 @@ then
     # must be preceded by /mnt/sdm
     #
     echo ""
-    echo "Starting Custom Phase 0..."
+    echo "* Starting Custom Phase 0..."
     source /mnt/sdm/usr/local/sdm/sdm-cparse
 
     /mnt/sdm/usr/local/sdm/sdm-logit "xxx sdm-customphase Phase 0 Starting"
 
-    echo "Copy wpa_supplicant.conf"
+    echo "  Copy wpa_supplicant.conf"
     cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/boot
     # Can also copy to the specific device wpa_supplicant if desired
     cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
@@ -33,7 +33,7 @@ then
     cp -f $csrc/etc/fstab.lan /mnt/sdm/etc
     echo "/        192.168.92.0/24(rw,no_root_squash,no_subtree_check,insecure)" >> /mnt/sdm/etc/.exports
     
-    echo "Copy /usr/local/bin config scripts" 
+    echo "  Copy /usr/local/bin config scripts" 
     
     for f in \
 		     wlanset \
@@ -44,7 +44,7 @@ then
     
     if [ "$myuser" != "" ]
     then
-	echo "Copy $myuser login files to /mnt/sdm/home/$myuser"
+	echo "  Copy $myuser login files to /mnt/sdm/home/$myuser"
 	[ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser   # Should be created in sdm-phase0, but just to be safe
 	cp -f /home/$myuser/{.bashrc,.emacs,.inputrc,.vimrc} /mnt/sdm/home/$myuser
 	echo "source /home/$myuser/.bashrc" > /mnt/sdm/home/$myuser/.bash_profile
@@ -59,7 +59,7 @@ then
 #    [ -f /mnt/sdm/etc/systemd/timesyncd.conf ] && mv /mnt/sdm/etc/systemd/timesyncd.conf /mnt/sdm/etc/systemd/timesyncd.conf.orig
 #    cp $csrc/systemd/timesyncd.conf /mnt/sdm/etc/systemd
 
-    echo "Custom Phase 0 completed..."
+    echo "* Custom Phase 0 completed..."
     /mnt/sdm/usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 0 Completed" 
 else
     #
@@ -68,7 +68,7 @@ else
     # In Phase 1 all references to directories in the image can be direct
     #
     source /usr/local/sdm/sdm-cparse
-    echo "Starting Custom Phase 1..."
+    echo "* Starting Custom Phase 1..."
    /usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 1 Starting"
 
 #   echo "Enabling systemd VNC sockets..."
@@ -76,6 +76,6 @@ else
 #   systemctl enable xvnc1.socket
 #   systemctl enable xvnc2.socket
 
-   echo "Custom Phase 1 completed..."
+   echo "* Custom Phase 1 completed..."
    /usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 1 Completed"
 fi
