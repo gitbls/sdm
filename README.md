@@ -95,7 +95,7 @@ sdm consists of a primary script `sdm` and several supporting scripts:
 
     * Sets up ssh in the IMG boot partition. wpa_supplicant needs to be set in a Custom Phase script since it's original source can be anywhere.
 
-    * If --user is specified, creates the user's home directory so that your Custom Phase script can copy files into it during Phase 0. The user is also enabled to use `sudo` like the user *pi*.
+    * If `--user` is specified, creates the user's home directory so that your Custom Phase script can copy files into it during Phase 0. The user is also enabled to use `sudo` like the user *pi*.
 
     * Installs and configures the sdm-firstboot service
 
@@ -187,7 +187,7 @@ sdm leaves a couple of files in /etc/sdm that are used to control its operation 
 
 * *cparams* are the parameters with which sdm was initially run on the image
 
-* *custom.ized* tells sdm that the image has been customized. If this exists, sdm will not rerun Phase 0. If you really want to rerun Phase 0 on an already-customized image, use sdm --explore to nspawn into the image and `rm -f /etc/sdm/custom.ized`.
+* *custom.ized* tells sdm that the image has been customized. If this exists, sdm will not rerun Phase 0. If you really want to rerun Phase 0 on an already-customized image, use `sdm --explore` to nspawn into the image and `rm -f /etc/sdm/custom.ized`.
 
 ## Cleaning up dangling mounts
 
