@@ -21,16 +21,16 @@ sdm only runs on Raspbian, and requires a USB SD Card reader for writing a new S
 
 ## Installing sdm
 
-Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. The simplest download is:
+Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. **The simplest download is to use EZsdmInstaller**, which performs the commands listed below:
 
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 
-or download the Installer script to examine it before running:
+**or download the Installer script to examine it before running:**
 
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o ./EZsdmInstaller
     ./EZsdmInstaller
 
-Or, download it the really long way:
+**Or, download it the really long way:**
 
     sudo mkdir -p /usr/local/sdm /usr/local/sdm/sdm-1piboot
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm -o /usr/local/sdm/sdm
@@ -59,7 +59,7 @@ sdm manages the SD Card image in Phases:
 
     Most, but not all commands can be used in Phase 1. For instance, `systemctl` doesn't work because systemd is not running in the nspawn'ed image. But, new users can be added, passwords can be changed, packages can be installed, etc. In other words, you can do almost everything you want to configure a system for repeated SD card burns.
 
-    Once you get a command prompt in the nspawn'ed system, enter `/usr/local/sdm/sdm-phase1` to perform Phase 1 customization. As with Phase 0, your personal customization script will be called.
+    Once sdm has started the nspawn container, it will automatically run /usr/local/sdm/sdm-phase1 to perform Phase 1 customization. As with Phase 0, your personal customization script will be called. After Phase 1 has completed, sdm will provide a command prompt inside the container unless you specified `--batch`, in which case sdm will exit the container.
 
 * **Phase 2:** *Writing the SD Card*. The IMG is written to the new physical SD card using ***dd***, and the new system name is written to the SD card. This enables a single IMG file to be the source for as many Pi systems as you'd like.
 
@@ -73,7 +73,9 @@ sdm manages the SD Card image in Phases:
 
 * `sudo /usr/local/sdm/sdm --poptions firstboot:base --user bls --uid 1600 --hdmigroup 2 --hdmimode 82 --cscript /path/to/my-phase-script --csrc /rpi 2020-02-13-raspbian-buster-lite.img`
 
-    Installs the sdm-firstboot service, and whatever base applications you have set up in sdm-base-installs. The Custom Phase script is called where your own customizations can be done. The user *bls* is created with a UID of 1600. The config.txt settings for hdmigroup and hdmimode are set.
+    *or* `sudo /usr/local/sdm/sdm --poptions firstboot:base --user bls --uid 1600 --bootconfig hdmigroup:2,hdmimode:82 --cscript /path/to/my-phase-script --csrc /rpi 2020-02-13-raspbian-buster-lite.img`
+
+    Installs the sdm-firstboot service, and whatever base applications you have set up in sdm-base-installs. The Custom Phase script is called where your own customizations can be done. The user *bls* is created with a UID of 1600. The config.txt settings for hdmigroup and hdmimode are set in both examples.
 
 * `sudo /usr/local/sdm/sdm --burn /dev/sdc --host sky 2020-02-13-raspbian-buster-lite.img`
 
@@ -131,19 +133,25 @@ sdm consists of a primary script `sdm` and several supporting scripts:
     * `--user username` - If provided, the specified user will be created.
 * `sdm --burn /dev/sdX --host hostname raspbian-image.img` - Burns the IMG file onto the specified SD card and sets the hostname on the card. (Phase 2)
 * `sdm --extend [--xmb nnn] raspbian-image.img` - Extends the image by the specified size and exits. Use --noextend if you need to re-enter sdm to prevent further extensions.
-* `sdm --explore raspian-image.img` - Uses systemd-nspawn to "go into" the IMG file to explore and/or make manual changes to the image. --explore disables extending the image* `sdm --mount raspbian-image.img` - Mounts the IMG file onto the running system. This enables you to manually and easily copy files from the running Raspbian system into the IMG. BE CAREFUL, as you're running as root with access to everything.
+* `sdm --explore raspian-image.img` - Uses systemd-nspawn to "go into" the IMG file to explore and/or make manual changes to the image. --explore disables extending the image
+* `sdm --mount raspbian-image.img` - Mounts the IMG file onto the running system. This enables you to manually and easily copy files from the running Raspbian system into the IMG. BE CAREFUL, as you're running as root with access to everything.
 
 Additional sdm command switches include:
 
-* `--poptions value` - Controls which scripts will be called by sdm-phase1. Possible options include: firstboot, base, and xwindows. Enter multiple values as a single string separated by a colon or comma. For example `--poptions firstboot:base` or `--poptions firstboot,base,xwindows`
 * `--aptcache IPaddr` - Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--aptconfirm` - Prompt for confirmation before APT installs and updates are done in sdm Phase 1.
-* `--csrc /path/to/csrcdir` - A source directory string that can be used in your Custom Phase script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to smb with `--csrc`.
+* `--batch` - Do not provide an interactive command prompt inside the nspawn container.
+* `--bootconfig key:value,key:value,...` - Update existing, commented keys in /boot/config.txt
+* `--bootadd key:value,key:value,...` - Add new keys/values to /boot/config.txt
+* `--csrc /path/to/csrcdir` - A source directory string that can be used in your Custom Phase script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`.
+* `--custom[1-4]` - 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize scripts that sdm uses. See sdm-X-installs for an example
+* `--ddsw "switches" - Provide switches for the --burn `dd` command. Default is "bs=16M"
 * `--eeprom value` - Change the eeprom value in /etc/default/rpi-eeprom-update. The Raspbian default is 'critical', which is fine for most users. Change only if you know what you're doing.
 * `--hdmigroup num` - hdmigroup setting in config.txt
 * `--hdmimode num` - hdmimode setting in config.txt
+* `--nspawnsw "switches" - Provide additional switches for the systemd-nspawn command
+* `--poptions value` - Controls which scripts will be called by sdm-phase1. Possible options include: firstboot, base, and xwindows. Enter multiple values as a single string separated by a colon or comma. For example `--poptions firstboot:base` or `--poptions firstboot,base,xwindows`
 * `--uid uid` - Use the specified uid rather than the next assignable uid for the new user, if created.
-* `--custom[1-4]` - 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize scripts that sdm uses. See sdm-X-installs for an example
 
 ## sdm-firstboot
 
