@@ -19,6 +19,21 @@ As a bonus, sdm includes a configuration script for apt-cacher-ng. apt-cacher-ng
 
 sdm only runs on Raspbian, and requires a USB SD Card reader for writing a new SD Card. And, no, you cannot use sdm to rewrite the running system's SD Card.
 
+## Getting Started
+
+A quick outline of the steps to get started with sdm:
+
+* Download sdm (see next section *Installing sdm*)
+* Edit sdm-base-installs to select the packages you want to install
+* Using Raspbian Full? You probably won't need sdm-X-installs. 
+* Using Raspbian Lite and want X Windows? Start with sdm-X installs, or not. Your choice.
+* For other customizations, copy sdm-customphase to a file of your choice, and edit away. Be aware of the two phases:
+    * Phase 0: Script has access to the host file system. Great time to copy files from the host system or the network into your IMG file
+    * Phase 1: Running inside the nspawn container, so can't access the host file system, but you can add users, etc.
+* Edit /usr/local/sdm/sdm-1piboot/1piboot.conf and change the values appropriately for your locale, keymap, timezone, and WiFi Country.
+
+You're ready to give it a try!
+
 ## Installing sdm
 
 Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. **The simplest download is to use EZsdmInstaller**, which performs the commands listed in *the really long way*:
