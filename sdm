@@ -1,5 +1,6 @@
 #!/bin/bash
 #
+#
 # Manage, customize, or burn an SD Card from a Raspbian image
 #
 # Useful for maintaining one or more Pis. The general idea is to keep a "golden" image
@@ -99,8 +100,8 @@ function writeconfig() {
 #
 # Initialize and Parse the command
 #
-# The first 4 variables can be changed to suit your preferences for defaults
 #
+version="V1.1"
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
 csrc=""                     #Source directory for use by Custom Phase script
@@ -130,6 +131,7 @@ custom3=""                  #For custom use
 custom4=""                  #For custom use
 nspawnsw=""                 #Switches for nspawn
 ddsw="bs=16M oflag=direct"  #Switches for dd
+pvers=0                     #Print version number
 #
 # custom.ized is created in the image so that we only do the customization once
 #
@@ -142,7 +144,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,eeprom:,hdmigroup:,hdmimode:,aptconfirm,aptcache:,burn:,host:,mount,explore,noextend,cscript:,xmb:,extend,rootpwd,user:,uid:,csrc:,,poptions:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,batch,bootconfig:,bootadd: -n 'sdm' -- "$@")
+OARGS=$(getopt -o h --longoptions help,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,mount,noextend,poptions:,rootpwd,xmb:,uid:,user:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,version -n 'sdm' -- "$@")
 [ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
 eval set -- "$OARGS"
 
@@ -164,10 +166,10 @@ do
 		       burndev=$2   ; shift 2 ;;
 	--host)        hname=$2     ; shift 2 ;;
 	--aptcache)    aptserver=$2 ; shift 2 ;;
+	--aptconfirm)  aptconfirm=1 ; shift ;;
 	--eeprom)      eeprom=$2    ; shift 2 ;;
 	--hdmigroup)   hdmigroup=$2 ; shift 2 ;;
 	--hdmimode)    hdmimode=$2  ; shift 2 ;;
-	--aptconfirm)  aptconfirm=1 ; shift ;;
 	--poptions)    poptions=$2  ; shift 2 ;;
 	--custom1)     custom1=$2   ; shift 2 ;;
 	--custom2)     custom2=$2   ; shift 2 ;;
@@ -178,10 +180,10 @@ do
 	--batch)       fbatch=1     ; shift ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
 	--bootadd)     bootadd=$2   ; shift 2 ;;
+	--version)     pvers=1      ; shift ;;
 	--)            shift ; break ;;
 	-h|--help)     echo "Usage:" ;
 echo "sudo sdm [switches] disk-image-file" ;
-echo "" ;
 echo "Customize an SD Card image (no --burn, --explore, or --extend)" ;
 echo "   sudo sdm sd-image-file" ;
 echo " or drop into an nspawn shell in the SD Card image (--explore)" ;
@@ -192,26 +194,27 @@ echo "   sudo sdm --burn /dev/sdx --host target-hostname sd-image-file" ;
 #echo "   sudo sdm --mount sd-image-file" ;
 echo "" ;
 echo "Switches" ;
-echo " --explore           Explore (nspawn shell) into image" ;
-echo " --mount             Mount IMG file partitions and drop into bash" ;
 echo " --burn devname      Copy the image to the SD card" ;
 echo " --host hostname     Hostname to burn into the image with --burn" ;
+echo " --explore           Explore (nspawn shell) into image" ;
+echo " --mount             Mount IMG file partitions and drop into bash" ;
 echo "  * Customization switches (no --burn or --explore) *" ;
+echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
+echo " --batch             Perform Phase 1 in the container and exit" ;
+echo " --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt" ;
+echo " --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt" ;
 echo " --cscript script    Custom Phase Configuration script" ;
 echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
-echo " --extend            Only extend the image; no other customizations" ;
-echo " --noextend          Don't extend the image file" ;
-echo " --xmb n             Extend image file by n MB [2048]" ;
-echo " --user username     Non-root user to create" ;
-echo " --uid uid           UID for non-root user [next free]" ;
-echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
-echo " --rootpwd           Set a root password into the image" ;
 echo " --custom[1-4] str   Can be used in Custom cscripts" ;
 echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
+echo " --extend            Only extend the image; no other customizations" ;
+echo " --noextend          Don't extend the image file" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
-echo " --batch             Perform Phase 1 in the container and exit" ;
-echo " --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt" ;
-echo " --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt" ;
+echo " --rootpwd           Set a root password into the image" ;
+echo " --uid uid           UID for non-root user [next free]" ;
+echo " --user username     Non-root user to create" ;
+echo " --xmb n             Extend image file by n MB [2048]" ;
+echo " --version           Print sdm version number" ;
 shift ; exit ;;
 	*) echo "? $0: Internal error!" ; exit 1 ;;
     esac
@@ -220,6 +223,7 @@ done
 dimg="$1"
 src=$(dirname $0)
 
+[ $pvers -eq 1 ] && echo "sdm $version" && exit
 [ "$dimg" == "" ] && echo "? No disk image specified" && exit
 [ ! -f "$dimg" ] && echo "? Disk image file '$dimg' does not exist" && exit
 #
@@ -266,7 +270,7 @@ then
 	echo "? Device '$burndev' is mounted"
 	exit
     fi
-    echo "* Copying $dimg to SD card $burndev..."
+    echo "* Copying '$dimg' to SD card '$burndev'..."
     echo "dd if=$dimg of=$burndev status=progress $ddsw"
     dd if=$dimg of=$burndev status=progress $ddsw
     echo ""
@@ -326,7 +330,7 @@ fi
 
 if [ -f $sdmdone -o $fexplore -eq 1 ]
 then
-    cmd=""
+    spawncmd=""
     #
     # Don't want to do the customization twice, so check for that.
     # If it's already run, just drop into the image for hands on access
@@ -342,9 +346,9 @@ then
     fi
 else
     echo ""
-    cmd="/usr/local/sdm/sdm-phase1"
-    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-cparse,sdm-apt-cacher,sdm-base-installs,sdm-X-installs} /mnt/sdm/usr/local/sdm
+    spawncmd="/usr/local/sdm/sdm-phase1"
+    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit,sdm-cparse} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-apt-cacher,sdm-base-installs,sdm-X-installs} /mnt/sdm/usr/local/sdm
     [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
 
     /mnt/sdm/usr/local/sdm/sdm-logit "sdm Configuration Started"
@@ -370,7 +374,7 @@ fi
 echo ""
 echo "Type 'exit' when complete"
 echo ""
-systemd-nspawn --directory=/mnt/sdm $nspawnsw $cmd < $(tty)
+systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
 docleanup
 
 echo "Done"
