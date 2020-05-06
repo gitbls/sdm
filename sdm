@@ -101,7 +101,7 @@ function writeconfig() {
 # Initialize and Parse the command
 #
 #
-version="V1.1"
+version="V1.2"
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
 csrc=""                     #Source directory for use by Custom Phase script
@@ -182,7 +182,9 @@ do
 	--bootadd)     bootadd=$2   ; shift 2 ;;
 	--version)     pvers=1      ; shift ;;
 	--)            shift ; break ;;
-	-h|--help)     echo "Usage:" ;
+	-h|--help)     echo "sdm $version" ;
+echo "" ;
+echo "Usage:" ;
 echo "sudo sdm [switches] disk-image-file" ;
 echo "Customize an SD Card image (no --burn, --explore, or --extend)" ;
 echo "   sudo sdm sd-image-file" ;
@@ -200,6 +202,7 @@ echo " --explore           Explore (nspawn shell) into image" ;
 echo " --mount             Mount IMG file partitions and drop into bash" ;
 echo "  * Customization switches (no --burn or --explore) *" ;
 echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
+echo " --aptconfirm        Enable confirmation before apt commands" ;
 echo " --batch             Perform Phase 1 in the container and exit" ;
 echo " --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt" ;
 echo " --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt" ;
@@ -207,9 +210,14 @@ echo " --cscript script    Custom Phase Configuration script" ;
 echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
 echo " --custom[1-4] str   Can be used in Custom cscripts" ;
 echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
+echo " --eeprom str        Set the Pi eeprom directory" ;
 echo " --extend            Only extend the image; no other customizations" ;
+echo " --noextend          Do not extend the image" ;
+echo " --hdmigroup n       Set /boot/config.txt hdmigroup value" ;
+echo " --hdmimode n        Set /boot/config.txt hdmimode value" ;
 echo " --noextend          Don't extend the image file" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
+echo " --poptions str      Set Phase 1 auto-run options" ;
 echo " --rootpwd           Set a root password into the image" ;
 echo " --uid uid           UID for non-root user [next free]" ;
 echo " --user username     Non-root user to create" ;
