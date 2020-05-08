@@ -27,7 +27,7 @@ A quick outline of the steps to get started with sdm:
 * Edit sdm-base-installs to select the packages you want to install
 * Using Raspbian Full? You probably won't need sdm-X-installs. 
 * Using Raspbian Lite and want X Windows? Start with sdm-X installs, or not. Your choice.
-* For other customizations, copy sdm-customphase to a file of your choice, and edit away. Be aware of the two phases:
+* For other customizations, copy sdm-customphase to a location of your choice, and edit away. Be aware of the two phases:
     * Phase 0: Script has access to the host file system. Great time to copy files from the host system or the network into your IMG file
     * Phase 1: Running inside the nspawn container, so can't access the host file system, but you can add users, etc.
 * Edit /usr/local/sdm/sdm-1piboot/1piboot.conf and change the values appropriately for your locale, keymap, timezone, and WiFi Country.
@@ -210,9 +210,12 @@ If something is not working right, make sure that there are no dangling mounts i
 
 You can unmount them by manually using `sudo umount -v /mnt/sdm/{boot,}`. This will umount /mnt/sdm/boot and then /mnt/sdm. You'll also need to ensure that the loop device was deleted.
 
-## Cleaning up loop devices
+## Loop devices
+
+A couple of quick notes on loop devices, which are used to mount the IMG file into the running system.
 
 * `losetup -a` will list all loop devices
 
 * `losetup -d /dev/loopX` will delete the loop device /dev/loopX (e.g., /dev/loop0). You may need to do this to finish cleaning up from dangling mounts (which you'll do first, before deleting the loop device).
 
+* If your system doesn't have enough loop devices, you can increase the number by adding max_loop=n on end of /boot/cmdline.txt
