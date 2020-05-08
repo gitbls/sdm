@@ -5,7 +5,8 @@
 # $1 is the phase: 0 or 1
 
 phase=$1
-
+me="sdm"   # Change this if you wish, to help differentiate messages in /etc/sdm/history
+pfx="$me $(basename $0) Phase $phase"
 if [ $phase == "0" ]
 then
     #
@@ -16,9 +17,10 @@ then
     echo "* Starting Custom Phase 0..."
     source /mnt/sdm/usr/local/sdm/sdm-cparse
 
-    /mnt/sdm/usr/local/sdm/sdm-logit "xxx sdm-customphase Phase 0 Starting"
+    /mnt/sdm/usr/local/sdm/sdm-logit "$pfx Phase 0 Starting"
 
     echo "  Copy wpa_supplicant.conf"
+    /mnt/sdm/usr/local/sdm/sdm-logit "$pfx Copy wpa_supplicant.conf"
     cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/boot
     # Can also copy to the specific device wpa_supplicant if desired
     cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
@@ -34,6 +36,7 @@ then
     echo "/        192.168.92.0/24(rw,no_root_squash,no_subtree_check,insecure)" >> /mnt/sdm/etc/.exports
     
     echo "  Copy /usr/local/bin config scripts" 
+    /mnt/sdm/usr/local/sdm/sdm-logit "$pfx Copy /usr/local/bin config scripts"
     
     for f in \
 		     wlanset \
@@ -45,6 +48,7 @@ then
     if [ "$myuser" != "" ]
     then
 	echo "  Copy $myuser login files to /mnt/sdm/home/$myuser"
+	/mnt/sdm/usr/local/sdm/sdm-logit "$pfx Copy $myuser login files to /mnt/sdm/home/$myuser"
 	[ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser   # Should be created in sdm-phase0, but just to be safe
 	cp -f /home/$myuser/{.bashrc,.emacs,.inputrc,.vimrc} /mnt/sdm/home/$myuser
 	echo "source /home/$myuser/.bashrc" > /mnt/sdm/home/$myuser/.bash_profile
@@ -59,8 +63,8 @@ then
 #    [ -f /mnt/sdm/etc/systemd/timesyncd.conf ] && mv /mnt/sdm/etc/systemd/timesyncd.conf /mnt/sdm/etc/systemd/timesyncd.conf.orig
 #    cp $csrc/systemd/timesyncd.conf /mnt/sdm/etc/systemd
 
-    echo "* Custom Phase 0 completed..."
-    /mnt/sdm/usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 0 Completed" 
+    echo "* Custom Phase 0 Completed..."
+    /mnt/sdm/usr/local/sdm/sdm-logit "$pfx Phase 0 Completed"
 else
     #
     # Phase 1 (in nspawn)
@@ -69,7 +73,7 @@ else
     #
     source /usr/local/sdm/sdm-cparse
     echo "* Starting Custom Phase 1..."
-   /usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 1 Starting"
+    /usr/local/sdm/sdm-logit "$pfx Starting"
 
 #   echo "Enabling systemd VNC sockets..."
 #   systemctl enable xvnc0.socket
@@ -77,5 +81,5 @@ else
 #   systemctl enable xvnc2.socket
 
    echo "* Custom Phase 1 completed..."
-   /usr/local/sdm/sdm-logit "bls bls-sdm-customize Phase 1 Completed"
+   /usr/local/sdm/sdm-logit "$pfx Completed"
 fi
