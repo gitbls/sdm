@@ -9,7 +9,7 @@ source /usr/local/sdm/sdm-cparse
 
 apt update
 
-utils="keychain vim emacs dnsutils putty aptitude qpdfview avahi-utils python3-pip uuid-runtime lftp ncftp tmux mc iftop"
+utils="keychain vim emacs at-spi2-core dnsutils putty aptitude qpdfview avahi-utils python3-pip uuid-runtime lftp ncftp tmux mc iftop"
 utils="$utils nfs-kernel-server whois telnet lsof iperf3 zip nmap feh links2 systemd-container zerofree"
 
 echo "Installing important stuff ($utils)..."
