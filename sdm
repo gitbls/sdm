@@ -42,6 +42,15 @@ function domount() {
     mount -v ${loop}p1 /mnt/sdm/boot
 }
 
+function ismounted() {
+    if grep -qs $1 /proc/mounts
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+
 function extendimage() {
     local ldimg=$1 limgext=$2
     local line dsiz
@@ -101,7 +110,7 @@ function writeconfig() {
 # Initialize and Parse the command
 #
 #
-version="V1.2"
+version="V1.3"
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
 csrc=""                     #Source directory for use by Custom Phase script
@@ -256,7 +265,6 @@ fi
 [ $fdomount -eq 1 -a $fexplore -eq 1 ] && echo "? Conflicting switches: --mount and --explore" && exit
 [ "$src" != "" -a ! -d "$src" ] && echo "? Source directory '$src' not found" && exit
 [ "$csrc" != "" -a ! -d "$csrc" ] && echo "? Custom source directory '$csrc' not found" && exit
-[ $burn -eq 1 -a "$hname" == "" ] && echo "? --host required with --burn'" && exit
 [ "$hdmimode" != "" -a "$hdmigroup" == "" ] && echo "? --hdmimode set but not --hdmigroup" && exit
 [ "$hdmigroup" != "" -a "$hdmimode" == "" ] && echo "? --hdmigroup set but not --hdmimode" && exit
 [ "$cscript" != "" -a ! -x "$cscript" ] && echo "? cscript '$cscript' is not executable or does not exist" && exit
@@ -273,30 +281,43 @@ fi
 if [ $burn -eq 1 ]
 then
     [ "$burndev" == "" ] && echo "? No SD card specified" && exit
-    if grep -qs $burndev /proc/mounts
+    if ismounted $burndev
     then
 	echo "? Device '$burndev' is mounted"
 	exit
     fi
+    [ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card"
     echo "* Copying '$dimg' to SD card '$burndev'..."
     echo "dd if=$dimg of=$burndev status=progress $ddsw"
     dd if=$dimg of=$burndev status=progress $ddsw
     echo ""
-    sync    #Help ensure mount success? (had a mount error once)
-    mount -v ${burndev}1 /mnt/sdm
-    if [ -d /mnt/sdm/sdm-1piboot -a -f /mnt/sdm/sdm-1piboot/1piboot.conf ]
+    [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
+    sync
+    if [ "$hname" != "" ]
     then
-	echo "* Setting host name '$hname' onto SD card image for sdm-firstboot"
-        sed -i "s/xxxxx/$hname/" /mnt/sdm/sdm-1piboot/1piboot.conf
-    else
-	echo "% Could not mount SD Card partition 1 to write hostname"
+	mount -v ${burndev}1 /mnt/sdm
+	if ismounted ${burndev}1 
+	then
+	    if [ -d /mnt/sdm/sdm-1piboot -a -f /mnt/sdm/sdm-1piboot/1piboot.conf ]
+	    then
+		echo "* Setting host name '$hname' onto SD card image for sdm-firstboot"
+		sed -i "s/xxxxx/$hname/" /mnt/sdm/sdm-1piboot/1piboot.conf
+	    else
+		echo "% sdm firstboot is not configured in this image; hostname will not be written to SD Card"
+	    fi
+	    umount -v ${burndev}1
+	fi
     fi
-    [ -d /mnt/sdm/sdm-1piboot ] && umount -v /mnt/sdm
-    echo "* Writing burn log entry on the SD Card..."
     mount -v ${burndev}2 /mnt/sdm
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Burn command line: $cmdline"
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Created SD Card from $dimg"
-    umount -v /mnt/sdm
+    if [ -d /mnt/sdm/usr/local/sdm -a -x /usr/local/sdm/sdm-logit ]
+    then
+	echo "* Writing burn log entry on the SD Card..."
+	/mnt/sdm/usr/local/sdm/sdm-logit "sdm Burn command line: $cmdline"
+	/mnt/sdm/usr/local/sdm/sdm-logit "sdm Created SD Card from $dimg"
+    else
+	echo "% IMG is not sdm-enhanced; burn log entry will not be written to SD Card"
+    fi
+    umount -v ${burndev}2
     echo "* SD Card is Ready"
     exit
 fi
