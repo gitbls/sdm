@@ -57,8 +57,6 @@ Installation is fairly simple. sdm uses the path /usr/local/sdm within images th
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-firstboot -o /usr/local/sdm/sdm-firstboot
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-apt-cacher -o /usr/local/sdm/sdm-apt-cacher
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-customphase -o /usr/local/sdm/sdm-customphase
-    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-base-installs -o /usr/local/sdm/sdm-base-installs
-    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-X-installs -o /usr/local/sdm/sdm-X-installs
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/1piboot.conf -o /usr/local/sdm/1piboot/1piboot.conf
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/010-disable-triggerhappy.sh -o /usr/local/sdm/1piboot/010-disable-triggerhappy.sh
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/020-ssh-switch.sh -o /usr/local/sdm/1piboot/020-ssh-switch.sh
