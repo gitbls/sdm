@@ -3,24 +3,27 @@
 # EZ Installer. Run from the bash command line:
 #
 #    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
-
-#!/bin/bash
+#
+# Installs into /usr/local/sdm by default
+# If you specify a different directory (first argument), it assumes that sudo is not required
+#
 
 [ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
 
+src="https://raw.githubusercontent.com/gitbls/sdm/master"
 [ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
 
-$sudo mkdir -p $dir $dir/sdm-1piboot
+$sudo mkdir -p $dir $dir/1piboot
 
 for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-logit \
 	     sdm-firstboot sdm-apt-cacher sdm-customphase \
-	     sdm-base-installs sdm-X-installs \
-	     sdm-1piboot/1piboot.conf \
-	     sdm-1piboot/010-disable-triggerhappy.sh \
-	     sdm-1piboot/020-ssh-switch.sh \
-	     sdm-1piboot/030-disable-rsyslog.sh
+	     sdm-apps-example sdm-xapps-example \
+	     1piboot/1piboot.conf \
+	     1piboot/010-disable-triggerhappy.sh \
+	     1piboot/020-ssh-switch.sh \
+	     1piboot/030-disable-rsyslog.sh
 do
-    $sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/$f -o $dir/$f
+    $sudo curl -L $src/$f -o $dir/$f
 done
 
 $sudo chmod -R 755 $dir/*
