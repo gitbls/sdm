@@ -4,13 +4,12 @@
 # Manage, customize, or burn an SD Card from a Raspbian image
 #
 # Useful for maintaining one or more Pis. The general idea is to keep a "golden" image
-# fully configured to suit you. Then, whenever you need a new SD Card (testing, new Pi, etc),
+# fully configured to suit your needs. Then, whenever you need a new SD Card (testing, new Pi, etc),
 # start with the golden master. Also, when new Raspbian releases come out, sdm can be used
 # to easily build a fresh SD Card image for the new release.
 #
 # This script provides the infrastructure for your customization scripts to work
-# in a repeatable manner against an RPF-provided IMG file. When it's time for a
-# new SD card, use this script also.
+# in a repeatable manner against an RPF-provided IMG file. 
 #
 # sdm [switches] image-name
 # sdm --help will provide help on all available switches
@@ -22,8 +21,8 @@
 #     1   Nspawn into image to execute in the image context (via sdm)
 #         APT packages can be installed in phase 1 so available on every SD card
 #         Your custom script can be as automatic or manual as you choose
-#         See sdm-base-installs and sdm-X-installs for examples
-#     2   Write SD card from the IMG file (via sdm)
+#         See sdm-customphase, sdm-base-installs, and sdm-X-installs for examples
+#     2   Write SD card from the IMG file (via sdm --burn)
 #         Target system name is inserted onto the card after it's written
 #     3   Boot the newly-created SD card
 #
@@ -78,6 +77,60 @@ resizepart 2 $dsiz
 EOF
 }
 
+function findappfile() {
+    #
+    # $1 = app/xapp variable
+    # $2 = app/xapp output variable
+    #
+    # Updates app/xapp output variable with actual file location
+    # or the value of $1 if it's not a file location (no leading '@')
+    #
+    if [ "${1:0:1}" == "@" ]
+    then
+	fn="${1:1:999}"
+	if [ ! -f "$fn" ]
+	then
+	    fnc="$src/$(basename $fn)"
+	    if [ ! -f "$fnc" ]
+	    then
+		echo "? $2 file '$fn' not found"
+		exit
+	    else
+		eval "${2}=\"@$fnc\""
+	    fi
+	else
+	    eval "${2}=\"$1\""
+	fi
+    else
+	eval "${2}=\"$1\""
+    fi
+}
+
+function getapplist() {
+    #
+    # $1 has list of apps or @file with list of apps
+    # $2 has variable name to set with list of apps
+    #
+    local lapps=""
+    if [ "${1:0:1}" == "@" ]
+    then
+	fn="${1:1:999}"
+	while read line
+	do
+	    #
+	    # Strip trailing spaces, tabs, and comments
+	    #
+            newapp="${line%%\#*}"    # Del EOL comments
+            newapp="${newapp%"${newapp##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	    [ "$newapp" != "" ] && lapps="$lapps $newapp"
+	done < $fn
+    else
+	lapps="$1"
+    fi
+    lapps="${lapps## }"      # Del leading spaces
+    eval "${2}=\"$lapps\""
+}
+
 function writeconfig() {
     #
     # Write config parameters into the image
@@ -90,16 +143,21 @@ function writeconfig() {
     echo "myuser:$myuser" >> $paramfile
     echo "myuid:$myuid" >> $paramfile
     echo "rootpwd:$rootpwd" >> $paramfile
-    echo "aptcache:$aptserver" >> $paramfile
+    echo "aptcache:$aptcache" >> $paramfile
     echo "eeprom:$eeprom" >> $paramfile
     echo "hdmimode:$hdmimode" >> $paramfile
     echo "hdmigroup:$hdmigroup" >> $paramfile
     echo "aptconfirm:$aptconfirm" >> $paramfile
+    echo "showapt:$showapt" >> $paramfile
     echo "cscript:$cscript" >> $paramfile
     echo "poptions:$poptions" >> $paramfile
     echo "batch:$fbatch" >> $paramfile
     echo "bootconfig:$bootconfig" >> $paramfile
     echo "bootadd:$bootadd" >> $paramfile
+    echo "apps:\"$apps\"" >> $paramfile
+    echo "xapps:\"$xapps\"" >> $paramfile
+    echo "appfile:$appfile" >> $paramfile
+    echo "xappfile:$xappfile" >> $paramfile
     echo "custom1:$custom1" >> $paramfile
     echo "custom2:$custom2" >> $paramfile
     echo "custom3:$custom3" >> $paramfile
@@ -110,7 +168,7 @@ function writeconfig() {
 # Initialize and Parse the command
 #
 #
-version="V1.3"
+version="V2.0"
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
 csrc=""                     #Source directory for use by Custom Phase script
@@ -127,13 +185,16 @@ fextendonly=0               #1=extend image by xmb MB and then exit
 fdomount=0                  #1=Do a mount and drop into bash
 noextend=0                  #1=Do not extend image
 fexplore=0                  #1=Just fire up nspawn to explore the system
+showapt=0                   #1=Display apt output on terminal as well as logging
 burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
 hname=""                    #Host name when using --burn
 rootpwd=0                   #1=Set root password as well
-aptserver=""                #IP address of apt-cacher-ng server
+aptcache=""                 #IP address of apt-cacher-ng server
 poptions=""                 #Phase options
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
+apps=""                     #List of apps to install in sdm-base-installs
+xapps=""                    #List of X apps to install in sdm-X-installs
 custom1=""                  #For custom use
 custom2=""                  #For custom use
 custom3=""                  #For custom use
@@ -153,7 +214,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,mount,noextend,poptions:,rootpwd,xmb:,uid:,user:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,version -n 'sdm' -- "$@")
+OARGS=$(getopt -o h --longoptions help,apps:,xapps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,mount,noextend,poptions:,rootpwd,showapt,xmb:,uid:,user:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,version -n 'sdm' -- "$@")
 [ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
 eval set -- "$OARGS"
 
@@ -161,35 +222,38 @@ while true
 do
     case "$1" in
 	# 'shift 2' if switch has argument, else just 'shift'
-	--cscript)     cscript=$2   ; shift 2 ;;
-	--noextend)    noextend=1   ; shift   ;;
-	--xmb)         imgext=$2    ; shift 2 ;;
+	--cscript)     cscript=$2    ; shift 2 ;;
+	--noextend)    noextend=1    ; shift   ;;
+	--xmb)         imgext=$2     ; shift 2 ;;
 	--extend)      fextendonly=1 ; shift ;;
-	--csrc)        csrc=$2      ; shift 2 ;;
-	--user)        myuser=$2    ; shift 2 ;;
-	--uid)         myuid=$2     ; shift 2 ;;
-	--rootpwd)     rootpwd=1    ; shift  ;;
-	--explore)     fexplore=1   ; shift ;;
-	--mount)       fdomount=1   ; shift ;;
+	--csrc)        csrc=$2       ; shift 2 ;;
+	--user)        myuser=$2     ; shift 2 ;;
+	--uid)         myuid=$2      ; shift 2 ;;
+	--rootpwd)     rootpwd=1     ; shift  ;;
+	--explore)     fexplore=1    ; shift ;;
+	--mount)       fdomount=1    ; shift ;;
 	--burn)        burn=1 ;
-		       burndev=$2   ; shift 2 ;;
-	--host)        hname=$2     ; shift 2 ;;
-	--aptcache)    aptserver=$2 ; shift 2 ;;
-	--aptconfirm)  aptconfirm=1 ; shift ;;
-	--eeprom)      eeprom=$2    ; shift 2 ;;
-	--hdmigroup)   hdmigroup=$2 ; shift 2 ;;
-	--hdmimode)    hdmimode=$2  ; shift 2 ;;
-	--poptions)    poptions=$2  ; shift 2 ;;
-	--custom1)     custom1=$2   ; shift 2 ;;
-	--custom2)     custom2=$2   ; shift 2 ;;
-	--custom3)     custom3=$2   ; shift 2 ;;
-	--custom4)     custom4=$2   ; shift 2 ;;
-	--ddsw)        ddsw=$2      ; shift 2 ;;
-	--nspawnsw)    nspawnsw=$2  ; shift 2 ;;
-	--batch)       fbatch=1     ; shift ;;
+		       burndev=$2    ; shift 2 ;;
+	--host)        hname=$2      ; shift 2 ;;
+	--apps)        apps=$2       ; shift 2 ;;
+	--xapps)       xapps=$2      ; shift 2 ;;
+	--aptcache)    aptcache=$2   ; shift 2 ;;
+	--aptconfirm)  aptconfirm=1  ; shift ;;
+	--showapt)     showapt=1     ; shift ;;
+	--eeprom)      eeprom=$2     ; shift 2 ;;
+	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
+	--hdmimode)    hdmimode=$2   ; shift 2 ;;
+	--poptions)    poptions=$2   ; shift 2 ;;
+	--custom1)     custom1=$2    ; shift 2 ;;
+	--custom2)     custom2=$2    ; shift 2 ;;
+	--custom3)     custom3=$2    ; shift 2 ;;
+	--custom4)     custom4=$2    ; shift 2 ;;
+	--ddsw)        ddsw=$2       ; shift 2 ;;
+	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
+	--batch)       fbatch=1      ; shift ;;
+	--bootadd)     bootadd=$2    ; shift 2 ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
-	--bootadd)     bootadd=$2   ; shift 2 ;;
-	--version)     pvers=1      ; shift ;;
+	--version)     pvers=1       ; shift ;;
 	--)            shift ; break ;;
 	-h|--help)     echo "sdm $version" ;
 echo "" ;
@@ -201,8 +265,8 @@ echo " or drop into an nspawn shell in the SD Card image (--explore)" ;
 echo "   sudo sdm --explore sd-image-file" ;
 echo " or burn an SD Card image to an SD Card (--burn)" ;
 echo "   sudo sdm --burn /dev/sdx --host target-hostname sd-image-file" ;
-#echo " or mount SD Card image into file system for inspection/modification (Be VERY Careful!)" ;
-#echo "   sudo sdm --mount sd-image-file" ;
+echo " or mount SD Card image into file system for inspection/modification (Be VERY Careful!)" ;
+echo "   sudo sdm --mount sd-image-file" ;
 echo "" ;
 echo "Switches" ;
 echo " --burn devname      Copy the image to the SD card" ;
@@ -210,6 +274,8 @@ echo " --host hostname     Hostname to burn into the image with --burn" ;
 echo " --explore           Explore (nspawn shell) into image" ;
 echo " --mount             Mount IMG file partitions and drop into bash" ;
 echo "  * Customization switches (no --burn or --explore) *" ;
+echo " --apps applist      List of app packages to install or @file with list" ;
+echo " --xapps applist     List of X11 packages to install or @file with list" ;
 echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
 echo " --aptconfirm        Enable confirmation before apt commands" ;
 echo " --batch             Perform Phase 1 in the container and exit" ;
@@ -224,10 +290,12 @@ echo " --extend            Only extend the image; no other customizations" ;
 echo " --noextend          Do not extend the image" ;
 echo " --hdmigroup n       Set /boot/config.txt hdmigroup value" ;
 echo " --hdmimode n        Set /boot/config.txt hdmimode value" ;
+echo " --host hostname     Hostname to write onto SD Card with --burn" ;
 echo " --noextend          Don't extend the image file" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
 echo " --poptions str      Set Phase 1 auto-run options" ;
 echo " --rootpwd           Set a root password into the image" ;
+echo " --showapt           Display apt output as well as logging it" ;
 echo " --uid uid           UID for non-root user [next free]" ;
 echo " --user username     Non-root user to create" ;
 echo " --xmb n             Extend image file by n MB [2048]" ;
@@ -276,6 +344,13 @@ then
     fi
 fi    
 #
+# Process --apps and --xapps switches
+#
+findappfile "$apps" appfile     #Gets real @file nam or list of apps into '$appfile'
+getapplist "$appfile" apps      #Gets definitive app list into '$apps'
+findappfile "$xapps" xappfile   #Ditto for xappfile and xapps
+getapplist "$xappfile" xapps
+#
 # Process the command. Actions are burn, mount, extend, explore, or customize
 #
 if [ $burn -eq 1 ]
@@ -290,32 +365,27 @@ then
     echo "* Copying '$dimg' to SD card '$burndev'..."
     echo "dd if=$dimg of=$burndev status=progress $ddsw"
     dd if=$dimg of=$burndev status=progress $ddsw
-    echo ""
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
     sync
+    mount -v ${burndev}2 /mnt/sdm
     if [ "$hname" != "" ]
     then
-	mount -v ${burndev}1 /mnt/sdm
-	if ismounted ${burndev}1 
+	if [ -d /mnt/sdm/usr/local/sdm/thispi/1piboot -a -f /mnt/sdm/usr/local/sdm/thispi/1piboot/1piboot.conf ]
 	then
-	    if [ -d /mnt/sdm/sdm-1piboot -a -f /mnt/sdm/sdm-1piboot/1piboot.conf ]
-	    then
-		echo "* Setting host name '$hname' onto SD card image for sdm-firstboot"
-		sed -i "s/xxxxx/$hname/" /mnt/sdm/sdm-1piboot/1piboot.conf
-	    else
-		echo "% sdm firstboot is not configured in this image; hostname will not be written to SD Card"
-	    fi
-	    umount -v ${burndev}1
+	    echo "* Setting host name '$hname' onto SD Card image for sdm-firstboot"
+	    /mnt/sdm/usr/local/sdm/sdm-logit "Setting host name '$hname' onto SD Card image for sdm-firstboot"
+	    sed -i "s/xxxxx/$hname/" /mnt/sdm/usr/local/sdm/thispi/1piboot/1piboot.conf
+	else
+	    echo "% sdm-firstboot is not configured in this image; hostname will not be written to SD Card"
 	fi
     fi
-    mount -v ${burndev}2 /mnt/sdm
     if [ -d /mnt/sdm/usr/local/sdm -a -x /usr/local/sdm/sdm-logit ]
     then
 	echo "* Writing burn log entry on the SD Card..."
-	/mnt/sdm/usr/local/sdm/sdm-logit "sdm Burn command line: $cmdline"
-	/mnt/sdm/usr/local/sdm/sdm-logit "sdm Created SD Card from $dimg"
+	/mnt/sdm/usr/local/sdm/sdm-logit "Burn command line: $cmdline"
+	/mnt/sdm/usr/local/sdm/sdm-logit "Created SD Card from $dimg"
     else
-	echo "% IMG is not sdm-enhanced; burn log entry will not be written to SD Card"
+	echo "% IMG is not sdm-enhanced; Burn log entry will not be written to SD Card"
     fi
     umount -v ${burndev}2
     echo "* SD Card is Ready"
@@ -377,11 +447,15 @@ else
     echo ""
     spawncmd="/usr/local/sdm/sdm-phase1"
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit,sdm-cparse} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-apt-cacher,sdm-base-installs,sdm-X-installs} /mnt/sdm/usr/local/sdm
+    cp $src/sdm-apt-cacher /mnt/sdm/usr/local/sdm
     [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
+    chmod 755 /mnt/sdm/usr/local/sdm/*
+    # If --apps and/or --xapps are files copy them also. If not, clear the variables for writeconfig
+    [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  /mnt/sdm/usr/local/sdm || appfile=""
+    [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} /mnt/sdm/usr/local/sdm || xappfile=""
 
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Configuration Started"
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Command Line: $cmdline"
+    /mnt/sdm/usr/local/sdm/sdm-logit "Configuration Started"
+    /mnt/sdm/usr/local/sdm/sdm-logit "Command Line: $cmdline"
 
     writeconfig                                         #Write arguments into IMG
     /mnt/sdm/usr/local/sdm/sdm-phase0
@@ -395,7 +469,7 @@ else
     echo "                                     run custom Phase 1 script"
     echo "                                     and any installs selected with --poptions"
     echo "     You have selected '$poptions' Install options"
-    echo "       out of possible 'firstboot', 'base', 'xwindows', and 'xdmconsole'"
+    echo "       out of possible 'firstboot', 'apps', 'xwindows', and 'xdmconsole'"
     echo ""
     [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
 fi

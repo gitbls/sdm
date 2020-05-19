@@ -1,0 +1,36 @@
+# This file lists all the apps you want installed into your system IMG by sdm
+# A line can be
+#              A blank line
+#              Comment line (everything following # is ignored)
+#              The name of a single package
+#
+
+# Some editors
+vim
+emacs
+at-spi2-core    # Needed for X windows emacs
+
+# Network utilities
+dnsutils
+lftp
+ncftp
+putty
+# Miscellaneous tools and system utilities
+aptitude
+qpdfview
+avahi-utils
+python3-pip
+uuid-runtime
+tmux
+mc
+iftop
+nfs-kernel-server
+whois
+lsof
+iperf3
+zip
+nmap
+feh
+links2
+systemd-container
+zerofree

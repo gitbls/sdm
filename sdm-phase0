@@ -8,7 +8,7 @@
 #
 source /mnt/sdm/usr/local/sdm/sdm-cparse
 
-/mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Starting"
+/mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Starting"
 echo "* Starting Phase 0 image customization"
 
 echo "  Setting up ssh in boot partition"
@@ -28,7 +28,7 @@ fi
 #
 if [ "$bootconfig" != "" ]
 then
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Updating /boot/config.txt"
+    /mnt/sdm/usr/local/sdm/sdm-logit "Updating /boot/config.txt"
     echo "  Updating /boot/config.txt for bootconfig: $bootconfig"
     readarray -d, citems <<< $bootconfig
     for c in ${citems[@]}
@@ -36,7 +36,7 @@ then
 	IFS=":=" read key value <<< $c
 	value="${value%,}"
 	sed -i "s/\#$key=.*/$key=$value/" /mnt/sdm/boot/config.txt
-	/mnt/sdm/usr/local/sdm/sdm-logit "sdm   $key=$value"
+	/mnt/sdm/usr/local/sdm/sdm-logit "  $key=$value"
 	echo "  $key=$value"
     done
 fi
@@ -44,7 +44,7 @@ if [ "$bootadd" != "" ]
 then
     if ! grep -q 'Following items added by sdm --bootadd' /mnt/sdm/boot/config.txt
     then
-	/mnt/sdm/usr/local/sdm/sdm-logit "sdm Adding new keys to /boot/config.txt"
+	/mnt/sdm/usr/local/sdm/sdm-logit "Adding new keys to /boot/config.txt"
 	echo "  Updating /boot/config.txt for bootadd: $bootadd"
 	echo "# Following items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
 	readarray -d, citems <<< $bootadd
@@ -53,12 +53,12 @@ then
 	    IFS=":=" read key value <<< $c
 	    value="${value%,}"
 	    echo "$key=$value" >> /mnt/sdm/boot/config.txt
-	    /mnt/sdm/usr/local/sdm/sdm-logit "sdm   $key=$value"
+	    /mnt/sdm/usr/local/sdm/sdm-logit "  $key=$value"
 	    echo "  $key=$value"
 	done
 	echo "# Above items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
     else
-	/mnt/sdm/usr/local/sdm/sdm-logit "sdm /boot/config.txt already updated for --bootadd; skipping"
+	/mnt/sdm/usr/local/sdm/sdm-logit "/boot/config.txt already updated for --bootadd; skipping"
 	echo "  /boot/config.txt already updated for --bootadd; skipping"
     fi
 fi
@@ -68,22 +68,26 @@ fi
 # in the nspawn
 #
 echo "  Setting up sdm-firstboot service"
-cp -f $src/sdm-firstboot /mnt/sdm/boot/
+[ ! -d /mnt/sdm/usr/local/sdm/thispi ] && mkdir /mnt/sdm/usr/local/sdm/thispi
 cp -f $src/sdm-firstboot /mnt/sdm/usr/local/sdm
-[ ! -d /mnt/sdm/boot/sdm-1piboot ] && mkdir /mnt/sdm/boot/sdm-1piboot
-[ ! -d /mnt/sdm/usr/local/sdm/sdm-1piboot ] && mkdir /mnt/sdm/usr/local/sdm/sdm-1piboot
-cp -f $src/sdm-1piboot/* /mnt/sdm/boot/sdm-1piboot
+cp -f $src/sdm-firstboot /mnt/sdm/usr/local/sdm/thispi
+chmod 755 /mnt/sdm/usr/local/sdm/sdm-firstboot /mnt/sdm/usr/local/sdm/thispi/sdm-firstboot
+[ ! -d /mnt/sdm/usr/local/sdm/1piboot ] && mkdir /mnt/sdm/usr/local/sdm/1piboot
+[ ! -d /mnt/sdm/usr/local/sdm/thispi/1piboot ] && mkdir /mnt/sdm/usr/local/sdm/thispi/1piboot
+cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
+cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/thispi/1piboot
+chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh  /mnt/sdm/usr/local/sdm/thispi/1piboot/*.sh
 [ -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service ] && rm -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service
 cat > /mnt/sdm/etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
 Description=sdm System FirstBoot Configuration
 After=network.target
 Before=rc-local.service
-ConditionFileNotEmpty=/boot/sdm-firstboot
+ConditionPathExists=/usr/local/sdm/thispi/run.firstboot
 
 [Service]
-ExecStart=/boot/sdm-firstboot /boot/sdm-1piboot/1piboot.conf 1
-ExecStartPost=/bin/mv /boot/sdm-firstboot /boot/sdm-firstboot.done
+ExecStart=/usr/local/sdm/sdm-firstboot /usr/local/sdm/thispi/1piboot/1piboot.conf 1
+ExecStartPost=/bin/rm /usr/local/sdm/thispi/run.firstboot
 Type=oneshot
 RemainAfterExit=no
 
@@ -92,6 +96,7 @@ WantedBy=multi-user.target
 EOF
 
 # Enable the service if it isn't already enabled
+touch /mnt/sdm/usr/local/sdm/thispi/run.firstboot
 [ ! -h /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service ] && ln -s /etc/systemd/system/sdm-firstboot.service /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service
 
 if [ "$myuser" != "" ]
@@ -115,9 +120,9 @@ fi
 
 if [ "$cscript" != "" ]
 then
-    /mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Custom Script '$cscript'"
+    /mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Custom Script '$cscript'"
     $cscript 0
 fi
 
-/mnt/sdm/usr/local/sdm/sdm-logit "sdm Phase 0 Completed"
+/mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Completed"
 echo "* Phase 0 Completed"

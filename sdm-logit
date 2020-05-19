@@ -2,15 +2,30 @@
 #
 # $1 has the message
 #
-
+#function splitmsg () {
+    #
+    # Split the message into multiple lines if gt 96
+    #
+#    local line="$1"
+#    readarry -t str <<< $(fold -s -w96 <<< $(echo $line))
+# "${#str[@]}" is number of elements in the array (e.g., # of lines)
+#}
 #
 # Prefix path to history log if we've been run from phase 0
 # Otherwise, we're in the nspawn so prefix not required
 #
-[[ "$0" =~ "/mnt/sdm" ]] && i="/mnt/sdm" || i=""
-if [ -f "$i/etc/sdm/history" ]
+[[ "$0" =~ "/mnt/sdm" ]] && m="/mnt/sdm" || m=""
+[ ! -f "$i/etc/sdm/history" ] && touch $m/etc/sdm/history
+if [ ${#1} -le 96 ]
 then
-    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $i/etc/sdm/history
+    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $m/etc/sdm/history
 else
-    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" > $i/etc/sdm/history
+#    line="$1"
+    readarray -t str <<< $(fold -s -w96 <<< $(echo $1))
+    spc=""
+    for (( i=0 ; i < ${#str[@]} ; i++))
+    do
+	echo "$(date +'%Y-%m-%d %H:%M:%S') ${spc}${str[$i]}" >> $m/etc/sdm/history
+	spc=" "
+    done
 fi

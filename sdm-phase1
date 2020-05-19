@@ -38,11 +38,31 @@ function changepwd() {
     rm -f /tmp/pwd.txt
 }
 
+function doinstalls() {
+    #
+    # $1 - app list
+    # $2 - subject string ("X Installs" or "Application Installs")
+    #
+    if [ "$1" != "" ]
+    then
+	echo ""
+	echo "* Starting $2"
+	/usr/local/sdm/sdm-logit "$2 Starting"
+	/usr/local/sdm/sdm-logit "$2 Installing $1"
+	yes="-y"
+	[ $aptconfirm -eq 1 ] && yes=""
+	doapt "install --no-install-recommends $yes $1" $showapt
+	/usr/local/sdm/sdm-logit "$2 Completed"
+    else
+	/usr/local/sdm/sdm-logit "Skipping $2"
+    fi
+}
+
 #
 # Read configuration information from sdm
 #
 source /usr/local/sdm/sdm-cparse
-/usr/local/sdm/sdm-logit "sdm Phase 1 Starting"
+/usr/local/sdm/sdm-logit "Phase 1 Starting"
 
 samepwd=""
 puser="'pi'"
@@ -88,40 +108,45 @@ echo ""
 if [ "$aptcache" != "" ]
 then
     /usr/local/sdm/sdm-apt-cacher client $aptcache
-    echo ""
     echo "* Image set as an apt-cacher-ng client with caching server $aptcache"
-    echo ""
-    echo "* Performing apt update to confirm apt-cacher-ng is working..."
-    apt update
 fi
+
+doapt "update" $showapt       # Do this before Custom script in case it does some installs
 
 if [ "$cscript" != "" ]
 then
     csfn="/usr/local/sdm/$(basename $cscript)"
-    /usr/local/sdm/sdm-logit "sdm Phase 1 Custom Script '$csfn'" 
+    /usr/local/sdm/sdm-logit "Phase 1 Custom Script '$csfn'" 
     $csfn 1
+else
+    csfn=""
 fi
 
 #
 # These are enabled by use of the --poptions switch
-# For example: --poptions firstboot:base          does firstboot customization and installs your personal base set of apps
-#              --poptions firstboot:base:xwindows does all 3
+# For example: --poptions firstboot:apps          does firstboot customization and installs your personal set of apps
+#              --poptions firstboot:apps:xwindows does all 3
 #
 [[ "$poptions" =~ "firstboot" ]] && /usr/local/sdm/sdm-firstboot
-[[ "$poptions" =~ "base" ]]      && /usr/local/sdm/sdm-base-installs
-[[ "$poptions" =~ "xwindows" ]]  && /usr/local/sdm/sdm-X-installs
+[[ "$poptions" =~ "apps" ]] && doinstalls "$apps" "Application Installs"
+[[ "$poptions" =~ "xwindows" ]]  && doinstalls "$xapps" "XWindows Installs"
+yes="-y"
+[ $aptconfirm -eq 1 ] && yes=""
+doapt "$yes upgrade" $showapt
+doapt "autoremove" $showapt
+/usr/local/sdm/sdm-logit "Phase 1 Completed"
 
-/usr/local/sdm/sdm-logit "sdm Phase 1 Completed"
+[ "$csfn" != "" ] && $csfn post-install
 
 echo ""
 if [ $batch -eq 0 ]
 then
-    /usr/local/sdm/sdm-logit "sdm Phase 1 Command Prompt"
+    /usr/local/sdm/sdm-logit "Phase 1 Command Prompt"
     echo "* Dropping to a shell prompt..."
     echo ""
     exec bash -i
 else
-    /usr/local/sdm/sdm-logit "sdm Phase 1 Batch Mode exiting"
+    /usr/local/sdm/sdm-logit "Phase 1 Batch Mode exiting"
     echo "* Batch Mode exiting..."
     echo ""
 fi

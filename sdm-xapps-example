@@ -1,0 +1,44 @@
+# This file lists all the X11 apps you want installed into your system IMG by sdm
+# A line can be
+#              A blank line
+#              Comment line (everything following # is ignored)
+#              The name of a single package
+#
+# This example assumes the base system is Raspbian Lite
+# It installs
+#           the basic X11 Windows system
+#           A Display Manager (xdm). litedm is another popular display manager
+#           A Window Manager (icewm). There are a lot of Window Managers to choose from
+#           The TigerVNC server
+#           Chromium and Firefox browsers
+#           A few basic X11 apps
+#
+# Base components
+xserver-xorg
+xserver-xorg-core
+xserver-common
+xterm
+x11-apps
+xfonts-base
+xfonts-100dpi
+xfonts-75dpi
+xfonts-scalable
+
+# Display manager
+xdm
+
+# Window manager
+icewm
+icewm-themes
+
+# VNC
+tigervnc-standalone-server
+
+# Apps that require X Windows
+chromium-browser
+firefox-esr
+xclip
+xcolors
+xcolorsel
+xcolmix
+retext

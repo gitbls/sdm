@@ -14,65 +14,41 @@ do
             value="${value#\"}"     # Del closing double-quotes 
             value="${value%\'}"     # Del opening single-quotes 
             value="${value#\'}"     # Del closing single-quotes 
-	    case "$rpifun" in
-		eeprom)
-		    eeprom="$value"
-		    ;;
-		src)
-		    src="$value"
-		    ;;
-		myuser)
-		    myuser="$value"
-		    ;;
-		myuid)
-		    myuid="$value"
-		    ;;
-		rootpwd)
-		    rootpwd="$value"
-		    ;;
-		aptcache)
-		    aptcache="$value"
-		    ;;
-		aptconfirm)
-		    aptconfirm="$value"
-		    ;;
-		hdmigroup)
-		    hdmigroup="$value"
-		    ;;
-		hdmimode)
-		    hdmimode="$value"
-		    ;;
-		csrc)
-		    csrc="$value"
-		    ;;
-		poptions)
-		    poptions="$value"
-		    ;;
-		batch)
-		    batch="$value"
-		    ;;
-		bootconfig)
-		    bootconfig="$value"
-		    ;;
-		bootadd)
-		    bootadd="$value"
-		    ;;
-		cscript)
-		    cscript="$value"
-		    ;;
-		custom1)
-		    custom1="$value"
-		    ;;
-		custom2)
-		    custom2="$value"
-		    ;;
-		custom3)
-		    custom3="$value"
-		    ;;
-		custom4)
-		    custom4="$value"
-		    ;;
-	    esac
+	    eval "${rpifun}=\"$value\""
     fi
 done < $i/etc/sdm/cparams
 IFS=$sifs
+#
+# These functions are used by sdm-phase1 and sdm-customphase
+#
+function outlong () {
+    #
+    if [ ${#1} -le 96 ]
+    then
+	echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $2
+    else
+	readarray -t str <<< $(fold -s -w96 <<< $(echo $1))
+	spc=""
+	for (( i=0 ; i < ${#str[@]} ; i++))
+	do
+	    echo "$(date +'%Y-%m-%d %H:%M:%S') ${spc}${str[$i]}" >> $2
+	    spc="  "
+	done
+    fi
+}
+
+function doapt() {
+    #
+    # $1 is apt command
+    # $2 is $showapt value
+    #
+    echo "" >> /etc/sdm/apt.log
+    outlong "apt $1" "/etc/sdm/apt.log"
+    echo "" >> /etc/sdm/apt.log
+    if [ "$2" == "1" ]
+    then
+	apt -q $1 | tee -a /etc/sdm/apt.log
+    else
+	apt -q $1 >> /etc/sdm/apt.log
+    fi
+}
