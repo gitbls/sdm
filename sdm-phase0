@@ -68,15 +68,6 @@ fi
 # in the nspawn
 #
 echo "  Setting up sdm-firstboot service"
-[ ! -d /mnt/sdm/usr/local/sdm/thispi ] && mkdir /mnt/sdm/usr/local/sdm/thispi
-cp -f $src/sdm-firstboot /mnt/sdm/usr/local/sdm
-cp -f $src/sdm-firstboot /mnt/sdm/usr/local/sdm/thispi
-chmod 755 /mnt/sdm/usr/local/sdm/sdm-firstboot /mnt/sdm/usr/local/sdm/thispi/sdm-firstboot
-[ ! -d /mnt/sdm/usr/local/sdm/1piboot ] && mkdir /mnt/sdm/usr/local/sdm/1piboot
-[ ! -d /mnt/sdm/usr/local/sdm/thispi/1piboot ] && mkdir /mnt/sdm/usr/local/sdm/thispi/1piboot
-cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
-cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/thispi/1piboot
-chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh  /mnt/sdm/usr/local/sdm/thispi/1piboot/*.sh
 [ -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service ] && rm -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service
 cat > /mnt/sdm/etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]

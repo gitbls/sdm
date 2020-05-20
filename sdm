@@ -447,9 +447,6 @@ then
     exit
 fi
 
-[ $fexplore -eq 0 -a ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm
-[ $fexplore -eq 0 -a ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm
-
 if [ -f $sdmdone -o $fexplore -eq 1 ]
 then
     spawncmd=""
@@ -469,8 +466,20 @@ then
 else
     echo ""
     spawncmd="/usr/local/sdm/sdm-phase1"
+    #
+    # Create and populate /usr/local/sdm tree
+    #
+    [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm
+    [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm \
+					     /mnt/sdm/usr/local/sdm/1piboot \
+					     /mnt/sdm/usr/local/sdm/thispi \
+					     /mnt/sdm/usr/local/sdm/thispi/1piboot
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit,sdm-cparse} /mnt/sdm/usr/local/sdm
-    cp $src/sdm-apt-cacher /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
+    chmod 755 /mnt/sdm/usr/local/sdm/*
+    cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
+    cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/thispi/1piboot
+    chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh  /mnt/sdm/usr/local/sdm/thispi/1piboot/*.sh
     [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
     # If --apps and/or --xapps are files copy them also. If not, clear the variables for writeconfig
