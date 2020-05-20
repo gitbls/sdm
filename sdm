@@ -77,6 +77,27 @@ resizepart 2 $dsiz
 EOF
 }
 
+function poptcheck() {
+    #
+    # Check poptions settings against valid settings
+    # Report errors and exit
+    #
+    local popt="$1" badopt=""
+    if [ "$popt" != "" ]
+    then
+	readarray -d, xopt <<< $1
+	for o in ${xopt[@]}
+	do
+	    os="${o%,}"
+	    os="${os# }"
+	    if ! [[ "$vpoptions" =~ $os ]]
+	    then
+		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
+	    fi
+	done
+	[ "$badopt" != "" ] && echo "? Unrecognized --poption value(s) $badopt" && exit
+    fi
+}
 function findappfile() {
     #
     # $1 = app/xapp variable
@@ -192,6 +213,7 @@ hname=""                    #Host name when using --burn
 rootpwd=0                   #1=Set root password as well
 aptcache=""                 #IP address of apt-cacher-ng server
 poptions=""                 #Phase options
+vpoptions="firstboot,apps,xwindows,xdmconsole" #Valid --poptions
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 apps=""                     #List of apps to install in sdm-base-installs
 xapps=""                    #List of X apps to install in sdm-X-installs
@@ -214,7 +236,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,apps:,xapps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,mount,noextend,poptions:,rootpwd,showapt,xmb:,uid:,user:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,version -n 'sdm' -- "$@")
+OARGS=$(getopt -o h --longoptions help,apps:,xapps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,poptions:,rootpwd,showapt,xmb:,uid:,user:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,version -n 'sdm' -- "$@")
 [ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
 eval set -- "$OARGS"
 
@@ -234,7 +256,7 @@ do
 	--mount)       fdomount=1    ; shift ;;
 	--burn)        burn=1 ;
 		       burndev=$2    ; shift 2 ;;
-	--host)        hname=$2      ; shift 2 ;;
+	--hostname|--host) hname=$2  ; shift 2 ;;
 	--apps)        apps=$2       ; shift 2 ;;
 	--xapps)       xapps=$2      ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
@@ -343,6 +365,7 @@ then
 	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
     fi
 fi    
+poptcheck "$poptions"
 #
 # Process --apps and --xapps switches
 #
