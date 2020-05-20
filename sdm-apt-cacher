@@ -1,10 +1,19 @@
 #!/bin/bash
 
-function dosed() {
-    if ! (grep $1 /etc/apt/sources.list > /dev/null 2>&1)
+econf=0    # 0 to edit /etc/apt/apt.conf.d/02proxy (Cleaner, but not visible on terminal)
+           #!0 to edit /etc/apt/sources.list and /etc/apt/sources.list.d/raspi.list (more intrusive, but visible on terminal)
+
+function enablecacher () {
+
+    if [ $econf -eq 0 ]
     then
-	sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list
-	sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list.d/raspi.list
+	[ ! -f /etc/apt/apt.conf.d/02proxy ] && echo "Acquire::http::proxy \"http://$1\";" >> /etc/apt/apt.conf.d/02proxy
+    else
+	if ! (grep $1 /etc/apt/sources.list > /dev/null 2>&1)
+	then
+	    sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list
+	    sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list.d/raspi.list
+	fi
     fi
 }
 
@@ -15,12 +24,12 @@ mode="$1"
 
 if [ "$mode" == "client" ]
 then
-    dosed $serverip:$port          # Point the client to the apt caching server
+    enablecacher $serverip:$port          # Point the client to the apt caching server
 else
     echo "% Setting up apt caching server"
     echo "% Answer NO to enabling HTTPS tunnels"
     apt install -y apt-cacher-ng
-    dosed 127.0.0.1:$port
+    enablecacher 127.0.0.1:$port
     rm -rf /var/lib/apt/lists
     rm -rf /var/cache/apt/*
 fi
