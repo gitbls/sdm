@@ -161,7 +161,7 @@ Additional sdm command switches include:
 * `--bootadd` *key:value,key:value,...* - Add new keys/values to /boot/config.txt
 * `--csrc /path/to/csrcdir` - A source directory string that can be used in your Custom Phase script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. See the example `sdm-customphase`.
 * `--custom[1-4]` - 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase script.
-* `--datefmt "fmt"` - Use the specified date format instead of the default. See `man date` for format string details.
+* `--datefmt "fmt"` - Use the specified date format instead of the default ""%Y-%m-%d %H:%M:%S"". See `man date` for format string details.
 * `--ddsw` *"switches"* - Provide switches for the `dd` command used with `--burn`. The default is "bs=16M"
 * `--eeprom` *value* - Change the eeprom value in /etc/default/rpi-eeprom-update. The Raspbian default is 'critical', which is fine for most users. Change only if you know what you're doing.
 * `--hdmigroup` *num* - hdmigroup setting in config.txt
