@@ -159,26 +159,27 @@ function writeconfig() {
     #
     [ -f /mnt/sdm/etc/sdm/cparams ] && rm -f $paramfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
-    echo "src:$src" >> $paramfile
-    echo "csrc:$csrc" >> $paramfile
-    echo "myuser:$myuser" >> $paramfile
-    echo "myuid:$myuid" >> $paramfile
-    echo "rootpwd:$rootpwd" >> $paramfile
-    echo "aptcache:$aptcache" >> $paramfile
-    echo "eeprom:$eeprom" >> $paramfile
-    echo "hdmimode:$hdmimode" >> $paramfile
-    echo "hdmigroup:$hdmigroup" >> $paramfile
-    echo "aptconfirm:$aptconfirm" >> $paramfile
-    echo "showapt:$showapt" >> $paramfile
-    echo "cscript:$cscript" >> $paramfile
-    echo "poptions:$poptions" >> $paramfile
-    echo "batch:$fbatch" >> $paramfile
-    echo "bootconfig:$bootconfig" >> $paramfile
-    echo "bootadd:$bootadd" >> $paramfile
     echo "apps:\"$apps\"" >> $paramfile
     echo "xapps:\"$xapps\"" >> $paramfile
     echo "appfile:$appfile" >> $paramfile
     echo "xappfile:$xappfile" >> $paramfile
+    echo "aptcache:$aptcache" >> $paramfile
+    echo "aptconfirm:$aptconfirm" >> $paramfile
+    echo "batch:$fbatch" >> $paramfile
+    echo "bootadd:$bootadd" >> $paramfile
+    echo "bootconfig:$bootconfig" >> $paramfile
+    echo "cscript:$cscript" >> $paramfile
+    echo "csrc:$csrc" >> $paramfile
+    echo "datefmt:$datefmt" >> $paramfile
+    echo "eeprom:$eeprom" >> $paramfile
+    echo "hdmigroup:$hdmigroup" >> $paramfile
+    echo "hdmimode:$hdmimode" >> $paramfile
+    echo "myuid:$myuid" >> $paramfile
+    echo "myuser:$myuser" >> $paramfile
+    echo "poptions:$poptions" >> $paramfile
+    echo "rootpwd:$rootpwd" >> $paramfile
+    echo "showapt:$showapt" >> $paramfile
+    echo "src:$src" >> $paramfile
     echo "custom1:$custom1" >> $paramfile
     echo "custom2:$custom2" >> $paramfile
     echo "custom3:$custom3" >> $paramfile
@@ -196,6 +197,7 @@ csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
                             #Must be large enough to accomodate all packages you want to install
+datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
@@ -213,7 +215,7 @@ hname=""                    #Host name when using --burn
 rootpwd=0                   #1=Set root password as well
 aptcache=""                 #IP address of apt-cacher-ng server
 poptions=""                 #Phase options
-vpoptions="firstboot,apps,xwindows,xdmconsole" #Valid --poptions
+vpoptions="firstboot,apps,noupgrade,xwindows,xdmconsole" #Valid --poptions
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 apps=""                     #List of apps to install in sdm-base-installs
 xapps=""                    #List of X apps to install in sdm-X-installs
@@ -236,7 +238,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,apps:,xapps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,poptions:,rootpwd,showapt,xmb:,uid:,user:,custom1:,custom2:,custom3:,custom4:,ddsw:,nspawnsw:,version -n 'sdm' -- "$@")
+OARGS=$(getopt -o h --longoptions help,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,datefmt:,ddsw:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,nspawnsw:,poptions:,rootpwd,showapt,uid:,user:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version -n 'sdm' -- "$@")
 [ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
 eval set -- "$OARGS"
 
@@ -244,37 +246,38 @@ while true
 do
     case "$1" in
 	# 'shift 2' if switch has argument, else just 'shift'
-	--cscript)     cscript=$2    ; shift 2 ;;
-	--noextend)    noextend=1    ; shift   ;;
-	--xmb)         imgext=$2     ; shift 2 ;;
-	--extend)      fextendonly=1 ; shift ;;
-	--csrc)        csrc=$2       ; shift 2 ;;
-	--user)        myuser=$2     ; shift 2 ;;
-	--uid)         myuid=$2      ; shift 2 ;;
-	--rootpwd)     rootpwd=1     ; shift  ;;
-	--explore)     fexplore=1    ; shift ;;
-	--mount)       fdomount=1    ; shift ;;
-	--burn)        burn=1 ;
-		       burndev=$2    ; shift 2 ;;
-	--hostname|--host) hname=$2  ; shift 2 ;;
 	--apps)        apps=$2       ; shift 2 ;;
-	--xapps)       xapps=$2      ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--aptconfirm)  aptconfirm=1  ; shift ;;
-	--showapt)     showapt=1     ; shift ;;
+	--batch)       fbatch=1      ; shift ;;
+	--bootadd)     bootadd=$2    ; shift 2 ;;
+	--bootconfig)  bootconfig=$2 ; shift 2 ;;
+	--burn)        burn=1 ;
+		       burndev=$2    ; shift 2 ;;
+	--cscript)     cscript=$2    ; shift 2 ;;
+	--csrc)        csrc=$2       ; shift 2 ;;
+	--datefmt)     datefmt=$2    ; shift 2 ;;
+	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
+	--explore)     fexplore=1    ; shift ;;
+	--extend)      fextendonly=1 ; shift ;;
 	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
+	--hostname|--host) hname=$2  ; shift 2 ;;
+	--mount)       fdomount=1    ; shift ;;
+	--noextend)    noextend=1    ; shift   ;;
+	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--poptions)    poptions=$2   ; shift 2 ;;
+	--rootpwd)     rootpwd=1     ; shift  ;;
+	--showapt)     showapt=1     ; shift ;;
+	--uid)         myuid=$2      ; shift 2 ;;
+	--user)        myuser=$2     ; shift 2 ;;
+	--xapps)       xapps=$2      ; shift 2 ;;
+	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
 	--custom2)     custom2=$2    ; shift 2 ;;
 	--custom3)     custom3=$2    ; shift 2 ;;
 	--custom4)     custom4=$2    ; shift 2 ;;
-	--ddsw)        ddsw=$2       ; shift 2 ;;
-	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
-	--batch)       fbatch=1      ; shift ;;
-	--bootadd)     bootadd=$2    ; shift 2 ;;
-	--bootconfig)  bootconfig=$2 ; shift 2 ;;
 	--version)     pvers=1       ; shift ;;
 	--)            shift ; break ;;
 	-h|--help)     echo "sdm $version" ;
@@ -295,7 +298,8 @@ echo " --burn devname      Copy the image to the SD card" ;
 echo " --host hostname     Hostname to burn into the image with --burn" ;
 echo " --explore           Explore (nspawn shell) into image" ;
 echo " --mount             Mount IMG file partitions and drop into bash" ;
-echo "  * Customization switches (no --burn or --explore) *" ;
+echo " --datefmt str       Use this date format in logs [%Y-%m-%d %H:%M:%S]" ;
+echo "  * Customization switches (no --burn, --explore, or --mount) *" ;
 echo " --apps applist      List of app packages to install or @file with list" ;
 echo " --xapps applist     List of X11 packages to install or @file with list" ;
 echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
@@ -385,9 +389,15 @@ then
 	exit
     fi
     [ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card"
-    echo "* Copying '$dimg' to SD card '$burndev'..."
-    echo "dd if=$dimg of=$burndev status=progress $ddsw"
-    dd if=$dimg of=$burndev status=progress $ddsw
+    declare -a burnmsg
+    burnmsg+=("$(date +"$datefmt") Burning '$dimg' to SD Card '$burndev'")
+    burnmsg+=("$(date +"$datefmt") Burn command line: $cmdline")
+    echo "* Copying '$dimg' to SD Card '$burndev'..."
+    ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
+    burnmsg+=("$(date +"$datefmt") dd command: $ddcmd")
+    echo "$ddcmd"
+    $ddcmd
+    burnmsg+=("$(date +"$datefmt") SD Card copy completed")
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
     sync
     mount -v ${burndev}2 /mnt/sdm
@@ -396,7 +406,7 @@ then
 	if [ -d /mnt/sdm/usr/local/sdm/thispi/1piboot -a -f /mnt/sdm/usr/local/sdm/thispi/1piboot/1piboot.conf ]
 	then
 	    echo "* Setting host name '$hname' onto SD Card image for sdm-firstboot"
-	    /mnt/sdm/usr/local/sdm/sdm-logit "Setting host name '$hname' onto SD Card image for sdm-firstboot"
+	    burnmsg+=("$(date +"$datefmt") Setting host name '$hname' onto SD Card image for sdm-firstboot")
 	    sed -i "s/xxxxx/$hname/" /mnt/sdm/usr/local/sdm/thispi/1piboot/1piboot.conf
 	else
 	    echo "% sdm-firstboot is not configured in this image; hostname will not be written to SD Card"
@@ -405,8 +415,10 @@ then
     if [ -d /mnt/sdm/usr/local/sdm -a -x /usr/local/sdm/sdm-logit ]
     then
 	echo "* Writing burn log entry on the SD Card..."
-	/mnt/sdm/usr/local/sdm/sdm-logit "Burn command line: $cmdline"
-	/mnt/sdm/usr/local/sdm/sdm-logit "Created SD Card from $dimg"
+	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
+	do
+	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
+	done
     else
 	echo "% IMG is not sdm-enhanced; Burn log entry will not be written to SD Card"
     fi
@@ -486,10 +498,10 @@ else
     [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  /mnt/sdm/usr/local/sdm || appfile=""
     [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} /mnt/sdm/usr/local/sdm || xappfile=""
 
+    writeconfig                                         #Write arguments into IMG before sdm-logit
     /mnt/sdm/usr/local/sdm/sdm-logit "Configuration Started"
     /mnt/sdm/usr/local/sdm/sdm-logit "Command Line: $cmdline"
 
-    writeconfig                                         #Write arguments into IMG
     /mnt/sdm/usr/local/sdm/sdm-phase0
     touch $sdmdone
     
@@ -501,7 +513,7 @@ else
     echo "                                     run custom Phase 1 script"
     echo "                                     and any installs selected with --poptions"
     echo "     You have selected '$poptions' Install options"
-    echo "       out of possible 'firstboot', 'apps', 'xwindows', and 'xdmconsole'"
+    echo "       out of possible 'firstboot', 'apps', 'noupgrade', 'xwindows', and 'xdmconsole'"
     echo ""
     [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
 fi

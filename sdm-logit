@@ -15,17 +15,20 @@
 # Otherwise, we're in the nspawn so prefix not required
 #
 [[ "$0" =~ "/mnt/sdm" ]] && m="/mnt/sdm" || m=""
+source $m/usr/local/sdm/sdm-cparse
 [ ! -f "$i/etc/sdm/history" ] && touch $m/etc/sdm/history
 if [ ${#1} -le 96 ]
 then
-    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $m/etc/sdm/history
+#    echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $m/etc/sdm/history
+    echo "$(date +"$datefmt") $1" >> $m/etc/sdm/history
 else
 #    line="$1"
     readarray -t str <<< $(fold -s -w96 <<< $(echo $1))
     spc=""
     for (( i=0 ; i < ${#str[@]} ; i++))
     do
-	echo "$(date +'%Y-%m-%d %H:%M:%S') ${spc}${str[$i]}" >> $m/etc/sdm/history
+#	echo "$(date +'%Y-%m-%d %H:%M:%S') ${spc}${str[$i]}" >> $m/etc/sdm/history
+	echo "$(date +"$datefmt") ${spc}${str[$i]}" >> $m/etc/sdm/history
 	spc=" "
     done
 fi

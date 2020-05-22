@@ -111,6 +111,8 @@ then
     echo "* Image set as an apt-cacher-ng client with caching server $aptcache"
 fi
 
+echo "* Starting apt update"
+/usr/local/sdm/sdm-logit "Starting apt update"
 doapt "update" $showapt       # Do this before Custom script in case it does some installs
 
 if [ "$cscript" != "" ]
@@ -132,7 +134,17 @@ fi
 [[ "$poptions" =~ "xwindows" ]]  && doinstalls "$xapps" "XWindows Installs"
 yes="-y"
 [ $aptconfirm -eq 1 ] && yes=""
-doapt "$yes upgrade" $showapt
+echo ""
+if ! [[ "$poptions" =~ "noupgrade" ]]
+then
+    echo "* Starting apt upgrade"
+    /usr/local/sdm/sdm-logit "Starting apt upgrade"
+    doapt "$yes upgrade" $showapt
+else
+    /usr/local/sdm/sdm-logit "Skipping apt upgrade per --poption 'noupdate'"
+fi    
+echo "* Starting apt autoremove"
+/usr/local/sdm/sdm-logit "Starting apt autoremove"
 doapt "autoremove" $showapt
 /usr/local/sdm/sdm-logit "Phase 1 Completed"
 
@@ -141,12 +153,12 @@ doapt "autoremove" $showapt
 echo ""
 if [ $batch -eq 0 ]
 then
-    /usr/local/sdm/sdm-logit "Phase 1 Command Prompt"
-    echo "* Dropping to a shell prompt..."
+    /usr/local/sdm/sdm-logit "Phase 1 Entering Shell Command Prompt"
+    echo "* Entering Shell Command Prompt"
     echo ""
     exec bash -i
 else
     /usr/local/sdm/sdm-logit "Phase 1 Batch Mode exiting"
-    echo "* Batch Mode exiting..."
+    echo "* Batch Mode exiting"
     echo ""
 fi
