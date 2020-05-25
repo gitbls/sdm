@@ -119,3 +119,10 @@ function stermcolors() {
     [ "$3" != "" ] && os="${os}\e]12;$3\a"
     printf "$os"
 }
+
+function resetcolors() {
+    #
+    # Set all colors saved from stermcolors
+    #
+    stermcolors "${1}fg" "${1}bg" "${1}cursor"
+}

@@ -150,7 +150,7 @@ then
     IFS=":" read efg ebg ecursor <<< $ecolors
     stermcolors "$efg" "$ebg" "$ecursor" x1
     bash -i
-    stermcolors "$x1fg" "$x1bg" "$x1cursor"
+    resetcolors x1
 else
     /usr/local/sdm/sdm-logit "Phase 1 Batch Mode exiting"
     echo "* Batch Mode exiting"

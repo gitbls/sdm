@@ -458,7 +458,7 @@ then
     stermcolors "$efg" "$ebg" "$ecursor" xt
     bash < $(tty)
     docleanup
-    stermcolors "$xtfg" "$xtbg" "$xtcursor"
+    resetcolors xt
     exit
 fi
 
@@ -547,7 +547,7 @@ echo ""
 [ "$spawncmd" == "" ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
 docleanup
-[ "$spawncmd" == "" ] && stermcolors "$xtfg" "$xtbg" "$xtcursor"
+[ "$spawncmd" == "" ] && resetcolors xt
 
 echo "Done"
 echo ""
