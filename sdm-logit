@@ -2,20 +2,11 @@
 #
 # $1 has the message
 #
-#function splitmsg () {
-    #
-    # Split the message into multiple lines if gt 96
-    #
-#    local line="$1"
-#    readarry -t str <<< $(fold -s -w96 <<< $(echo $line))
-# "${#str[@]}" is number of elements in the array (e.g., # of lines)
-#}
-#
 # Prefix path to history log if we've been run from phase 0
 # Otherwise, we're in the nspawn so prefix not required
 #
 [[ "$0" =~ "/mnt/sdm" ]] && m="/mnt/sdm" || m=""
-source $m/usr/local/sdm/sdm-cparse
+source $m/usr/local/sdm/sdm-cparse ; readparams $m
 [ ! -f "$i/etc/sdm/history" ] && touch $m/etc/sdm/history
 if [ ${#1} -le 96 ]
 then

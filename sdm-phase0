@@ -6,7 +6,7 @@
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
-source /mnt/sdm/usr/local/sdm/sdm-cparse
+source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
 
 /mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Starting"
 echo "* Starting Phase 0 image customization"
@@ -86,8 +86,8 @@ RemainAfterExit=no
 WantedBy=multi-user.target
 EOF
 
-# Enable the service if it isn't already enabled
-touch /mnt/sdm/usr/local/sdm/thispi/run.firstboot
+# Service will be enabled (by creating run.firstboot) when SD card is burned with sdm
+
 [ ! -h /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service ] && ln -s /etc/systemd/system/sdm-firstboot.service /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service
 
 if [ "$myuser" != "" ]

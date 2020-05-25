@@ -4,15 +4,6 @@
 # It helps set up account passwords
 #
 
-function askyn() {
-    local ans
-    echo -n "$1" '[y/n]? ' ; read $2 ans
-    case "$ans" in
-        y*|Y*) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
 function getpwd() {
     local pmpt="$1" tmp
     echo -n "$pmpt: " ; read -s tmp
@@ -61,7 +52,7 @@ function doinstalls() {
 #
 # Read configuration information from sdm
 #
-source /usr/local/sdm/sdm-cparse
+source /usr/local/sdm/sdm-cparse ; readparams ""
 /usr/local/sdm/sdm-logit "Phase 1 Starting"
 
 samepwd=""
@@ -145,7 +136,7 @@ else
 fi    
 echo "* Starting apt autoremove"
 /usr/local/sdm/sdm-logit "Starting apt autoremove"
-doapt "autoremove" $showapt
+doapt "autoremove -y" $showapt
 /usr/local/sdm/sdm-logit "Phase 1 Completed"
 
 [ "$csfn" != "" ] && $csfn post-install
@@ -156,7 +147,10 @@ then
     /usr/local/sdm/sdm-logit "Phase 1 Entering Shell Command Prompt"
     echo "* Entering Shell Command Prompt"
     echo ""
-    exec bash -i
+    IFS=":" read efg ebg ecursor <<< $ecolors
+    stermcolors "$efg" "$ebg" "$ecursor" x1
+    bash -i
+    stermcolors "$x1fg" "$x1bg" "$x1cursor"
 else
     /usr/local/sdm/sdm-logit "Phase 1 Batch Mode exiting"
     echo "* Batch Mode exiting"

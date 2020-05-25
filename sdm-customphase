@@ -34,7 +34,7 @@ then
     # In Phase 0 all references to directories in the image
     # must be preceded by /mnt/sdm
     #
-    source /mnt/sdm/usr/local/sdm/sdm-cparse
+    source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
     echo ""
     echo "* Starting Custom Phase 0"
     /mnt/sdm/usr/local/sdm/sdm-logit "$pfx Phase 0 Starting"
@@ -89,7 +89,7 @@ then
     #
     # In Phase 1 all references to directories in the image can be direct
     #
-    source /usr/local/sdm/sdm-cparse
+    source /usr/local/sdm/sdm-cparse ; readparams
     echo "* Starting Custom Phase 1"
     /usr/local/sdm/sdm-logit "$pfx Starting"
 
@@ -99,7 +99,7 @@ else
     #
     # Post-install edits
     #
-    source /usr/local/sdm/sdm-cparse
+    source /usr/local/sdm/sdm-cparse ; readparams
     echo "* Starting Custom Phase Post-Install configuration"
     /usr/local/sdm/sdm-logit "$pfx Starting"
     #

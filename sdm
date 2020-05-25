@@ -155,7 +155,6 @@ function getapplist() {
 function writeconfig() {
     #
     # Write config parameters into the image
-    # Don't forget to edit sdm-cparams as well when adding new parameters
     #
     [ -f /mnt/sdm/etc/sdm/cparams ] && rm -f $paramfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
@@ -171,6 +170,7 @@ function writeconfig() {
     echo "cscript:$cscript" >> $paramfile
     echo "csrc:$csrc" >> $paramfile
     echo "datefmt:$datefmt" >> $paramfile
+    echo "ecolors:$ecolors" >> $paramfile
     echo "eeprom:$eeprom" >> $paramfile
     echo "hdmigroup:$hdmigroup" >> $paramfile
     echo "hdmimode:$hdmimode" >> $paramfile
@@ -190,44 +190,47 @@ function writeconfig() {
 # Initialize and Parse the command
 #
 #
-version="V2.0"
-myuser=""                   #Non-root user to create. Default is no non-root user created
-myuid=""                    #UID for non-root user if created
-csrc=""                     #Source directory for use by Custom Phase script
-cscript=""                  #Custom Phase script
-imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
-                            #Must be large enough to accomodate all packages you want to install
-datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
-eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
-hdmigroup=""                #If set, edit /boot/config.txt and set
-hdmimode=""                 #If set, edit /boot/config.txt and set
-bootconfig=""               #/boot/config.txt items to set
-bootadd=""                  #Items to add to /boot/config.txt
+version="V2.1"
+apps=""                     #List of apps to install in sdm-base-installs
+aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
-fextendonly=0               #1=extend image by xmb MB and then exit
-fdomount=0                  #1=Do a mount and drop into bash
-noextend=0                  #1=Do not extend image
-fexplore=0                  #1=Just fire up nspawn to explore the system
-showapt=0                   #1=Display apt output on terminal as well as logging
+bootadd=""                  #Items to add to /boot/config.txt
+bootconfig=""               #/boot/config.txt items to set
 burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
-hname=""                    #Host name when using --burn
-rootpwd=0                   #1=Set root password as well
-aptcache=""                 #IP address of apt-cacher-ng server
-poptions=""                 #Phase options
-vpoptions="firstboot,apps,noupgrade,xwindows,xdmconsole" #Valid --poptions
+csrc=""                     #Source directory for use by Custom Phase script
+cscript=""                  #Custom Phase script
+datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
+ddsw="bs=16M oflag=direct"  #Switches for dd
+ecolors="blue:gray:red"     #fg:bg:cursor
+eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
-apps=""                     #List of apps to install in sdm-base-installs
+fdomount=0                  #1=Do a mount and drop into bash
+fexplore=0                  #1=Just fire up nspawn to explore the system
+fextendonly=0               #1=extend image by xmb MB and then exit
+fglamor=1                   #1=Use glamor in Xephyr 
+hdmigroup=""                #If set, edit /boot/config.txt and set
+hdmimode=""                 #If set, edit /boot/config.txt and set
+hname=""                    #Host name when using --burn
+imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
+                            #Must be large enough to accomodate all packages you want to install
+myuser=""                   #Non-root user to create. Default is no non-root user created
+myuid=""                    #UID for non-root user if created
+noextend=0                  #1=Do not extend image
+nspawnsw=""                 #Switches for nspawn
+poptions=""                 #Phase options
+pvers=0                     #Print version number
+vpoptions="firstboot,apps,noupgrade,xwindows,xdmconsole" #Valid --poptions
+rootpwd=0                   #1=Set root password as well
+showapt=0                   #1=Display apt output on terminal as well as logging
+vdesktop=0                  #1=Start a vdesktop windows session
 xapps=""                    #List of X apps to install in sdm-X-installs
 custom1=""                  #For custom use
 custom2=""                  #For custom use
 custom3=""                  #For custom use
 custom4=""                  #For custom use
-nspawnsw=""                 #Switches for nspawn
-ddsw="bs=16M oflag=direct"  #Switches for dd
-pvers=0                     #Print version number
 #
-# custom.ized is created in the image so that we only do the customization once
+# custom.ized is created in the image so that the Phase 0 customization only done once automatically
 #
 sdmdone="/mnt/sdm/etc/sdm/custom.ized"
 paramfile="/mnt/sdm/etc/sdm/cparams"
@@ -238,7 +241,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,cscript:,csrc:,datefmt:,ddsw:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,nspawnsw:,poptions:,rootpwd,showapt,uid:,user:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version -n 'sdm' -- "$@")
+OARGS=$(getopt -o h --longoptions help,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,,cscript:,csrc:,datefmt:,ddsw:,dims:,ecolors:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,noglamor,nspawnsw:,poptions:,rootpwd,showapt,uid:,user:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version -n 'sdm' -- "$@")
 [ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
 eval set -- "$OARGS"
 
@@ -254,10 +257,12 @@ do
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
 	--burn)        burn=1 ;
 		       burndev=$2    ; shift 2 ;;
+	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--datefmt)     datefmt=$2    ; shift 2 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
+	--dims)        windim=$2     ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--explore)     fexplore=1    ; shift ;;
 	--extend)      fextendonly=1 ; shift ;;
@@ -265,13 +270,15 @@ do
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
 	--mount)       fdomount=1    ; shift ;;
-	--noextend)    noextend=1    ; shift   ;;
+	--noextend)    noextend=1    ; shift ;;
+	--noglamor)    fglamor=0     ; shift ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--poptions)    poptions=$2   ; shift 2 ;;
-	--rootpwd)     rootpwd=1     ; shift  ;;
+	--rootpwd)     rootpwd=1     ; shift ;;
 	--showapt)     showapt=1     ; shift ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
+	--vdesktop)    vdesktop=1    ; shift ;;
 	--xapps)       xapps=$2      ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
@@ -341,7 +348,7 @@ src=$(dirname $0)
 # Adjust settings based on switches and check for conflicting switches
 # and erroneous switch values
 #
-[ $fexplore -eq 1 ] && noextend=1
+[ $fexplore -eq 1 -o $vdesktop -eq 1 ] && noextend=1
 
 if [ "$cscript" != "" ]
 then
@@ -369,6 +376,16 @@ then
 	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
     fi
 fi    
+#
+# parse and set ecolors
+#
+[ "$ecolors" == "" ] && ecolors="blue:gray:red"
+IFS=":" read efg ebg ecursor <<< $ecolors
+[ "$efg" == "" ] && efg="blue"
+[ "$ebg" == "" ] && ebg="gray"
+[ "$ecursor" == "" ] && ecursor="red"
+ecolors="$efg:$ebg:$ecursor"
+
 poptcheck "$poptions"
 #
 # Process --apps and --xapps switches
@@ -380,6 +397,7 @@ getapplist "$xappfile" xapps
 #
 # Process the command. Actions are burn, mount, extend, explore, or customize
 #
+source /usr/local/sdm/sdm-cparse           # Get function defs
 if [ $burn -eq 1 ]
 then
     [ "$burndev" == "" ] && echo "? No SD card specified" && exit
@@ -389,6 +407,7 @@ then
 	exit
     fi
     [ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card"
+    # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -a burnmsg
     burnmsg+=("$(date +"$datefmt") Burning '$dimg' to SD Card '$burndev'")
     burnmsg+=("$(date +"$datefmt") Burn command line: $cmdline")
@@ -419,6 +438,8 @@ then
 	do
 	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
 	done
+	# Enable firstboot service to run
+	[ -d /mnt/sdm/usr/local/sdm/thispi ] && touch /mnt/sdm/usr/local/sdm/thispi/run.firstboot
     else
 	echo "% IMG is not sdm-enhanced; Burn log entry will not be written to SD Card"
     fi
@@ -434,8 +455,10 @@ then
     echo "IMG file mounted on /mnt/sdm. BE VERY CAREFUL!"
     echo "Exit the Bash shell to unmount the IMG file"
     echo ""
+    stermcolors "$efg" "$ebg" "$ecursor" xt
     bash < $(tty)
     docleanup
+    stermcolors "$xtfg" "$xtbg" "$xtcursor"
     exit
 fi
 
@@ -449,12 +472,11 @@ then
     domount
     echo " * (Ignore on-line resizing message) *"
     resize2fs ${loop}p2
-else
-    [ $fextendonly -eq 0 ] && domount
 fi
-
-if [ $fextendonly -eq 1 ]
+if [ $fextendonly -eq 0 ]
 then
+    domount
+else
     docleanup
     exit
 fi
@@ -489,7 +511,7 @@ else
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit,sdm-cparse} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
-    cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
+     cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
     cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/thispi/1piboot
     chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh  /mnt/sdm/usr/local/sdm/thispi/1piboot/*.sh
     [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
@@ -521,8 +543,11 @@ fi
 echo ""
 echo "Type 'exit' when complete"
 echo ""
+# If spawncmd=="" then phase 1 won't be done, so we change xterm colors here
+[ "$spawncmd" == "" ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
 docleanup
+[ "$spawncmd" == "" ] && stermcolors "$xtfg" "$xtbg" "$xtcursor"
 
 echo "Done"
 echo ""
