@@ -125,8 +125,6 @@ function resetcolors() {
     # Set all colors saved from stermcolors
     #
     local tfg tbg tcursor
-    eval "tfg=\$${1}fg"
-    eval "tbg=\$${1}bg"
-    eval "tcursor=\$${1}cursor"
+    eval "tfg=\$${1}fg ; tbg=\$${1}bg ; tcursor=\$${1}cursor"
     stermcolors "$tfg" "$tbg" "$tcursor"
 }
