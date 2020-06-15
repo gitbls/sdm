@@ -157,40 +157,42 @@ function writeconfig() {
     # Write config parameters into the image
     #
     [ -f /mnt/sdm/etc/sdm/cparams ] && rm -f $paramfile
-    echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
-    echo "apps:\"$apps\"" >> $paramfile
-    echo "xapps:\"$xapps\"" >> $paramfile
-    echo "appfile:$appfile" >> $paramfile
-    echo "xappfile:$xappfile" >> $paramfile
-    echo "aptcache:$aptcache" >> $paramfile
-    echo "aptconfirm:$aptconfirm" >> $paramfile
-    echo "batch:$fbatch" >> $paramfile
-    echo "bootadd:$bootadd" >> $paramfile
-    echo "bootconfig:$bootconfig" >> $paramfile
-    echo "cscript:$cscript" >> $paramfile
-    echo "csrc:$csrc" >> $paramfile
-    echo "datefmt:$datefmt" >> $paramfile
-    echo "ecolors:$ecolors" >> $paramfile
-    echo "eeprom:$eeprom" >> $paramfile
-    echo "hdmigroup:$hdmigroup" >> $paramfile
-    echo "hdmimode:$hdmimode" >> $paramfile
-    echo "myuid:$myuid" >> $paramfile
-    echo "myuser:$myuser" >> $paramfile
-    echo "poptions:$poptions" >> $paramfile
-    echo "rootpwd:$rootpwd" >> $paramfile
-    echo "showapt:$showapt" >> $paramfile
-    echo "src:$src" >> $paramfile
-    echo "custom1:$custom1" >> $paramfile
-    echo "custom2:$custom2" >> $paramfile
-    echo "custom3:$custom3" >> $paramfile
-    echo "custom4:$custom4" >> $paramfile
+    cat > $paramfile <<EOF
+#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
+apps:"$apps"
+xapps:"$xapps"
+appfile:$appfile
+xappfile:$xappfile
+aptcache:$aptcache
+aptconfirm:$aptconfirm
+batch:$fbatch
+bootadd:$bootadd
+bootconfig:$bootconfig
+cscript:$cscript
+csrc:$csrc
+datefmt:$datefmt
+ecolors:$ecolors
+eeprom:$eeprom
+hdmigroup:$hdmigroup
+hdmimode:$hdmimode
+myuid:$myuid
+myuser:$myuser
+poptions:$poptions
+rootpwd:$rootpwd
+showapt:$showapt
+src:$src
+custom1:$custom1
+custom2:$custom2
+custom3:$custom3
+custom4:$custom4
+EOF
 }
 
 #
 # Initialize and Parse the command
 #
 #
-version="V2.1"
+version="V2.2"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
