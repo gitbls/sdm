@@ -477,7 +477,7 @@ then
 fi
 if [ $fextendonly -eq 0 ]
 then
-    [ ! -d /mnt/sdm/boot] && domount
+    [ ! -d /mnt/sdm/boot ] && domount
 else
     docleanup
     exit
