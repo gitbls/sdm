@@ -156,7 +156,7 @@ function writeconfig() {
     #
     # Write config parameters into the image
     #
-    [ -f /mnt/sdm/etc/sdm/cparams ] && rm -f $paramfile
+    [ -f $paramfile ] && rm -f $paramfile
     cat > $paramfile <<EOF
 #Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
 apps:"$apps"
@@ -320,6 +320,7 @@ echo " --cscript script    Custom Phase Configuration script" ;
 echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
 echo " --custom[1-4] str   Can be used in Custom cscripts" ;
 echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
+echo " --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG"
 echo " --eeprom str        Set the Pi eeprom directory" ;
 echo " --extend            Only extend the image; no other customizations" ;
 echo " --noextend          Do not extend the image" ;
