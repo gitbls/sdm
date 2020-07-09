@@ -16,7 +16,7 @@ function changepwd() {
     if [ "$tpwd" == "" ]
     then
 	echo ""
-	echo -n "Password for user $1: " && read -s upwd
+	echo -n "Password for user '$1': " && read -s upwd
 	echo ""
     else
 	upwd="$tpwd"
@@ -24,7 +24,7 @@ function changepwd() {
     echo "$upwd" > /tmp/pwd.txt
     echo "$upwd" >> /tmp/pwd.txt
     echo ""
-    echo "Changing user $1 password..."
+    echo "Changing user '$1' password..."
     passwd $user < /tmp/pwd.txt
     rm -f /tmp/pwd.txt
 }
