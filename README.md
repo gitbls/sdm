@@ -15,9 +15,9 @@ What does 'ready-to-go' mean? It means that every one of your systems has all yo
 
 With sdm you'll spend a lot less time rebuilding SD cards, configuring your system, and installing packages, and more time on the things you really want to do with your Pi.
 
-Someone in the RaspberryPi.org forums said* "Generally I get by by reflashing and SD card and reinstalling everything from the notes I made previously. That is not such a long winded process."* 
+Someone in the RaspberryPi.org forums said *"Generally I get by by reflashing and SD card and reinstalling everything from the notes I made previously. That is not such a long winded process."*
 
-This does, however, require complete notes, and careful attention to detail each and every time a card need to be reflashed. `sdm` enables you to have your notes in simple bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card, and it is built with ALL of your favorite apps installed, and all your favorite customizations.
+This approach does, however, require complete notes, and careful attention to detail each and every time a card need to be reflashed. `sdm` enables you to have your notes in simple bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card, and it is built with ALL of your favorite apps installed, and all your favorite customizations.
 
 ***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a Raspbian package that enables you to update all your Pis quickly by caching downloaded packages locally. This reduces install and update time, and internet network consumption.
 
@@ -67,6 +67,7 @@ Installation is fairly simple. sdm must be installed in and uses the path /usr/l
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/020-ssh-switch.sh -o /usr/local/sdm/1piboot/020-ssh-switch.sh
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/1piboot/030-disable-rsyslog.sh
     sudo chmod -R 755 /usr/local/sdm/* /usr/local/sdm/1piboot/*.sh
+    sudo chmod 644 /usr/local/sdm/{sdm-apps-example,sdm-xapps-example} /usr/local/sdm/1piboot/1piboot.conf
 
 ## Details
 
