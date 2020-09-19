@@ -8,18 +8,17 @@
 #
 source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
 
-/mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Starting"
-echo "* Starting Phase 0 image customization"
+logtoboth /mnt/sdm "* Start Phase 0 image customization"
 
-echo "  Setting up ssh in boot partition"
-echo "  (wpa_supplicant.conf will be done later)"
+logtoboth /mnt/sdm "> Set up ssh in boot partition"
+logtoboth /mnt/sdm "> (wpa_supplicant.conf will be done later)"
 touch /mnt/sdm/boot/ssh
 #
 # Set HDMI configuration if requested
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    echo "  Setting hdmigroup and hdmimode in /boot/config.txt configuration"
+    logtoboth /mnt/sdm "> Set hdmigroup and hdmimode in /boot/config.txt configuration"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
 fi
@@ -28,24 +27,22 @@ fi
 #
 if [ "$bootconfig" != "" ]
 then
-    /mnt/sdm/usr/local/sdm/sdm-logit "Updating /boot/config.txt"
-    echo "  Updating /boot/config.txt for bootconfig: $bootconfig"
+    logtoboth /mnt/sdm "> Update /boot/config.txt for bootconfig: $bootconfig"
     readarray -d, citems <<< $bootconfig
     for c in ${citems[@]}
     do
 	IFS=":=" read key value <<< $c
 	value="${value%,}"
 	sed -i "s/\#$key=.*/$key=$value/" /mnt/sdm/boot/config.txt
-	/mnt/sdm/usr/local/sdm/sdm-logit "  $key=$value"
-	echo "  $key=$value"
+	logtoboth /mnt/sdm ">  $key=$value"
     done
 fi
 if [ "$bootadd" != "" ]
 then
     if ! grep -q 'Following items added by sdm --bootadd' /mnt/sdm/boot/config.txt
     then
-	/mnt/sdm/usr/local/sdm/sdm-logit "Adding new keys to /boot/config.txt"
-	echo "  Updating /boot/config.txt for bootadd: $bootadd"
+	logtoboth /mnt/sdm "> Add new keys to /boot/config.txt"
+	logtoboth /mnt/sdm "> Update /boot/config.txt for bootadd: $bootadd"
 	echo "# Following items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
 	readarray -d, citems <<< $bootadd
 	for c in ${citems[@]}
@@ -53,21 +50,20 @@ then
 	    IFS=":=" read key value <<< $c
 	    value="${value%,}"
 	    echo "$key=$value" >> /mnt/sdm/boot/config.txt
-	    /mnt/sdm/usr/local/sdm/sdm-logit "  $key=$value"
-	    echo "  $key=$value"
+	    logtoboth /mnt/sdm ">  $key=$value"
 	done
 	echo "# Above items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
     else
-	/mnt/sdm/usr/local/sdm/sdm-logit "/boot/config.txt already updated for --bootadd; skipping"
-	echo "  /boot/config.txt already updated for --bootadd; skipping"
+	logtoboth /mnt/sdm "> /boot/config.txt already updated for --bootadd; skipping"
     fi
 fi
 #
 # Set up sdm-firstboot service. This service sets the wifi country and hostname
-# on the first boot of the system. Other parameters are set via 0piboot
+# on the first boot of the system. Other parameters (locale, keymap, timezone) are set
 # in the nspawn
+# Service will be enabled (by creating run.firstboot) when SD card is burned with sdm
 #
-echo "  Setting up sdm-firstboot service"
+logtoboth /mnt/sdm "> Set up sdm-firstboot service"
 [ -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service ] && rm -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service
 cat > /mnt/sdm/etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
@@ -86,8 +82,6 @@ RemainAfterExit=no
 WantedBy=multi-user.target
 EOF
 
-# Service will be enabled (by creating run.firstboot) when SD card is burned with sdm
-
 [ ! -h /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service ] && ln -s /etc/systemd/system/sdm-firstboot.service /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service
 
 if [ "$myuser" != "" ]
@@ -96,7 +90,7 @@ then
     # do what we can now. Can't create the new user until nspawn. Done in sdm-phase1
     # home directory ownership fixed then as well
     #
-    echo "  Add '$myuser' to sudoers.d"
+    logtoboth /mnt/sdm "> Add '$myuser' to sudoers.d"
     echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
     chmod 440 /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
     [ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser
@@ -104,16 +98,15 @@ fi
 
 if [ "$eeprom" != "" ]
 then
-    echo "  Set rpi-eeprom to '$eeprom'"
+    logtoboth /mnt/sdm "> Set rpi-eeprom to '$eeprom'"
     sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
 fi
 
 
 if [ "$cscript" != "" ]
 then
-    /mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Custom Script '$cscript'"
+    logtoboth /mnt/sdm "> Run Custom Script '$cscript' Phase 0"
     $cscript 0
 fi
 
-/mnt/sdm/usr/local/sdm/sdm-logit "Phase 0 Completed"
-echo "* Phase 0 Completed"
+logtoboth /mnt/sdm "* Phase 0 Completed"

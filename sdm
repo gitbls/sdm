@@ -27,6 +27,15 @@
 #     3   Boot the newly-created SD card
 #
 
+function errexit() {
+    echo "$1"
+    exit 1
+}
+
+function exitiferr() {
+    [ "${1:0:1}" == "?" ] && errexit "$1"
+}
+
 function docleanup() {
     umount -v /mnt/sdm/{boot,}
     [ "$loop" != "" ] && losetup -d $loop
@@ -95,7 +104,7 @@ function poptcheck() {
 		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
 	    fi
 	done
-	[ "$badopt" != "" ] && echo "? Unrecognized --poption value(s) $badopt" && exit
+	[ "$badopt" != "" ] && errexit "? Unrecognized --poption value(s) $badopt"
     fi
 }
 function findappfile() {
@@ -115,15 +124,15 @@ function findappfile() {
 	    if [ ! -f "$fnc" ]
 	    then
 		echo "? $2 file '$fn' not found"
-		exit
+		return
 	    else
-		eval "${2}=\"@$fnc\""
+		echo "@$fnc"
 	    fi
 	else
-	    eval "${2}=\"$1\""
+	    echo "$1"
 	fi
     else
-	eval "${2}=\"$1\""
+	echo "$1"
     fi
 }
 
@@ -149,7 +158,7 @@ function getapplist() {
 	lapps="$1"
     fi
     lapps="${lapps## }"      # Del leading spaces
-    eval "${2}=\"$lapps\""
+    echo "$lapps"
 }
 
 function writeconfig() {
@@ -192,7 +201,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V2.2"
+version="V3.0"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -237,14 +246,14 @@ custom4=""                  #For custom use
 sdmdone="/mnt/sdm/etc/sdm/custom.ized"
 paramfile="/mnt/sdm/etc/sdm/cparams"
 
-[[ ! $EUID -eq 0 ]] && echo "? Please run as root: sudo $0 $*" && exit 1
-[ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && echo "? Please 'sudo apt install systemd-container' first" && exit
+[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
+[ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && errexit "? Please 'sudo apt install systemd-container' first"
 #
 # Parse the command line
 #
 cmdline="$0 $*"
 OARGS=$(getopt -o h --longoptions help,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,,cscript:,csrc:,datefmt:,ddsw:,dims:,ecolors:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,noglamor,nspawnsw:,poptions:,rootpwd,showapt,uid:,user:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version -n 'sdm' -- "$@")
-[ $? != 0 ] && echo "? sdm: Command parse failed!" && exit 1
+[ $? != 0 ] && errexit "? sdm: Command parse failed!"
 eval set -- "$OARGS"
 
 while true
@@ -292,15 +301,15 @@ do
 	-h|--help)     echo "sdm $version" ;
 echo "" ;
 echo "Usage:" ;
-echo "sudo sdm [switches] disk-image-file" ;
+echo "sudo /usr/local/sdm/sdm [switches] disk-image-file" ;
 echo "Customize an SD Card image (no --burn, --explore, or --extend)" ;
-echo "   sudo sdm sd-image-file" ;
+echo "   sudo /usr/local/sdm/sdm sd-image-file" ;
 echo " or drop into an nspawn shell in the SD Card image (--explore)" ;
-echo "   sudo sdm --explore sd-image-file" ;
+echo "   sudo /usr/local/sdm/sdm --explore sd-image-file" ;
 echo " or burn an SD Card image to an SD Card (--burn)" ;
-echo "   sudo sdm --burn /dev/sdx --host target-hostname sd-image-file" ;
+echo "   sudo /usr/local/sdm/sdm --burn /dev/sdx --host target-hostname sd-image-file" ;
 echo " or mount SD Card image into file system for inspection/modification (Be VERY Careful!)" ;
-echo "   sudo sdm --mount sd-image-file" ;
+echo "   sudo /usr/local/sdm/sdm --mount sd-image-file" ;
 echo "" ;
 echo "Switches" ;
 echo " --burn devname      Copy the image to the SD card" ;
@@ -337,7 +346,7 @@ echo " --user username     Non-root user to create" ;
 echo " --xmb n             Extend image file by n MB [2048]" ;
 echo " --version           Print sdm version number" ;
 shift ; exit ;;
-	*) echo "? $0: Internal error!" ; exit 1 ;;
+	*) errexit "? $0: Internal error!" ;;
     esac
 done
 
@@ -345,8 +354,8 @@ dimg="$1"
 src=$(dirname $0)
 
 [ $pvers -eq 1 ] && echo "sdm $version" && exit
-[ "$dimg" == "" ] && echo "? No disk image specified" && exit
-[ ! -f "$dimg" ] && echo "? Disk image file '$dimg' does not exist" && exit
+[ "$dimg" == "" ] && errexit "? No disk image specified"
+[ ! -f "$dimg" ] && errexit "? Disk image file '$dimg' does not exist"
 #
 # Adjust settings based on switches and check for conflicting switches
 # and erroneous switch values
@@ -364,17 +373,17 @@ then
 	fi
     fi
 fi
-[ $burn -eq 1 -a $fdomount -eq 1 ] && echo "? Conflicting switches: --burn and --mount" && exit
-[ $burn -eq 1 -a $fexplore -eq 1 ] && echo "? Conflicting switches: --burn and --explore" && exit
-[ $fdomount -eq 1 -a $fexplore -eq 1 ] && echo "? Conflicting switches: --mount and --explore" && exit
-[ "$src" != "" -a ! -d "$src" ] && echo "? Source directory '$src' not found" && exit
-[ "$csrc" != "" -a ! -d "$csrc" ] && echo "? Custom source directory '$csrc' not found" && exit
-[ "$hdmimode" != "" -a "$hdmigroup" == "" ] && echo "? --hdmimode set but not --hdmigroup" && exit
-[ "$hdmigroup" != "" -a "$hdmimode" == "" ] && echo "? --hdmigroup set but not --hdmimode" && exit
-[ "$cscript" != "" -a ! -x "$cscript" ] && echo "? cscript '$cscript' is not executable or does not exist" && exit
+[ $burn -eq 1 -a $fdomount -eq 1 ] && errexit "? Conflicting switches: --burn and --mount"
+[ $burn -eq 1 -a $fexplore -eq 1 ] && errexit "? Conflicting switches: --burn and --explore"
+[ $fdomount -eq 1 -a $fexplore -eq 1 ] && errexit "? Conflicting switches: --mount and --explore"
+[ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
+[ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
+[ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
+[ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
+[ "$cscript" != "" -a ! -x "$cscript" ] && errexit "? cscript '$cscript' is not executable or does not exist"
 if [ "$eeprom" != "" ]
 then
-    if [[ ! "$critical/stable/beta" =~ "$eeprom" ]]
+    if [[ ! "critical/stable/beta" =~ "$eeprom" ]]
     then
 	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
     fi
@@ -393,28 +402,26 @@ poptcheck "$poptions"
 #
 # Process --apps and --xapps switches
 #
-findappfile "$apps" appfile     #Gets real @file nam or list of apps into '$appfile'
-getapplist "$appfile" apps      #Gets definitive app list into '$apps'
-findappfile "$xapps" xappfile   #Ditto for xappfile and xapps
-getapplist "$xappfile" xapps
+appfile="$(findappfile $apps)" #Gets real @file nam or list of apps into '$appfile'
+exitiferr "$appfile"
+apps="$(getapplist $appfile)"    #Gets definitive app list into '$apps'
+xappfile="$(findappfile $xapps)" #Ditto for xappfile and xapps
+exitiferr "$xappfile"
+xapps="$(getapplist $xappfile)"
 #
 # Process the command. Actions are burn, mount, extend, explore, or customize
 #
 source /usr/local/sdm/sdm-cparse           # Get function defs
 if [ $burn -eq 1 ]
 then
-    [ "$burndev" == "" ] && echo "? No SD card specified" && exit
-    if ismounted $burndev
-    then
-	echo "? Device '$burndev' is mounted"
-	exit
-    fi
+    [ "$burndev" == "" ] && errexit "? No SD card specified"
+    ismounted $burndev && errexit "? Device '$burndev' is mounted"
     [ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card"
     # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -a burnmsg
     burnmsg+=("$(date +"$datefmt") Burning '$dimg' to SD Card '$burndev'")
     burnmsg+=("$(date +"$datefmt") Burn command line: $cmdline")
-    echo "* Copying '$dimg' to SD Card '$burndev'..."
+    echo "* Burning '$dimg' to SD Card '$burndev'..."
     ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
     burnmsg+=("$(date +"$datefmt") dd command: $ddcmd")
     echo "$ddcmd"
@@ -434,7 +441,7 @@ then
 	    echo "% sdm-firstboot is not configured in this image; hostname will not be written to SD Card"
 	fi
     fi
-    if [ -d /mnt/sdm/usr/local/sdm -a -x /usr/local/sdm/sdm-logit ]
+    if [ -d /mnt/sdm/usr/local/sdm -a -d /mnt/sdm/etc/sdm ]
     then
 	echo "* Writing burn log entry on the SD Card..."
 	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
@@ -498,10 +505,9 @@ then
 	echo "% Dropping into nspawn for you to have a look at it..."
     else
 	echo ""
-	echo "Ready to nspawn into the new image"
+	echo "* Ready to nspawn into the new image"
     fi
 else
-    echo ""
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
     # Create and populate /usr/local/sdm tree
@@ -511,10 +517,10 @@ else
 					     /mnt/sdm/usr/local/sdm/1piboot \
 					     /mnt/sdm/usr/local/sdm/thispi \
 					     /mnt/sdm/usr/local/sdm/thispi/1piboot
-    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-logit,sdm-cparse} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
-     cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
+    cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
     cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/thispi/1piboot
     chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh  /mnt/sdm/usr/local/sdm/thispi/1piboot/*.sh
     [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
@@ -523,14 +529,13 @@ else
     [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  /mnt/sdm/usr/local/sdm || appfile=""
     [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} /mnt/sdm/usr/local/sdm || xappfile=""
 
-    writeconfig                                         #Write arguments into IMG before sdm-logit
-    /mnt/sdm/usr/local/sdm/sdm-logit "Configuration Started"
-    /mnt/sdm/usr/local/sdm/sdm-logit "Command Line: $cmdline"
+    writeconfig
+    logtoboth /mnt/sdm "* Start Configuration"
+    logtoboth /mnt/sdm "> Command Line: $cmdline"
 
     /mnt/sdm/usr/local/sdm/sdm-phase0
     touch $sdmdone
     
-    echo ""
     echo "* Ready to nspawn into the new image for Phase 1"
     echo ""
     echo "  sdm will:"
@@ -543,9 +548,7 @@ else
     [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
 fi
 
-echo ""
-echo "Type 'exit' when complete"
-echo ""
+echo "** Type 'exit' to exit nspawn"
 # If spawncmd=="" then phase 1 won't be done, so we change xterm colors here
 [ "$spawncmd" == "" ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
@@ -553,5 +556,4 @@ docleanup
 [ "$spawncmd" == "" ] && resetcolors xt
 
 echo "Done"
-echo ""
 exit

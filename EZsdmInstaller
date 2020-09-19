@@ -15,7 +15,7 @@ src="https://raw.githubusercontent.com/gitbls/sdm/master"
 
 $sudo mkdir -p $dir $dir/1piboot
 
-for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-logit \
+for f in sdm sdm-phase0 sdm-phase1 sdm-cparse \
 	     sdm-firstboot sdm-apt-cacher sdm-customphase \
 	     sdm-apps-example sdm-xapps-example \
 	     1piboot/1piboot.conf \
@@ -27,7 +27,16 @@ do
 done
 
 $sudo chmod -R 755 $dir/*
+$sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 
-echo ""
-echo "Invoke sdm with $dir/sdm"
+if [ "$dir" == "/usr/local/sdm" ]
+then
+    echo ""
+    echo "% Invoke sdm with $dir/sdm"
+else
+    echo ""
+    echo "You can inspect sdm in $1..."
+    echo "...but you must move sdm to /usr/local/sdm in order to use it"
+fi
+
 

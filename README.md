@@ -15,7 +15,11 @@ What does 'ready-to-go' mean? It means that every one of your systems has all yo
 
 With sdm you'll spend a lot less time rebuilding SD cards, configuring your system, and installing packages, and more time on the things you really want to do with your Pi.
 
-***As a bonus***, sdm includes a script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a Raspbian package that enables you to update all your Pis quickly by caching downloaded packages locally. This reduces install and update time, and internet network consumption.
+Someone in the RaspberryPi.org forums said* "Generally I get by by reflashing and SD card and reinstalling everything from the notes I made previously. That is not such a long winded process."* 
+
+This does, however, require complete notes, and careful attention to detail each and every time a card need to be reflashed. `sdm` enables you to have your notes in simple bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card, and it is built with ALL of your favorite apps installed, and all your favorite customizations.
+
+***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a Raspbian package that enables you to update all your Pis quickly by caching downloaded packages locally. This reduces install and update time, and internet network consumption.
 
 sdm is for Raspbian, and runs on Raspbian. sdm requires a USB SD Card reader in order to write a new SD Card. You cannot use sdm to rewrite the running system's SD Card.
 
@@ -25,26 +29,28 @@ A quick outline of the steps to get started with sdm:
 
 * Download sdm (see next section *Installing sdm*)
 * Create a file to select the packages you want to install. See `sdm-apps-example`.
-* Using Raspbian Lite and want X Windows? Create a file to list the X apps you want to install. See `sdm-xapps-example1.
+* Using Raspbian Lite and want X Windows? Create a file to list the X apps you want to install. See `sdm-xapps-example`.
 * Using Raspbian Full? You probably won't need to install many, if any, XWindows applications. But, if you do, create a file to list the X apps you want to install.
-* For other customizations, copy sdm-customphase to a location of your choice, and edit away. Be aware of the two phases:
+* For other customizations, copy the sample Custom Phase script `sdm-customphase` to a location of your choice, and start customizing. One change you'll need to make if you're using WiFi is to copy wpa_supplicant.conf into the image. Simply edit the code in the script as appropriate. Be aware of the three phases:
     * **Phase 0:** Script has access to the host file system. Phase 0 of your Custom Script (see below) is a great place to copy files from the host system or the network into your IMG file.
     * **Phase 1:** Running inside the nspawn container, so can't access the host file system, but you can add users, install apps, etc.
-* Edit `/usr/local/sdm/1piboot/1piboot.conf` and change the values appropriately for your locale, keymap, timezone, and WiFi Country.
+    * **post-install:** Again, running inside the nspawn container, post-install is run after Phase 1, so you can do any post-install configuration.
+* Edit `/usr/local/sdm/1piboot/1piboot.conf` and change the values appropriately for your locale, keymap, timezone, and WiFi Country, and decide whether you want the custom scripts in /usr/local/sdm/1piboot to run on your newly-created SD card.
 
 You're ready to give it a try!
 
 ## Installing sdm
 
-Installation is fairly simple. sdm uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. **The simplest download is to use EZsdmInstaller**, which performs the commands listed in *the really long way*:
+Installation is fairly simple. sdm must be installed in and uses the path /usr/local/sdm within images that it manages, so for consistency you should do the same on your system. **The simplest download is to use EZsdmInstaller**, which performs the commands listed in *the really long way*:
 
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 
 **or download the Installer script to examine it before running:**
 
-    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o ./EZsdmInstaller
+    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o ./EZsdmInstaller
     chmod 755 ./EZsdmInstaller
-    ./EZsdmInstaller
+    # Inspect the EZsdmInstaller script
+    sudo ./EZsdmInstaller
 
 **Or, download it the really long way:**
 
@@ -53,7 +59,6 @@ Installation is fairly simple. sdm uses the path /usr/local/sdm within images th
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-phase0 -o /usr/local/sdm/sdm-phase0
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-phase1 -o /usr/local/sdm/sdm-phase1
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-cparse -o /usr/local/sdm/sdm-cparse
-    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-logit -o /usr/local/sdm/sdm-logit
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-firstboot -o /usr/local/sdm/sdm-firstboot
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-apt-cacher -o /usr/local/sdm/sdm-apt-cacher
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-customphase -o /usr/local/sdm/sdm-customphase
@@ -67,17 +72,17 @@ Installation is fairly simple. sdm uses the path /usr/local/sdm within images th
 
 sdm manages the SD Card image in Phases:
 
-* **Phase 0:** *Operating in the context of your physical Raspbian system, copying files into the Raspbian IMG file.* sdm takes care of Phase 0 for you. The Phase 0 script `sdm-phase0` performs the Phase 0 copying. It will also optionally call a Custom Phase script provided by you to perform customized personal steps. See *Custom Phase script *below for details.
+* **Phase 0:** *Operating in the logical context of your physical Raspbian system, copying files into the Raspbian IMG file.* sdm takes care of Phase 0 for you. The Phase 0 script `sdm-phase0` performs the Phase 0 copying. It will also optionally call a Custom Phase script provided by you to perform customized personal steps. See *Custom Phase script *below for details.
 
 * **Phase 1:** *Operating inside the IMG file and in the context of that system (via nspawn)*. When operating in this context, all changes made only affect the SD Card IMG, not the physical Raspbian system on which sdm is running
 
     Most, but not all commands can be used in Phase 1. For instance, `systemctl` doesn't work because systemd is not running in the nspawn'ed image. But, new users can be added, passwords can be changed, packages can be installed, etc. In other words, you can do almost everything you want to configure a system for repeated SD card burns.
 
-    Once sdm has started the nspawn container, it will automatically run /usr/local/sdm/sdm-phase1 to perform Phase 1 customization. As with Phase 0, your personal customization script will be called. After Phase 1 has completed, sdm will provide a command prompt inside the container unless you specified `--batch`, in which case sdm will exit the container.
+    Once sdm has started the nspawn container, it will automatically run `/usr/local/sdm/sdm-phase1` to perform Phase 1 customization. As with Phase 0, your Custom Phase script will be called. After Phase 1 has completed, sdm will provide a command prompt inside the container unless you specified `--batch`, in which case sdm will exit the container.
 
-* **Phase 2:** *Writing the SD Card*. The IMG is written to the new physical SD card using ***dd***, and the new system name is written to the SD card. This enables a single IMG file to be the source for as many Pi systems as you'd like. `sdm --burn will writ the SD Card and set the hostname on the SD Card as well. Of course, you can burn the SD Card using a different tool if you'd prefer.
+* **Phase 2:** *Write the SD Card*. The IMG is written to the new physical SD card using ***dd***, and the new system name is written to the SD card. This enables a single IMG file to be the source for as many Pi systems as you'd like. `sdm --burn` will write the SD Card and set the hostname on the SD Card as well. Of course, you can burn the SD Card using a different tool if you'd prefer, although you'll need to set the hostname with another mechanism.
 
-* **Phase 3:** *Booting the newly-created SD card on a Pi*. When the new system boots the first time, the systemd service sdm-firstboot sets the system name and WiFi country and disables itself so that it doesn't run on subsequent system boots.
+* **Phase 3:** *Boot the newly-created SD card on a Pi*. When the new system boots the first time, the systemd service sdm-firstboot sets the system name and WiFi country and then disables itself so it doesn't run on subsequent system boots.
 
 ## Usage Examples
 
@@ -125,13 +130,17 @@ sdm consists of a primary script `sdm` and several supporting scripts:
 
     sdm-phase1 installs the 'X' apps that you've specified as well. You control which applications are installed by using the `--xapps` switch. The value for the `--xapps` switch is treated the same as for the `--apps` switch above. This is probably more interesting if you're using Raspbian Lite, which does not include the X Windows software in the image. The example file `sdm-xapps-example` provides one example of installing a minimal X Windows system, but since there are a multitude of ways to install X11, display managers, window managers, and X11-based applications, you'll undoubtedly want to build your own xapps list.
 
-* **sdm-firstboot -** Systemd service run on first system boot to set the hostname and WiFi country. It's also used during Phase 1 to set the locale, keymap, and timezone for your system.
+* **sdm-firstboot -** Systemd service run on first system boot to set the hostname and WiFi country, and run any custom firstboot scripts if enabled in 1piboot.conf. It's also used during Phase 1 to set the locale, keymap, and timezone for your system.
 
-* **1piboot/* -** Configuration file and sample scripts. **You'll need to edit the configuration file (1piboot.conf)** before using sdm to set the locale, keymap, timezone, and WiFi country. Do not change the hostname from 'xxxxx'. sdm will change it automatically when you burn the SD card. A 'virgin' copy of this directory will be installed onto the SD Card in /usr/local/sdm/1piboot. The files will also be copied into /usr/local/sdm/thispi/1piboot, and this copy is used by sdm-firstboot.
+* **1piboot/* -** Configuration file and sample scripts. **You'll need to edit the configuration file (1piboot.conf)** before using sdm to set the locale, keymap, timezone, and WiFi country. **Do not change the hostname from 'xxxxx'**. sdm will change it automatically when you burn the SD card. A 'virgin' copy of this directory will be installed onto the SD Card in /usr/local/sdm/1piboot. The files will also be copied into /usr/local/sdm/thispi/1piboot, and this copy is used by sdm-firstboot.
+
+    If enabled, the custom scripts in 1piboot/* are run when the system first boots, and provide system tuning improvements. You can, of course, disable any of these by renaming them with a leading period, or changing the file type (from ".sh" to ".sh-disabled", for example). The custom scripts are enabled by changing "custom-scripts=False" to "custom-scripts=True" in 1piboot/1piboot.conf.
+
+    * **010-disable-triggerhappy.sh** - Disables the TriggerHappy service, which you may not be using.
+    * **020-ssh-switch.sh** - Switches ssh from using a constantly running service to a socket-based service started as-needed by systemd, removing one always-running process from the system.
+    * **030-disable-syslog.sh** - Switches the system log from using rsyslog, writing several text-based log files in /var/log (daemon.log, syslog, auth.log, kern.log, and messages) to using journalctl and writing a log in /var/log/journal. The `sudo journalctl` command can be used to view the log (in either scenario).
 
 * **sdm-cparse -** Helper script that defines a few bash functions and loads sdm parameters for use by the scripts.
-
-* **sdm-logit -** Helper script to write log entries into /etc/sdm/history in the IMG.
 
 * **sdm-customphase -** Sample Custom Phase script. You can use this as a starting point to build your own Custom Phase script.
 
@@ -167,7 +176,7 @@ Additional sdm command switches include:
 * `--hdmigroup` *num* - hdmigroup setting in config.txt
 * `--hdmimode` *num* - hdmimode setting in config.txt
 * `--nspawnsw` *"switches"* - Provide additional switches for the systemd-nspawn command
-* `--poptions` *value* - Controls which scripts will be called by sdm-phase1. Possible options include: firstboot, apps, and xwindows. Enter multiple values as a single string separated by a colon or comma. For example `--poptions firstboot:apps` or `--poptions firstboot,apps,xwindows`
+* `--poptions` *value* - Controls which scripts will be called by sdm-phase1. Possible options include: firstboot, noupgrade, apps, and xwindows. Enter multiple values as a single string separated by a colon or comma. For example `--poptions firstboot:apps` or `--poptions firstboot,apps,xwindows`
 * `--showapt` - Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--uid` *uid* - Use the specified uid rather than the next assignable uid for the new user, if created.
 
@@ -199,7 +208,7 @@ If you have other existing, running Pis that you want to convert to using your a
 
 ## Bread crumbs
 
-sdm leaves a couple of files in /etc/sdm that are used to control its operation and log status.
+sdm leaves a couple of files in /etc/sdm in the IMG that are used to control its operation and log status.
 
 * *apt.log* contains all the apt command output (package installs) done during the SD Card creation
 

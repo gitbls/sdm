@@ -5,47 +5,39 @@
 #
 
 function getpwd() {
-    local pmpt="$1" tmp
-    echo -n "$pmpt: " ; read -s tmp
-    eval "${2}=\"$tmp\""
+    local tmp
+    read -s tmp
+    echo "$tmp"
 }
 
 function changepwd() {
     local user="$1" upwd tpwd="$2"
-    [ -f /tmp/pwd.txt ] && rm -f /tmp/pwd.txt
     if [ "$tpwd" == "" ]
     then
-	echo ""
-	echo -n "Password for user '$1': " && read -s upwd
-	echo ""
+        echo -n "Password for user '$1': " && read -s upwd
+        echo ""
     else
-	upwd="$tpwd"
+        upwd="$tpwd"
     fi
-    echo "$upwd" > /tmp/pwd.txt
-    echo "$upwd" >> /tmp/pwd.txt
-    echo ""
-    echo "Changing user '$1' password..."
-    passwd $user < /tmp/pwd.txt
-    rm -f /tmp/pwd.txt
+    chpasswd <<EOF
+$user:$upwd
+EOF
 }
 
 function doinstalls() {
     #
     # $1 - app list
-    # $2 - subject string ("X Installs" or "Application Installs")
+    # $2 - subject string ("XWindows Installs" or "Application Installs")
     #
     if [ "$1" != "" ]
     then
-	echo ""
-	echo "* Starting $2"
-	/usr/local/sdm/sdm-logit "$2 Starting"
-	/usr/local/sdm/sdm-logit "$2 Installing $1"
-	yes="-y"
-	[ $aptconfirm -eq 1 ] && yes=""
+	logtoboth "" "* Start $2"
+	logtoboth "" "> ${2}: $1"
+	[ $aptconfirm -eq 1 ] && yes="" || yes="-y"
 	doapt "install --no-install-recommends $yes $1" $showapt
-	/usr/local/sdm/sdm-logit "$2 Completed"
+	logtoboth "" "* $2 Completed"
     else
-	/usr/local/sdm/sdm-logit "Skipping $2"
+	logtoboth "" "> Skipping $2"
     fi
 }
 
@@ -53,7 +45,7 @@ function doinstalls() {
 # Read configuration information from sdm
 #
 source /usr/local/sdm/sdm-cparse ; readparams ""
-/usr/local/sdm/sdm-logit "Phase 1 Starting"
+logtoboth "" "* Start Phase 1 image customization"
 
 samepwd=""
 puser="'pi'"
@@ -63,25 +55,25 @@ then
     [ "$myuser" != "" ] && puser="${puser} and '$myuser'" && susers="users"
     [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
 
-    if askyn "* Use same password for $susers $puser" "-n 1"
+    if askyn "** Use same password for $susers $puser" "-n 1"
     then
 	echo ""
-	getpwd "Password" samepwd
+	echo -n "Password: "
+	samepwd="$(getpwd Password)"
     fi
 
     echo ""
     if [ $rootpwd -eq 1 ]
     then
-	echo "Changing root password..."
+	logtoboth "" "> Change root password"
 	changepwd root "$samepwd"
-	echo ""
     else
-	echo "* Not changing root password"
+	logtoboth "" "> root password not changed"
     fi
 
     if [ "$myuser" != "" ]; then
 	[ $myuid != "" ] && xuid="--uid $myuid" || xuid=""
-	echo "* Adding user $myuser..."
+	logtoboth "" "> Adding user $myuser..."
 	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
@@ -90,26 +82,24 @@ then
 	chown -R $myuser.users /home/$myuser
     fi
 fi
-
+logtoboth "" "> Change user 'pi' password"
 changepwd pi "$samepwd"
-echo ""
 #
 # Set up apt-cacher-ng client if requested
 #
 if [ "$aptcache" != "" ]
 then
     /usr/local/sdm/sdm-apt-cacher client $aptcache
-    echo "* Image set as an apt-cacher-ng client with caching server $aptcache"
+    logtoboth "" "> Image set as an apt-cacher-ng client with caching server $aptcache"
 fi
 
-echo "* Starting apt update"
-/usr/local/sdm/sdm-logit "Starting apt update"
+logtoboth "" "> Starting apt update"
 doapt "update" $showapt       # Do this before Custom script in case it does some installs
 
 if [ "$cscript" != "" ]
 then
     csfn="/usr/local/sdm/$(basename $cscript)"
-    /usr/local/sdm/sdm-logit "Phase 1 Custom Script '$csfn'" 
+    logtoboth "" "> Run Custom Script '$csfn' Phase 1" 
     $csfn 1
 else
     csfn=""
@@ -121,38 +111,31 @@ fi
 #              --poptions firstboot:apps:xwindows does all 3
 #
 [[ "$poptions" =~ "firstboot" ]] && /usr/local/sdm/sdm-firstboot
-[[ "$poptions" =~ "apps" ]] && doinstalls "$apps" "Application Installs"
+[[ "$poptions" =~ "apps" ]]      && doinstalls "$apps" "Application Installs"
 [[ "$poptions" =~ "xwindows" ]]  && doinstalls "$xapps" "XWindows Installs"
-yes="-y"
-[ $aptconfirm -eq 1 ] && yes=""
-echo ""
+[ $aptconfirm -eq 1 ] && yes="" || yes="-y"
 if ! [[ "$poptions" =~ "noupgrade" ]]
 then
-    echo "* Starting apt upgrade"
-    /usr/local/sdm/sdm-logit "Starting apt upgrade"
+    logtoboth "" "> Start 'apt upgrade'"
     doapt "$yes upgrade" $showapt
 else
-    /usr/local/sdm/sdm-logit "Skipping apt upgrade per --poption 'noupdate'"
+    logtoboth "" "> Skipping 'apt upgrade' per --poption 'noupdate'"
 fi    
-echo "* Starting apt autoremove"
-/usr/local/sdm/sdm-logit "Starting apt autoremove"
+logtoboth "" "> Starting apt autoremove"
 doapt "autoremove -y" $showapt
-/usr/local/sdm/sdm-logit "Phase 1 Completed"
+logtoboth "" "* Phase 1 Completed"
 
-[ "$csfn" != "" ] && $csfn post-install
+[ "$csfn" != "" ] && logtoboth "" "> Run Custom Script '$csfn' post-install" && $csfn post-install
 
 echo ""
 if [ $batch -eq 0 ]
 then
-    /usr/local/sdm/sdm-logit "Phase 1 Entering Shell Command Prompt"
-    echo "* Entering Shell Command Prompt"
-    echo ""
+    logtoboth "" "* Enter Shell Command Prompt"
     IFS=":" read efg ebg ecursor <<< $ecolors
     stermcolors "$efg" "$ebg" "$ecursor" x1
     bash -i
     resetcolors x1
 else
-    /usr/local/sdm/sdm-logit "Phase 1 Batch Mode exiting"
-    echo "* Batch Mode exiting"
+    logtoboth "" "* Batch Mode exit"
     echo ""
 fi

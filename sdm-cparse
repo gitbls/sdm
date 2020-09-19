@@ -3,6 +3,8 @@
 # This file is sourced by some sdm-related scripts
 #
 function readparams() {
+    # $1="/mnt/sdm" if in phase 0, "" if in phase 1
+    local i="$1"
     [[ "$1" =~ "/mnt/sdm" ]]  && i="/mnt/sdm" || i=""
     if [ -f $i/etc/sdm/cparams ]
     then
@@ -25,8 +27,37 @@ function readparams() {
 }
 
 #
-# Useful functions in search of a home
+# Common functions 
 #
+function logit {
+    #
+    # $1="/mnt/sdm" if in phase 0, "" if in phase 1
+    # $2="message string"
+    [ ! -f "$1/etc/sdm/history" ] && touch $1/etc/sdm/history
+    echo "$(date +"$datefmt") $2" >> $1/etc/sdm/history
+}
+
+function logtoboth {
+    #
+    # $1="/mnt/sdm" if in phase 0, "" if in phase 1
+    # $2="message string" which will be split up
+    #
+    if [ ${#2} -le 96 ]
+    then
+	logit "$1" "$2"
+	echo "$2"
+    else
+	readarray -t str <<< $(fold -s -w96 <<< $(echo $2))
+	spc=""
+	for (( i=0 ; i < ${#str[@]} ; i++))
+	do
+	    logit "$1" "${spc}${str[$i]}"
+	    echo "${spc}${str[$i]}"
+	    spc="  "
+	done
+    fi	
+}
+
 function askyn() {
     local ans
     echo -n "$1" '[y/n]? ' ; read $2 ans

@@ -10,15 +10,17 @@
 #
 
 function dolog() {
-    local fboot="$1" msg="$2"
-    [ $fboot -eq 0 ] && echo "* FirstBoot $msg" || logger "FirstBoot $msg"
+    [ $fboot -eq 1 ] && logger "FirstBoot $1"
 }
 
 function doconfig() {
     cfgfile="$1"
     fboot=$2    # 0=in nspawn, 1=boot time
-    [ ! -f $cfgfile ] && dolog "Config file $cfgfile not found...skipping" && exit
-    dolog $fboot "Starting Configuration..."
+    source /usr/local/sdm/sdm-cparse ; readparams ""
+    [ ! -f $cfgfile ] && dolog "Config file $cfgfile not found...skipping"
+    [ ! -f $cfgfile ] && logtoboth "" "? FirstBoot Config file '$cfgfile' not found...skipping" && exit
+    dolog "Start Configuration"
+    logtoboth "" "* FirstBoot Start Configuration"
     IFS=":="
     while read rpifun value
     do
@@ -32,66 +34,69 @@ function doconfig() {
 	    value="${value#\'}"     # Del closing single-quotes 
 	    if [ $fboot -eq 0 ]
 	    then
+		#
+		# These are done in Phase 1 of the nspawn
+		#
 		case "$rpifun" in
 		    locale)
-			dolog $fboot "Setting Locale to $value..."
+			logtoboth "" "> FirstBoot Set Locale to '$value'"
 			raspi-config do_change_locale "$value" nonint
 			declare -x LANG="$LOCALE"
-			/usr/local/sdm/sdm-logit "FirstBoot Set Locale to '$value'"
 			;;
 		    keymap)
-			dolog $fboot "Setting Keyboard to $value..."
-			dolog $fboot "Ignore invoke-rc.d messages..."
+			logtoboth "" "> FirstBoot Set Keymap to '$value'"
+			logtoboth "" ">!Ignore invoke-rc.d messages"
 			raspi-config do_configure_keyboard "$value" nonint
-			/usr/local/sdm/sdm-logit "FirstBoot Set Keymap to '$value'"
 			;;
 		    timezone)
-			dolog $fboot "Setting Timezone to $value..."
+			logtoboth "" "> FirstBoot Set Timezone to '$value'"
 			raspi-config do_change_timezone "$value" nonint
-			/usr/local/sdm/sdm-logit "FirstBoot Set Timezone to '$value'"
 			;;
 		esac
 	    else
+		#
+		# These are done at first boot
+		#
 		case "$rpifun" in
 		    hostname)
-			dolog $fboot "Setting Hostname to $value..."
+			dolog "Set Hostname to $value..."
+			logit "" "> FirstBoot Set Hostname to '$value'"
 			raspi-config do_hostname "$value" nonint
 			hostnamectl set-hostname $value
-			/usr/local/sdm/sdm-logit "FirstBoot Set Hostname to '$value'"
 			;;
 		    wifi-country)
-			dolog $fboot "Setting WiFi country to $value..."
+			dolog "Set WiFi country to $value..."
+			logit "" "> FirstBoot Set WiFi Country to '$value'"
 			raspi-config do_wifi_country "$value" nonint
-			/usr/local/sdm/sdm-logit "FirstBoot Set WiFi Country to '$value'"
 			;;
 		    service-enable)
-			dolog $fboot "Enabling Service $value"
+			dolog "Enable Service $value"
+			logit "" "> FirstBoot Enable Service '$value'"
 			systemctl enable $value
-			/usr/local/sdm/sdm-logit "FirstBoot Enable Service '$value'"
 			;;
 		    service-disable)
-			dolog $fboot "Disabling Service $value"
+			dolog "Disable Service $value"
+			logit "" "> FirstBoot Disable Service '$value'"
 			systemctl disable $value
-			/usr/local/sdm/sdm-logit "FirstBoot Disable Service '$value'"
 			;;
 		    custom-scripts)
-			if [ "$value" == "True" ]
+			if [ "${value,,}" == "true" ]
 			then
 			    for f in /usr/local/sdm/thispi/1piboot/0*-*.sh
 			    do
 				if [ -x $f ]
 				then
-				    dolog $fboot "Executing custom FirstBoot script $f"
-				    /usr/local/sdm/sdm-logit "Executing custom FirstBoot script '$f'"
+				    dolog "Execute Custom FirstBoot Script '$f'"
+				    logit "" "> Execute Custom FirstBoot Script '$f'"
 				    sh $f
 				else
-				    dolog $fboot "custom FirstBoot script '$f' does not have execute permission"
-				    /usr/local/sdm/sdm-logit "custom FirstBoot script '$f' does not have execute permission"
+				    dolog "Custom FirstBoot Script '$f' does not have execute permission"
+				    logit "" "? Custom FirstBoot Script '$f' does not have execute permission"
 				fi
 			    done
 			else
-			    dolog $fboot "Skipping custom FirstBoot scripts"
-			    /usr/local/sdm/sdm-logit "Skipping custom FirstBoot scripts"
+			    dolog "> Skipping custom FirstBoot scripts"
+			    logit "" "Skipping custom FirstBoot scripts"
 			fi
 			;;
 		esac
@@ -101,6 +106,6 @@ function doconfig() {
 }
 
 [ "$1" != "" ] && conf0="$1" || conf0="/usr/local/sdm/thispi/1piboot/1piboot.conf"
-[ "$2" == "" ] && boot0=0 || boot0=1        #Default is inside the nspawned image
+[ "$2" == "" ] && boot0=0 || boot0=1        #Default is inside the nspawned image (0)
 
 doconfig $conf0 $boot0
