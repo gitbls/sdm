@@ -29,13 +29,12 @@ xdm
 
 # Window manager
 icewm
-icewm-themes
 
 # VNC
 tigervnc-standalone-server
 
 # Apps that require X Windows
-chromium-browser
+chromium
 firefox-esr
 xclip
 xcolors
