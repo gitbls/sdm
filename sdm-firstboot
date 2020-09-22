@@ -63,6 +63,12 @@ function doconfig() {
 			logit "" "> FirstBoot Set Hostname to '$value'"
 			raspi-config do_hostname "$value" nonint
 			hostnamectl set-hostname $value
+			# Toggle network links so dns/dhcp and mdns know our new name
+			# Restart avahi-daemon so it knows the new name as well
+			systemctl stop dhcpcd
+			sleep 5
+			systemctl start dhcpcd
+			systemctl restart avahi-daemon
 			;;
 		    wifi-country)
 			dolog "Set WiFi country to $value..."
