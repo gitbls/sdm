@@ -17,7 +17,7 @@ With sdm you'll spend a lot less time rebuilding SD cards, configuring your syst
 
 Someone in the RaspberryPi.org forums said *"Generally I get by by reflashing and SD card and reinstalling everything from the notes I made previously. That is not such a long winded process."*
 
-This approach does, however, require complete notes, and careful attention to detail each and every time a card need to be reflashed. `sdm` enables you to have your notes in simple bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card, and it is built with ALL of your favorite apps installed, and all your favorite customizations.
+This approach does, however, require complete notes, and careful attention to detail each and every time a card needs to be reflashed. `sdm` enables you to have your notes in simple bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card, and it is built with ALL of your favorite apps installed, and all your favorite customizations.
 
 ***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a Raspbian package that enables you to update all your Pis quickly by caching downloaded packages locally. This reduces install and update time, and internet network consumption.
 
@@ -77,7 +77,9 @@ sdm manages the SD Card image in Phases:
 
 * **Phase 1:** *Operating inside the IMG file and in the context of that system (via nspawn)*. When operating in this context, all changes made only affect the SD Card IMG, not the physical Raspbian system on which sdm is running
 
-    Most, but not all commands can be used in Phase 1. For instance, `systemctl` doesn't work because systemd is not running in the nspawn'ed image. But, new users can be added, passwords can be changed, packages can be installed, etc. In other words, you can do almost everything you want to configure a system for repeated SD card burns.
+    Most, but not all commands can be used in Phase 1. For instance, most `systemctl` commands don't work because systemd is not running in the nspawn'ed image. However, `systemctl disable` and `systemctl enable` do work. 
+
+Other functions you might want to do in Phase 1 include adding new users, setting or changing passwords, install packages, etc. In other words, you can do almost everything you want to configure a system for repeated SD card burns.
 
     Once sdm has started the nspawn container, it will automatically run `/usr/local/sdm/sdm-phase1` to perform Phase 1 customization. As with Phase 0, your Custom Phase script will be called. After Phase 1 has completed, sdm will provide a command prompt inside the container unless you specified `--batch`, in which case sdm will exit the container.
 
