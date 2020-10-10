@@ -35,6 +35,8 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 
 * **Install sdm:** `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
+* **Install systemd-container:** `sudo apt install systemd-container`
+
 * **Customize the image:** `sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --noextend --L10n --restart`
 
     sdm will copy your Localizaton settings (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running, and prompt for a new password for user 'pi'. No additional packages will be installed in this example, but 'apt update' and 'apt upgrade' will be done.
