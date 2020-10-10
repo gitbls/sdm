@@ -48,7 +48,7 @@ Now, load the SD card into a Pi and power it up. The system will come up as it a
 * Toward the end of the boot process an sdm systemd service script runs once and sets the WiFi country, unblocking WiFi
 * When the system boot is fully complete (it can take a while on a large SD card!), the system automatically restarts again
 
-When the system comes back up your Pi is all happy, ready to go, and configured with:  [Link text](URL)
+When the system comes back up your Pi is all happy, ready to go, and configured with:
 
 * **The latest RasPiOS updates installed** for all installed packages
 * **Password set** for user 'pi'
