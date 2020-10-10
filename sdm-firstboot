@@ -1,26 +1,23 @@
 #!/bin/bash
 #
-# This script runs in nspawn or at first boot to perform desired configuration
-# Arguments:
-#        $1   config file [Default: /usr/local/sdm/thispi/1piboot/1piboot.conf]
-#        $2   Omitted or 0: Running inside an nspawned image
-#                        1: Running at first system boot
-# Processed in nspawn:     locale, keymap, timezone
-# Processed at first boot: hostname, wifi country, enable/disable service, and custom scripts
+# This script runs at first boot to perform desired configuration
+#
+# Processed at first boot: wifi-country, enable/disable service, custom scripts, and automatic reboot
+#                          sdm --burn may write locale, keymap, and/or timezone into 1piboot.conf (NYI)
+#                            if they are specified on the burn command line, so they will be processed as well
+#                          ...plus a bunch of other infrequently used device settings
 #
 
-function dolog() {
-    [ $fboot -eq 1 ] && logger "FirstBoot $1"
+function bootlog() {
+    # Write string in $1 to the system log/journal and /etc/sdm/history.log
+    logger "FirstBoot $1"
+    logit "" "> FirstBoot $1"
 }
 
 function doconfig() {
     cfgfile="$1"
-    fboot=$2    # 0=in nspawn, 1=boot time
-    source /usr/local/sdm/sdm-cparse ; readparams ""
-    [ ! -f $cfgfile ] && dolog "Config file $cfgfile not found...skipping"
-    [ ! -f $cfgfile ] && logtoboth "" "? FirstBoot Config file '$cfgfile' not found...skipping" && exit
-    dolog "Start Configuration"
-    logtoboth "" "* FirstBoot Start Configuration"
+    [ ! -f $cfgfile ] && bootlog "? Config file $cfgfile not found...skipping" && exit
+    bootlog "Start Configuration with configuration file '$cfgfile'"
     IFS=":="
     while read rpifun value
     do
@@ -32,86 +29,100 @@ function doconfig() {
 	    value="${value#\"}"     # Del closing double-quotes 
 	    value="${value%\'}"     # Del opening single-quotes 
 	    value="${value#\'}"     # Del closing single-quotes 
-	    if [ $fboot -eq 0 ]
-	    then
+	    case "$rpifun" in
+		# * do_resolution still needs to be sorted out
+		serial)
+		    bootlog "Set Serial Port to '$value'"
+		    SUDO_USER=${myuser:-pi} raspi-config do_serial $value nonint
+		    ;;
+		service-enable)
+		    bootlog "Enable Service '$value'"
+		    systemctl enable $value
+		    ;;
+		service-disable)
+		    bootlog "Disable Service '$value'"
+		    systemctl disable $value
+		    ;;
+		boot_behavior|boot_behaviour)  # Allow US spelling as well ;)
+		    bootlog "set boot_behaviour to '$value'"
+		    SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
+		    ;;
+		audio|pi4video|boot_splash|boot_order|\
+		    spi|i2c|boot_wait|net_names|overscan|blanking|\
+		    pixdub|overclock|rgpio|camera|onewire)
+		    # These are simple on/off and less commonly used so no elaborate logging for them
+		    bootlog "Set $rpifun to '$value'"
+		    SUDO_USER=${myuser:-pi} raspi-config do_$rpifun $value nonint
+		    ;;
 		#
-		# These are done in Phase 1 of the nspawn
+		# fstab, keymap, locale, and timezone may be set via sdm --burn command
 		#
-		case "$rpifun" in
-		    locale)
-			logtoboth "" "> FirstBoot Set Locale to '$value'"
-			raspi-config do_change_locale "$value" nonint
-			declare -x LANG="$LOCALE"
-			;;
-		    keymap)
-			logtoboth "" "> FirstBoot Set Keymap to '$value'"
-			logtoboth "" ">!Ignore invoke-rc.d messages"
-			raspi-config do_configure_keyboard "$value" nonint
-			;;
-		    timezone)
-			logtoboth "" "> FirstBoot Set Timezone to '$value'"
-			raspi-config do_change_timezone "$value" nonint
-			;;
-		esac
-	    else
-		#
-		# These are done at first boot
-		#
-		case "$rpifun" in
-		    hostname)
-			dolog "Set Hostname to $value..."
-			logit "" "> FirstBoot Set Hostname to '$value'"
-			raspi-config do_hostname "$value" nonint
-			hostnamectl set-hostname $value
-			# Toggle network links so dns/dhcp and mdns know our new name
-			# Restart avahi-daemon so it knows the new name as well
-			systemctl stop dhcpcd
-			sleep 5
-			systemctl start dhcpcd
-			systemctl restart avahi-daemon
-			;;
-		    wifi-country)
-			dolog "Set WiFi country to $value..."
-			logit "" "> FirstBoot Set WiFi Country to '$value'"
-			raspi-config do_wifi_country "$value" nonint
-			;;
-		    service-enable)
-			dolog "Enable Service $value"
-			logit "" "> FirstBoot Enable Service '$value'"
-			systemctl enable $value
-			;;
-		    service-disable)
-			dolog "Disable Service $value"
-			logit "" "> FirstBoot Disable Service '$value'"
-			systemctl disable $value
-			;;
-		    custom-scripts)
-			if [ "${value,,}" == "true" ]
-			then
-			    for f in /usr/local/sdm/thispi/1piboot/0*-*.sh
-			    do
-				if [ -x $f ]
-				then
-				    dolog "Execute Custom FirstBoot Script '$f'"
-				    logit "" "> Execute Custom FirstBoot Script '$f'"
-				    sh $f
-				else
-				    dolog "Custom FirstBoot Script '$f' does not have execute permission"
-				    logit "" "? Custom FirstBoot Script '$f' does not have execute permission"
-				fi
-			    done
-			else
-			    dolog "> Skipping custom FirstBoot scripts"
-			    logit "" "Skipping custom FirstBoot scripts"
-			fi
-			;;
-		esac
-	    fi
+		fstab)
+		    bootlog "Append fstab extension '$value' to /etc/fstab"
+		    cat /etc/sdm/assets/$value >> /etc/fstab
+		    ;;
+		keymap)
+		    bootlog "Set Keymap to '$value' (!Ignore invoke-rc.d messages)"
+		    SUDO_USER=${myuser:-pi} raspi-config do_configure_keyboard "$value" nonint
+		    ;;
+		locale)
+		    bootlog "Set Locale to '$value'"
+		    SUDO_USER=${myuser:-pi} raspi-config do_change_locale "$value" nonint
+		    declare -x LANG="$value"
+		    ;;
+		timezone)
+		    bootlog "Set Timezone to '$value'"
+		    SUDO_USER=${myuser:-pi} raspi-config do_change_timezone "$value" nonint
+		    ;;
+		*)
+		    bootlog "% Unrecognized option '$rpifun' in '$cfgfile'"
+		    ;;
+	    esac
 	fi
     done < $cfgfile
+    bootlog "Configuration with configuration file '$cfgfile' Completed"
 }
 
-[ "$1" != "" ] && conf0="$1" || conf0="/usr/local/sdm/thispi/1piboot/1piboot.conf"
-[ "$2" == "" ] && boot0=0 || boot0=1        #Default is inside the nspawned image (0)
+source /usr/local/sdm/sdm-cparse ; readparams ""
+doconfig /etc/sdm/1piboot.conf
+#
+# Set WiFi Country
+#
+if [ "$wificountry" != "" ]
+then
+    bootlog "Set WiFi Country to '$wificountry'"
+    SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$wificountry" nonint
+fi
+#
+# Final FirstBoot time processing: custom scripts and reboot
+#
+if [ "$bootscripts" -eq "1" ]
+then
+    for f in /usr/local/sdm/1piboot/0*-*.sh
+    do
+	if [ -x $f ]
+	then
+	    bootlog "Execute Custom FirstBoot Script '$f'"
+	    bash $f
+	else
+	    bootlog "Custom FirstBoot Script '$f' does not have execute permission"
+	fi
+    done
+else
+    bootlog "Skip Custom FirstBoot Scripts"
+fi
 
-doconfig $conf0 $boot0
+[ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
+
+if [ $reboot -eq 1 ]
+then
+    [ -f /etc/sdm/run.firstboot ] && rm -f /etc/sdm/run.firstboot
+    bootlog "System will reboot after system startup has completed"
+    echo "$(thisdate) sdm FirstBoot system will restart after system startup completes" > /dev/console
+    systemctl start sdm-firstboot-reboot &
+    sleep 10 # Wait for the firstboot-reboot script to start
+else
+    rm -f /etc/systemd/system/sdm-firstboot-reboot.service        # Don't need it so clean it up
+fi
+bootlog "Configuration Complete"
+

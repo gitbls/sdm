@@ -33,8 +33,8 @@ function logit {
     #
     # $1="/mnt/sdm" if in phase 0, "" if in phase 1
     # $2="message string"
-    [ ! -f "$1/etc/sdm/history" ] && touch $1/etc/sdm/history
-    echo "$(date +"$datefmt") $2" >> $1/etc/sdm/history
+#    [ ! -f "$1/etc/sdm/history" ] && touch $1/etc/sdm/history
+    echo "$(thisdate) $2" >> $1/etc/sdm/history
 }
 
 function logtoboth {
@@ -56,6 +56,45 @@ function logtoboth {
 	    spc="  "
 	done
     fi	
+}
+
+function getpwd() {
+    local tmp
+    read -s tmp
+    echo "$tmp"
+}
+
+function changepwd() {
+    local user="$1" tpwd="$2" upwd
+    if [ "$tpwd" == "" ]
+    then
+        echo -n "Password for user '$1': " && read -s upwd
+        echo ""
+    else
+        upwd="$tpwd"
+    fi
+    chpasswd <<EOF
+$user:$upwd
+EOF
+}
+
+function sdmuseradd() {
+    #
+    # $1: Username
+    # $2: UID
+    # $3: password
+    #
+    GROUPS="dialout,cdrom,floppy,audio,video,plugdev,users"
+    user=$1
+    [ "$user" == "" ] && echo "? Username required"
+    uid=$2
+    [ "$uid" == "" ] && echo "? UID required"
+    password="$3"
+    useradd -M -d /home/$user --uid $uid $user
+    usermod --gid users $user
+    usermod --groups $GROUPS $user
+    changepwd $user "$password"
+    echo "Done"
 }
 
 function askyn() {
@@ -102,6 +141,32 @@ function doapt() {
     fi
 }
 
+function thisdate() {
+    echo  "$(date +"$datefmt")"
+}
+
+function dosdmreboot() {
+    #
+    # called from sdm-firstboot-reboot service on the running system during First Boot
+    # reboot the system after system startup has completed
+    #
+    source /usr/local/sdm/sdm-cparse ; readparams ""
+    #
+    # Make sure that system startup has completed. Wait for either graphical.target OR multi-user.target
+    #
+    #  had an issue with this, keeping for investigation:  while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
+    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    do
+	sleep 1
+    done
+    echo -e "\n$(thisdate) sdm FirstBoot Restarting the system in 10 seconds\n" > /dev/console
+    sleep 10
+    systemctl daemon-reload
+    logtoboth "" "sdm FirstBoot Restarting the system"
+    rm -f /etc/systemd/system/sdm-firstboot-reboot.service    #Don't leave a mess
+    systemctl reboot
+}
+    
 function ord() {
     #
     # Returns the value in decimal of the character in $1

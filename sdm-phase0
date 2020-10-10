@@ -10,9 +10,22 @@ source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
 
 logtoboth /mnt/sdm "* Start Phase 0 image customization"
 
-logtoboth /mnt/sdm "> Set up ssh in boot partition"
-logtoboth /mnt/sdm "> (wpa_supplicant.conf will be done later)"
-touch /mnt/sdm/boot/ssh
+if [ "$wpaconf" != "" ]
+then
+    logtoboth /mnt/sdm "> Copy wpa supplicant configuration from '$wpaconf'"
+    cp $wpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+else
+    logtoboth "/mnt/sdm" ">%Skip wpa_supplicant configuration per command switch --nowpa"
+fi
+#
+# Copy fstab extension into the image
+#
+if [ "$fstab" != "" ]
+then
+    logtoboth /mnt/sdm "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
+    cp $fstab /mnt/sdm/etc/sdm/assets
+    echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+fi
 #
 # Set HDMI configuration if requested
 #
@@ -57,43 +70,14 @@ then
 	logtoboth /mnt/sdm "> /boot/config.txt already updated for --bootadd; skipping"
     fi
 fi
-#
-# Set up sdm-firstboot service. This service sets the wifi country and hostname
-# on the first boot of the system. Other parameters (locale, keymap, timezone) are set
-# in the nspawn
-# Service will be enabled (by creating run.firstboot) when SD card is burned with sdm
-#
-logtoboth /mnt/sdm "> Set up sdm-firstboot service"
-[ -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service ] && rm -f /mnt/sdm/etc/systemd/system/sdm-firstboot.service
-cat > /mnt/sdm/etc/systemd/system/sdm-firstboot.service <<EOF
-[Unit]
-Description=sdm System FirstBoot Configuration
-After=network.target
-Before=rc-local.service
-ConditionPathExists=/usr/local/sdm/thispi/run.firstboot
-
-[Service]
-ExecStart=/usr/local/sdm/sdm-firstboot /usr/local/sdm/thispi/1piboot/1piboot.conf 1
-ExecStartPost=/bin/rm /usr/local/sdm/thispi/run.firstboot
-Type=oneshot
-RemainAfterExit=no
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-[ ! -h /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service ] && ln -s /etc/systemd/system/sdm-firstboot.service /mnt/sdm/etc/systemd/system/multi-user.target.wants/sdm-firstboot.service
 
 if [ "$myuser" != "" ]
 then
     #
-    # do what we can now. Can't create the new user until nspawn. Done in sdm-phase1
-    # home directory ownership fixed then as well
+    # Create user directory now, so that Custom Phase Script can copy into it if desired
+    # Can't create the new user and fix directory ownership until sdm-phase1
     #
-    logtoboth /mnt/sdm "> Add '$myuser' to sudoers.d"
-    echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
-    chmod 440 /mnt/sdm/etc/sudoers.d/010_$myuser-nopasswd
-    [ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser
+    [ ! -d /home/$myuser ] && mkdir /home/$myuser
 fi
 
 if [ "$eeprom" != "" ]
@@ -105,8 +89,9 @@ fi
 
 if [ "$cscript" != "" ]
 then
-    logtoboth /mnt/sdm "> Run Custom Script '$cscript' Phase 0"
-    $cscript 0
+    csfn="/mnt/sdm/usr/local/sdm/$(basename $cscript)"
+    logtoboth /mnt/sdm "> Run Custom Phase Script '$csfn' Phase 0"
+    $csfn 0
 fi
 
 logtoboth /mnt/sdm "* Phase 0 Completed"

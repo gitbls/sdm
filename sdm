@@ -43,7 +43,7 @@ function docleanup() {
 }
 
 function domount() {
-    echo "Mounting IMG file '$dimg'"
+    echo "Mounting IMG '$dimg'"
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
     loop=$(losetup --show -P -f $dimg)
     mount -v ${loop}p2 /mnt/sdm
@@ -57,6 +57,18 @@ function ismounted() {
     else
 	return 1
     fi
+}
+
+function fndotfullpath() {
+    #
+    # Fix directory if it's "."
+    #
+    local fn="$1"
+    if [ "$fn" != "" ]
+    then
+	[ "$(dirname $fn)" == "." ] && fn="$(pwd)/$fn"    # Ensure fully qualified path to cscript
+    fi
+    echo $fn
 }
 
 function extendimage() {
@@ -80,7 +92,7 @@ function extendimage() {
 print
 EOF
 ) # This closes the above parted command
-    echo "Resizing partition 2 and file system"
+    echo "Resize partition 2 and file system"
     parted $ldimg <<EOF
 resizepart 2 $dsiz
 EOF
@@ -91,7 +103,7 @@ function poptcheck() {
     # Check poptions settings against valid settings
     # Report errors and exit
     #
-    local popt="$1" badopt=""
+    local popt="$1" badopt="" nopt=""
     if [ "$popt" != "" ]
     then
 	readarray -d, xopt <<< $1
@@ -99,12 +111,14 @@ function poptcheck() {
 	do
 	    os="${o%,}"
 	    os="${os# }"
-	    if ! [[ "$vpoptions" =~ $os ]]
+	    if ! [[ "$vpoptions" =~ "|$os|" ]]
 	    then
 		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
+	    else
+		nopt="$nopt|$os"
 	    fi
 	done
-	[ "$badopt" != "" ] && errexit "? Unrecognized --poption value(s) $badopt"
+	[ "$badopt" != "" ] && echo "? Unrecognized --poption value(s) $badopt" || echo "$nopt|"
     fi
 }
 function findappfile() {
@@ -118,6 +132,7 @@ function findappfile() {
     if [ "${1:0:1}" == "@" ]
     then
 	fn="${1:1:999}"
+	fn="$(fndotfullpath $fn)"
 	if [ ! -f "$fn" ]
 	then
 	    fnc="$src/$(basename $fn)"
@@ -129,7 +144,7 @@ function findappfile() {
 		echo "@$fnc"
 	    fi
 	else
-	    echo "$1"
+	    echo "@$fn"
 	fi
     else
 	echo "$1"
@@ -161,6 +176,25 @@ function getapplist() {
     echo "$lapps"
 }
 
+function readl10n() {
+    #
+    # Get the L10N config from the running system
+    # Sets: locale, timezone, wificountry, keymap
+    #
+    local tz=$(realpath /etc/localtime)
+    # Keyboard
+    source /etc/default/keyboard
+    keymap="$XKBLAYOUT"
+    # Locale
+    source /etc/default/locale
+    locale="$LANG"
+    # Timezone
+    timezone=${tz##/usr/share/zoneinfo/}
+    # WiFi Country
+    [ -f /etc/wpa_supplicant/wpa_supplicant.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
+    [ "$wificountry" == "" -a -f /etc/wpa_supplicant/wpa_supplicant-wlan0.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf)
+}
+
 function writeconfig() {
     #
     # Write config parameters into the image
@@ -168,6 +202,7 @@ function writeconfig() {
     [ -f $paramfile ] && rm -f $paramfile
     cat > $paramfile <<EOF
 #Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
+version:$version
 apps:"$apps"
 xapps:"$xapps"
 appfile:$appfile
@@ -177,23 +212,36 @@ aptconfirm:$aptconfirm
 batch:$fbatch
 bootadd:$bootadd
 bootconfig:$bootconfig
+bootscripts:$bootscripts
 cscript:$cscript
 csrc:$csrc
 datefmt:$datefmt
 ecolors:$ecolors
 eeprom:$eeprom
+fstab:$fstab
 hdmigroup:$hdmigroup
 hdmimode:$hdmimode
+keymap:$keymap
+locale:$locale
 myuid:$myuid
 myuser:$myuser
+pi1bootconf:$pi1bootconf
 poptions:$poptions
+reboot:$reboot
+noreboot:$noreboot
 rootpwd:$rootpwd
 showapt:$showapt
 src:$src
+ssh:$ssh
+timezone:$timezone
+wificountry:$wificountry
+wpaconf:$wpaconf
+fnowpa:$fnowpa
 custom1:$custom1
 custom2:$custom2
 custom3:$custom3
 custom4:$custom4
+thishost:$thishost
 EOF
 }
 
@@ -201,41 +249,56 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.0"
+version="V3.2"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
 bootadd=""                  #Items to add to /boot/config.txt
 bootconfig=""               #/boot/config.txt items to set
+bootscripts=0               #Run FirstBoot custom boot scripts
 burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
+burnfile=0                  #1=Burn image to a file
+burnfilefile=""             #Filename for --burnfile
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M oflag=direct"  #Switches for dd
 ecolors="blue:gray:red"     #fg:bg:cursor
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
+fbuild=0                    #True if not doing burn, mount, or explore
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextendonly=0               #1=extend image by xmb MB and then exit
-fglamor=1                   #1=Use glamor in Xephyr 
+fnowpa=0                    #1=I really man no automatic no wpa config
+fstab=""                    #Append this custom fstab to /etc/fstab
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
                             #Must be large enough to accomodate all packages you want to install
+keymap=""                   #Keyboard configuration
+loadl10n=0                  #1=Load Localization settings from running system 
+locale=""                   #Locale
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
 noextend=0                  #1=Do not extend image
+noreboot=0                  #1=Do not restart system after first boot
 nspawnsw=""                 #Switches for nspawn
 poptions=""                 #Phase options
 pvers=0                     #Print version number
-vpoptions="firstboot,apps,noupgrade,xwindows,xdmconsole" #Valid --poptions
+reboot=0                    #1=Reboot from First Boot
+ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
+                            #  Default is to write /boot/ssh
+timezone=""                 #Timezone setting
+wificountry=""              #WiFi country setting
+vpoptions="|apps|noupdate|noupgrade|samba|xwindows|xapps|" #Valid --poptions
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
-vdesktop=0                  #1=Start a vdesktop windows session
 xapps=""                    #List of X apps to install in sdm-X-installs
+pi1bootconf=""              #Command-line specified 1piboot.conf file to use
+wpaconf=""                  #Command-line specified wpa_supplicant.conf
 custom1=""                  #For custom use
 custom2=""                  #For custom use
 custom3=""                  #For custom use
@@ -252,44 +315,57 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,burn:,,cscript:,csrc:,datefmt:,ddsw:,dims:,ecolors:,eeprom:,explore,extend,hdmigroup:,hdmimode:,host:,hostname:,mount,noextend,noglamor,nspawnsw:,poptions:,rootpwd,showapt,uid:,user:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version -n 'sdm' -- "$@")
-[ $? != 0 ] && errexit "? sdm: Command parse failed!"
+OARGS=$(getopt -o h --longoptions help,1piboot:,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,bootscripts,burn:,burnfile:,cscript:,csrc:,datefmt:,ddsw:,ecolors:,eeprom:,explore,extend,fstab:,hdmigroup:,hdmimode:,host:,hostname:,keymap:,l10n,locale:,mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot,restart,rootpwd,showapt,ssh:,timezone:,uid:,user:,wifi-country:,wificountry:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa: -n 'sdm' -- "$@")
+[ $? -ne 0 ] && errexit "? $0: Unable to parse command"
 eval set -- "$OARGS"
 
 while true
 do
-    case "$1" in
+    case "${1,,}" in
 	# 'shift 2' if switch has argument, else just 'shift'
+	--1piboot)     pi1bootconf=$2; shift 2 ;;
 	--apps)        apps=$2       ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--aptconfirm)  aptconfirm=1  ; shift ;;
 	--batch)       fbatch=1      ; shift ;;
 	--bootadd)     bootadd=$2    ; shift 2 ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
+	--bootscripts) bootscripts=1 ; shift 1 ;;
 	--burn)        burn=1 ;
 		       burndev=$2    ; shift 2 ;;
-	--ecolors)     ecolors=$2    ; shift 2 ;;
+	--burnfile)    burnfile=1 ;
+		       burnfilefile=$2 ; shift 2 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--datefmt)     datefmt=$2    ; shift 2 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
-	--dims)        windim=$2     ; shift 2 ;;
+	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--explore)     fexplore=1    ; shift ;;
 	--extend)      fextendonly=1 ; shift ;;
+	--fstab)       fstab=$2      ; shift 2 ;;
 	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
+	--keymap)      keymap=$2     ; shift 2 ;;
+	--l10n)        loadl10n=1    ; shift 1 ;;
+	--locale)      locale=$2     ; shift 2 ;;
+	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--mount)       fdomount=1    ; shift ;;
 	--noextend)    noextend=1    ; shift ;;
-	--noglamor)    fglamor=0     ; shift ;;
+	--norestart|--noreboot) noreboot=1 ; shift ;;
+	--nowpa)       fnowpa=1      ; shift ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--poptions)    poptions=$2   ; shift 2 ;;
+	--reboot|--restart) reboot=1 ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift ;;
 	--showapt)     showapt=1     ; shift ;;
+	--ssh)         ssh=$2        ; shift 2 ;;
+	--timezone)    timezone=$2   ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
-	--vdesktop)    vdesktop=1    ; shift ;;
+	--wifi-country|--wificountry) wificountry=$2 ; shift 2 ;;
+	--wpa)         wpaconf=$2    ; shift 2 ;;
 	--xapps)       xapps=$2      ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
@@ -312,11 +388,13 @@ echo " or mount SD Card image into file system for inspection/modification (Be V
 echo "   sudo /usr/local/sdm/sdm --mount sd-image-file" ;
 echo "" ;
 echo "Switches" ;
+echo " --1piboot conf-file Use alternate 1piboot.conf" ;
 echo " --burn devname      Copy the image to the SD card" ;
+echo " --burnfile filename Create a ready-to-burn customized image file" ;
 echo " --host hostname     Hostname to burn into the image with --burn" ;
 echo " --explore           Explore (nspawn shell) into image" ;
 echo " --mount             Mount IMG file partitions and drop into bash" ;
-echo " --datefmt str       Use this date format in logs [%Y-%m-%d %H:%M:%S]" ;
+echo " --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]" ;
 echo "  * Customization switches (no --burn, --explore, or --mount) *" ;
 echo " --apps applist      List of app packages to install or @file with list" ;
 echo " --xapps applist     List of X11 packages to install or @file with list" ;
@@ -329,24 +407,34 @@ echo " --cscript script    Custom Phase Configuration script" ;
 echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
 echo " --custom[1-4] str   Can be used in Custom cscripts" ;
 echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
-echo " --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG"
+echo " --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG" ;
 echo " --eeprom str        Set the Pi eeprom directory" ;
 echo " --extend            Only extend the image; no other customizations" ;
-echo " --noextend          Do not extend the image" ;
+echo " --noextend          Do not extend the image when doing customizations" ;
+echo " --fstab file        Append file to /etc/fstab" ;
 echo " --hdmigroup n       Set /boot/config.txt hdmigroup value" ;
 echo " --hdmimode n        Set /boot/config.txt hdmimode value" ;
 echo " --host hostname     Hostname to write onto SD Card with --burn" ;
-echo " --noextend          Don't extend the image file" ;
+echo " --keymap keymapname Set keymap" ;
+echo " --locale localename Set the locale";
+echo " --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
 echo " --poptions str      Set Phase 1 auto-run options" ;
+echo " --norestart         Do not restart after first boot" ;
+echo " --restart n         Restart the first boot of the system after n seconds" ;
 echo " --rootpwd           Set a root password into the image" ;
 echo " --showapt           Display apt output as well as logging it" ;
+echo " --ssh none|socket   No ssh or ssh sockets [Default: ssh service]" ;
+echo " --timezone tzname   Set the timezone" ;
 echo " --uid uid           UID for non-root user [next free]" ;
 echo " --user username     Non-root user to create" ;
+echo " --wifi-country country Set WiFi country for unblocking WiFi" ;
+echo " --wpa wpaconf       wpa_supplicant.conf file to use" ;
+echo " --nowpa             Do not do WPA config file processing" ;
 echo " --xmb n             Extend image file by n MB [2048]" ;
 echo " --version           Print sdm version number" ;
 shift ; exit ;;
-	*) errexit "? $0: Internal error!" ;;
+	*) errexit "? $0: Internal error" ;;
     esac
 done
 
@@ -360,7 +448,7 @@ src=$(dirname $0)
 # Adjust settings based on switches and check for conflicting switches
 # and erroneous switch values
 #
-[ $fexplore -eq 1 -o $vdesktop -eq 1 ] && noextend=1
+[ $fexplore -eq 1 ] && noextend=1
 
 if [ "$cscript" != "" ]
 then
@@ -373,14 +461,24 @@ then
 	fi
     fi
 fi
-[ $burn -eq 1 -a $fdomount -eq 1 ] && errexit "? Conflicting switches: --burn and --mount"
-[ $burn -eq 1 -a $fexplore -eq 1 ] && errexit "? Conflicting switches: --burn and --explore"
-[ $fdomount -eq 1 -a $fexplore -eq 1 ] && errexit "? Conflicting switches: --mount and --explore"
+cscript="$(fndotfullpath $cscript)"
+[ $burn -eq 1 -a $burnfile -eq 1 ] && errexit "? Switch conflict: --burn and --burnfile"
+[ $burn -eq 1 -o $burnfile -eq 1 ] && burning=1 || burning=0
+[ $burning -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --mount"
+[ $burning -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --explore"
+[ $fdomount -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --mount and --explore"
+[ $reboot -eq 1 -a $noreboot -eq 1 ] && errexit "? Switch conflict: --restart and --norestart"
+[ $burning -ne 1 -a $fdomount -ne 1 -a $fexplore -ne 1 ] && fbuild=1
 [ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
 [ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
-[ "$cscript" != "" -a ! -x "$cscript" ] && errexit "? cscript '$cscript' is not executable or does not exist"
+[ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase script '$cscript' not found"
+[ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase script '$cscript' not executable"
+p1bootconf="$(fndotfullpath $p1bootconf)"
+[ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
+[ "$wpaconf" != "" -a ! -f "$wpaconf" ] && errexit "? wpa_supplicant config file '$wpaconf' not found"
+[ $fbuild -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
 if [ "$eeprom" != "" ]
 then
     if [[ ! "critical/stable/beta" =~ "$eeprom" ]]
@@ -388,6 +486,10 @@ then
 	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
     fi
 fi    
+if [ "$ssh" != "" ]
+then
+    [[ ! "none/socket" =~ $ssh ]] && errexit "? Unknown value '$ssh' for --ssh"
+fi
 #
 # parse and set ecolors
 #
@@ -398,7 +500,9 @@ IFS=":" read efg ebg ecursor <<< $ecolors
 [ "$ecursor" == "" ] && ecursor="red"
 ecolors="$efg:$ebg:$ecursor"
 
-poptcheck "$poptions"
+noptions=$(poptcheck "$poptions")
+exitiferr "$noptions"
+poptions="$noptions"
 #
 # Process --apps and --xapps switches
 #
@@ -409,52 +513,118 @@ xappfile="$(findappfile $xapps)" #Ditto for xappfile and xapps
 exitiferr "$xappfile"
 xapps="$(getapplist $xappfile)"
 #
-# Process the command. Actions are burn, mount, extend, explore, or customize
+# Process the command. Actions are burn, burnfile, mount, extend, explore, or customize
 #
+thishost="$(hostname)"
 source /usr/local/sdm/sdm-cparse           # Get function defs
-if [ $burn -eq 1 ]
+if [ $burning -eq 1 ]
 then
-    [ "$burndev" == "" ] && errexit "? No SD card specified"
-    ismounted $burndev && errexit "? Device '$burndev' is mounted"
-    [ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card"
-    # Stash burn messages in an array until log on SD Card is mounted and available 
-    declare -a burnmsg
-    burnmsg+=("$(date +"$datefmt") Burning '$dimg' to SD Card '$burndev'")
-    burnmsg+=("$(date +"$datefmt") Burn command line: $cmdline")
-    echo "* Burning '$dimg' to SD Card '$burndev'..."
-    ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
-    burnmsg+=("$(date +"$datefmt") dd command: $ddcmd")
-    echo "$ddcmd"
-    $ddcmd
-    burnmsg+=("$(date +"$datefmt") SD Card copy completed")
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
-    sync
-    mount -v ${burndev}2 /mnt/sdm
-    if [ "$hname" != "" ]
+    if [ $burn -eq 1 ]
     then
-	if [ -d /mnt/sdm/usr/local/sdm/thispi/1piboot -a -f /mnt/sdm/usr/local/sdm/thispi/1piboot/1piboot.conf ]
-	then
-	    echo "* Setting host name '$hname' onto SD Card image for sdm-firstboot"
-	    burnmsg+=("$(date +"$datefmt") Setting host name '$hname' onto SD Card image for sdm-firstboot")
-	    sed -i "s/xxxxx/$hname/" /mnt/sdm/usr/local/sdm/thispi/1piboot/1piboot.conf
-	else
-	    echo "% sdm-firstboot is not configured in this image; hostname will not be written to SD Card"
-	fi
+	#
+	# Burning to a device
+	#
+	[ "$burndev" == "" ] && errexit "? No SD card specified"
+	ismounted $burndev && errexit "? Device '$burndev' is mounted"
+	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
+	[ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card"
+	# Stash burn messages in an array until log on SD Card is mounted and available 
+	declare -a burnmsg
+	burnmsg+=("$(thisdate) * Burn '$dimg' to SD Card '$burndev'")
+	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
+	echo "* Burn '$dimg' to SD Card '$burndev'..."
+	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
+	burnmsg+=("$(thisdate) > dd command: $ddcmd")
+	echo "$ddcmd"
+	$ddcmd
+	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	burnmsg+=("$(thisdate) > SD Card copy completed")
+	sync
+	mount -v ${burndev}2 /mnt/sdm
+	! ismounted ${burndev}2 && errexit "? Unable to mount ${burndev}2"
+    else
+	#
+	# Burning to a file
+	#
+	[ "$burnfilefile" == "" ] && errexit "? No SD Card Image file specified"
+	[ -f $burnfilefile ] && errexit "? Burn file '$burnfilefile' exists"
+	[ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to SD Card Image"
+	# Stash burn messages in an array until log on SD Card is mounted and available 
+	declare -a burnmsg
+	burnmsg+=("$(thisdate) * Burn '$dimg' to SD Card Image '$burnfilefile'")
+	burnmsg+=("$(thisdate) > Burn Image command line: $cmdline")
+	echo "* Burn '$dimg' to SD Card Image '$burnfilefile'..."
+	ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
+	burnmsg+=("$(thisdate) > dd command: $ddcmd")
+	echo "$ddcmd"
+	$ddcmd
+	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	burnmsg+=("$(thisdate) > SD Card Image copy completed")
+	domount "$burnfilefile"
+    fi
+    #
+    # Set hostname into the image
+    #
+    if [ "$hname" != "" -a -f /mnt/sdm/etc/hostname ]
+    then
+	[ $burn -eq 1 ] && burnmsg+=("$(thisdate) > Set hostname '$hname' on SD Card") || burnmsg+=("$(thisdate) > Set hostname '$hname' in SD Card Image")
+	echo $hname > /mnt/sdm/etc/hostname
+	sed -i "s/127.0.1.1.*raspberrypi/127.0.1.1\t$hname/g" /mnt/sdm/etc/hosts
     fi
     if [ -d /mnt/sdm/usr/local/sdm -a -d /mnt/sdm/etc/sdm ]
     then
-	echo "* Writing burn log entry on the SD Card..."
+	# Save settings made with the --burn command
+	breboot=$reboot
+	bnoreboot=$noreboot
+	bscript=$bootscripts
+	bwificountry="$wificountry"
+	blocale="$locale"
+	bkeymap="$keymap"
+	btimezone="$timezone"
+	bwpaconf="$wpaconf"
+	readparams /mnt/sdm # Read settings from the SD card
+        [ $breboot -eq 1 ] && reboot=$breboot
+	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
+        [ $bscript -eq 1 ] && bootscripts=$bscript  #If we weren't set to run scripts, use setting from IMG
+	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
+	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	if [ "$bwpaconf" != "" ] # was --wpa specified on the burn command?
+	then
+	    [ ! -f $bwpaconf ] && echo "% --wpa config file '$bwpaconf' not found; Skipping"
+	    if [ $burn -eq 1 ]
+	    then
+		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to SD Card")
+		echo "* Copy WPA Supplicant configuration '$bwpaconf' to SD Card"
+	    else
+		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to SD Card Image")
+		echo "* Copy WPA Supplicant configuration '$bwpaconf' to SD Card Image"
+	    fi
+	    cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
+	fi
+  	writeconfig                  # Write updated params to the SD card
+	[ $bootscripts -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts enabled") || \
+		burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts disabled")
+	[ $reboot -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot automatic restart enabled") || \
+		burnmsg+=("$(thisdate) > FirstBoot System Boot automatic restart disabled")
+	[ $burn -eq 1 ] && burnmsg+=("$(thisdate) * SD Card Burn Completed") || burnmsg+=("$(thisdate) * SD Card Image Completed")
+	[ $burn -eq 1 ] && echo "* Write burn log entry on the SD Card" || echo "* Write burn log entry to the SD Card Image"
 	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
 	do
 	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
 	done
 	# Enable firstboot service to run
-	[ -d /mnt/sdm/usr/local/sdm/thispi ] && touch /mnt/sdm/usr/local/sdm/thispi/run.firstboot
+	[ -d /mnt/sdm/etc/sdm ] && touch /mnt/sdm/etc/sdm/run.firstboot
+	[ $bootscripts -eq 1 ] && echo "  First System Boot Custom Boot Scripts enabled" || echo "  First System Boot Custom Boot Scripts disabled"
+	[ $reboot -eq 1 ] && echo "  First System Boot automatic restart enabled" || echo "  First System Boot automatic restart disabled"
     else
-	echo "% IMG is not sdm-enhanced; Burn log entry will not be written to SD Card"
+	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written to SD Card"
     fi
-    umount -v ${burndev}2
-    echo "* SD Card is Ready"
+    [ $burn -eq 1 ] && ismounted ${burndev}2 && umount -v ${burndev}2 || docleanup
+    [ $burn -eq 1 ] && echo "* SD Card is Ready" || echo "* SD Card Image '$burnfilefile' is Ready"
     exit
 fi
 
@@ -462,10 +632,19 @@ if [ $fdomount -eq 1 ]
 then
     domount
     echo ""
-    echo "IMG file mounted on /mnt/sdm. BE VERY CAREFUL!"
+    echo "IMG '$dimg' mounted on /mnt/sdm"
+    echo "** BE VERY CAREFUL! **"
+    echo "** All file system references NOT preceded by /mnt/sdm refer to the running system **"
+    echo ""
     echo "Exit the Bash shell to unmount the IMG file"
     echo ""
-    stermcolors "$efg" "$ebg" "$ecursor" xt
+    [ "$mcolors" == "" ] && mcolors="black:LightSalmon1:blue"
+    IFS=":" read mfg mbg mcursor <<< $mcolors
+    [ "$mfg" == "" ] && mfg="black"
+    [ "$mbg" == "" ] && mbg="LightSalmon1"
+    [ "$mcursor" == "" ] && mcursor="blue"
+
+    stermcolors "$mfg" "$mbg" "$mcursor" xt
     bash < $(tty)
     docleanup
     resetcolors xt
@@ -474,7 +653,7 @@ fi
 
 if [ $noextend -eq 0 ]
 then
-    echo "Extending disk image by ${imgext}MB..."
+    echo "Extend disk image by ${imgext}MB..."
     extendimage "$dimg" "$imgext"
     #
     # Mount the image file into a loop device and resize the file system
@@ -501,54 +680,74 @@ then
     if [ $fexplore -eq 0 ]
     then
 	echo ""
-	echo "% It appears this image has already been customized"
-	echo "% Dropping into nspawn for you to have a look at it..."
+	echo "% It appears that '$dimg' has already been customized"
+	echo "% Will enter nspawn for you to have a look at it..."
     else
 	echo ""
 	echo "* Ready to nspawn into the new image"
     fi
 else
+    pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
     # Create and populate /usr/local/sdm tree
     #
-    [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm
+    [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm /mnt/sdm/etc/sdm/assets
+    echo "# These settings added automatically by sdm" > /mnt/sdm/etc/sdm/auto-1piboot.conf
     [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm \
-					     /mnt/sdm/usr/local/sdm/1piboot \
-					     /mnt/sdm/usr/local/sdm/thispi \
-					     /mnt/sdm/usr/local/sdm/thispi/1piboot
+					     /mnt/sdm/usr/local/sdm/1piboot
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
-    cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/1piboot
-    cp -f $src/1piboot/* /mnt/sdm/usr/local/sdm/thispi/1piboot
-    chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh  /mnt/sdm/usr/local/sdm/thispi/1piboot/*.sh
-    [ "$cscript" != "" ] && cp $cscript /mnt/sdm/usr/local/sdm
+    [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
+    [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
+    cp -f $src/1piboot/*.sh /mnt/sdm/usr/local/sdm/1piboot
+    chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
+    logtoboth /mnt/sdm "* Start Configuration"
+    logtoboth /mnt/sdm "> sdm Command Line: $cmdline"
+    logtoboth /mnt/sdm "> Copy sdm to /usr/local/sdm in the IMG"   # Yes, already done above ;)
+    if [ $loadl10n -eq 1 ]
+    then
+	readl10n
+	logtoboth /mnt/sdm "> Localization (L10N) settings loaded from running system"
+	logtoboth /mnt/sdm "> * Keymap:       $keymap"
+	logtoboth /mnt/sdm "> * Locale:       $locale"
+	logtoboth /mnt/sdm "> * Timezone:     $timezone"
+	logtoboth /mnt/sdm "> * WiFi Country: $wificountry"
+    fi
+    if [ "$pi1bootconf" != "" ]
+    then
+	logtoboth /mnt/sdm "> Copy Custom 1piboot.conf '$pi1bootconf' to the IMG"
+	cp $pi1bootconf /mnt/sdm/etc/sdm/1piboot.conf
+	cp $pi1bootconf /mnt/sdm/usr/local/sdm/1piboot                                         #Drop a copy in /usr/local/sdm in the IMG
+    else
+	cp $src/1piboot/1piboot.conf /mnt/sdm/etc/sdm/
+    fi
+    chmod 644 /mnt/sdm/etc/sdm/1piboot.conf
+    if [ "$cscript" != "" ]
+    then
+	logtoboth /mnt/sdm "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the IMG"
+	cp $cscript /mnt/sdm/usr/local/sdm
+    fi
     chmod 755 /mnt/sdm/usr/local/sdm/*
     # If --apps and/or --xapps are files copy them also. If not, clear the variables for writeconfig
     [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  /mnt/sdm/usr/local/sdm || appfile=""
     [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} /mnt/sdm/usr/local/sdm || xappfile=""
-
+    #
+    # Write the config settings into the IMG
+    #
     writeconfig
-    logtoboth /mnt/sdm "* Start Configuration"
-    logtoboth /mnt/sdm "> Command Line: $cmdline"
 
     /mnt/sdm/usr/local/sdm/sdm-phase0
     touch $sdmdone
     
-    echo "* Ready to nspawn into the new image for Phase 1"
+    echo "* Ready to nspawn into the image '$dimg' for Phase 1"
     echo ""
-    echo "  sdm will:"
-    echo "   * Run /usr/local/sdm/sdm-phase1   Set account passwords, apt-cacher-ng if set"
-    echo "                                     run custom Phase 1 script"
-    echo "                                     and any installs selected with --poptions"
-    echo "     You have selected '$poptions' Install options"
-    echo "       out of possible 'firstboot', 'apps', 'noupgrade', 'xwindows', and 'xdmconsole'"
-    echo ""
-    [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
+#    [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
 fi
 
 echo "** Type 'exit' to exit nspawn"
+# xterm colors are changed in phase 1 before dropping to a command prompt
 # If spawncmd=="" then phase 1 won't be done, so we change xterm colors here
 [ "$spawncmd" == "" ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)

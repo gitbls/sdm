@@ -9,54 +9,30 @@
 #
 phase=$1
 pfx="$(basename $0)"     #For messages
+
 if [ $phase == "0" ]
 then
     #
-    # In Phase 0 all references to directories in the image
-    # must be preceded by /mnt/sdm
+    # In Phase 0 all references to directories in the image must be preceded by /mnt/sdm
     #
     source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
     logtoboth /mnt/sdm "* $pfx Phase 0"
-    logtoboth /mnt/sdm "> $pfx Copy wpa_supplicant.conf"
-    #
-    # You'll need to modify this to reflect the actual location of your wpa_supplicant.conf source
-    #
-    cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/boot
-    # Can also copy to the specific device wpa_supplicant if desired
-    cp -f $csrc/etc/wpa_supplicant/wpa_supplicant.conf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-# EXAMPLE
-# Make directories for NFS mounting
-#    for f in a b c d e f g h i j k l m n o p q r s t u v w x y z
-#    do
-#	[ ! -d /mnt/sdm/$f ] && mkdir /mnt/sdm/$f
-#    done
-    
-    if [ "$myuser" != "" ]
-    then
-	logtoboth /mnt/sdm "> $pfx Copy $myuser login files to /mnt/sdm/home/$myuser"
-	[ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser   # Should be created in sdm-phase0, but just to be safe
-	cp -f /home/$myuser/.bashrc /mnt/sdm/home/$myuser
-    fi
-    
-# EXAMPLE
-#    cp $csrc/systemd/*.service         /mnt/sdm/etc/systemd/system
-#    cp $csrc/systemd/*.socket          /mnt/sdm/etc/systemd/system
-#    cp $csrc/systemd/*.timer           /mnt/sdm/etc/systemd/system
-#    cp $csrc/systemd/network/*.network /mnt/sdm/etc/systemd/network
-#    [ -f /mnt/sdm/etc/systemd/timesyncd.conf ] && mv /mnt/sdm/etc/systemd/timesyncd.conf /mnt/sdm/etc/systemd/timesyncd.conf.orig
-#    cp $csrc/systemd/timesyncd.conf /mnt/sdm/etc/systemd
 
+# INSERT Your Custom Phase 0 code here
+    
     logtoboth /mnt/sdm "* $pfx Phase 0 Completed"
+
 elif [ "$phase" == "1" ]
 then
     #
     # Phase 1 (in nspawn)
     #
-    # In Phase 1 all references to directories in the image can be direct
-    #
     source /usr/local/sdm/sdm-cparse ; readparams ""
     logtoboth "" "* $pfx Phase 1"
-# Do your Phase 1 customization stuff here
+    #
+    # INSERT your Custom Phase 1 customization stuff here
+    # In Phase 1 all references to directories in the image can be direct
+    #
     logtoboth "" "* $pfx Phase 1 Completed"
 else
     #
@@ -65,28 +41,9 @@ else
     source /usr/local/sdm/sdm-cparse ; readparams ""
     logtoboth "" "* $pfx Custom Phase post-install"
     #
-    # If xdm installed, configure it as requested. This is just an example of something that can be done
-    # after the Phase 1 installs have completed
+    # INSERT Your Custom Phase post-install code here
+    # In Phase post-install all references to directories in the image can be direct
     #
-    if [ -d /etc/X11/xdm ]
-    then
-	#
-	# Configure xdm to allow XDMCP (so VNC works correctly). Enable or disable xdm on the console as requested
-	#
-	logtoboth "" "> $pfx Edit xdm config files" 
-	
-	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/xdm/xdm-config
-	sed -i "s/\#\*					#any host can get a login window/\*					#any host can get a login window/"  /etc/X11/xdm/Xaccess
-	# VV This overrides default LISTEN * and disables xdmcp finder (if use 127.0.0.1. OK with 0.0.0.0)
-	echo "LISTEN 0.0.0.0" >> /etc/X11/xdm/Xaccess
-	if [[ "$poptions" =~ "xdmconsole" ]]
-	then
-	    sed -i "s/#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
-	    logtoboth "" "> $pfx Enable xdm on console"
-	else
-	    sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
-	    logtoboth "" "> $pfx Disable xdm on console"
-	fi
-    fi
+
     logtoboth "" "* $pfx Custom Phase post-install Completed"
 fi

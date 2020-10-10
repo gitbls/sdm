@@ -1,33 +1,11 @@
 #!/bin/bash
-# This script can be run either in an nspawn or on the running system
+# This script runs in the nspawn image
 #
-# It helps set up account passwords
-#
-
-function getpwd() {
-    local tmp
-    read -s tmp
-    echo "$tmp"
-}
-
-function changepwd() {
-    local user="$1" upwd tpwd="$2"
-    if [ "$tpwd" == "" ]
-    then
-        echo -n "Password for user '$1': " && read -s upwd
-        echo ""
-    else
-        upwd="$tpwd"
-    fi
-    chpasswd <<EOF
-$user:$upwd
-EOF
-}
 
 function doinstalls() {
     #
     # $1 - app list
-    # $2 - subject string ("XWindows Installs" or "Application Installs")
+    # $2 - subject string (e.g., "XWindows Installs" or "Application Installs")
     #
     if [ "$1" != "" ]
     then
@@ -37,7 +15,7 @@ function doinstalls() {
 	doapt "install --no-install-recommends $yes $1" $showapt
 	logtoboth "" "* $2 Completed"
     else
-	logtoboth "" "> Skipping $2"
+	logtoboth "" "> Skip $2 per empty package list"
     fi
 }
 
@@ -47,6 +25,24 @@ function doinstalls() {
 source /usr/local/sdm/sdm-cparse ; readparams ""
 logtoboth "" "* Start Phase 1 image customization"
 
+#
+# Set up ssh as requested
+#
+if [ "$ssh" == "" ]
+then
+    logtoboth "" "> Enable SSH service via /boot/ssh"
+    touch /boot/ssh
+elif [ "$ssh" == "socket" ]
+then
+    logtoboth "" "> Enable SSH via ssh.socket"
+    systemctl enable ssh.socket > /dev/null 2>&1
+    systemctl disable sshswitch.service > /dev/null 2&>1
+elif [ "$ssh" == "none" ]
+then
+    logtoboth "" "> Disable SSH per command switch '--ssh none'"
+    systemctl disable ssh.service > /dev/null 2>&1
+fi
+    
 samepwd=""
 puser="'pi'"
 susers="user"
@@ -65,67 +61,185 @@ then
     echo ""
     if [ $rootpwd -eq 1 ]
     then
-	logtoboth "" "> Change root password"
+	logtoboth "" "> Set root password"
 	changepwd root "$samepwd"
     else
-	logtoboth "" "> root password not changed"
+	logtoboth "" "> root password not set"
     fi
 
+
     if [ "$myuser" != "" ]; then
-	[ $myuid != "" ] && xuid="--uid $myuid" || xuid=""
-	logtoboth "" "> Adding user $myuser..."
+	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
+	logtoboth "" "> Add user $myuser and set password"
 	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
 	usermod --groups dialout,cdrom,floppy,audio,video,plugdev,users $myuser
 	changepwd $myuser "$samepwd"
+	[ ! -d /home/$myuser ] && mkdir /home/$myuser
 	chown -R $myuser.users /home/$myuser
+	logtoboth "" "> Add user '$myuser' to sudoers.d"
+	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
+	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
     fi
 fi
 logtoboth "" "> Change user 'pi' password"
 changepwd pi "$samepwd"
+logtoboth "" "> set /home/pi files ownership to 'pi.pi'"
+chown -R pi.pi /home/pi
+#
+# Set up sdm-firstboot service. This service processes some settings that can only be done
+# on the first boot of the system.
+# Service will be enabled by creating run.firstboot when SD card is burned with sdm
+#
+logtoboth "" "> Set up sdm-firstboot service"
+[ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
+cat > /etc/systemd/system/sdm-firstboot.service <<EOF
+[Unit]
+Description=sdm System FirstBoot Configuration
+After=network.target
+#Before=rc-local.service
+ConditionPathExists=/etc/sdm/run.firstboot
+
+[Service]
+Type=forking
+ExecStart=/usr/local/sdm/sdm-firstboot
+ExecStartPost=/bin/sh -c 'if [ -f /etc/sdm/run.firstboot ]; then /bin/rm /etc/sdm/run.firstboot; fi'
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable sdm-firstboot > /dev/null 2>&1
+#
+#The sdm-firstboot-reboot service MUST NOT be enabled!
+#It will be started by sdm-firstboot if --restart|--reboot requested
+#
+cat > /etc/systemd/system/sdm-firstboot-reboot.service <<EOF
+[Unit]
+Description=sdm FirstBoot Reboot Helper Service
+
+[Service]
+Type=forking
+ExecStart=/bin/bash -c "source /usr/local/sdm/sdm-cparse; dosdmreboot"
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+
+EOF
+
 #
 # Set up apt-cacher-ng client if requested
 #
 if [ "$aptcache" != "" ]
 then
     /usr/local/sdm/sdm-apt-cacher client $aptcache
-    logtoboth "" "> Image set as an apt-cacher-ng client with caching server $aptcache"
+    logtoboth "" "> Image set as an apt-cacher-ng client using server $aptcache"
 fi
 
-logtoboth "" "> Starting apt update"
-doapt "update" $showapt       # Do this before Custom script in case it does some installs
+if ! [[ "$poptions" =~ "|noupdate|" ]]
+then
+    logtoboth "" "> Start 'apt update'"
+    doapt "update" $showapt
+else
+    logtoboth "" "> Skip 'apt update' per --poption 'noupdate'"
+fi    
 
 if [ "$cscript" != "" ]
 then
     csfn="/usr/local/sdm/$(basename $cscript)"
-    logtoboth "" "> Run Custom Script '$csfn' Phase 1" 
+    logtoboth "" "> Run Custom Phase Script '$csfn' Phase 1" 
     $csfn 1
 else
     csfn=""
 fi
 
 #
-# These are enabled by use of the --poptions switch
-# For example: --poptions firstboot:apps          does firstboot customization and installs your personal set of apps
-#              --poptions firstboot:apps:xwindows does all 3
+# Handle system settings that can be done in Phase 1
+# WiFi Country is done when the system first boots by sdm-firstboot
 #
-[[ "$poptions" =~ "firstboot" ]] && /usr/local/sdm/sdm-firstboot
-[[ "$poptions" =~ "apps" ]]      && doinstalls "$apps" "Application Installs"
-[[ "$poptions" =~ "xwindows" ]]  && doinstalls "$xapps" "XWindows Installs"
+if [ "$locale" != "" ]
+then
+    logtoboth "" "> Set Locale to '$locale'"
+    raspi-config do_change_locale "$locale" nonint
+fi
+if [ "$keymap" != "" ]
+then
+    logtoboth "" "> Set Keymap to '$keymap'"
+    logtoboth "" ">!Ignore invoke-rc.d messages"
+    raspi-config do_configure_keyboard "$keymap" nonint
+fi
+if [ "$timezone" != "" ]
+then
+    logtoboth "" "> Set Timezone to '$timezone'"
+    raspi-config do_change_timezone "$timezone" nonint
+fi
+
+#
+# These are enabled by use of the --poptions switch
+# For example: --poptions apps          installs your personal set of apps
+#              --poptions apps:xwindows installs apps and XWindows apps
+#
+didapt=0
+if [[ "$poptions" =~ "|apps|" ]]
+then
+    doinstalls "$apps" "Application Installs"
+    [ "$apps" != "" ] && didapt=1
+fi
+if [[ "$poptions" =~ "|xwindows|" ]] || [[ "$poptions" =~ "|xapps|" ]]
+then
+    doinstalls "$xapps" "xapp/XWindows Installs"
+    [ "$xapps" != "" ] && didapt=1
+fi
+if [[ "$poptions" =~ "|samba|" ]]
+then
+    logtoboth "" "> Install Samba silently"
+    hostname $thishost  # For some reason, debconf needs a valid hostname (on the network?) V strange
+    echo "samba-common samba-common/workgroup string  WORKGROUP" | sudo debconf-set-selections
+    echo "samba-common samba-common/dhcp boolean false" | sudo debconf-set-selections
+    echo "samba-common samba-common/do_debconf boolean true" | sudo debconf-set-selections
+    doapt "install -y samba" $showapt
+    hostname sdm
+    didapt=1
+fi
+
 [ $aptconfirm -eq 1 ] && yes="" || yes="-y"
-if ! [[ "$poptions" =~ "noupgrade" ]]
+
+if ! [[ "$poptions" =~ "|noupgrade|" ]]
 then
     logtoboth "" "> Start 'apt upgrade'"
     doapt "$yes upgrade" $showapt
+    didapt=1
 else
-    logtoboth "" "> Skipping 'apt upgrade' per --poption 'noupdate'"
+    logtoboth "" "> Skip 'apt upgrade' per --poption 'noupgrade'"
 fi    
-logtoboth "" "> Starting apt autoremove"
-doapt "autoremove -y" $showapt
+if [ $didapt -eq 1 ]
+then
+    logtoboth "" "> Start 'apt autoremove'"
+    doapt "autoremove -y" $showapt
+fi
+#
+# If RasPiOS Full switch to console no login for first boot
+#  and set to switch back to graphical autologin after first boot unless 1piboot has an uncommented boot_behav* 
+#
+if [ -f /usr/bin/startlxde-pi ]
+then
+    logtoboth "" "> Setting RasPiOS Full to 'console no login' for First Boot"
+    SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1)
+    then
+	logtoboth "" ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
+    else
+	logtoboth "" ">%Desktop Autologin will be re-enabled after First Boot"
+	echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
+    fi
+fi
+
 logtoboth "" "* Phase 1 Completed"
 
-[ "$csfn" != "" ] && logtoboth "" "> Run Custom Script '$csfn' post-install" && $csfn post-install
+[ "$csfn" != "" ] && logtoboth "" "> Run Custom Phase Script '$csfn' post-install" && $csfn post-install
 
 echo ""
 if [ $batch -eq 0 ]

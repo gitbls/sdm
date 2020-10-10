@@ -16,11 +16,10 @@ src="https://raw.githubusercontent.com/gitbls/sdm/master"
 $sudo mkdir -p $dir $dir/1piboot
 
 for f in sdm sdm-phase0 sdm-phase1 sdm-cparse \
-	     sdm-firstboot sdm-apt-cacher sdm-customphase \
-	     sdm-apps-example sdm-xapps-example \
+	     sdm-firstboot sdm-apt-cacher sdm-apt \
+	     sdm-customphase sdm-apps-example sdm-xapps-example \
 	     1piboot/1piboot.conf \
 	     1piboot/010-disable-triggerhappy.sh \
-	     1piboot/020-ssh-switch.sh \
 	     1piboot/030-disable-rsyslog.sh
 do
     $sudo curl -L $src/$f -o $dir/$f
@@ -35,7 +34,7 @@ then
     echo "% Invoke sdm with $dir/sdm"
 else
     echo ""
-    echo "You can inspect sdm in $1..."
+    echo "You can inspect the sdm files in $1..."
     echo "...but you must move sdm to /usr/local/sdm in order to use it"
 fi
 
