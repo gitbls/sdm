@@ -1,5 +1,12 @@
 # Changelog
 
+## V3.3
+
+New features:
+
+* Strip carriage returns when importing wpa_supplicant.conf just in case
+* --mount and --explore now operate on block devices, such as SD Cards, as well as IMG files
+
 ## V3.2
 
 This is a major overhaul from prior versions. Error and message handling has been cleaned up and improved. 
@@ -14,3 +21,4 @@ New features:
 *  Simplified Localization&mdash; `--L10n` gathers the localization settings from the system on which sdm is running, or easily specify on the command line using `--keymap`, `--locale`, `--timezone`, and `--wifi-country
 * **Integrated wpa_supplicant.conf handling** &mdash; Specify your wpa_supplicant.conf on the command line
 * **Integrated SSH handling** &mdash; SSH is enabled by default. Use `--ssh none` to disable SSH, or `--ssh socket` to use systemd socket-based SSH to remove one process from the running system.
+
