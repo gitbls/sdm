@@ -43,11 +43,19 @@ function docleanup() {
 }
 
 function domount() {
-    echo "Mounting IMG '$dimg'"
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
-    loop=$(losetup --show -P -f $dimg)
-    mount -v ${loop}p2 /mnt/sdm
-    mount -v ${loop}p1 /mnt/sdm/boot
+    if [ $dimgdev -eq 0 ]
+    then
+	echo "Mounting IMG '$dimg'"
+	loop=$(losetup --show -P -f $dimg)
+	mount -v ${loop}p2 /mnt/sdm
+	mount -v ${loop}p1 /mnt/sdm/boot
+    else
+	echo "Mounting device '$dimg'"
+	mount -v ${dimg}2 /mnt/sdm
+	mount -v ${dimg}1 /mnt/sdm/boot
+	loop=""
+    fi
 }
 
 function ismounted() {
@@ -249,7 +257,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.2"
+version="V3.3"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -442,8 +450,6 @@ dimg="$1"
 src=$(dirname $0)
 
 [ $pvers -eq 1 ] && echo "sdm $version" && exit
-[ "$dimg" == "" ] && errexit "? No disk image specified"
-[ ! -f "$dimg" ] && errexit "? Disk image file '$dimg' does not exist"
 #
 # Adjust settings based on switches and check for conflicting switches
 # and erroneous switch values
@@ -515,6 +521,18 @@ xapps="$(getapplist $xappfile)"
 #
 # Process the command. Actions are burn, burnfile, mount, extend, explore, or customize
 #
+# First check sanity of the disk image argument. Do this late so that other errors get caught first
+#
+[ "$dimg" == "" ] && errexit "? No disk image specified"
+if [ ! -f "$dimg" ]
+then
+    [ ! -b $burndev ] && errexit "? Disk image file '$dimg' does not exist"
+    [ $fdomount -eq 0 -a $fexplore -eq 0 ] && errexit "? Command cannot operate on device '$dimg'"
+    dimgdev=1
+else
+    dimgdev=0
+fi    
+
 thishost="$(hostname)"
 source /usr/local/sdm/sdm-cparse           # Get function defs
 if [ $burning -eq 1 ]
@@ -632,7 +650,7 @@ if [ $fdomount -eq 1 ]
 then
     domount
     echo ""
-    echo "IMG '$dimg' mounted on /mnt/sdm"
+    [ $dimgdev -eq 0 ] && echo "IMG '$dimg' mounted on /mnt/sdm" || echo "Device '$dimg' mounted on /mnt/sdm"
     echo "** BE VERY CAREFUL! **"
     echo "** All file system references NOT preceded by /mnt/sdm refer to the running system **"
     echo ""
@@ -684,7 +702,7 @@ then
 	echo "% Will enter nspawn for you to have a look at it..."
     else
 	echo ""
-	echo "* Ready to nspawn into the new image"
+	[ $dimgdev -eq 0 ] && echo "* Ready to nspawn into the new image" || echo "* Ready to nspawn into the device '$dimg'"
     fi
 else
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
