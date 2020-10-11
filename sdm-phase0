@@ -13,7 +13,9 @@ logtoboth /mnt/sdm "* Start Phase 0 image customization"
 if [ "$wpaconf" != "" ]
 then
     logtoboth /mnt/sdm "> Copy wpa supplicant configuration from '$wpaconf'"
-    cp $wpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+    #    cp $wpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+    # Copy and strip carriage returns just in case
+    tr -d '\r' < $wpaconf > /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 else
     logtoboth "/mnt/sdm" ">%Skip wpa_supplicant configuration per command switch --nowpa"
 fi
