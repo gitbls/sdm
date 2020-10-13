@@ -236,7 +236,7 @@ First Boot Automatic System Restart is useful for a couple reasons:
 
 * `sudo /usr/local/sdm/sdm --explore raspios-image.img`
 
-    *OR*
+    ***OR***
 
     `sudo /usr/local/sdm/sdm --explore /dev/sdX`
 
@@ -248,13 +248,13 @@ First Boot Automatic System Restart is useful for a couple reasons:
 
 * `sudo /usr/local/sdm/sdm --mount raspios-image.img`
 
-    *OR*
+    ***OR***
 
     `sudo /usr/local/sdm/sdm --mount /dev/sdX`
 
     Mounts the IMG file (first example) or SD Card (second example) onto the running system. This enables you to manually and easily copy files from the running RasPiOS system into the IMG.
 
- **NOTE: BE VERY CAREFUL!** When you use the `--mount` command you're running as root with access to everything! If you copy or delete a file and neglect to prefix the file directory reference with **/mnt/sdm ** you will modify your running system.
+ **NOTE: BE VERY CAREFUL!** When you use the `--mount` command you're running as root with access to everything! If you copy or delete a file and neglect to prefix the file directory reference with **/mnt/sdm** you will modify your running system.
 
 sdm has a broad set of command switches. These can be specified in any case (UPPER, lower, or MiXeD).
 
@@ -339,7 +339,9 @@ In addition to the basic install, you can of course do also do other configurati
 
 sdm changes the terminal colors when providing a command prompt in Phase 1, or when using the `--mount` command, to remind you that things are not quite "normal".
 
-The colors are controlled by the `--ecolors` command switch, which takes an argument specified as 3 colors. The default is `--ecolors blue:gray:red` which sets the foreground (text) blue, the background gray, and the cursor red. The colors for the `--mount` command are controlled by the `--mcolors` switch; the default is `--mcolors black:LightSalmon1:blue`.
+The colors are controlled by the `--ecolors` command switch, which takes an argument specified as 3 colors. The default is `--ecolors blue:gray:red` which sets the foreground (text) blue, the background gray, and the cursor red.
+
+The colors for the `--mount` command are controlled by the `--mcolors` switch; the default is `--mcolors black:LightSalmon1:blue`.
 
 ## apt-cacher-ng
 
