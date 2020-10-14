@@ -1,5 +1,14 @@
 # Changelog
 
+## V3.4
+
+New features:
+
+* SSD tested and works
+* Add --bootset command switch. Now all 1piboot settings can be done from the command line
+* Strip carriage returns when importing wpa_supplicant.conf just in case
+* Document enabling boot from USB disk (SSD)
+
 ## V3.3
 
 New features:
