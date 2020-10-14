@@ -97,7 +97,7 @@ Installation is simple. sdm must be installed in and uses the path `/usr/local/s
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/1piboot/030-disable-rsyslog.sh
     sudo chmod -R 755 /usr/local/sdm/* /usr/local/sdm/1piboot/*.sh
     sudo chmod 644 /usr/local/sdm/{sdm-apps-example,sdm-xapps-example} /usr/local/sdm/1piboot/1piboot.conf
-    sudo apt install systemd-container
+    sudo apt install systemd-container --no-install-recommends 
 
 ## sdm Operation Details
 
