@@ -30,12 +30,19 @@ $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.c
 
 if [ "$dir" == "/usr/local/sdm" ]
 then
-    echo ""
-    echo "% Invoke sdm with $dir/sdm"
+    if ! dpkg-query -s systemd-container --no-install-recommends > /dev/null 2>&1
+    then
+	echo " Installing systemd-container"
+	apt install systemd-container
+    fi
+    echo "Invoke sdm with 'sudo $dir/sdm'"
 else
     echo ""
-    echo "You can inspect the sdm files in $1..."
-    echo "...but you must move sdm to /usr/local/sdm in order to use it"
+    echo "You can inspect sdm in $1..."
+    echo "To use sdm:"
+    echo "  Rerun this script and install into /usr/local/sdm"
+    echo "   or move the contents of $dir to /usr/local/sdm"
+    ! dpkg-query -s systemd-container > /dev/null 2>&1 && echo "   'sudo apt install systemd-container --no-install-recommends'"
 fi
 
 
