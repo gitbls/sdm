@@ -1,9 +1,9 @@
 # sdm
-Raspberry Pi SD Card Image Manager
+Raspberry Pi SSD/SD Card Image Manager
 
 ## Description
 
-`sdm` provides a quick and easy way to build consistent, ready-to-go SD cards for the Raspberry Pi. This command line management tool is especially useful if you:
+`sdm` provides a quick and easy way to build consistent, ready-to-go SSDs and/or SD cards for the Raspberry Pi. This command line management tool is especially useful if you:
 
 * have multiple Raspberry Pi systems and you want them all to start from an identical and consistent set of installed software packages, configuration scripts and settings, etc.
 
@@ -15,17 +15,17 @@ What does *ready-to-go* mean? It means that every one of your systems is fully c
 
 In other words, all ready to work on your next project.
 
-With sdm you'll spend a lot less time rebuilding SD cards, configuring your system, and installing packages, and more time on the things you really want to do with your Pi.
+With sdm you'll spend a lot less time rebuilding SSDs/SD Cards, configuring your system, and installing packages, and more time on the things you really want to do with your Pi.
 
 Someone in the RaspberryPi.org forums said *"Generally I get by by reflashing an SD card and reinstalling everything from the notes I made previously. That is not such a long winded process."*
 
 While better than not having ANY notes, this approach requires relatively complete notes, and careful attention to detail each and every time you need to reflash a card.
 
-`sdm` lets you keep your notes in simple working bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card. And the card is built with ALL of your favorite apps installed and all your favorite customizations.
+`sdm` lets you keep your notes in simple working bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card or SSD. And the disk is built with ALL of your favorite apps installed and all your favorite customizations.
 
 ***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a RasPiOS package that lets you update all your Pis quickly by caching downloaded packages locally on your LAN. This can greatly reduce install and update time, as well as internet network consumption.
 
-sdm is for RasPiOS, and runs on RasPiOS Buster. sdm requires a USB SD Card reader to write a new SD Card. You cannot use sdm to rewrite the running system's SD Card.
+sdm is for RasPiOS, and runs on RasPiOS Buster. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
 
 ## Usage overview
 
@@ -33,9 +33,9 @@ sdm is for RasPiOS, and runs on RasPiOS Buster. sdm requires a USB SD Card reade
 
 Here's how to quickly and easily to create and customize an IMG file and burn it to an SD Card. It's assumed that there is a freshly downloaded copy of RasPiOS 2020-08-20-raspios-buster-armhf-full.img or 2020-08-20-raspios-buster-armhf-lite.img in the current directory, and that there is an SD Card in /dev/sde.
 
-* **Install sdm:** `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+Throughout this document read "SD Card" as "SSD or SD Card". They are treated equivalently by sdm.
 
-* **Install systemd-container:** `sudo apt install systemd-container`
+* **Install sdm and systemd-container:** `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
 * **Customize the image:** `sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --noextend --L10n --restart`
 
@@ -97,6 +97,7 @@ Installation is simple. sdm must be installed in and uses the path `/usr/local/s
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/1piboot/030-disable-rsyslog.sh
     sudo chmod -R 755 /usr/local/sdm/* /usr/local/sdm/1piboot/*.sh
     sudo chmod 644 /usr/local/sdm/{sdm-apps-example,sdm-xapps-example} /usr/local/sdm/1piboot/1piboot.conf
+    sudo apt install systemd-container
 
 ## sdm Operation Details
 
@@ -163,7 +164,7 @@ sdm consists of a primary script `sdm` and several supporting scripts:
 * **sdm-apt**  &mdash; sdm-apt is an optional script that you can use to issue apt commands when in Phase 1 or via `sdm --explore`. It logs the apt output in /etc/sdm/apt.log along with all the other apt operations done in by sdm in customizing your image. Refer to the script for details.
 * **sdm-firstboot**  &mdash; sdm-firstboot is a systemd service run on first system boot to set the WiFi country, enables Pi-specific devices if configured, and optionally run any Custom FirstBoot scripts.
 
-* **1piboot/* **&mdash;  Configuration file and sample scripts. You may need to edit the configuration file (1piboot.conf). See the next section for details. This directory will also be installed onto the SD Card in /usr/local/sdm/1piboot. 
+* **1piboot/* **&mdash;  Configuration file and sample scripts. You may edit the configuration file (1piboot.conf) if you wish, or you can use the --bootset command switch to control all the settings. See the next section for details. This directory will also be installed onto the SD Card in /usr/local/sdm/1piboot. 
 
     If enabled, the custom scripts in 1piboot/0*-*.sh are run when the system first boots, and provide system tuning improvements. You can, of course, disable any of these by renaming them with a leading period, or changing the file type (from ".sh" to ".sh-disabled", for example). The custom scripts are enabled by the switch `--bootscripts` on either the command line that builds the IMG, or on the `sdm --burn` command when burning a new SD card. Two example scripts are provided. You can use either, both, or none of these, as you desire.
 
@@ -179,6 +180,8 @@ sdm consists of a primary script `sdm` and several supporting scripts:
 ## 1piboot.conf
 
 1piboot/1piboot.conf is a configuration file that describes RasPiOS-related configuration settings to be made in your image. Configuration settings are made when the system first boots. All of these settings use raspi-config to make the actual changes to the system. sdm does not syntax check the settings.
+
+The settings in 1piboot.conf can be controlled by editing the config file, or via the `--bootset` command switch. For instance, you can set `serial=0` in 1piboot.conf or you can use the `--bootset serial=0` command switch. In addition, you can use `--bootset` when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file.
 
 ### First Boot configuration settings
 
@@ -199,7 +202,7 @@ The following can only be set in the context of a running system, so are set dur
 * **audio** &mdash; Set the audio setting. Valid settings are: **0:**Auto, **1:**Force 3.5mm jack, **2:**Force HDMI
 * **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1:**4Kp60, **V2:**Analog TV out, **V3:**Disable both 4Kp60 and Analog
 * **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1:**Text console no autologin, **B2:**Text console with autologin, **B3:**Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin
-* **boot_order** &mdash; Set the boot order. Valid settings are: **B1:**Boot from USB device if SD Card boot fails, **B2:**Network boot if SD Card boot fails
+* **boot_order** &mdash; Set the boot order. Valid settings are: **B1:**Boot from USB device if SD Card boot fails, **B2:**Network boot if SD Card boot fails. See the "Boot Order" section below.
 * **overclock** &mdash; Enable overclocking. Valid settings are: **None**, **Modest**, **Medium**, **High**, **Turbo**. This setting is for Pi 1 and 2 only and will silently fail on all other Pi models.
 
 **NOTE:** Not all of the above settings have been thoroughy tested and verified. They simply call `raspi-config`, so *should just work*. If you run into a problem, please open an issue on this github.
@@ -217,6 +220,14 @@ First Boot Automatic System Restart is useful for a couple reasons:
 * You want the system to be fully operational so you can get started!
 
 **NOTE:** If `--restart` is specified on **RasPiOS Full with Desktop** sdm changes the boot_behaviour to **B1** (Text console with no autologin) so that the sdm FirstBoot messages are visible. In this case the boot_behaviour is reset to **B4** (Graphical Desktop with autologin) for all subsequent reboots, unless 1piboot.conf has been modified and a different value for boot_behaviour is set.
+
+#### Boot Order
+
+The *boot_order* configuration setting is different than other settings, in that in modifies the Raspberry Pi eeprom so that boot from USB disk or boot from Network are enabled. If your Pi already has a current system on it, you can use the command `sudo raspi-config do_boot_order XX` to set the boot_order to B1 (Boot from USB device) or B2 (Boot from Network).
+
+If the target system doesn't have a current system on it, you can update the eeprom with sdm by setting up a separate image that is enabled with boot_order, and has all updates installed. Burn that image to an SD card and boot up the target Pi hardware. The system will use raspi-config to change the boot_order setting, and the restart again.
+
+At that point, you can remove the SD card and move ahead with setting up your SSD or Network boot as desired.
 
 ## Complete sdm Command List
 
@@ -265,6 +276,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--batch` &mdash; Do not provide an interactive command prompt inside the nspawn container
 * `--bootadd` *key:value,key:value,...* &mdash; Add new keys/values to /boot/config.txt
 * `--bootconfig` *key:value,key:value,...* &mdash; Update existing, commented keys in /boot/config.txt
+* `--bootset`  *key:value,key:value,...* &mdash; Change system configuration settings. See 1piboot.conf section above.
 * `--bootscripts` &mdash; Directs sdm-firstboot to run the boot scripts in 1piboot/*.sh. If `--bootscripts` is specified when creating the sdm-enhanced IMG, every SD Card burned will run the boot scripts on First Boot. If not specified on IMG creation, it can be also be specified when burning the SD Card to run the boot scripts on that SD Card.
 * `--cscript` *scriptname* &mdash; Specifies the path to your Custom Phase Script, which will be run as described in the Custom Phase Script section below.
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
@@ -294,6 +306,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--restart` or `--reboot` &mdash; Restart the system at the end of the First Boot. The `--restart` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. By default, if `--ssh` is not specified, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
+* `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
 * `--timezone` *tzname* &mdash; Set the timezone for the system.  See `sudo timedatectl list-timezones | less` for a complete list of timezones.
 * `--user` *username* &mdash; Specify a username to be created in the IMG. 
 * `--uid` *uid* &mdash; Use the specified uid rather than the next assignable uid for the new user, if created.
