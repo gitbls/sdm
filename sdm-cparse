@@ -159,10 +159,11 @@ function dosdmreboot() {
     do
 	sleep 1
     done
-    echo -e "\n$(thisdate) sdm FirstBoot Restarting the system in 10 seconds\n" > /dev/console
+    echo -e "\n$(thisdate) FirstBoot: Restarting the system in 10 seconds\n" > /dev/console
+    logit "" "> FirstBoot: Restarting the system in 10 seconds"
     sleep 10
     systemctl daemon-reload
-    logtoboth "" "sdm FirstBoot Restarting the system"
+    logit "" "> FirstBoot: Restarting the system"
     rm -f /etc/systemd/system/sdm-firstboot-reboot.service    #Don't leave a mess
     systemctl reboot
 }

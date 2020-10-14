@@ -13,7 +13,6 @@ logtoboth /mnt/sdm "* Start Phase 0 image customization"
 if [ "$wpaconf" != "" ]
 then
     logtoboth /mnt/sdm "> Copy wpa supplicant configuration from '$wpaconf'"
-    #    cp $wpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 else
@@ -33,7 +32,7 @@ fi
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    logtoboth /mnt/sdm "> Set hdmigroup and hdmimode in /boot/config.txt configuration"
+    logtoboth /mnt/sdm "> Set 'hdmigroup' and 'hdmimode' in /boot/config.txt configuration"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
 fi

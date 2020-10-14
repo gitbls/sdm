@@ -92,7 +92,7 @@ chown -R pi.pi /home/pi
 # on the first boot of the system.
 # Service will be enabled by creating run.firstboot when SD card is burned with sdm
 #
-logtoboth "" "> Set up sdm-firstboot service"
+logtoboth "" "> Configure sdm-firstboot service"
 [ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
 cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
@@ -112,7 +112,15 @@ GuessMainPID=no
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl enable sdm-firstboot > /dev/null 2>&1
+# Enable firstboot unless 'nofirstboot' set
+if ! [[ "$poptions" =~ "|nofirstboot|" ]]
+then
+    systemctl enable sdm-firstboot > /dev/null 2>&1
+    logtoboth "" "> Enable sdm-firstboot service"
+else
+    systemctl disable sdm-firstboot > /dev/null 2>&1
+    logtoboth "" "> Disable sdm-firstboot service"
+fi
 #
 #The sdm-firstboot-reboot service MUST NOT be enabled!
 #It will be started by sdm-firstboot if --restart|--reboot requested
@@ -226,9 +234,9 @@ fi
 #
 if [ -f /usr/bin/startlxde-pi ]
 then
-    logtoboth "" "> Setting RasPiOS Full to 'console no login' for First Boot"
+    logtoboth "" "> Set RasPiOS Full to 'console no login' for First Boot"
     SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1)
+    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
     then
 	logtoboth "" ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
     else

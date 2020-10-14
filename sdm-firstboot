@@ -118,7 +118,7 @@ if [ $reboot -eq 1 ]
 then
     [ -f /etc/sdm/run.firstboot ] && rm -f /etc/sdm/run.firstboot
     bootlog "System will reboot after system startup has completed"
-    echo "$(thisdate) sdm FirstBoot system will restart after system startup completes" > /dev/console
+    echo "$(thisdate) sdm FirstBoot: System will restart after system startup completes" > /dev/console
     systemctl start sdm-firstboot-reboot &
     sleep 10 # Wait for the firstboot-reboot script to start
 else
