@@ -30,10 +30,10 @@ $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.c
 
 if [ "$dir" == "/usr/local/sdm" ]
 then
-    if ! dpkg-query -s systemd-container --no-install-recommends > /dev/null 2>&1
+    if ! $sudo dpkg-query -s systemd-container > /dev/null 2>&1
     then
 	echo " Installing systemd-container"
-	apt install systemd-container
+	$sudo apt install systemd-container --no-install-recommends
     fi
     echo "Invoke sdm with 'sudo $dir/sdm'"
 else
