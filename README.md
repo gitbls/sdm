@@ -62,12 +62,26 @@ When the system comes back up your Pi is all happy, ready to go, and configured 
 What else can sdm do? Here are a few examples:
 
 * **Install applications**  &mdash; Editors (emacs, vim, etc), and any other packages you always install in a new system. sdm has two built-in package install lists, creatively named *apps* and *xapps*. You can select which of the two lists to include when you build an image, so you can build images with no additional apps, *apps* only, *xapps* only, or both.
+
 * **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system
+
 * **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab
+
 * **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm
+
 * **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation
-* **Other customizations** &mdash; Done through a simple batch script. The file sdm-customphase is a skeleton Custom Phase Script that you can copy, modify, and use. **Full disclosure:** You'll need to use a Custom Phase Script to copy your .bashrc or /etc/fstab, or perform systemd service management, etc. See the section Custom Phase Script below for details, and see the section below on /etc/fstab as well.
-* **Burn SD Card Image for network distribution** &mdash; You can build a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet. The recipient can burn the SD Card using any one of a number of tools on Linux ([Installing Operating System Images](https://www.raspberrypi.org/documentation/installation/installing-images/)), Windows ([Installing Operating System Images Using Windows](https://www.raspberrypi.org/documentation/installation/installing-images/windows.md)), or MacOS ([Installing Operating System Images Using MacOS](https://www.raspberrypi.org/documentation/installation/installing-images/mac.md)).
+
+* **Other customizations** &mdash; Done through a simple batch script. The file sdm-customphase is a skeleton Custom Phase Script that you can copy, modify, and use. **Full disclosure:** You'll need to use a Custom Phase Script to copy your .bashrc or /etc/fstab, or perform systemd service management, etc.
+
+    See the section Custom Phase Script below for details, and see the section below on /etc/fstab as well.
+
+* **Burn SD Card Image for network distribution** &mdash; You can build a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
+
+    The recipient can burn the SD Card using any one of a number of tools on Linux ([Installing Operating System Images](https://www.raspberrypi.org/documentation/installation/installing-images/)), Windows ([Installing Operating System Images Using Windows](https://www.raspberrypi.org/documentation/installation/installing-images/windows.md)), or MacOS ([Installing Operating System Images Using MacOS](https://www.raspberrypi.org/documentation/installation/installing-images/mac.md)).
+
+* **Update an already-burned RasPiOS SD Card or SSD** &mdash; use the `--explore` command switch to nspawn into the SD Card or SSD. While in the nspawn you can take care of system management activities in a near-online manner, such as changing the password for an account, installing additional packages, etc.
+
+    This can be VERY handy if you forget the password to the 'pi' account on your favorite SD Card, for instance. You can boot up a second SD Card, install sdm on it, and then use `sdm --explore` to update the 'pi' account password on that favorite SD Card.
 
 ## Detailed Installation and Usage Guide
 
