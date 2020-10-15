@@ -530,6 +530,23 @@ cscript="$(fndotfullpath $cscript)"
 [ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase script '$cscript' not executable"
 p1bootconf="$(fndotfullpath $p1bootconf)"
 [ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
+if [ "$ssh" != "" ]
+then
+    [[ ! "|none|socket|" =~ "|$ssh|" ]] && errexit "? Unknown value '$ssh' for --ssh"
+fi
+#
+# Check sanity of the disk image argument
+#
+[ "$dimg" == "" ] && errexit "? No disk image specified"
+if [ ! -f "$dimg" ]
+then
+    [ ! -b $burndev ] && errexit "? Disk image file '$dimg' does not exist"
+    [ $fdomount -eq 0 -a $fexplore -eq 0 ] && errexit "? Command cannot operate on device '$dimg'"
+    dimgdev=1
+else
+    dimgdev=0
+fi    
+
 [ "$wpaconf" != "" -a ! -f "$wpaconf" ] && errexit "? wpa_supplicant config file '$wpaconf' not found"
 [ $fbuild -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
 if [ "$eeprom" != "" ]
@@ -539,10 +556,6 @@ then
 	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
     fi
 fi    
-if [ "$ssh" != "" ]
-then
-    [[ ! "none/socket" =~ $ssh ]] && errexit "? Unknown value '$ssh' for --ssh"
-fi
 #
 # parse and set ecolors
 #
@@ -568,18 +581,6 @@ xapps="$(getapplist $xappfile)"
 #
 # Process the command. Actions are burn, burnfile, mount, extend, explore, or customize
 #
-# First check sanity of the disk image argument. Do this late so that other errors get caught first
-#
-[ "$dimg" == "" ] && errexit "? No disk image specified"
-if [ ! -f "$dimg" ]
-then
-    [ ! -b $burndev ] && errexit "? Disk image file '$dimg' does not exist"
-    [ $fdomount -eq 0 -a $fexplore -eq 0 ] && errexit "? Command cannot operate on device '$dimg'"
-    dimgdev=1
-else
-    dimgdev=0
-fi    
-
 thishost="$(hostname)"
 source /usr/local/sdm/sdm-cparse           # Get function defs
 if [ $burning -eq 1 ]
