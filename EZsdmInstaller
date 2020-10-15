@@ -10,7 +10,8 @@
 
 [ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
 
-src="https://github.com/gitbls/sdm/raw/master"
+#src="https://github.com/gitbls/sdm/raw/master"
+src="https://raw.githubusercontent.com/gitbls/sdm/master"
 [ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
 
 $sudo mkdir -p $dir $dir/1piboot
