@@ -164,7 +164,7 @@ sdm consists of a primary script `sdm` and several supporting scripts:
 * **sdm-apt**  &mdash; sdm-apt is an optional script that you can use to issue apt commands when in Phase 1 or via `sdm --explore`. It logs the apt output in /etc/sdm/apt.log along with all the other apt operations done in by sdm in customizing your image. Refer to the script for details.
 * **sdm-firstboot**  &mdash; sdm-firstboot is a systemd service run on first system boot to set the WiFi country, enables Pi-specific devices if configured, and optionally run any Custom FirstBoot scripts.
 
-* **1piboot/* **&mdash;  Configuration file and sample scripts. You may edit the configuration file (1piboot.conf) if you wish, or you can use the --bootset command switch to control all the settings. See the next section for details. This directory will also be installed onto the SD Card in /usr/local/sdm/1piboot. 
+* **1piboot/*** &mdash;  Configuration file and sample scripts. You may edit the configuration file (1piboot.conf) if you wish, or you can use the --bootset command switch to control all the settings. See the next section for details. This directory will also be installed onto the SD Card in /usr/local/sdm/1piboot. 
 
     If enabled, the custom scripts in 1piboot/0*-*.sh are run when the system first boots, and provide system tuning improvements. You can, of course, disable any of these by renaming them with a leading period, or changing the file type (from ".sh" to ".sh-disabled", for example). The custom scripts are enabled by the switch `--bootscripts` on either the command line that builds the IMG, or on the `sdm --burn` command when burning a new SD card. Two example scripts are provided. You can use either, both, or none of these, as you desire.
 
@@ -199,10 +199,10 @@ The following can only be set in the context of a running system, so are set dur
 * **blanking** &mdash; Enable screen blanking
 * **overscan** &mdash; Enable compensation for displays with overscan.
 * **pixdub** &mdash; Enable pixel doubling
-* **audio** &mdash; Set the audio setting. Valid settings are: **0:**Auto, **1:**Force 3.5mm jack, **2:**Force HDMI
-* **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1:**4Kp60, **V2:**Analog TV out, **V3:**Disable both 4Kp60 and Analog
-* **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1:**Text console no autologin, **B2:**Text console with autologin, **B3:**Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin
-* **boot_order** &mdash; Set the boot order. Valid settings are: **B1:**Boot from USB device if SD Card boot fails, **B2:**Network boot if SD Card boot fails. See the "Boot Order" section below.
+* **audio** &mdash; Set the audio setting. Valid settings are: **0**:Auto, **1**:Force 3.5mm jack, **2**:Force HDMI
+* **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1**:4Kp60, **V2**:Analog TV out, **V3**:Disable both 4Kp60 and Analog
+* **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1**:Text console no autologin, **B2**:Text console with autologin, **B3**:Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin
+* **boot_order** &mdash; Set the boot order. Valid settings are: **B1**:Boot from USB device if SD Card boot fails, **B2**:Network boot if SD Card boot fails. See the "Boot Order" section below.
 * **overclock** &mdash; Enable overclocking. Valid settings are: **None**, **Modest**, **Medium**, **High**, **Turbo**. This setting is for Pi 1 and 2 only and will silently fail on all other Pi models.
 
 **NOTE:** Not all of the above settings have been thoroughy tested and verified. They simply call `raspi-config`, so *should just work*. If you run into a problem, please open an issue on this github.
