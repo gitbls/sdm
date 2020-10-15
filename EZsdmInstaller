@@ -10,7 +10,7 @@
 
 [ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
 
-src="https://raw.githubusercontent.com/gitbls/sdm/master"
+src="https://github.com/gitbls/sdm/raw/master"
 [ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
 
 $sudo mkdir -p $dir $dir/1piboot
@@ -34,6 +34,8 @@ then
     then
 	echo " Installing systemd-container"
 	$sudo apt install systemd-container --no-install-recommends
+    else
+	echo " Great! systemd-container is already installed"
     fi
     echo "Invoke sdm with 'sudo $dir/sdm'"
 else
