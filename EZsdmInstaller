@@ -31,10 +31,10 @@ $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.c
 
 if [ "$dir" == "/usr/local/sdm" ]
 then
-    if ! $sudo dpkg-query -s systemd-container > /dev/null 2>&1
+    if [ "$(which systemd-nspawn)" == "" ]   #! $sudo dpkg-query -s systemd-container > /dev/null 2>&1
     then
 	echo " Installing systemd-container"
-	$sudo apt install systemd-container --no-install-recommends
+	$sudo apt install systemd-container --no-install-recommends --yes
     else
 	echo " Great! systemd-container is already installed"
     fi
