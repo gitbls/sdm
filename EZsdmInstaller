@@ -23,7 +23,8 @@ for f in sdm sdm-phase0 sdm-phase1 sdm-cparse \
 	     1piboot/010-disable-triggerhappy.sh \
 	     1piboot/030-disable-rsyslog.sh
 do
-    $sudo curl -L $src/$f -o $dir/$f
+    echo "Downloading '$f' to '$dir/$f'"
+    $sudo curl --silent --show-error -L $src/$f -o $dir/$f
 done
 
 $sudo chmod -R 755 $dir/*
@@ -31,21 +32,23 @@ $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.c
 
 if [ "$dir" == "/usr/local/sdm" ]
 then
-    if [ "$(which systemd-nspawn)" == "" ]   #! $sudo dpkg-query -s systemd-container > /dev/null 2>&1
+    echo "Checking if systemd-container is installed"
+    if [ "$(which systemd-nspawn)" == "" ]
     then
 	echo " Installing systemd-container"
 	$sudo apt install systemd-container --no-install-recommends --yes
     else
 	echo " Great! systemd-container is already installed"
     fi
+    echo ""
     echo "Invoke sdm with 'sudo $dir/sdm'"
 else
     echo ""
     echo "You can inspect sdm in $1..."
     echo "To use sdm:"
     echo "  Rerun this script and install into /usr/local/sdm"
-    echo "   or move the contents of $dir to /usr/local/sdm"
-    ! dpkg-query -s systemd-container > /dev/null 2>&1 && echo "   'sudo apt install systemd-container --no-install-recommends'"
+    echo "   or move the contents of '$dir' to /usr/local/sdm"
+    [ "$(which systemd-nspawn)" == "" ]  && echo "" && echo "AND  'sudo apt install systemd-container --no-install-recommends'"
 fi
 
 
