@@ -296,7 +296,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.4"
+version="V3.5"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -526,8 +526,8 @@ cscript="$(fndotfullpath $cscript)"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
 [ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
-[ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase script '$cscript' not found"
-[ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase script '$cscript' not executable"
+[ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
+[ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase Script '$cscript' not executable"
 p1bootconf="$(fndotfullpath $p1bootconf)"
 [ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
 if [ "$ssh" != "" ]
@@ -551,9 +551,9 @@ fi
 [ $fbuild -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
 if [ "$eeprom" != "" ]
 then
-    if [[ ! "critical/stable/beta" =~ "$eeprom" ]]
+    if [[ ! "|critical|stable|beta|" =~ "|$eeprom|" ]]
     then
-	echo "% --eeprom value '$eeprom' is not one of 'critical/stable/beta'. Continuing..."
+	echo "% --eeprom value '$eeprom' is not one of the standard 'critical/stable/beta'. Continuing..."
     fi
 fi    
 #
@@ -683,8 +683,6 @@ then
 	do
 	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
 	done
-	# Enable firstboot service to run
-	[ -d /mnt/sdm/etc/sdm ] && touch /mnt/sdm/etc/sdm/run.firstboot
 	[ $bootscripts -eq 1 ] && echo "  First System Boot Custom Boot Scripts enabled" || echo "  First System Boot Custom Boot Scripts disabled"
 	[ $reboot -eq 1 ] && echo "  First System Boot automatic restart enabled" || echo "  First System Boot automatic restart disabled"
     else
@@ -824,5 +822,4 @@ systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
 docleanup
 [ "$spawncmd" == "" ] && resetcolors xt
 
-echo "Done"
 exit 0

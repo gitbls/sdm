@@ -145,29 +145,6 @@ function thisdate() {
     echo  "$(date +"$datefmt")"
 }
 
-function dosdmreboot() {
-    #
-    # called from sdm-firstboot-reboot service on the running system during First Boot
-    # reboot the system after system startup has completed
-    #
-    source /usr/local/sdm/sdm-cparse ; readparams ""
-    #
-    # Make sure that system startup has completed. Wait for either graphical.target OR multi-user.target
-    #
-    #  had an issue with this, keeping for investigation:  while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
-    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
-    do
-	sleep 1
-    done
-    echo -e "\n$(thisdate) FirstBoot: Restarting the system in 10 seconds\n" > /dev/console
-    logit "" "> FirstBoot: Restarting the system in 10 seconds"
-    sleep 10
-    systemctl daemon-reload
-    logit "" "> FirstBoot: Restarting the system"
-    rm -f /etc/systemd/system/sdm-firstboot-reboot.service    #Don't leave a mess
-    systemctl reboot
-}
-    
 function ord() {
     #
     # Returns the value in decimal of the character in $1

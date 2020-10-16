@@ -99,12 +99,10 @@ cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 Description=sdm System FirstBoot Configuration
 After=network.target
 #Before=rc-local.service
-ConditionPathExists=/etc/sdm/run.firstboot
 
 [Service]
 Type=forking
 ExecStart=/usr/local/sdm/sdm-firstboot
-ExecStartPost=/bin/sh -c 'if [ -f /etc/sdm/run.firstboot ]; then /bin/rm /etc/sdm/run.firstboot; fi'
 TimeoutSec=0
 RemainAfterExit=yes
 GuessMainPID=no
@@ -121,23 +119,6 @@ else
     systemctl disable sdm-firstboot > /dev/null 2>&1
     logtoboth "" "> Disable sdm-firstboot service"
 fi
-#
-#The sdm-firstboot-reboot service MUST NOT be enabled!
-#It will be started by sdm-firstboot if --restart|--reboot requested
-#
-cat > /etc/systemd/system/sdm-firstboot-reboot.service <<EOF
-[Unit]
-Description=sdm FirstBoot Reboot Helper Service
-
-[Service]
-Type=forking
-ExecStart=/bin/bash -c "source /usr/local/sdm/sdm-cparse; dosdmreboot"
-TimeoutSec=0
-RemainAfterExit=yes
-GuessMainPID=no
-
-EOF
-
 #
 # Set up apt-cacher-ng client if requested
 #

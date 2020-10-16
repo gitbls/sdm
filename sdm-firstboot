@@ -82,7 +82,17 @@ function doconfig() {
     done < $cfgfile
     bootlog "Configuration with configuration file '$cfgfile' Completed"
 }
-
+#
+# Mainline
+#
+if [ "$1" == "" ]
+then
+    /usr/local/sdm/sdm-firstboot "fork" &  # Fork and restart myself so forking service is started
+    exit
+fi
+#
+# Running in the fork now
+#
 source /usr/local/sdm/sdm-cparse ; readparams ""
 doconfig /etc/sdm/1piboot.conf
 #
@@ -116,13 +126,21 @@ fi
 
 if [ $reboot -eq 1 ]
 then
-    [ -f /etc/sdm/run.firstboot ] && rm -f /etc/sdm/run.firstboot
-    bootlog "System will reboot after system startup has completed"
-    echo "$(thisdate) sdm FirstBoot: System will restart after system startup completes" > /dev/console
-    systemctl start sdm-firstboot-reboot &
-    sleep 10 # Wait for the firstboot-reboot script to start
-else
-    rm -f /etc/systemd/system/sdm-firstboot-reboot.service        # Don't need it so clean it up
+    logit "" "> FirstBoot: Disable sdm-firstboot service"
+    systemctl disable sdm-firstboot > /dev/null 2>&1
+    bootlog "FirstBoot: System will restart after system startup has completed"
+    echo "$(thisdate) FirstBoot: System will restart after system startup completes" > /dev/console
+    # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
+    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    do
+	sleep 1
+    done
+    echo -e "\n$(thisdate) FirstBoot: Restarting the system in 10 seconds\n" > /dev/console
+    logit "" "> FirstBoot: Restarting the system in 10 seconds"
+    sleep 10
+    logit "" "> FirstBoot: Restarting the system"
+    echo -e "\n$(thisdate) FirstBoot: Restarting the system\n" > /dev/console
+    systemctl reboot
 fi
 bootlog "Configuration Complete"
 
