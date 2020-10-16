@@ -1,5 +1,11 @@
 # Changelog
 
+## V3.5
+
+Updates:
+
+* Redo FirstBoot handling for improved efficiency
+
 ## V3.4
 
 New features:
