@@ -10,7 +10,7 @@
 
 function bootlog() {
     # Write string in $1 to the system log/journal and /etc/sdm/history.log
-    logger "FirstBoot $1"
+    logger "FirstBoot: $1"
     logit "" "> FirstBoot $1"
 }
 
@@ -126,9 +126,9 @@ fi
 
 if [ $reboot -eq 1 ]
 then
-    logit "" "> FirstBoot: Disable sdm-firstboot service"
+    logit "" "> FirstBoot Disable sdm-firstboot service"
     systemctl disable sdm-firstboot > /dev/null 2>&1
-    bootlog "FirstBoot: System will restart after system startup has completed"
+    bootlog "System will restart after system startup has completed"
     echo "$(thisdate) FirstBoot: System will restart after system startup completes" > /dev/console
     # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
     # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
@@ -136,12 +136,13 @@ then
     do
 	sleep 1
     done
-    echo -e "\n$(thisdate) FirstBoot: Restarting the system in 10 seconds\n" > /dev/console
-    logit "" "> FirstBoot: Restarting the system in 10 seconds"
-    sleep 10
+    echo -e "\n$(thisdate) FirstBoot: Restarting the system in $rebootwait seconds\n" > /dev/console
+    bootlog "Restarting the system in $rebootwait seconds"
+    sleep $rebootwait
+    systemctl daemon-reload
     echo -e "\n$(thisdate) FirstBoot: Restarting the system\n" > /dev/console
-    logit "" "> FirstBoot: Restarting the system"
+    bootlog "Restarting the system"
     systemctl reboot
 fi
-bootlog "Configuration Complete"
+
 

@@ -3,7 +3,11 @@
 # This file is sourced by some sdm-related scripts
 #
 function readparams() {
+    #
+    # Restores the global variables from /etc/sdm/cparams
+    #
     # $1="/mnt/sdm" if in phase 0, "" if in phase 1
+    #
     local i="$1"
     [[ "$1" =~ "/mnt/sdm" ]]  && i="/mnt/sdm" || i=""
     if [ -f $i/etc/sdm/cparams ]
@@ -33,11 +37,12 @@ function logit {
     #
     # $1="/mnt/sdm" if in phase 0, "" if in phase 1
     # $2="message string"
-#    [ ! -f "$1/etc/sdm/history" ] && touch $1/etc/sdm/history
     echo "$(thisdate) $2" >> $1/etc/sdm/history
 }
 
 function logtoboth {
+    #
+    # Writes the message to the terminal and also to /etc/sdm/history
     #
     # $1="/mnt/sdm" if in phase 0, "" if in phase 1
     # $2="message string" which will be split up
@@ -94,7 +99,6 @@ function sdmuseradd() {
     usermod --gid users $user
     usermod --groups $GROUPS $user
     changepwd $user "$password"
-    echo "Done"
 }
 
 function askyn() {

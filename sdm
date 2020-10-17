@@ -276,6 +276,7 @@ pi1bootconf:$pi1bootconf
 poptions:$poptions
 reboot:$reboot
 noreboot:$noreboot
+rebootwait:$rebootwait
 rootpwd:$rootpwd
 showapt:$showapt
 src:$src
@@ -296,7 +297,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.5"
+version="V3.6"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -337,6 +338,8 @@ nspawnsw=""                 #Switches for nspawn
 poptions=""                 #Phase options
 pvers=0                     #Print version number
 reboot=0                    #1=Reboot from First Boot
+rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
+drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
 timezone=""                 #Timezone setting
@@ -364,7 +367,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,1piboot:,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,cscript:,csrc:,datefmt:,ddsw:,ecolors:,eeprom:,explore,extend,fstab:,hdmigroup:,hdmimode:,host:,hostname:,keymap:,l10n,locale:,mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot,restart,rootpwd,showapt,ssh:,svcdisable:,svcenable:,timezone:,uid:,user:,wifi-country:,wificountry:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa: -n 'sdm' -- "$@")
+OARGS=$(getopt -o h --longoptions help,1piboot:,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,cscript:,csrc:,datefmt:,ddsw:,ecolors:,eeprom:,explore,extend,fstab:,hdmigroup:,hdmimode:,host:,hostname:,keymap:,l10n,locale:,mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,rootpwd,showapt,ssh:,svcdisable:,svcenable:,timezone:,uid:,user:,wifi-country:,wificountry:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa: -n 'sdm' -- "$@")
 [ $? -ne 0 ] && errexit "? $0: Unable to parse command"
 eval set -- "$OARGS"
 
@@ -407,7 +410,9 @@ do
 	--nowpa)       fnowpa=1      ; shift ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--poptions)    poptions=$2   ; shift 2 ;;
-	--reboot|--restart) reboot=1 ; shift 1 ;;
+	--reboot)      rebootwait=$2 ;
+		       reboot=1      ; shift 2 ;;
+	--restart)      reboot=1     ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift ;;
 	--showapt)     showapt=1     ; shift ;;
 	--ssh)         ssh=$2        ; shift 2 ;;
@@ -643,6 +648,7 @@ then
 	# Save settings made with the --burn command
 	breboot=$reboot
 	bnoreboot=$noreboot
+	brebootwait=$rebootwait
 	bscript=$bootscripts
 	bwificountry="$wificountry"
 	blocale="$locale"
@@ -653,6 +659,7 @@ then
         [ $breboot -eq 1 ] && reboot=$breboot
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
         [ $bscript -eq 1 ] && bootscripts=$bscript  #If we weren't set to run scripts, use setting from IMG
+	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
 	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
@@ -673,7 +680,8 @@ then
 	fi
 	setbootset    # Handle --bootset settings
   	writeconfig                  # Write updated params to the SD card
-	[ $bootscripts -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts enabled") || \
+	[ $rebootwait -ne $drebootwait ] && wmsg=" with a $rebootwait second wait" || wmsg=""
+	[ $bootscripts -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts enabled${wmsg}") || \
 		burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts disabled")
 	[ $reboot -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot automatic restart enabled") || \
 		burnmsg+=("$(thisdate) > FirstBoot System Boot automatic restart disabled")
@@ -684,7 +692,7 @@ then
 	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
 	done
 	[ $bootscripts -eq 1 ] && echo "  First System Boot Custom Boot Scripts enabled" || echo "  First System Boot Custom Boot Scripts disabled"
-	[ $reboot -eq 1 ] && echo "  First System Boot automatic restart enabled" || echo "  First System Boot automatic restart disabled"
+	[ $reboot -eq 1 ] && echo "  First System Boot automatic restart enabled${wmsg}" || echo "  First System Boot automatic restart disabled"
     else
 	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
     fi

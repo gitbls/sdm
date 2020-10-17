@@ -317,7 +317,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
     Enter multiple values as a single string separated by commas. For example `--poptions apps,xapps` or `--poptions noupdate,noupgrade`
 
-* `--restart` or `--reboot` &mdash; Restart the system at the end of the First Boot. The `--restart` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed.
+* `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
+* `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. By default, if `--ssh` is not specified, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
 * `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
@@ -381,6 +382,12 @@ Once you have configured the server system, copy sdm-apt-cacher to the server an
 Once you have the apt-cacher server configured you can use the `--aptcache` *IPaddr* sdm command switch to configure the IMG system to use the APT cacher.
 
 If you have other existing, running Pis that you want to convert to using your apt-cacher server, copy sdm-apt-cacher to each one and execute the command 'sudo /path/to/sdm-apt-cacher client`.
+
+## 32-bit and/or 64-bit
+
+Running on 64-bit RasPiOS sdm can customize, explore, burn, and mount both 32-bit and 64-bit RasPiOS images.
+
+However, running on 32-bit RasPiOS sdm can only mount and burn 64-bit images. The systemd-nspawn command on 32-bit RasPiOS is not able to operate against a 64-bit RasPiOS image.
 
 ## Bread crumbs
 

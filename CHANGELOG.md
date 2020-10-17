@@ -1,5 +1,11 @@
 # Changelog
 
+## V3.6
+
+* Minor logging updates in sdm-firstboot
+* Remove gratuitous "Done" in sdm-cparse
+* --reboot now takes a value for number of seconds to wait after system has reached default target before restarting. --restart does NOT take a value, and has a wait time of 20 seconds.
+
 ## V3.5
 
 Updates:
