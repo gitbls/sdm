@@ -226,14 +226,14 @@ One last First Boot setting controls whether the system automatically restarts a
 
 First Boot Automatic System Restart is useful for a couple reasons:
 
-* if access to the system requires a configuration setting modified during the First Boot. A reboot ensures that all configuration settings are fully enabled.
+* if access to the system requires a configuration setting modified during the First Boot. A restart ensures that all configuration settings are fully enabled.
 
-    For example, if the only access to the Pi will be over the serial port, the system must be restarted before the serial port will be active. In this case you would enable `serial=0` in 1piboot.conf and use the `--restart` command switch so the Pi automatically restarts.
+    For example, if the only access to the Pi will be over the serial port, the system must be restarted before the serial port will be active. In this situation the `--bootset serial:0 --restart` command switches enable the serial port and automatically restart the Pi. After the restart, the serial port is active.
 
 * You want it to reboot to make it easier to ensure that your configuration and services are as desired
 * You want the system to be fully operational so you can get started!
 
-**NOTE:** If `--restart` is specified on **RasPiOS Full with Desktop** sdm changes the boot_behaviour to **B1** (Text console with no autologin) so that the sdm FirstBoot messages are visible. In this case the boot_behaviour is reset to **B4** (Graphical Desktop with autologin) for all subsequent reboots, unless 1piboot.conf has been modified and a different value for boot_behaviour is set.
+**NOTE:** If `--restart` is specified on **RasPiOS Full with Desktop** sdm changes the boot_behaviour to **B1** (Text console with no autologin) so that the sdm FirstBoot messages are visible. In this case the boot_behaviour is reset to **B4** (Graphical Desktop with autologin) for all subsequent reboots, unless the command line included `--bootset boot_behaviour:xx` command switch was specified.
 
 #### Boot Order
 
@@ -283,7 +283,7 @@ At that point, you can remove the SD card and move ahead with setting up your SS
 
 sdm has a broad set of command switches. These can be specified in any case (UPPER, lower, or MiXeD).
 
-* `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf
+* `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf. Note that this is less preferable than using the `--bootset` command switch.
 * `--apps` *applist* &mdash; Specifies a list of apps to install. This can be either a quoted list of space-separate apps ("zip iperf3 nmap") or a pointer to a file (@file), which has one package name per line. Comments are preceded by a pound sign ('#') and are ignored. You must specify `--poptions apps` in order for sdm to process the *apps* list.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--aptconfirm` &mdash; Prompt for confirmation before APT installs and updates are done in sdm Phase 1
@@ -329,7 +329,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--wpa` *conffile* &mdash; Specify the wpa_supplicant.conf file to use. You can either specify your wpa_supplicant.conf on the command line, or copy it into your image in your sdm-customphase script. See the sample sdm-customphase for an example. `--wpa` can also be specified when burning the SD Card.
 * `--nowpa` &mdash; Use this to tell sdm that you really meant to not provide a wpa_supplicant.conf file. You must either specify `--wpa` or `--nowpa` when customizing an IMG. This is useful if you want to build SD Cards for different networks. You can use `--nowpa` when you customize the IMG, and then specify `--wpa` *conffile* when burning the SD Card.
 * `--xapps` *xapplist* &mdash; Like `--apps`, but specifies the list of apps to install when `--poptions xapps` is specified.
-* `--xmb` *n*` &mdash; Specify the number of MB to extend the image. The default is 2048 (MB), which is 2GB. You may need to increase this depending on the number of packages you choose to install in Phase 1. If the image isn't large enough, package installations will fail. If the image is too large, it will consume more disk space, and burning the image to an SD Card will take longer.
+* `--xmb` *n* &mdash; Specify the number of MB to extend the image. The default is 2048 (MB), which is 2GB. You may need to increase this depending on the number of packages you choose to install in Phase 1. If the image isn't large enough, package installations will fail. If the image is too large, it will consume more disk space, and burning the image to an SD Card will take longer.
 
 ## sdm-firstboot
 
