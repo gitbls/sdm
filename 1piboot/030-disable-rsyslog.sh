@@ -1,6 +1,6 @@
 #!/bin/bash
 
-logger "FirstBoot Disabling rsyslog and creating permanent journal..."
+logger "FirstBoot: Disabling rsyslog and creating permanent journal..."
 systemctl disable rsyslog.service
 sed -i "s/\#ForwardToSyslog=yes/ForwardToSyslog=no/" /etc/systemd/journald.conf
 [ ! -d /var/log/journal ] && mkdir /var/log/journal

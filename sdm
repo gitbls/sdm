@@ -297,7 +297,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.6"
+version="V3.7"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -767,7 +767,7 @@ else
     #
     # Create and populate /usr/local/sdm tree
     #
-    [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm /mnt/sdm/etc/sdm/assets
+    [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm /mnt/sdm/etc/sdm/assets /mnt/sdm/etc/sdm/0piboot
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > /mnt/sdm/etc/sdm/auto-1piboot.conf
     setbootset    # Handle --bootset settings
     [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm \

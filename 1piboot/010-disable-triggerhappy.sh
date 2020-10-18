@@ -1,5 +1,5 @@
 #!/bin/bash
-logger "FirstBoot Disabling TriggerHappy..."
+logger "FirstBoot: Disabling TriggerHappy..."
 [ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/.thd           # Speeds up /etc/init.d/raspi-config.service
 systemctl disable triggerhappy.service
 systemctl disable triggerhappy.socket

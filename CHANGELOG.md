@@ -1,5 +1,10 @@
 # Changelog
 
+## V3.7
+
+* FirstBoot message cleanups
+* Always run firstboot scripts created in /etc/sdm/0piboot (e.g., from Custom Phase Scripts)
+
 ## V3.6
 
 * Minor logging updates in sdm-firstboot
