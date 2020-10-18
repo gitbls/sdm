@@ -343,6 +343,8 @@ A Custom Phase Script is a script provided by you. It is called 3 times: Once fo
 
 * In Phase 1 and post-install (both inside nspawn) the host file system is not available at all. Thus, if a file is needed in Phase 1, Phase 0 must copy it into the IMG. References to /mnt/sdm will fail in Phase 1.
 
+If a Custom Phase Script wants to run a script at boot time, even if `--bootscripts` is not specified, the Custom Phase script should put the script in /etc/sdm/0piboot in the IMG and named 0*-*.sh (e.g., 010-customize-something.sh). These scripts are always run by FirstBoot.
+
 The best way to build a Custom Phase Script is to start with the example Custom Phase Script `sdm-customphase`, and extend it as desired.
 
 ## /etc/fstab
