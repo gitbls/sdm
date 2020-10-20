@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.8
+
+* Check that switches with numeric values are as they should be
+
 ## V3.7
 
 * FirstBoot message cleanups

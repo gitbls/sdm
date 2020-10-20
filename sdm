@@ -68,6 +68,14 @@ function domount() {
     fi
 }
 
+function checknumeric() {
+    #
+    # Exit with error if $1 is not numeric
+    #
+    [[ ! "$1" =~ [0-9]+ ]] && errexit "? Value '$1' for command switch '$2' is not numeric"
+    return
+}
+
 function fndotfullpath() {
     #
     # Fix directory if it's "."
@@ -297,7 +305,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.7"
+version="V3.8"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -479,7 +487,8 @@ echo " --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
 echo " --poptions str      Set Phase 1 auto-run options" ;
 echo " --norestart         Do not restart after first boot" ;
-echo " --restart n         Restart the first boot of the system after n seconds" ;
+echo " --reboot n          Restart the first boot of the system after n seconds" ;
+echo " --restart           Restart the first boot of the system" ;
 echo " --rootpwd           Set a root password into the image" ;
 echo " --showapt           Display apt output as well as logging it" ;
 echo " --ssh none|socket   No ssh or ssh sockets [Default: ssh service]" ;
@@ -529,8 +538,6 @@ cscript="$(fndotfullpath $cscript)"
 [ $burning -ne 1 -a $fdomount -ne 1 -a $fexplore -ne 1 ] && fbuild=1
 [ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
-[ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
-[ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
 [ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
 [ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase Script '$cscript' not executable"
 p1bootconf="$(fndotfullpath $p1bootconf)"
@@ -539,6 +546,13 @@ if [ "$ssh" != "" ]
 then
     [[ ! "|none|socket|" =~ "|$ssh|" ]] && errexit "? Unknown value '$ssh' for --ssh"
 fi
+[ "$rebootwait" != "" ] && checknumeric "$rebootwait" "--reboot"
+[ "$hdmigroup" != "" ] && checknumeric "$hdmigroup" "--hdmigroup"
+[ "$hdmimode" != "" ] && checknumeric "$hdmimode" "--hdmimode"
+[ "$myuid" != "" ] && checknumeric "$myuid" "--uid"
+[ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
+[ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
+[ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
 #
 # Check sanity of the disk image argument
 #
