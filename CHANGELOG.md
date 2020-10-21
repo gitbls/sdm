@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.9
+
+* Correct numeric test check
+
 ## V3.8
 
 * Check that switches with numeric values are as they should be

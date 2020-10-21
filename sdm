@@ -72,7 +72,7 @@ function checknumeric() {
     #
     # Exit with error if $1 is not numeric
     #
-    [[ ! "$1" =~ [0-9]+ ]] && errexit "? Value '$1' for command switch '$2' is not numeric"
+    [[ "$1" = *[^0-9]* ]] && errexit "? Value '$1' for command switch '$2' is not numeric"
     return
 }
 
@@ -305,7 +305,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.8"
+version="V3.9"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
