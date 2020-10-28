@@ -25,7 +25,7 @@ While better than not having ANY notes, this approach requires relatively comple
 
 ***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a RasPiOS package that lets you update all your Pis quickly by caching downloaded packages locally on your LAN. This can greatly reduce install and update time, as well as internet network consumption.
 
-sdm is for RasPiOS, and runs on RasPiOS Buster. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
+sdm is for RasPiOS, and runs on RasPiOS Buster. It can also run on other Linux systems. See the 'Compatibility' section below. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
 
 ## Usage overview
 
@@ -385,11 +385,15 @@ Once you have the apt-cacher server configured you can use the `--aptcache` *IPa
 
 If you have other existing, running Pis that you want to convert to using your apt-cacher server, copy sdm-apt-cacher to each one and execute the command 'sudo /path/to/sdm-apt-cacher client`.
 
-## 32-bit and/or 64-bit
+## Compatibility &mdash; Non-Pi Linux and Pi 32-bit vs 64-bit
+
+sdm itself is mostly Linux distro-independent and 32-vs-64-bit agnostic. The interoperability issues arise when sdm uses the Linux `systemd-nspawn` command when customizing an image or using `--explore` on an image. Other sdm commands should work on any Linux host OS to access or modify a RasPiOS image.
+
+In order to do image customization or use `--explore` on an image on a non-RasPiOS host (e.g., x86 or x86_64), you must install `qemu-user-static`, which pulls in package `binfmt-support`. These components enable image customization and `--explore` on an RasPiOS image. If this doesn't work on your x86 Linux system, it may be too old and lacking updated support. I have tested this on Ubuntu 20.04, and it's able to operate on both RasPiOS 32 and 64-bit images.
 
 Running on 64-bit RasPiOS sdm can customize, explore, burn, and mount both 32-bit and 64-bit RasPiOS images.
 
-However, running on 32-bit RasPiOS sdm can only mount and burn 64-bit images. The systemd-nspawn command on 32-bit RasPiOS is not able to operate against a 64-bit RasPiOS image.
+However, running on 32-bit RasPiOS sdm can only mount and burn 64-bit images; customization and `--explore` won't operate on 64-bit images when running on 32-bit RasPiOS. The systemd-nspawn command on 32-bit RasPiOS is not able to operate against a 64-bit RasPiOS image.
 
 ## Bread crumbs
 
