@@ -36,7 +36,7 @@ elif [ "$ssh" == "socket" ]
 then
     logtoboth "" "> Enable SSH via ssh.socket"
     systemctl enable ssh.socket > /dev/null 2>&1
-    systemctl disable sshswitch.service > /dev/null 2&>1
+    systemctl disable sshswitch.service > /dev/null 2>&1
 elif [ "$ssh" == "none" ]
 then
     logtoboth "" "> Disable SSH per command switch '--ssh none'"
