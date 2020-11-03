@@ -71,7 +71,7 @@ What else can sdm do? Here are a few examples:
 
 * **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation
 
-* **Other customizations** &mdash; Done through a simple batch script. The file sdm-customphase is a skeleton Custom Phase Script that you can copy, modify, and use. **Full disclosure:** You'll need to use a Custom Phase Script to copy your .bashrc or /etc/fstab, or perform systemd service management, etc.
+* **Other customizations** &mdash; Done through a simple batch script. The file sdm-customphase is a skeleton Custom Phase Script that you can copy, modify, and use. **Full disclosure:** You'll need to use a Custom Phase Script to copy your .bashrc or perform systemd service management, etc.
 
     See the section Custom Phase Script below for details, and see the section below on /etc/fstab as well.
 
