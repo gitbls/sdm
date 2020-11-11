@@ -63,6 +63,12 @@ function logtoboth {
     fi	
 }
 
+function bootlog() {
+    # Write string in $1 to the system log/journal and /etc/sdm/history.log
+    logger "FirstBoot: $1"
+    logit "" "> FirstBoot $1"
+}
+
 function getpwd() {
     local tmp
     read -s tmp
@@ -205,4 +211,178 @@ function resetcolors() {
     local tfg tbg tcursor
     eval "tfg=\$${1}fg ; tbg=\$${1}bg ; tcursor=\$${1}cursor"
     stermcolors "$tfg" "$tbg" "$tcursor"
+}
+
+function ckkeymap() {
+    [ "$1" == "" ] && return 0
+    (grep "^  ${1} " /usr/share/doc/keyboard-configuration/xorg.lst > /dev/null 2>&1) && return 0 || return 1
+}
+
+function cklocale() {
+    [ "$1" == "" ] && return 0
+    (grep "^${1}" /usr/share/i18n/SUPPORTED > /dev/null 2>&1) && return 0 || return 1
+    return 0
+}
+
+function ckwificountry() {
+    [ "$1" == "" ] && return 0
+    (grep "^${1}" /usr/share/zoneinfo/iso3166.tab > /dev/null 2>&1) && return 0 || return 1
+}
+
+function cktimezone() {
+    [ "$1" == "" ] && return 0
+    [ -e /usr/share/zoneinfo/$1 ] && return 0 || return 1
+}
+
+function waitusb() {
+    #
+    # Waits forever until a USB device found
+    # Returns the name of the USB device (/dev/sdX)
+    #
+    secs=0
+    while [ 0 ]
+    do
+	for d in sda sdb sdc sdd
+	do
+	    sdx="/dev/$d"
+	    if [ -b $sdx ]
+	    then
+		if [ "$(lsblk $sdx 2>/dev/null)" != "" ]
+		then
+		    if ! grep $sdx /proc/mounts > /dev/null 2>&1
+		    then
+			echo $sdx
+			return
+		    fi
+		fi
+	    fi
+	done
+	#
+	# Wait patiently for the USB device to be inserted but nudge every 10 seconds
+	#
+	secs=$((secs+1))
+	if [ $((secs%10)) -eq 0 ]
+	then
+	    echo -e "\n$(thisdate) FirstBoot: Waiting for USB Device with Local Settings file '$wifile'" > /dev/console
+	    echo -e "USB Device must have file '$wifile' in the root directory of the first partition" > /dev/console
+	    echo -e "with at least 3 lines of text:" > /dev/console
+	    echo -e "country=<2-Letter WiFi Country Abbreviation>" > /dev/console
+	    echo -e "ssid=<your WiFi SSID>" > /dev/console
+	    echo -e "password=<your WiFi Password>" > /dev/console
+	    echo -e "\n...And optionally..." > /dev/console
+	    echo -e "keymap=<Keymap name>" > /dev/console
+	    echo -e "locale=<Locale name>" > /dev/console
+	    echo -e "timezone=<Timezone>" > /dev/console
+	    echo -e "...All without the angle brackets, of course!" > /dev/console
+	fi
+	sleep 1
+    done
+}
+function updreinsmsg() {
+    echo "** Update the USB drive as needed and reinsert" > /dev/console
+    echo "** Waiting..." > /dev/console
+}
+
+function readusbcreds() {
+    #
+    # Find the credentials
+    # NOTE: Doesn't handle # character in password. What about others?
+    #
+    tmpf=$(mktemp -q /tmp/getcred.XXXX)
+    if [ ! -f /mnt/$wifile ]
+    then
+	logger "? FirstBoot: Local Settings File '$wifile' Not Found on USB $sdx"
+	echo -e "\n$(thisdate) FirstBoot: Local Settings File '$wifile' Not Found on USB device $sdx" > /dev/console
+	updreinsmsg
+	echo "0"
+	return
+    fi
+    uwificountry="" ; ussid="" ; upassword="" ; ukeymap="" ; ulocale="" ; utimezone="" 
+    tr -d '\r' < /mnt/$wifile > $tmpf # Eliminate Windows line endings if present
+    IFS=":="
+    while read key value
+    do
+	if [[ ! $key =~ ^\ *# && -n $key ]] # skip comment and malformed lines
+	then
+            value="${value%%\#*}"    # Del EOL comments
+            value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+            value="${value%\"}"     # Del opening double-quotes 
+            value="${value#\"}"     # Del closing double-quotes 
+            value="${value%\'}"     # Del opening single-quotes 
+            value="${value#\'}"     # Del closing single-quotes 
+	    case "${key,,}" in
+		country)  uwificountry="${value^^}" ;;
+		ssid)     ussid="$value"            ;;
+		password) upassword="$value"        ;;
+		keymap)   ukeymap="$value"          ;;
+		timezone) utimezone="$value"        ;;
+		locale)   ulocale="$value"          ;;
+	    esac
+	fi
+    done < $tmpf
+    rm -f $tmpf
+    rs=1          # Assume success
+    echo -e "\n$(thisdate) FirstBoot: Local Settings Read from USB ${sdx}:" > /dev/console
+    echo "country=$uwificountry" > /dev/console
+    echo "ssid=$ussid" > /dev/console
+    echo "psk=$upassword" > /dev/console
+    bootlog "Found WiFi Country setting '$uwificountry' from USB Drive"
+    bootlog "Found WiFi SSID setting '$ussid' from USB Drive"
+    bootlog "Found WiFi Password setting '$upassword' from USB Drive"
+    [ "$ukeymap" != "" ] && echo "keymap=$ukeymap" > /dev/console && bootlog "Found Keymap '$ukeymap' from USB Drive"
+    [ "$ulocale" != "" ] && echo "locale=$ulocale" > /dev/console && bootlog "Found Locale '$ulocale' from USB Drive"
+    [ "$utimezone" != "" ] && echo "timezone=$utimezone" > /dev/console && bootlog "Found Timezone '$utimezone' from USB Drive"
+    [ "$ussid" == "" -o "$upassword" == "" ] && echo -e "\n ? Incomplete WiFi configuration settings: WiFi SSID or Password" > /dev/console && rs=0
+    ! (ckwificountry $uwificountry)  && echo -e "\n? Unrecognized WiFi Country '$uwificountry'" > /dev/console && bootlog "? Unrecognized WiFi Country '$uwificountry'" && rs=0
+    ! ckkeymap $ukeymap && echo -e "\n? Unrecognized keymap '$ukeymap'" > /dev/console && bootlog "? Unrecognized Keymap '$ukeymap'" && rs=0
+    ! cklocale $ulocale && echo -e "\n? Unrecognized locale '$ulocale'" > /dev/console && bootlog "? Unrecognized Locale '$ulocale'" && rs=0
+    ! cktimezone $utimezone && echo -e "\n? Unrecognized Timezone '$utimezone'" > /dev/console && bootlog "? Unrecognized Timezone '$utimezone'" && rs=0
+    if [ $rs -eq 1 ]
+    then
+	cat > /etc/sdm/local-1piboot.conf <<EOF
+keymap=$ukeymap
+locale=$ulocale
+timezone=$utimezone
+EOF
+    else
+	updreinsmsg
+    fi
+    echo "$rs:$uwificountry:$ussid:$upassword"
+    return
+}
+
+function loadusbcreds() {
+    
+    wifile="local-settings.txt"
+    while [ 0 ]
+    do
+	sdx=$(waitusb)
+	mount ${sdx}1 /mnt
+	IFS=":" read cresult uwificountry ussid upassword <<< $(readusbcreds)
+	umount /mnt
+	[ "$cresult" == "1" ] && break
+	sleep 10
+    done
+    bootlog "Set WiFi Country to '$uwificountry'"
+    SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$uwificountry" nonint
+    wpa="/etc/wpa_supplicant/wpa_supplicant.conf"
+    systemctl stop wpa_supplicant > /dev/null 2>&1
+    systemctl stop wpa_supplicant@wlan0 > /dev/null 2>&1
+    sleep 1         # Don't want wpa to stomp on my nice new config file
+    bootlog "Set WiFi Credentials in $wpa"
+    [ -f $wpa ] && mv $wpa ${wpa}.original
+    cat > $wpa <<EOF
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+country=$uwificountry
+
+network={
+        ssid="$ussid"
+        psk="$upassword"
+        key_mgmt=WPA-PSK
+}
+EOF
+    # Restart wpa
+    systemctl start wpa_supplicant > /dev/null 2>&1
+    echo -e "\n$(thisdate) FirstBoot: WiFi Credentials Set in $wpa" > /dev/console
+return
 }

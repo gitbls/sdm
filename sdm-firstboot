@@ -8,12 +8,6 @@
 #                          ...plus a bunch of other infrequently used device settings
 #
 
-function bootlog() {
-    # Write string in $1 to the system log/journal and /etc/sdm/history.log
-    logger "FirstBoot: $1"
-    logit "" "> FirstBoot $1"
-}
-
 function doscripts() {
     #
     # $1: wildcard file spec
@@ -114,12 +108,19 @@ fi
 source /usr/local/sdm/sdm-cparse ; readparams ""
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
 #
-# Set WiFi Country
+# Set WiFi Country or load WiFi credentials
 #
-if [ "$wificountry" != "" ]
+if [ "$loadlocal" == "USB" ]
 then
-    bootlog "Set WiFi Country to '$wificountry'"
-    SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$wificountry" nonint
+    bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
+    loadusbcreds
+    [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Local Settings from --loadlocal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
+else
+    if [ "$wificountry" != "" ]
+    then
+	bootlog "Set WiFi Country to '$wificountry'"
+	SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$wificountry" nonint
+    fi
 fi
 #
 # Only look at 1piboot.conf if there's anything to process
@@ -138,8 +139,8 @@ if [ $reboot -eq 1 ]
 then
     logit "" "> FirstBoot Disable sdm-firstboot service"
     systemctl disable sdm-firstboot > /dev/null 2>&1
-    bootlog "System will restart after system startup has completed"
-    echo "$(thisdate) FirstBoot: System will restart after system startup completes" > /dev/console
+    bootlog "System will restart automatically after system startup has completed"
+    echo "$(thisdate) FirstBoot: System will restart automatically after system startup completes" > /dev/console
     # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
     # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
     while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]

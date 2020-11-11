@@ -70,7 +70,7 @@ then
 
     if [ "$myuser" != "" ]; then
 	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
-	logtoboth "" "> Add user $myuser and set password"
+	logtoboth "" "> Add user '$myuser' and set password"
 	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser

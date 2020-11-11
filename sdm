@@ -277,6 +277,7 @@ fstab:$fstab
 hdmigroup:$hdmigroup
 hdmimode:$hdmimode
 keymap:$keymap
+loadlocal:$loadlocal
 locale:$locale
 myuid:$myuid
 myuser:$myuser
@@ -305,7 +306,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.9"
+version="V3.10"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -323,7 +324,7 @@ datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M oflag=direct"  #Switches for dd
 ecolors="blue:gray:red"     #fg:bg:cursor
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
-fbuild=0                    #True if not doing burn, mount, or explore
+fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
@@ -336,7 +337,9 @@ hname=""                    #Host name when using --burn
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
                             #Must be large enough to accomodate all packages you want to install
 keymap=""                   #Keyboard configuration
+infocmd=0                   #1=--info command
 loadl10n=0                  #1=Load Localization settings from running system 
+loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
 locale=""                   #Locale
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
@@ -375,7 +378,16 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-OARGS=$(getopt -o h --longoptions help,1piboot:,apps:,aptcache:,aptconfirm,batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,cscript:,csrc:,datefmt:,ddsw:,ecolors:,eeprom:,explore,extend,fstab:,hdmigroup:,hdmimode:,host:,hostname:,keymap:,l10n,locale:,mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,rootpwd,showapt,ssh:,svcdisable:,svcenable:,timezone:,uid:,user:,wifi-country:,wificountry:,xapps:,xmb:,custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa: -n 'sdm' -- "$@")
+longopts="help,1piboot:,apps:,aptcache:,aptconfirm,\
+batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
+cscript:,csrc:,customize,datefmt:,ddsw:,ecolors:,eeprom:,explore,extend,\
+fstab:,hdmigroup:,hdmimode:,host:,hostname:,info,keymap:,l10n,loadlocal:,locale:,\
+mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,\
+rootpwd,showapt,ssh:,svcdisable:,svcenable:,timezone:,uid:,user:,\
+wifi-country:,wificountry:,xapps:,xmb:,\
+custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
+
+OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
 [ $? -ne 0 ] && errexit "? $0: Unable to parse command"
 eval set -- "$OARGS"
 
@@ -398,6 +410,7 @@ do
 		       burnfilefile=$2 ; shift 2 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
+	--customize)   fcustomize=1  ; shift 1 ;;
 	--datefmt)     datefmt=$2    ; shift 2 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
@@ -410,6 +423,8 @@ do
 	--hostname|--host) hname=$2  ; shift 2 ;;
 	--keymap)      keymap=$2     ; shift 2 ;;
 	--l10n)        loadl10n=1    ; shift 1 ;;
+	--info)        infocmd=1     ; shift 1 ;;
+	--loadlocal) loadlocal=${2^^} ; shift 2 ;;
 	--locale)      locale=$2     ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--mount)       fdomount=1    ; shift ;;
@@ -429,7 +444,7 @@ do
 	--timezone)    timezone=$2   ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
-	--wifi-country|--wificountry) wificountry=$2 ; shift 2 ;;
+	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
 	--xapps)       xapps=$2      ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
@@ -458,6 +473,7 @@ echo " --burn devname      Copy the image to the storage device" ;
 echo " --burnfile filename Create a ready-to-burn customized Image file" ;
 echo " --host hostname     Hostname to burn into the image with --burn" ;
 echo " --explore           Explore (nspawn shell) into image" ;
+echo " --info what         Display list of Locales, Keymaps, WiFi Countries, or Timezones" ;
 echo " --mount             Mount IMG file partitions and drop into bash" ;
 echo " --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]" ;
 echo "  * Customization switches (no --burn, --explore, or --mount) *" ;
@@ -482,6 +498,7 @@ echo " --hdmigroup n       Set /boot/config.txt hdmigroup value" ;
 echo " --hdmimode n        Set /boot/config.txt hdmimode value" ;
 echo " --host hostname     Hostname to write onto the storage device with --burn" ;
 echo " --keymap keymapname Set keymap" ;
+echo " --loadlocal usb     Load WiFi Credentials from USB stick during first boot" ;
 echo " --locale localename Set the locale";
 echo " --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
@@ -511,6 +528,9 @@ dimg="$1"
 src=$(dirname $0)
 
 [ $pvers -eq 1 ] && echo "sdm $version" && exit
+
+source /usr/local/sdm/sdm-cparse           # Get function defs
+
 #
 # Adjust settings based on switches and check for conflicting switches
 # and erroneous switch values
@@ -528,6 +548,36 @@ then
 	fi
     fi
 fi
+#
+# Handle --info switch right now. $dimg has the requested info item (timezones, locales, keymaps, wifi-countries)
+#
+if [ $infocmd -eq 1 ]
+then
+    case "${dimg,,}" in
+	time*)
+	    less /usr/share/zoneinfo/zone1970.tab ;;
+	local*)
+	    less /usr/share/i18n/SUPPORTED ;;
+	key*)
+	    less /usr/share/doc/keyboard-configuration/xorg.lst ;;
+	wifi*)
+	    less /usr/share/zoneinfo/iso3166.tab ;;
+	help|*)
+	    [ "${dimg,,}" != "help" ] && echo "? Unrecognized --info option '$dimg'" ;
+	    echo "" ;
+	    echo "The --info command accepts one of four switch values:" ;
+	    echo "timezone:     Show --timezone values";
+	    echo "locale:       Show --locale values" ;
+	    echo "keymap:       Show --keymap values" ;
+	    echo "wifi-country: Show --wifi-country values" ;
+	    echo "" ;
+	    echo "Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'" ;
+	    ;;
+	*)
+    esac
+exit 0
+fi
+
 cscript="$(fndotfullpath $cscript)"
 [ $burn -eq 1 -a $burnfile -eq 1 ] && errexit "? Switch conflict: --burn and --burnfile"
 [ $burn -eq 1 -o $burnfile -eq 1 ] && burning=1 || burning=0
@@ -535,7 +585,11 @@ cscript="$(fndotfullpath $cscript)"
 [ $burning -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --explore"
 [ $fdomount -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --mount and --explore"
 [ $reboot -eq 1 -a $noreboot -eq 1 ] && errexit "? Switch conflict: --restart and --norestart"
-[ $burning -ne 1 -a $fdomount -ne 1 -a $fexplore -ne 1 ] && fbuild=1
+[ $fcustomize -eq 1 -a $burning -eq 1 ] && errexit "? Switch conflict: --customize and --burn|--burnfile"
+[ $fcustomize -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --customize and --mount"
+[ $fcustomize -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --customize and --explore"
+# Force customize if none of burn, mount, or explore
+[ $burning -ne 1 -a $fdomount -ne 1 -a $fexplore -ne 1 ] && fcustomize=1
 [ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
@@ -553,6 +607,11 @@ fi
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
 [ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
 [ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
+[ "$loadlocal" != "" -a "$loadlocal" != "USB" ] && errexit "? Only --loadlocal USB is supported"
+! cktimezone $timezone && errexit "? Unknown Timezone '$timezone'"
+! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
+! cklocale $locale && errexit "? Unknown Locale '$locale'"
+! ckkeymap $keymap && errexit "? Unknown Keymap '$keymap'"
 #
 # Check sanity of the disk image argument
 #
@@ -567,7 +626,7 @@ else
 fi    
 
 [ "$wpaconf" != "" -a ! -f "$wpaconf" ] && errexit "? wpa_supplicant config file '$wpaconf' not found"
-[ $fbuild -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
+[ $fcustomize -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
 if [ "$eeprom" != "" ]
 then
     if [[ ! "|critical|stable|beta|" =~ "|$eeprom|" ]]
@@ -601,7 +660,6 @@ xapps="$(getapplist $xappfile)"
 # Process the command. Actions are burn, burnfile, mount, extend, explore, or customize
 #
 thishost="$(hostname)"
-source /usr/local/sdm/sdm-cparse           # Get function defs
 if [ $burning -eq 1 ]
 then
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
@@ -625,7 +683,9 @@ then
 	$ddcmd
 	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
 	burnmsg+=("$(thisdate) > dd Copy completed")
-	sync
+	# Prevent mount errors
+	sync ; sync
+	sleep 1
 	mount -v ${burndev}2 /mnt/sdm
 	! ismounted ${burndev}2 && errexit "? Unable to mount ${burndev}2"
     else
@@ -689,7 +749,7 @@ then
 		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to Image '$burnfilefile'")
 		echo "* Copy WPA Supplicant configuration '$bwpaconf' to '$burnfilefile'"
 	    fi
-	    cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+	    [ -f $bwpaconf ] && cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
 	fi
 	setbootset    # Handle --bootset settings
@@ -770,10 +830,10 @@ then
     then
 	echo ""
 	echo "% It appears that '$dimg' has already been customized"
-	echo "% Will enter nspawn for you to have a look at it..."
+	echo "% Entering nspawn for you to have a look at it..."
     else
 	echo ""
-	[ $dimgdev -eq 0 ] && echo "* Ready to nspawn into the new image" || echo "* Ready to nspawn into the device '$dimg'"
+	[ $dimgdev -eq 0 ] && echo "* Ready to nspawn into the image '$dimg'" || echo "* Ready to nspawn into the device '$dimg'"
     fi
 else
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
