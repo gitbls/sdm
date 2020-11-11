@@ -279,7 +279,10 @@ At that point, you can remove the SD card and move ahead with setting up your SS
 
     Mounts the IMG file (first example) or SD Card (second example) onto the running system. This enables you to manually and easily copy files from the running RasPiOS system into the IMG.
 
- **NOTE: BE VERY CAREFUL!** When you use the `--mount` command you're running as root with access to everything! If you copy or delete a file and neglect to prefix the file directory reference with **/mnt/sdm** you will modify your running system.
+    **NOTE: BE VERY CAREFUL!** When you use the `--mount` command you're running as root with access to everything! If you copy or delete a file and neglect to prefix the file directory reference with **/mnt/sdm** you will modify your running system.
+
+* `sudo /usr/local/sdm/sdm --info` *what* &mdash; Display one of the databases that specify timezones, locale, keymaps, and wifi-country. The *what* argument can be one of `time`, `locale`, `keymap`, or `wifi`. The requested database is displayed with the `less` command. `--info help` will display the list of options.
+
 
 sdm has a broad set of command switches. These can be specified in any case (UPPER, lower, or MiXeD).
 
@@ -302,7 +305,6 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--hdmigroup` *num* &mdash; hdmigroup setting in /boot/config.txt
 * `--hdmimode` *num* &mdash; hdmimode setting in /boot/config.txt
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
-* `--info` *what* &mdash; Display one of the databases that specify timezones, locale, keymaps, and wifi-country. The *what* argument can be one of `time`, `locale`, `keymap`, or `wifi`. The requested database is displayed with the `less` command. `--info help` will display the list of options.
 * `--keymap` *keymapname* &mdash; Specifies the keymap to set into the image, or burn onto the SD Card. `--keymap` can be specified when customizing the image and/or when burning the SD card. Specifying `--keymap` with `--burn` overrides whatever is in the image. Also see `--l10n`. See the *layout* section in /usr/share/doc/keyboard-configuration/xorg.list for a complete list of keymaps.
 * `--l10n` &mdash; Build the image with the Keymap, Locale, Timezone, and WiFi Country of the system on which sdm is running. Note that the switch name is lowercase *L10N*, which is shorthand for "localization", just like I18N is shorthand for "internationalization"
 * `--loadlocal USB` &mdash; WiFi Credentials are read from a USB device. The switch keyword value USB is required. The Credentials must be in the file `local-settings.txt` in the root directory of the USB device. `local-settings.txt` has three text lines in it, specifying the WiFi Country, WiFi SSID and password in the format:
