@@ -1,5 +1,14 @@
 # Changelog
 
+## V3.10
+
+* Add --loadlocal to load WiFi and Localization details from a USB device on First Boot. Handy if sending an image or SD Card to
+someone who doesn't want to disclose their WiFi credentials.
+
+* Add --info command to 'less' the databases used for checking Time Zones, Locales, Keymaps, and WiFi Country. See --info help for details
+
+* Check switch value errors for Locale, Keymap, Timezone, and WiFi Country
+
 ## V3.9
 
 * Correct numeric test check
