@@ -117,10 +117,10 @@ EOF
 
 function poptcheck() {
     #
-    # Check poptions settings against valid settings
+    # Check options settings against valid settings
     # Report errors and exit
     #
-    local popt="$1" badopt="" nopt=""
+    local popt="$1" vopt="$2" switchname="$3" badopt="" nopt=""
     if [ "$popt" != "" ]
     then
 	readarray -d, xopt <<< $1
@@ -128,16 +128,17 @@ function poptcheck() {
 	do
 	    os="${o%,}"
 	    os="${os# }"
-	    if ! [[ "$vpoptions" =~ "|$os|" ]]
+	    if ! [[ "$vopt" =~ "|$os|" ]]
 	    then
 		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
 	    else
 		nopt="$nopt|$os"
 	    fi
 	done
-	[ "$badopt" != "" ] && echo "? Unrecognized --poption value(s) $badopt" || echo "$nopt|"
+	[ "$badopt" != "" ] && echo "? Unrecognized $switchname value(s) $badopt" || echo "$nopt|"
     fi
 }
+
 function findappfile() {
     #
     # $1 = app/xapp variable
@@ -306,7 +307,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.10"
+version="V3.11"
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -357,6 +358,7 @@ timezone=""                 #Timezone setting
 wificountry=""              #WiFi country setting
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|samba|xwindows|xapps|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|"
+vloadopts="|usb|flashled|internet|"  #Valid options for --loadlocal
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
 xapps=""                    #List of X apps to install in sdm-X-installs
@@ -424,7 +426,7 @@ do
 	--keymap)      keymap=$2     ; shift 2 ;;
 	--l10n)        loadl10n=1    ; shift 1 ;;
 	--info)        infocmd=1     ; shift 1 ;;
-	--loadlocal) loadlocal=${2^^} ; shift 2 ;;
+	--loadlocal)   loadlocal="${2,,}" ; shift 2 ;;
 	--locale)      locale=$2     ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--mount)       fdomount=1    ; shift ;;
@@ -607,11 +609,15 @@ fi
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
 [ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
 [ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
-[ "$loadlocal" != "" -a "$loadlocal" != "USB" ] && errexit "? Only --loadlocal USB is supported"
 ! cktimezone $timezone && errexit "? Unknown Timezone '$timezone'"
 ! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
 ! cklocale $locale && errexit "? Unknown Locale '$locale'"
 ! ckkeymap $keymap && errexit "? Unknown Keymap '$keymap'"
+
+poptions=$(poptcheck "${poptions,,}" "$vpoptions", "--poption")
+exitiferr "$poptions"
+loadlocal=$(poptcheck "$loadlocal" "$vloadopts", "--loadlocal")
+exitiferr "$loadlocal"
 #
 # Check sanity of the disk image argument
 #
@@ -644,9 +650,6 @@ IFS=":" read efg ebg ecursor <<< $ecolors
 [ "$ecursor" == "" ] && ecursor="red"
 ecolors="$efg:$ebg:$ecursor"
 
-noptions=$(poptcheck "$poptions")
-exitiferr "$noptions"
-poptions="$noptions"
 #
 # Process --apps and --xapps switches
 #

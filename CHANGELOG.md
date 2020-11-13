@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.11
+
+* --loadlocal accepts additional values 'flashled' (signal status with the Green LED) and 'internet' (check for Internet connectivity)
+    
 ## V3.10
 
 * Add --loadlocal to load WiFi and Localization details from a USB device on First Boot. Handy if sending an image or SD Card to
