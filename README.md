@@ -456,3 +456,10 @@ A couple of quick notes on loop devices, which are used to mount the IMG file in
 * `losetup -d /dev/loopX` deletes the loop device /dev/loopX (e.g., /dev/loop0). You may need to do this to finish cleaning up from dangling mounts (which you do first, before deleting the loop device).
 
 * If your system doesn't have enough loop devices, you can increase the number by adding max_loop=n on end of /boot/cmdline.txt and reboot.
+
+## Known Restrictions and Issues
+
+* sdm uses the single mount point /mnt/sdm, so there can only be one copy of sdm active at once. 
+* sdm must be run as root.
+* sdm has only been tested on RasPiOS Buster 32-bit and 64-bit (beta). 
+
