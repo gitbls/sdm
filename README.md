@@ -317,6 +317,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
     The First Boot process will wait for and use the first non-mounted USB device that is found. If the file `local-settings.txt` is not found on that USB device, First Boot will print a message on the console, and the wait process will be restarted, so the remote user can update their USB device as needed. See /usr/share/zoneinfo/iso3166.tab for the complete WiFi Country code list. If `--loadlocal` is used, `--wifi-country` and the WiFi Country setting obtained from `--l10n` are ignored.
 
+    In addition to the switch value USB, the `--loadlocal` switch also accepts the values `flashled` and `internet`. The `flashled` value causes the First Boot process to flash the green Pi LED with progress indicators. See the LED Flashing section below for details. The `internet` value causes First Boot to check that the Pi has Internet access. If there is no internet access, First Boot will restart the load from USB process.
+
 * `--locale` *localename* &mdash; The locale is specified just as you'd set it in raspi-config. For example, in the USA, one might use en_US.UTF-8, and in the UK en_UK.UTF-8. See /usr/share/i18n/SUPPORTED for a complete locale list.
 * `--noextend` &mdash; Do not extend the IMG file at all
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
@@ -397,6 +399,21 @@ Once you have configured the server system, copy sdm-apt-cacher to the server an
 Once you have the apt-cacher server configured you can use the `--aptcache` *IPaddr* sdm command switch to configure the IMG system to use the APT cacher.
 
 If you have other existing, running Pis that you want to convert to using your apt-cacher server, copy sdm-apt-cacher to each one and execute the command 'sudo /path/to/sdm-apt-cacher client`.
+
+## LED Flashing
+
+As noted above, `--loadlocal usb,flashled` will cause the First Boot process to flash the Green Pi LED with progress/problem indicators. This is very useful if the Pi doesn't have a monitor attached. The flash codes are ("." is a short flash, and "-" is a long flash):
+
+* `..- ..- ..-`  &mdash; First Boot is waiting for an unmounted USB device to appear with the file `local-settings.txt` on it.
+* `... --- ...`  &mdash; An error was found in `local-settings.txt`. Errors can include:
+    * ssid or password are not specified, or are the null string
+    * An invalid WiFi Country was specified
+    * An invalid Keymap, Locale, or Timezone was specified
+* `-- -- -- --`  &mdash; WiFi did not connect
+* `..... ..... .....`  &mdash; WiFi connected
+* `.-.-.- .-.-.- .-.-.- .-.-.-`  &mdash; Internet is accessible
+* `-.-.-. -.-.-. -.-.-. -.-.-.`  &mdash; Internet is not accessible
+
 
 ## Compatibility &mdash; Non-Pi Linux and Pi 32-bit vs 64-bit
 
