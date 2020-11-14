@@ -166,10 +166,15 @@ network={
 EOF
 	echo -e "\n$(thisdate) FirstBoot: WiFi Credentials Set in $wpa" > /dev/console
 	systemctl start dhcpcd > /dev/null 2>&1
-	bootlog "Wait $dhcpwait seconds for dhcpcd to get an IP Address"
-	echo -e "\n$(thisdate) FirstBoot: Wait $dhcpwait seconds for dhcpcd to get an IP Address" > /dev/console
-	sleep $dhcpwait
-	# Check that we got a good IP address
+	bootlog "Wait up to $dhcpwait seconds for dhcpcd to get an IP Address"
+	echo -e "\n$(thisdate) FirstBoot: Wait up to $dhcpwait seconds for dhcpcd to get an IP Address" > /dev/console
+	for (( secs=0 ; secs < $dhcpwait ; secs++ ))
+	do
+	    myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show | grep wlan0) | (IFS='/'; read a b; echo $a))
+	    [[ ! "$myipaddr" =~ "169.254." ]] && [ "$myipaddr" != "" ] && break
+	    [ $flashled -eq 1 ] && morseled "..-. ..-. ..-." #Waiting on IP Address
+	    sleep 1
+	done
 	myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show | grep wlan0) | (IFS='/'; read a b; echo $a))
 	if [[ "$myipaddr" =~ "169.254." ]] || [ "$myipaddr" == "" ]
 	then
@@ -209,6 +214,7 @@ return
 # ..... ..... .....  WiFi got IP address
 # .-.-.- .-.-.-  Internet is accessible
 # -.-.-. -.-.-.  No Internet connectivity
+# ..-. ..-. ..-. Waiting on DHCP address
 
 function doscripts() {
     #
@@ -312,10 +318,10 @@ source /usr/local/sdm/sdm-cparse ; readparams ""
 #
 # Set WiFi Country or load WiFi credentials
 #
+[[ "$loadlocal" =~ "|flashled|" ]] && flashled=1 || flashled=0
 if [[ "$loadlocal" =~ "|usb|" ]]
 then
     bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
-    [[ "$loadlocal" =~ "|flashled|" ]] && flashled=1 || flashled=0
     [[ "$loadlocal" =~ "|internet|" ]] && ckinternet=1 || ckinternet=0
     loadusbcreds $flashled $ckinternet
     [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Local Settings from --loadlocal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
@@ -350,6 +356,7 @@ then
     do
 	[ $lc -eq 0 ] && bootlog "System will restart automatically after system startup has completed"
 	[ $lc -eq 0 ] && echo -e "\n$(thisdate) FirstBoot: System will restart automatically after system startup completes" > /dev/console && lc=1
+	[ $flashled -eq 0 ] && morseled "-..- -..-"
 	sleep 1
     done
     echo -e "\n$(thisdate) FirstBoot: Restarting the system in $rebootwait seconds\n" > /dev/console

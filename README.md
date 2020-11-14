@@ -413,7 +413,7 @@ As noted above, `--loadlocal usb,flashled` will cause the First Boot process to 
 * `..... ..... .....`  &mdash; WiFi connected
 * `.-.-.- .-.-.- .-.-.- .-.-.-`  &mdash; Internet is accessible
 * `-.-.-. -.-.-. -.-.-. -.-.-.`  &mdash; Internet is not accessible
-
+* `..-. ..-. ..-.` &mdash; Waiting for a DHCP-assigned IP address
 
 ## Compatibility &mdash; Non-Pi Linux and Pi 32-bit vs 64-bit
 

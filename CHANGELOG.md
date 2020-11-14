@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.12
+
+* Improve DHCP wait logic
+
 ## V3.11
 
 * --loadlocal accepts additional values 'flashled' (signal status with the Green LED) and 'internet' (check for Internet connectivity)
