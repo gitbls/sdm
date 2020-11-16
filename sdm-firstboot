@@ -118,9 +118,9 @@ function readusbcreds() {
     ! cktimezone $utimezone && echo -e "\n? Unrecognized Timezone '$utimezone'" > /dev/console && bootlog "? Unrecognized Timezone '$utimezone'" && rs=0
     if [ $rs -eq 1 ]
     then
-	[ "$ukeymap" != "" ]   && echo "keymap=$ukeymap" >> /etc/sdm/local-1piboot
-	[ "$ulocale" != "" ]   && echo "locale=$ulocale" >> /etc/sdm/local-1piboot
-	[ "$utimezone" != "" ] && echo "timezone=$utimezone" >> /etc/sdm/local-1piboot
+	[ "$ukeymap" != "" ]   && echo "keymap=$ukeymap" >> /etc/sdm/local-1piboot.conf
+	[ "$ulocale" != "" ]   && echo "locale=$ulocale" >> /etc/sdm/local-1piboot.conf
+	[ "$utimezone" != "" ] && echo "timezone=$utimezone" >> /etc/sdm/local-1piboot.conf
     else
 	updreinsmsg
     fi
