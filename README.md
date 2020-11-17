@@ -463,3 +463,6 @@ A couple of quick notes on loop devices, which are used to mount the IMG file in
 * sdm must be run as root.
 * sdm has only been tested on RasPiOS Buster 32-bit and 64-bit (beta). 
 
+## Credits
+
+sdm was inspired by posts by @HawaiianPi and @sakaki in the Raspberry Pi Forum: [https://www.raspberrypi.org/forums/viewtopic.php?f=63&t=231762](URL)
