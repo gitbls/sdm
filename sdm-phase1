@@ -146,6 +146,37 @@ else
 fi
 
 #
+# Set dhcpcd wait if requested
+#
+if [ "$dhcpcdwait" == "1" ]
+then
+    mkdir -p /etc/systemd/system/dhcpcd.service.d/
+    if [ -f /etc/systemd/system/dhcpcd.service.d/wait.conf ]
+    then
+	logtoboth "" "%dhcpcd 'wait for network connection' is already enabled"
+    else
+	logtoboth "" "> Enable dhcpcd 'wait for network connection'"
+	cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
+[Service]
+ExecStart=
+ExecStart=/usr/lib/dhcpcd5/dhcpcd -q -w
+EOF
+    fi
+fi
+#
+# If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
+if [[ "$loadlocal" =~ "|wifi|" ]]
+then
+    logtoboth "" "> Disable dhcpcd per '--loadlocal wifi"
+    logtoboth "" "  dhcpcd will be re-enabled at the end of First Boot"
+    systemctl disable dhcpcd
+fi
+#
+# I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
+#
+logtoboth "" "> Disable wpa_supplicant.service"
+systemctl disable wpa_supplicant
+#
 # Handle system settings that can be done in Phase 1
 # WiFi Country is done when the system first boots by sdm-firstboot
 #
