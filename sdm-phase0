@@ -19,6 +19,15 @@ else
     logtoboth "/mnt/sdm" ">%Skip wpa_supplicant configuration per command switch --nowpa"
 fi
 #
+# Copy dhcpcd.conf extension into the image
+#
+if [ "$dhcpcd" != "" ]
+then
+    logtoboth /mnt/sdm "> Copy dhcpcd.conf extension '$dhcpcd' to /etc/sdm/assets and enable for FirstBoot"
+    cp $dhcpcd /mnt/sdm/etc/sdm/assets
+    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+fi
+#
 # Copy fstab extension into the image
 #
 if [ "$fstab" != "" ]
@@ -32,9 +41,14 @@ fi
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    logtoboth /mnt/sdm "> Set 'hdmigroup' and 'hdmimode' in /boot/config.txt configuration"
+    logtoboth /mnt/sdm "> Set 'hdmigroup' and 'hdmimode' in /boot/config.txt"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
+fi
+if [ "$hdmiforcehotplug" == "1" ]
+then
+    logtoboth /mnt/sdm "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
+    sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /mnt/sdm/boot/config.txt
 fi
 #
 # Set other config.txt settings (if any)
