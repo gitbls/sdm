@@ -149,7 +149,7 @@ function loadusbcreds() {
 	bootlog "Set WiFi Country to '$uwificountry'"
 	SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$uwificountry" nonint
 	wpa="/etc/wpa_supplicant/wpa_supplicant.conf"
-	systemctl stop wpa_supplicant > /dev/null 2>&1 # This isn't even used with dhcpcd
+#	systemctl stop wpa_supplicant > /dev/null 2>&1 # This isn't even used with dhcpcd and is disabled in sdm-phase1
 	systemctl stop dhcpcd > /dev/null 2>&1
 	sleep 5         # Don't want wpa to stomp on my nice new config file
 	bootlog "Set WiFi Credentials in $wpa"
@@ -216,6 +216,16 @@ return
 # -.-.-. -.-.-.  No Internet connectivity
 # ..-. ..-. ..-. Waiting on DHCP address
 
+function set_wifi_country () {
+    #	SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$1" nonint
+    # This seems to be all that's necessary from do_wifi_country
+    rfkill unblock wifi
+    for fn in /var/lib/systemd/rfkill/*:wlan
+    do
+        echo "0" > "$fn"
+    done
+}
+
 function doscripts() {
     #
     # $1: wildcard file spec
@@ -275,8 +285,12 @@ function doconfig() {
 		    SUDO_USER=${myuser:-pi} raspi-config do_$rpifun $value nonint
 		    ;;
 		#
-		# fstab, keymap, locale, and timezone may be set via sdm --burn command
+		# dhcpcd, fstab, keymap, locale, and timezone may be set via sdm --burn command
 		#
+		dhcpcd)
+		    bootlog "Append dhcpcd.conf extension '$value' to /etc/dhcpcd.conf"
+		    cat /etc/sdm/assets/$value >> /etc/dhcpcd.conf
+		    ;;
 		fstab)
 		    bootlog "Append fstab extension '$value' to /etc/fstab"
 		    cat /etc/sdm/assets/$value >> /etc/fstab
@@ -324,14 +338,23 @@ then
     bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
     [[ "$loadlocal" =~ "|internet|" ]] && ckinternet=1 || ckinternet=0
     loadusbcreds $flashled $ckinternet
-    [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Local Settings from --loadlocal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
 else
     if [ "$wificountry" != "" ]
     then
 	bootlog "Set WiFi Country to '$wificountry'"
-	SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$wificountry" nonint
+	set_wifi_country "$wificountry"
+    fi
+    if [[ "$loadlocal" =~ "|wifi|" ]]
+    then
+	[ "$wificountry" == "" ] && set_wifi_country US 
+	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
+	/usr/local/sdm/sdm-cportal --apip $apip --apssid $apssid --logging /usr/local/sdm/sdm-logmsg
+	bootlog "Re-enable dhcpcd Service"
+	systemctl daemon-reload > /dev/null 2>&1
+	systemctl enable dhcpcd > /dev/null 2>&1
     fi
 fi
+[ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Local Settings from --loadlocal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
 #
 # Only look at 1piboot.conf if there's anything to process
 #
@@ -363,7 +386,7 @@ then
     bootlog "Restarting the system in $rebootwait seconds"
     sleep $rebootwait
     systemctl daemon-reload
-    echo -e "\n$(thisdate) FirstBoot: Restarting the system\n" > /dev/console
-    bootlog "Restarting the system"
+    echo -e "\n$(thisdate) FirstBoot: Restarting the system now\n" > /dev/console
+    bootlog "Restarting the system now"
     systemctl reboot
 fi
