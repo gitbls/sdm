@@ -19,6 +19,7 @@ $sudo mkdir -p $dir $dir/1piboot
 for f in sdm sdm-phase0 sdm-phase1 sdm-cparse \
 	     sdm-firstboot sdm-apt-cacher sdm-apt \
 	     sdm-customphase sdm-apps-example sdm-xapps-example \
+	     sdm-cportal sdm-logmsg \
 	     1piboot/1piboot.conf \
 	     1piboot/010-disable-triggerhappy.sh \
 	     1piboot/030-disable-rsyslog.sh
