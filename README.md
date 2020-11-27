@@ -106,6 +106,8 @@ Installation is simple. sdm must be installed in and uses the path `/usr/local/s
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-firstboot -o /usr/local/sdm/sdm-firstboot
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-apt-cacher -o /usr/local/sdm/sdm-apt-cacher
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-customphase -o /usr/local/sdm/sdm-customphase
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-logmsg -o /usr/local/sdm/sdm-logmsg
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-cportal -o /usr/local/sdm/sdm-cportal
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/1piboot.conf -o /usr/local/sdm/1piboot/1piboot.conf
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/010-disable-triggerhappy.sh -o /usr/local/sdm/1piboot/010-disable-triggerhappy.sh
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/1piboot/030-disable-rsyslog.sh
@@ -186,6 +188,10 @@ sdm consists of a primary script `sdm` and several supporting scripts:
     * **030-disable-syslog.sh**  &mdash; Switches the system log from using rsyslog, writing several text-based log files in /var/log (daemon.log, syslog, auth.log, kern.log, and messages) to using journalctl and writing a log in /var/log/journal. The `sudo journalctl` command can be used to view the log (in either scenario).
 
 * **sdm-cparse**  &mdash; Helper script that defines some sdm-internal bash functions.
+
+* **sdm-cportal** &mdash; Implements the Captive Portal for `--loadlocal wifi`
+
+* **sdm-logmsg** &mdash; Helper script for the Captive Portal.
 
 * **sdm-customphase**  &mdash; Custom Phase Script skeleton. Use this as a starting point to build your own Custom Phase Script. See Custom Phase Script below.
 
@@ -288,6 +294,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
 * `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf. Note that this is less preferable than using the `--bootset` command switch.
 * `--apps` *applist* &mdash; Specifies a list of apps to install. This can be either a quoted list of space-separate apps ("zip iperf3 nmap") or a pointer to a file (@file), which has one package name per line. Comments are preceded by a pound sign ('#') and are ignored. You must specify `--poptions apps` in order for sdm to process the *apps* list.
+* `--apssid` *SSID* &mdash; Use the specified SSID for the Captive Portal instead of the default 'sdm'. See the Captive Portal section below for details.
+* `--apip` *IPaddr* &mdash; use the specified IP Address instead of the default 10.1.1.1. See the Captive Portal section below for details.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--aptconfirm` &mdash; Prompt for confirmation before APT installs and updates are done in sdm Phase 1
 * `--batch` &mdash; Do not provide an interactive command prompt inside the nspawn container
@@ -300,8 +308,11 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.
 * `--datefmt "fmt"` &mdash; Use the specified date format instead of the default "%Y-%m-%d %H:%M:%S". See `man date` for format string details.
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M oflag=direct". If `--ddsw` is specified, the default value is replaced.
+* `--dhcpcdwait` &mdash; Enable 'wait for network' (raspi-config System option S6).
+* `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
 * `--eeprom` *value* &mdash; Change the eeprom value in /etc/default/rpi-eeprom-update. The RasPiOS default is 'critical', which is fine for most users. Change only if you know what you're doing.
 * `--fstab` *file* &mdash; Append the contents of the specified file to /etc/fstab in the Customized Image. This is useful if you want the same /etc/fstab entries on your RasPiOS systems.
+* `--hdmi-force-hotplug` &mdash; Enable the hdmi_force_hotplug setting in /boot/config.txt
 * `--hdmigroup` *num* &mdash; hdmigroup setting in /boot/config.txt
 * `--hdmimode` *num* &mdash; hdmimode setting in /boot/config.txt
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
@@ -319,6 +330,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
     In addition to the switch value USB, the `--loadlocal` switch also accepts the values `flashled` and `internet`. The `flashled` value causes the First Boot process to flash the green Pi LED with progress indicators. See the LED Flashing section below for details. The `internet` value causes First Boot to check that the Pi has Internet access. If there is no internet access, First Boot will restart the load from USB process.
 
+* `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See the Captive Portal section below for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
 * `--locale` *localename* &mdash; The locale is specified just as you'd set it in raspi-config. For example, in the USA, one might use en_US.UTF-8, and in the UK en_UK.UTF-8. See /usr/share/i18n/SUPPORTED for a complete locale list.
 * `--noextend` &mdash; Do not extend the IMG file at all
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
@@ -374,6 +386,25 @@ That's exactly what `--fstab` does. It copies the file you provide to /etc/sdm/a
 
 No matter which mechanism you use, you'll need to create the mount point directories in the image during Phase 1.
 
+## Captive Portal
+
+If `--loadlocal wifi` is specified on the command line during image customization, a Captive Portal is started during the system First Boot. The Captive Portal starts an Access Point named 'sdm' (can be changed with --apssid) and the IP Address 10.1.1.1 (can be changed with --apip). When you connect to http://10.1.1.1 a web page will be displayed that has two links on it.
+
+Clicking on the first link brings up a web form where the user can enter the SSID and Password for the WiFi network that the Pi should be connected to, as well as optionally specifying the Keymap, Locale, and Timezone appropriate for the user and location. There are two checkboxes, both checked, that the user can unselect: 
+
+* **Validate WiFi Configuration by Connecting** &mdash; If this is checked, the user-provided WiFi SSID and Password will be used to validate that the Pi can connect to WiFi. If it is not checked, the SSID and Password are written to wpa_supplicant.conf and no validation is done.
+* **Check Internet Connectivity after WiFi Connected** &mdash; If checked, the captive portal will also test whether the Internet (1.1.1.1) is accessible.
+
+The Captive Portal will complete and the boot process will continue if the WiFi connection test is successful, or if no WiFi validation is done. If there is a problem connecting to WiFi, the Portal will be re-enabled for another try.
+
+If the Pi has only a single WiFi on it (that is, no second WiFi via a USB adapter), the Captive Portal WiFi will be dropped when the WiFi validation is done. The user must reconnect to the Captive Portal WiFi before checking the result of the validation test.
+
+However, if the Pi has a second WiFi available (wlan1), the Captive Portal will use wlan1 for the Captive Portal, and use wlan0 for WiFi validation. In this case, the Captive Portal WiFi does not drop during this process.
+
+The Captive Portal (sdm-cportal) is built in such a way that it is usable outside of sdm. If you try to use it outside of sdm and run into problems, please open an issue on this github.
+
+NOTE: At the current time, the text displayed by the Captive Portal is only available in English. If you would like to contribute translations to other languages, open an issue on this github.
+
 ## Installing Samba into your IMG
 
 Installing Samba is super-simple! Add *samba* as one of the values in the comma-separated `--poptions` list. Samba will be installed silently with no prompts.
@@ -419,11 +450,15 @@ As noted above, `--loadlocal usb,flashled` will cause the First Boot process to 
 
 sdm itself is mostly Linux distro-independent and 32-vs-64-bit agnostic. The interoperability issues arise when sdm uses the Linux `systemd-nspawn` command when customizing an image or using `--explore` on an image. Other sdm commands should work on any Linux host OS to access or modify a RasPiOS image.
 
-In order to do image customization or use `--explore` on an image on a non-RasPiOS host (e.g., x86 or x86_64), you must install `qemu-user-static`, which pulls in package `binfmt-support`. These components enable image customization and `--explore` on an RasPiOS image. If this doesn't work on your x86 Linux system, it may be too old and lacking updated support. I have tested this on Ubuntu 20.04, and it's able to operate on both RasPiOS 32 and 64-bit images.
+In order to do image customization or use `--explore` on an image on a non-RasPiOS host (e.g., x86 or x86_64), you must install `qemu-user-static`, which pulls in package `binfmt-support`:
+
+    sudo apt install qemu-user-static
+
+These components enable image customization and `--explore` on an RasPiOS image. If this doesn't work on your x86 Linux system, it may be too old and lacking updated support. I have tested this on Ubuntu 20.04, and it's able to operate on both RasPiOS 32 and 64-bit images.
 
 Running on 64-bit RasPiOS sdm can customize, explore, burn, and mount both 32-bit and 64-bit RasPiOS images.
 
-However, running on 32-bit RasPiOS sdm can only mount and burn 64-bit images; customization and `--explore` won't operate on 64-bit images when running on 32-bit RasPiOS. The systemd-nspawn command on 32-bit RasPiOS is not able to operate against a 64-bit RasPiOS image.
+However, running on 32-bit RasPiOS sdm can only mount and burn 64-bit images; customization and `--explore` will not operate on 64-bit images when running on 32-bit RasPiOS. The systemd-nspawn command on 32-bit RasPiOS is not able to operate against a 64-bit RasPiOS image.
 
 ## Bread crumbs
 
