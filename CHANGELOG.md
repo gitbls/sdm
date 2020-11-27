@@ -2,19 +2,22 @@
 
 ## V3.12
 
-* Improve DHCP wait logic
+* Improve DHCP wait logic in sdm-firstboot
+* Correct file naming local-1piboot(.conf) in sdm-firstboot
+* Add --hdmi-force-hotplug 1 to easily enable the setting in config.txt
+* Add --loadlocal wifi to get WiFi credentials via a Captive Portal WiFi hotspot. FlashLED doesn't work with this. Yet.
+* Add --dhcpcdwait to enable 'wait for internet'. Equivalent to raspi-config System Option S6.
+* Add --dhcpcd file to append the contents of 'file' to /etc/dhcpcd.conf
 
 ## V3.11
 
-* --loadlocal accepts additional values 'flashled' (signal status with the Green LED) and 'internet' (check for Internet connectivity)
+* --loadlocal accepts additional values 'flashled' signal status with the Green LED) and 'internet' (check for Internet connectivity)
     
 ## V3.10
 
 * Add --loadlocal to load WiFi and Localization details from a USB device on First Boot. Handy if sending an image or SD Card to
 someone who doesn't want to disclose their WiFi credentials.
-
-* Add --info command to 'less' the databases used for checking Time Zones, Locales, Keymaps, and WiFi Country. See --info help for details
-
+* Add --info command to 'less' the databases used for checking Time Zones, Locales, Keymaps, and WiFi Country. See `sdm --info help` for details
 * Check switch value errors for Locale, Keymap, Timezone, and WiFi Country
 
 ## V3.9
