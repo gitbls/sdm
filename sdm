@@ -263,6 +263,8 @@ apps:"$apps"
 xapps:"$xapps"
 appfile:$appfile
 xappfile:$xappfile
+apip:$apip
+apssid:$apssid
 aptcache:$aptcache
 aptconfirm:$aptconfirm
 batch:$fbatch
@@ -272,9 +274,12 @@ bootscripts:$bootscripts
 cscript:$cscript
 csrc:$csrc
 datefmt:$datefmt
+dhcpcd:$dhcpcd
+dhcpcdwait:$dhcpcdwait
 ecolors:$ecolors
 eeprom:$eeprom
 fstab:$fstab
+hdmiforcehotplug:$hdmiforcehotplug
 hdmigroup:$hdmigroup
 hdmimode:$hdmimode
 keymap:$keymap
@@ -308,6 +313,8 @@ EOF
 #
 #
 version="V3.12"
+apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
+apssid="sdm"                #Default SSID for the WiFi Captive Portal
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
@@ -323,6 +330,8 @@ csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M oflag=direct"  #Switches for dd
+dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
+dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
 ecolors="blue:gray:red"     #fg:bg:cursor
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
@@ -332,6 +341,7 @@ fexplore=0                  #1=Just fire up nspawn to explore the system
 fextendonly=0               #1=extend image by xmb MB and then exit
 fnowpa=0                    #1=I really man no automatic no wpa config
 fstab=""                    #Append this custom fstab to /etc/fstab
+hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
@@ -358,7 +368,7 @@ timezone=""                 #Timezone setting
 wificountry=""              #WiFi country setting
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|samba|xwindows|xapps|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|"
-vloadopts="|usb|flashled|internet|"  #Valid options for --loadlocal
+vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
 xapps=""                    #List of X apps to install in sdm-X-installs
@@ -380,10 +390,10 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,aptconfirm,\
+longopts="help,1piboot:,apps:,aptcache:,aptconfirm,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
-cscript:,csrc:,customize,datefmt:,ddsw:,ecolors:,eeprom:,explore,extend,\
-fstab:,hdmigroup:,hdmimode:,host:,hostname:,info,keymap:,l10n,loadlocal:,locale:,\
+cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,ecolors:,eeprom:,explore,extend,\
+fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,\
 rootpwd,showapt,ssh:,svcdisable:,svcenable:,timezone:,uid:,user:,\
 wifi-country:,wificountry:,xapps:,xmb:,\
@@ -398,6 +408,8 @@ do
     case "${1,,}" in
 	# 'shift 2' if switch has argument, else just 'shift'
 	--1piboot)     pi1bootconf=$2; shift 2 ;;
+	--apip)        apip=$2       ; shift 2 ;;
+	--apssid)      apssid=$2     ; shift 2 ;;
 	--apps)        apps=$2       ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--aptconfirm)  aptconfirm=1  ; shift ;;
@@ -415,11 +427,14 @@ do
 	--customize)   fcustomize=1  ; shift 1 ;;
 	--datefmt)     datefmt=$2    ; shift 2 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
+	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
+	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--explore)     fexplore=1    ; shift ;;
 	--extend)      fextendonly=1 ; shift ;;
 	--fstab)       fstab=$2      ; shift 2 ;;
+	--hdmi-force-hotplug) hdmiforcehotplug=1 ; shift 1 ;;
 	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
@@ -471,6 +486,8 @@ echo "   sudo /usr/local/sdm/sdm --mount sd-image-file" ;
 echo "" ;
 echo "Switches" ;
 echo " --1piboot conf-file Use alternate 1piboot.conf" ;
+echo " --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]" ;
+echo " --apssid ssidname   SSID name for WiFi Captive Portal [sdm]" ;
 echo " --burn devname      Copy the image to the storage device" ;
 echo " --burnfile filename Create a ready-to-burn customized Image file" ;
 echo " --host hostname     Hostname to burn into the image with --burn" ;
@@ -491,16 +508,18 @@ echo " --cscript script    Custom Phase Configuration script" ;
 echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
 echo " --custom[1-4] str   Can be used in Custom cscripts" ;
 echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
+echo " --dhcpcd file       Append file to /etc/dhcpcd.conf" ;
 echo " --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG" ;
 echo " --eeprom str        Set the Pi eeprom directory" ;
 echo " --extend            Only extend the image; no other customizations" ;
 echo " --noextend          Do not extend the image when doing customizations" ;
 echo " --fstab file        Append file to /etc/fstab" ;
+echo " --hdmi-force-hotplug Set hdmi_force_hotplug=1 in /boot/config.txt" ;
 echo " --hdmigroup n       Set /boot/config.txt hdmigroup value" ;
 echo " --hdmimode n        Set /boot/config.txt hdmimode value" ;
 echo " --host hostname     Hostname to write onto the storage device with --burn" ;
 echo " --keymap keymapname Set keymap" ;
-echo " --loadlocal usb     Load WiFi Credentials from USB stick during first boot" ;
+echo " --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)" ;
 echo " --locale localename Set the locale";
 echo " --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
@@ -723,6 +742,8 @@ then
     if [ -d /mnt/sdm/usr/local/sdm -a -d /mnt/sdm/etc/sdm ]
     then
 	# Save settings made with the --burn command
+	bapip=$apip
+	bapssid=$apssid
 	breboot=$reboot
 	bnoreboot=$noreboot
 	brebootwait=$rebootwait
@@ -732,12 +753,18 @@ then
 	bkeymap="$keymap"
 	btimezone="$timezone"
 	bwpaconf="$wpaconf"
-	readparams /mnt/sdm # Read settings from the SD card
+	readparams /mnt/sdm                    # Read settings from the SD card
         [ $breboot -eq 1 ] && reboot=$breboot
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
         [ $bscript -eq 1 ] && bootscripts=$bscript  #If we weren't set to run scripts, use setting from IMG
 	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
+	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
+	[ "$bapssid" != "sdm" ] && apssid=$bapssid
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
+	if [[ "$loadllocal" =~ "|wifi|" ]]
+	then
+	    [ "$wificountry" == "" ] && echo "% No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
+	fi
 	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
@@ -851,6 +878,7 @@ else
 					     /mnt/sdm/usr/local/sdm/1piboot
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-cportal,sdm-logmsg} /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
     [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
     [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
