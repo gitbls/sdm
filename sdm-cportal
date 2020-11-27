@@ -1,0 +1,463 @@
+#!/usr/bin/env python3
+#
+# sdm-cportal implements a Captive Portal hotspot to obtain WiFi SSD and Password from the user
+#
+# If the system has 1 WiFi adapter, the WiFi must switch away from AP mode to test the WiFi settings
+#   This means that the user's client device will disconnect from the hotspot and will need to be reconnected
+#   in order to get the results and complete the WiFi settings.
+#
+# If the system has 2 WiFi adapters they will both be used, so the user's client device will not disconnect
+#
+import argparse
+import datetime
+import os
+import shutil
+import subprocess
+import time
+from functools    import partial
+from http.server  import HTTPServer
+from http.server  import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+
+class htcontrol:
+    def __init__(self):
+        self.stopflag = self.internet = self.connected = self.iconnected = False
+        self.inprogress = self.dual = self.validate = self.debug = False
+        self.wificountry = self.keymap = self.locale = self.timezone = self.allerrors = self.myip = ""
+        self.apssid = self.ssid = self.password = self.wlan = self.logmsg = self.facname = ""
+        self.l10nhandler = ""
+        self.dhcpwait = 0
+
+web_form = """
+  <html><body>
+  <h1>WiFi Configuration</h1>
+<br>
+<form action="/formsubmit">
+    <table>
+      <tr><td>SSID*</td><td><input type="text" name="ssid" value=""></td></tr>
+      <tr><td>Password*</td><td><input type="text" name="password" value=""></td></tr>
+      <tr><td>WiFi Country*</td><td><input type="text" name="wificountry" value=""></td></tr>
+      <tr><td>Keymap</td><td><input type="text" name="keymap" value=""></td></tr>
+      <tr><td>Locale</td><td><input type="text" name="locale" value=""></td></tr>
+      <tr><td>Timezone</td><td><input type="text" name="timezone" value=""></td></tr>
+      <tr><td>DHCPWait</td><td><input type="text" name="dhcpwait" value=""></td></tr>
+    </table><p>
+    <input type="submit" value="Submit">
+  <div>
+     <input type="checkbox" id="validate" checked name="validate">
+    <label for="validate">Validate WiFi Configuration by Connecting</label>
+  </div>
+  <div>
+     <input type="checkbox" id="ckinternet" checked name="ckinternet">
+    <label for="validate">Check Internet Connectivity after WiFi Connected</label>
+  </div>
+  </form>
+*  Entry is Required
+  </body></html>
+"""
+
+greeting_page = """
+  <html><body>
+  <h1>Captive Portal</h1>
+<h2>This is a Semi-Automatic WiFi Configuration Portal. Follow these steps to configure your WiFi:</h2>
+<ul>
+<li>Click on the first link below. It will open a new browser page with a form to fill out</li>
+<li>After you fill out the form, click Submit and wait about 30 seconds</li>
+<li>Reconnect to the Captive Portal WiFi Network using the Settings App on your device</li>
+<li>Click on the second link below to check the connection status and complete the WiFi configuration</li>
+<li>IMPORTANT: The system configuration will not complete until you get a successful response from the second link below</li>
+</ul>
+<ul>
+<li><a href="http://{}/webform" target="_blank">Start the captive portal</a></li>
+<br><br>
+Use the Settings App on your device to make sure you're connected to the Captive Portal WiFi Network again before clicking this link
+<li><a href="http://{}/final" target="_blank">Check WiFi connection status</a></li>
+</ul>
+  </body></html>
+"""
+
+working_page = """
+  <html><body>
+  <h3>Your inputs have been validated</h3>
+  <h3>Testing your WiFi Configuration...Please wait</h3>
+<br>
+If your device loses Captive Portal WiFi Netork connectivity:
+<ul>
+<li>Wait 30 seconds</li>
+<li>Reconnect to the Captive Portal WiFi Network</li>
+<li>Navigate to:
+</ul>
+<br>
+<a href="http://{}/final">Check WiFi connection status</a>
+<script type="text/javascript">
+location.href = "http://{}/testinputs"
+</script>
+  </body></html>
+"""
+
+notValidated = """
+<html><body>
+<h1>WiFi Configuration Completed...</h1>
+<h2>WiFi Connection NOT Tested</h2>
+</body></html>
+"""
+
+def qdelfile(fn):
+    try:
+        os.remove(fn)
+    except OSError:
+        pass
+
+def qrename(src, dst):
+    try:
+        os.rename(src, dst)
+    except OSError:
+        pass
+
+def qcopyfile(src, dst):
+    """
+    Copy src file to dst
+    """
+    try:
+        shutil.copy(src, dst)
+    except OSError:
+        pass
+    return
+
+def nowtime():
+    return datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")  
+
+def logmsg(pd, msg):
+    if pd.logmsg != "":
+        tfcmd('{} "{}"'.format(pd.logmsg, msg))
+    tfcmd('echo {} FirstBoot: "{}" > /dev/console'.format(nowtime(), msg))
+    if pd.debug: print("{} {}".format(nowtime(), msg))
+
+def tfcmd(docmd):
+    #
+    # Returns return status from the command
+    #
+    r = subprocess.run(docmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    return r.returncode == 0
+    
+def gocmd(docmd):
+    #
+    # Returns stdout from the command
+    #
+    r = subprocess.run(docmd, stdout=subprocess.PIPE, stderr=None, shell=True)
+    return r.stdout.decode('utf-8')
+    
+def stopifactive(pd, service, logit):
+    active = gocmd("systemctl show -p ActiveState {} --value".format(service)).rstrip()
+    if active == "active":
+        if logit: logmsg(pd, "Stopping service '{}'".format(service))
+        tfcmd("systemctl stop {}".format(service))
+
+def getmyipaddr(pd):
+    for s in gocmd("ip -o -f inet addr show").split("\n"):
+        if 'wlan0' in s:
+            s1 = ' '.join(s.split())
+            w = s1.split(' ')
+            return w[3].split('/')[0]
+    return ""
+
+def iponline(ipaddr):
+    return tfcmd("ping -c 1 -W 1 {}".format(ipaddr))
+
+def apon(pd):
+    logmsg(pd, "Enable Access Point for SSID '{}' on {}".format(pd.apssid, pd.wlan))
+    stopifactive(pd, "wpa_supplicant@{}".format(pd.wlan), False)
+    qdelfile("/etc/wpa_supplicant/wpa_supplicant-{}.conf".format(pd.wlan))
+    qcopyfile("/etc/wpa_supplicant/{}-ap-wpa_supplicant.conf".format(pd.facname), "/etc/wpa_supplicant/wpa_supplicant-{}.conf".format(pd.wlan))
+    if not pd.dual:
+        qdelfile("/etc/systemd/network/11-{}-wlan0.network".format(pd.facname))
+        with open("/etc/systemd/network/11-{}-wlan0-AP.network".format(pd.facname), 'w') as f:
+            f.write("[Match]\n\
+Name={}\n\
+\n\
+[Network]\n\
+DHCPServer=yes\n\
+Address={}/24\n\
+\n\
+[DHCPServer]\n\
+DNS={}\n".format(pd.wlan, pd.ip, pd.ip))
+    tfcmd("systemctl daemon-reload")
+    logmsg(pd, "Start Access Point services systemd-networkd and wpa_supplicant@{}".format(pd.wlan))
+    tfcmd("systemctl restart systemd-networkd")
+    tfcmd("systemctl start wpa_supplicant@{}".format(pd.wlan))
+
+def aponifsingle(pd):
+    if not pd.dual: apon(pd)
+
+def writewpaconf(pd):
+    with open("/etc/wpa_supplicant/{}-wpa-supplicant.conf".format(pd.facname), 'w') as f:
+        f.write('ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
+country={}\n\
+\n\
+network={{\n\
+    ssid="{}"\n\
+    psk="{}"\n\
+    key_mgmt=WPA-PSK\n}}\n'.format(pd.wificountry, pd.ssid, pd.password))
+
+def wifion(pd):
+    if not pd.dual: logmsg(pd, "Disable Access Point on wlan0")
+    stopifactive(pd, "wpa_supplicant@wlan0", False)
+    qdelfile("/etc/wpa_supplicant/wpa_supplicant.conf-wlan0")
+    qcopyfile("/etc/wpa_supplicant/{}-wpa-supplicant.conf".format(pd.facname), "/etc/wpa_supplicant/wpa_supplicant-wlan0.conf")
+    if not pd.dual:
+        qdelfile("/etc/systemd/network/11-{}-wlan0-AP.network".format(pd.facname))
+    with open("/etc/systemd/network/11-{}-wlan0.network".format(pd.facname), 'w') as f:
+        f.write('[Match]\nName=wlan0\n\n[Network]\nDHCP=yes\n\n')
+    logmsg(pd, "Enable WiFi on wlan0 for SSID '{}'".format(pd.ssid))
+    tfcmd("systemctl daemon-reload")
+    tfcmd("systemctl restart systemd-networkd")
+    tfcmd("systemctl start wpa_supplicant@wlan0")
+
+def writel10n(pd, keymap, locale, timezone):
+    ostr = ""
+    if keymap != "": ostr = "keymap={}".format(keymap)
+    if locale != "": ostr = "{}\nlocale={}".format(ostr, locale)
+    if timezone != "": ostr = "{}\ntimezone={}".format(ostr, timezone)
+    if ostr != "":
+        if pd.l10nhandler != "":
+            tfcmd('{} "{}" "{}" "{}"'.format(pd.l10nhandler, keymap, locale, timezone))
+        else:
+            with open("/etc/{}/local-1piboot.conf".format(pd.facname), 'w') as f:
+                f.write("{}\n".format(ostr))
+
+class sdmRequestHandler(BaseHTTPRequestHandler):
+    def __init__(self, pd, *args, **kwargs):
+        self.pd = pd
+        super().__init__(*args, **kwargs)
+
+    def _set_response(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        return
+        
+    def log_message(self, *args, **kwargs):
+        # Prevents debug output from going to stderr 
+        return
+
+    def _adderror(self, oldstring, newstring):
+        if oldstring == "":
+            return newstring
+        return  "{}<br>{}".format(oldstring, newstring)
+
+    def _buildresponse(self, pd):
+        response = "<html><body><h1>WiFi Setup Results</h1>"
+        if self.pd.connected:
+            response = "{}<h2>Obtained IP Address {} via WiFi SSID '{}'<br></h2>".format(response, self.pd.myip, self.pd.ssid)
+        else:
+            response = "{}<h2>WiFi Did NOT Connect Successfully</h2>".format(response)
+        if self.pd.iconnected:
+            response = "{}<h2>Internet IS Accessible</h2>".format(response)
+        else:
+            if not self.pd.internet:
+                response = "{}<h2>Internet Accessibility was not tested</h2>".format(response)
+            else:
+                response = "{}<h2>Internet is NOT Accessible</h2>".format(response)
+        return "{}</body></html>".format(response)
+
+    def _write_response(self, htmltext):
+        self._set_response()
+        return self.wfile.write(htmltext.encode('utf-8'))
+    
+    def _setstop(self, pd, dostop):
+        writel10n(pd, self.pd.keymap, self.pd.locale, self.pd.timezone)
+        if self.pd.dual or dostop: self.pd.stopflag = True
+
+    def do_GET(self):
+        if "/formsubmit" in self.path:
+            query_items = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+            self.pd.ssid = query_items['ssid'][0].strip()
+            self.pd.password = query_items['password'][0].strip()
+            self.pd.wificountry = query_items['wificountry'][0].upper()
+            self.pd.keymap = query_items['keymap'][0].lower().strip()
+            self.pd.locale = query_items['locale'][0].strip()
+            self.pd.timezone = query_items['timezone'][0].strip()
+            self.pd.dhcpwait = query_items['dhcpwait'][0].strip()
+            if 'validate' in query_items: self.pd.validate = True
+            if 'ckinternet' in query_items: self.pd.internet = True
+            #
+            # Validate inputs
+            #
+            self.pd.allerrors = ""
+            if self.pd.ssid == "":
+                self.pd.allerrors = self._adderror(self.pd.allerrors, "SSID cannot be blank")
+            if self.pd.password == "":
+                self.pd.allerrors = self._adderror(self.pd.allerrors, "Password cannot be blank")
+            if self.pd.keymap != "":
+                if not tfcmd('grep "^  {} " /usr/share/doc/keyboard-configuration/xorg.lst'.format(self.pd.keymap)):
+                    self.pd.allerrors = self._adderror(self.pd.allerrors, "Unrecognized keymap '{}'".format(self.pd.keymap))
+            if self.pd.locale != "":
+                if not tfcmd('grep "^{}" /usr/share/i18n/SUPPORTED'.format(self.pd.locale)):
+                    self.pd.allerrors = self._adderror(self.pd.allerrors, "Unrecognized locale '{}'".format(self.pd.locale))
+            if self.pd.wificountry != "":
+                if not tfcmd('grep "^{}" /usr/share/zoneinfo/iso3166.tab'.format(self.pd.wificountry)):
+                    self.pd.allerrors = self._adderror(self.pd.allerrors, "Unrecognized WiFi Country '{}'".format(self.pd.wificountry))
+            if self.pd.timezone != "":
+                if not os.path.isfile("/usr/share/zoneinfo/{}".format(self.pd.timezone)):
+                    self.pd.allerrors = self._adderror(self.pd.allerrors, "Unrecognized Timezone '{}'".format(self.pd.timezone))
+            if self.pd.dhcpwait != "":
+                try:
+                    dwait = self.pd.dhcpwait
+                    self.pd.dhcpwait = int(dwait)
+                except:
+                    self.pd.allerrors = self._adderror(self.pd.allerrors, "dhcpwait value '{}' is not numeric".format(dwait))
+            else:
+                self.pd.dhcpwait = 15
+            if self.pd.allerrors != "":
+                self.pd.allerrors = "<html><body><h1>Errors Found</h1><h2>{}</h2></body></html>".format(self.pd.allerrors)
+                self._write_response(self.pd.allerrors)
+            else:
+                if self.pd.validate:
+                    self._write_response(working_page.format(self.pd.ip, self.pd.ip))
+                else:
+                    logmsg(pd, "Write WiFi configuration with No Validation")
+                    writewpaconf(pd)
+                    self._write_response(notValidated)
+                    self._setstop(pd, True)
+                    return
+        elif self.path == "/" or "/hotspot-detect.html" in self.path:
+            self._write_response(greeting_page.format(self.pd.ip, self.pd.ip))
+        elif self.path == "/webform":
+            self._write_response(web_form)
+        elif self.path == "/testinputs":
+            #
+            # Have the user inputs. Process the WiFi configuration
+            #
+            self.pd.inprogress = True
+            time.sleep(1)
+            writewpaconf(pd)
+            wifion(self.pd)
+            # Wait for the network to come online
+            for i in range(1, self.pd.dhcpwait):
+                myipaddr = getmyipaddr(self.pd)
+                if myipaddr != "" and not myipaddr.startswith("169.254"): break
+                logmsg(pd, "Waiting for wlan0 to obtain an IP address")
+                time.sleep(1)
+            # get my ip address and error if it didn't connect
+            myipaddr = getmyipaddr(self.pd)
+            logmsg(pd, "Obtained IP Address {}".format(myipaddr))
+            if myipaddr == "" or myipaddr.startswith("169.254"):
+                logmsg(pd, "Failed to obtain an IP Address")
+                aponifsingle(self.pd)
+                self._write_response(self._buildresponse(pd))
+                self.pd.inprogress = False
+                return
+            self.pd.connected = True
+            self.pd.myip = myipaddr
+            if self.pd.internet:
+                if not iponline("1.1.1.1"):
+                    logmsg(pd, "Internet is Not Accessible")
+                    aponifsingle(self.pd)
+                    self._write_response(self._buildresponse(pd))
+                    self.pd.inprogress = False
+                else:
+                    logmsg(pd, "Internet is Accessible")
+                    self.pd.iconnected = True
+                    aponifsingle(self.pd)
+                    self._write_response(self._buildresponse(pd))
+                    self.pd.inprogress = False
+                    self._setstop(pd, False)
+            else:
+                logmsg(pd, "WiFi Operational, no Internet check done")
+                aponifsingle(self.pd)
+                self._write_response(self._buildresponse(pd))
+                self.pd.inprogress = False
+                self._setstop(pd, False)
+        elif self.path == "/final":
+#            if self.pd.inprogress:
+#                self._write_response(working2_page)
+#                return
+#            else:
+            if self.pd.connected:
+                self._setstop(pd, True)
+            self._write_response(self._buildresponse(pd))
+        return
+
+def cleanup(pd):
+    for fn in [ "11-{}-wlan0-AP.network".format(pd.facname), "11-{}-wlan0.network".format(pd.facname), "12-{}-wlan1-AP.network".format(pd.facname) ]:
+        qdelfile("/etc/systemd/network/.{}".format(fn))
+        qrename("/etc/systemd/network/{}".format(fn), "/etc/systemd/network/.{}".format(fn))
+    for wl in [ 'wlan0', 'wlan1' ]:
+        qdelfile("/etc/wpa_supplicant/wpa_supplicant-{}.conf".format(wl))
+    # Set the final WPA config file for use
+    qcopyfile("/etc/wpa_supplicant/{}-wpa-supplicant.conf".format(pd.facname), "/etc/wpa_supplicant/wpa_supplicant.conf")
+
+def runserver(pd):
+    # Configure the network as we need it
+    stopifactive(pd, "dhcpcd", True)
+    for wl in [ 'wlan0', 'wlan1' ]:
+        stopifactive(pd, "wpa_supplicant@{}".format(wl), True)
+    apon(pd)
+    server_address = ('0.0.0.0', 80)
+    handler = partial(sdmRequestHandler, pd)
+    httpd = HTTPServer(server_address, handler)
+    while not pd.stopflag:
+        httpd.handle_request()
+    httpd.server_close()
+    cleanup(pd)
+    for wl in [ 'wlan0', 'wlan1' ]:
+        stopifactive(pd, "wpa_supplicant@{}".format(wl), True)
+    qcopyfile("/etc/wpa_supplicant/{}-wpa-supplicant.conf".format(pd.facname), "/etc/wpa-supplicant/wpa_supplicant.conf")
+    logmsg(pd, "Stop systemd-networkd and start dhcpcd to bring the network online")
+    tfcmd("systemctl daemon-reload")
+    tfcmd("systemctl stop systemd-networkd")
+    tfcmd("systemctl start dhcpcd")
+    logmsg(pd, "Captive Portal Completed")
+
+if __name__ == "__main__":
+    pd = htcontrol()
+    parser = argparse.ArgumentParser(prog='cportal')
+    parser.add_argument('--apssid', help="SSID name")
+    parser.add_argument('--apip', help="IP Address to use")
+    parser.add_argument('--logging', help="Script to do boot-time message logging")
+    parser.add_argument('--debug', help="Print logged messages on console also", action='store_true')
+    parser.add_argument('--facility', help="Facility name to use instead of 'sdm'")
+    parser.add_argument('--l10nhandler', help="Full path to script to handle Localization data")
+    args = parser.parse_args()
+    pd.apssid = args.apssid if args.apssid != None else "sdm"
+    pd.ip = args.apip if args.apip != None else "10.1.1.1"
+    pd.logmsg = "" if args.logging == None else args.logging
+    pd.debug = args.debug
+    pd.facname = "sdm" if args.facility == None else args.facility
+    pd.l10nhandler = "" if args.l10nhandler == None else args.l10nhandler
+    pd.wlan = 'wlan0'
+    for s in gocmd("ip addr show").split("\n"):
+        if 'wlan1' in s:
+            pd.wlan = 'wlan1'
+            pd.dual = True
+            break
+    # Write the systemd.network files. For single wlan, this is handled in apon/wifion
+    if os.path.isfile("/etc/wpa_supplicant/wpa_supplicant.conf"):
+        qcopyfile("/etc/wpa_supplicant/wpa_supplicant.conf", "/etc/wpa_supplicant/{}-wpa-supplicant.conf.orig".format(pd.facname))
+    if pd.dual:
+        with open("/etc/systemd/network/11-{}-wlan0.network".format(pd.facname), 'w') as f:
+            f.write('[Match]\nName=wlan0\n\n[Network]\nDHCP=yes\n\n')
+        with open("/etc/systemd/network/12-{}-{}-AP.network".format(pd.facname, pd.wlan), 'w') as f:
+            f.write("[Match]\n\
+Name={}\n\
+\n\
+[Network]\n\
+DHCPServer=yes\n\
+Address={}/24\n\
+\n\
+[DHCPServer]\n\
+DNS={}\n".format(pd.wlan, pd.ip, pd.ip))
+
+    with open("/etc/wpa_supplicant/{}-ap-wpa_supplicant.conf".format(pd.facname), 'w') as f:
+            f.write('country=US\n\
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
+\n\
+### access point ###\n\
+network={{\n\
+    ssid="{}"\n\
+    mode=2\n\
+    key_mgmt=NONE\n\
+}}\n'.format(pd.apssid))
+
+    runserver(pd)
+    exit(0)

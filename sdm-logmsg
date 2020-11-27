@@ -1,0 +1,8 @@
+#!/bin/bash
+#
+# Script called by sdm-cportal to log boot-time messages
+#
+# $1: Message to write
+#
+source /usr/local/sdm/sdm-cparse ; readparams ""
+bootlog "$1"
