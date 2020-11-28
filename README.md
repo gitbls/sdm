@@ -31,11 +31,13 @@ sdm is for RasPiOS, and runs on RasPiOS Buster. It can also run on other Linux s
 
 ### sdm Quick Start
 
-Here's how to quickly and easily to create and customize an IMG file and burn it to an SD Card. It's assumed that there is a freshly downloaded copy of RasPiOS 2020-08-20-raspios-buster-armhf-full.img or 2020-08-20-raspios-buster-armhf-lite.img in the current directory, and that there is an SD Card in /dev/sde.
+Here's how to quickly and easily to create and customize an IMG file and burn it to an SD Card. It's assumed that there is an SD Card in /dev/sde.
 
 Throughout this document read "SD Card" as "SSD or SD Card". They are treated equivalently by sdm.
 
 * **Install sdm and systemd-container:** `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+
+* **If needed, download the desired RasPiOS zipped IMG** from the raspberrypi.org website and unzip it. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org/). Pick the latest image in the folder **raspios_full_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit Beta), or **raspios_lite_arm64** (64-bit Beta), as appropriate.
 
 * **Customize the image:** `sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --noextend --L10n --restart`
 
@@ -496,8 +498,8 @@ A couple of quick notes on loop devices, which are used to mount the IMG file in
 
 * sdm uses the single mount point /mnt/sdm, so there can only be one copy of sdm active at once. 
 * sdm must be run as root.
-* sdm has only been tested on RasPiOS Buster 32-bit and 64-bit (beta). 
+* sdm has only been tested on RasPiOS Buster 32-bit and 64-bit (beta) IMG files.
 
 ## Credits
 
-sdm was inspired by posts by @HawaiianPi and @sakaki in the Raspberry Pi Forum: [https://www.raspberrypi.org/forums/viewtopic.php?f=63&t=231762](URL)
+sdm was inspired by posts by @HawaiianPi and @sakaki in the Raspberry Pi Forum: [STICKY: Making your own custom burn-n-boot Raspbian image](https://www.raspberrypi.org/forums/viewtopic.php?f=63&t=231762)
