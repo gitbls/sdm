@@ -429,7 +429,7 @@ Once you have configured the server system, copy sdm-apt-cacher to the server an
 
 Once you have the apt-cacher server configured you can use the `--aptcache` *IPaddr* sdm command switch to configure the IMG system to use the APT cacher.
 
-If you have other existing, running Pis that you want to convert to using your apt-cacher server, copy sdm-apt-cacher to each one and execute the command 'sudo /path/to/sdm-apt-cacher client`.
+If you have other existing, running Pis that you want to convert to using your apt-cacher server, copy sdm-apt-cacher to each one and execute the command `sudo /path/to/sdm-apt-cacher client`.
 
 ## LED Flashing
 
