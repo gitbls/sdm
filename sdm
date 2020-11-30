@@ -123,7 +123,7 @@ function poptcheck() {
     local popt="$1" vopt="$2" switchname="$3" badopt="" nopt=""
     if [ "$popt" != "" ]
     then
-	readarray -d, xopt <<< $1
+	readarray -d, xopt <<< $popt
 	for o in ${xopt[@]}
 	do
 	    os="${o%,}"
@@ -136,6 +136,8 @@ function poptcheck() {
 	    fi
 	done
 	[ "$badopt" != "" ] && echo "? Unrecognized $switchname value(s) $badopt" || echo "$nopt|"
+    else
+	echo ""
     fi
 }
 
@@ -312,12 +314,15 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.12"
+version="V3.2"
+sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
+aptmaint=""                 #--aptmaint switch values
+aptfunction=0               #1=Some apt batch function specified
 bootadd=""                  #Items to add to /boot/config.txt
 bootconfig=""               #/boot/config.txt items to set
 bootscripts=0               #Run FirstBoot custom boot scripts
@@ -340,13 +345,13 @@ fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextendonly=0               #1=extend image by xmb MB and then exit
 fnowpa=0                    #1=I really man no automatic no wpa config
+fphase1=0                   #Perform Phase 1 in the image
 fstab=""                    #Append this custom fstab to /etc/fstab
 hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
-                            #Must be large enough to accomodate all packages you want to install
 keymap=""                   #Keyboard configuration
 infocmd=0                   #1=--info command
 loadl10n=0                  #1=Load Localization settings from running system 
@@ -366,6 +371,7 @@ ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via socket
                             #  Default is to write /boot/ssh
 timezone=""                 #Timezone setting
 wificountry=""              #WiFi country setting
+vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|samba|xwindows|xapps|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
@@ -390,7 +396,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,aptconfirm,apip:,apssid:,\
+longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,ecolors:,eeprom:,explore,extend,\
 fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,info,keymap:,l10n,loadlocal:,locale:,\
@@ -413,6 +419,7 @@ do
 	--apps)        apps=$2       ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--aptconfirm)  aptconfirm=1  ; shift ;;
+	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
 	--batch)       fbatch=1      ; shift ;;
 	--bootadd)     bootadd=$2    ; shift 2 ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
@@ -449,7 +456,8 @@ do
 	--norestart|--noreboot) noreboot=1 ; shift ;;
 	--nowpa)       fnowpa=1      ; shift ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
-	--poptions)    poptions=$2   ; shift 2 ;;
+	--phase1)      fphase1=1     ; shift 1 ;;
+	--poptions)    poptions="${2,,}" ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
 	--restart)      reboot=1     ; shift 1 ;;
@@ -500,7 +508,8 @@ echo " --apps applist      List of app packages to install or @file with list" ;
 echo " --xapps applist     List of X11 packages to install or @file with list" ;
 echo " --aptcache serverip Use apt-cacher-ng with server 'serverip'" ;
 echo " --aptconfirm        Enable confirmation before apt commands" ;
-echo " --batch             Perform Phase 1 in the container and exit" ;
+echo " --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)" ;
+echo " --batch             Perform customize operation and exit" ;
 echo " --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt" ;
 echo " --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt" ;
 echo " --bootset key:value,key:value,.. Set boot-time device settings (see README)" ;
@@ -525,6 +534,7 @@ echo " --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount" ;
 echo " --nspawnsw str      Additional switches for nspawn command" ;
 echo " --poptions str      Set Phase 1 auto-run options" ;
 echo " --norestart         Do not restart after first boot" ;
+echo " --phase1            Run sdm Phase 1" ;
 echo " --reboot n          Restart the first boot of the system after n seconds" ;
 echo " --restart           Restart the first boot of the system" ;
 echo " --rootpwd           Set a root password into the image" ;
@@ -547,9 +557,7 @@ done
 
 dimg="$1"
 src=$(dirname $0)
-
-[ $pvers -eq 1 ] && echo "sdm $version" && exit
-
+[ $pvers -eq 1 ] && echo "sdm $version" && exit 0
 source /usr/local/sdm/sdm-cparse           # Get function defs
 
 #
@@ -609,6 +617,11 @@ cscript="$(fndotfullpath $cscript)"
 [ $fcustomize -eq 1 -a $burning -eq 1 ] && errexit "? Switch conflict: --customize and --burn|--burnfile"
 [ $fcustomize -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --customize and --mount"
 [ $fcustomize -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --customize and --explore"
+if [ "$aptmaint" != "" ]
+then
+    [ $(($burning+$fdomount+$fexplore+$fcustomize)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
+    aptfunction=1
+fi
 # Force customize if none of burn, mount, or explore
 [ $burning -ne 1 -a $fdomount -ne 1 -a $fexplore -ne 1 ] && fcustomize=1
 [ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
@@ -633,10 +646,12 @@ fi
 ! cklocale $locale && errexit "? Unknown Locale '$locale'"
 ! ckkeymap $keymap && errexit "? Unknown Keymap '$keymap'"
 
-poptions=$(poptcheck "${poptions,,}" "$vpoptions", "--poption")
+poptions=$(poptcheck "$poptions" "$vpoptions" "--poption")
 exitiferr "$poptions"
-loadlocal=$(poptcheck "$loadlocal" "$vloadopts", "--loadlocal")
+loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
+aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
+exitiferr "$aptmaint"
 #
 # Check sanity of the disk image argument
 #
@@ -649,6 +664,13 @@ then
 else
     dimgdev=0
 fi    
+
+if [ $aptfunction -eq 1 ]
+then
+    noextend=1
+    fextendonly=1
+    fnowpa=1
+fi
 
 [ "$wpaconf" != "" -a ! -f "$wpaconf" ] && errexit "? wpa_supplicant config file '$wpaconf' not found"
 [ $fcustomize -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
@@ -827,7 +849,7 @@ then
     cd - > /dev/null
     docleanup
     resetcolors xt
-    exit
+    exit 0
 fi
 
 if [ $noextend -eq 0 ]
@@ -841,7 +863,7 @@ then
     echo " * (Ignore on-line resizing message) *"
     resize2fs ${loop}p2
 fi
-if [ $fextendonly -eq 0 ]
+if [ $fextendonly -eq 0 -o $aptfunction -eq 1 ]
 then
     [ ! -d /mnt/sdm/boot ] && domount
 else
@@ -849,23 +871,35 @@ else
     exit 0
 fi
 
-if [ -f $sdmdone -o $fexplore -eq 1 ]
+icolors=0    # Don't set colors around systemd-nspawn
+if [ -f $sdmdone -o $fexplore -eq 1 -o $aptfunction -eq 1 ]
 then
-    spawncmd=""
-    #
-    # Don't want to do the customization twice, so check for that.
-    # If it's already run, just drop into the image for hands on access
-    #
-    if [ $fexplore -eq 0 ]
+    if [ $aptfunction -eq 0 -a $fexplore -ne 1 ]
     then
 	echo ""
-	echo "% It appears that '$dimg' has already been customized"
-	echo "% Entering nspawn for you to have a look at it..."
-    else
+	echo "% It appears that '$dimg' is already customized"
+	echo "% Entering nspawn for you to have a look at it"
+	echo "  To re-enable this image for sdm in nspawn do: rm -f ${sdmdone#/mnt/sdm}"
+	echo "  Then exit nspawn and re-run this command: $sdmcommandline"
 	echo ""
-	[ $dimgdev -eq 0 ] && echo "* Ready to nspawn into the image '$dimg'" || echo "* Ready to nspawn into the device '$dimg'"
+	spawncmd=""
+	icolors=1
+    else
+	if [ "$aptmaint" != "" ]
+	then
+	    fbatch=1
+	    spawncmd="/usr/local/sdm/sdm-phase1 apt $aptmaint"
+	else
+	    [ $dimgdev -eq 0 ] && echo "* nspawn into image '$dimg'" || echo "* nspawn into device '$dimg'"
+	    spawncmd=""
+	    icolors=1
+	fi
     fi
 else
+    #
+    # Doing a customization
+    # Create and populate /usr/local/sdm and /etc/sdm in the IMG
+    #
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
@@ -918,21 +952,19 @@ else
     # Write the config settings into the IMG
     #
     writeconfig
-
+    #
+    # Perform Phase 0 on the image
+    #
     /mnt/sdm/usr/local/sdm/sdm-phase0
     touch $sdmdone
     
-    echo "* Ready to nspawn into the image '$dimg' for Phase 1"
+    echo "* nspawn into image '$dimg' for Phase 1"
     echo ""
-#    [ $fbatch -eq 1 ] &&  echo "   * and then exit" || echo "   * and then present a command prompt inside the nspawn container"
 fi
 
-echo "** Type 'exit' to exit nspawn"
-# xterm colors are changed in phase 1 before dropping to a command prompt
-# If spawncmd=="" then phase 1 won't be done, so we change xterm colors here
-[ "$spawncmd" == "" ] && stermcolors "$efg" "$ebg" "$ecursor" xt
+[ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
 docleanup
-[ "$spawncmd" == "" ] && resetcolors xt
+[ $icolors -eq 1 ] && resetcolors xt
 
 exit 0

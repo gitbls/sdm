@@ -1,5 +1,10 @@
 # Changelog
 
+## V3.2
+
+* Improve help if image has already been customized
+* Add --aptmaint update,upgrade,autoremove for "batch" mode IMG maintenance
+
 ## V3.12
 
 * Improve DHCP wait logic in sdm-firstboot
