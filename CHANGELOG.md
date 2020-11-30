@@ -1,6 +1,6 @@
 # Changelog
 
-## V3.2
+## V3.13
 
 * Improve help if image has already been customized
 * Add --aptmaint update,upgrade,autoremove for "batch" mode IMG maintenance
