@@ -23,9 +23,9 @@ fi
 #
 if [ "$dhcpcd" != "" ]
 then
-    logtoboth /mnt/sdm "> Copy dhcpcd.conf extension '$dhcpcd' to /etc/sdm/assets and enable for FirstBoot"
-    cp $dhcpcd /mnt/sdm/etc/sdm/assets
-    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+    logtoboth /mnt/sdm "> Append dhcpcd.conf extension '$dhcpcd' to /etc/dhcpcd.conf"
+    cat $dhcpcd >> /mnt/sdm/etc/dhcpcd.conf
+#    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
 #
 # Copy fstab extension into the image
@@ -35,6 +35,22 @@ then
     logtoboth /mnt/sdm "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
     cp $fstab /mnt/sdm/etc/sdm/assets
     echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+fi
+#
+# Copy user-defined exports file into the image
+#
+if [ "$exports" != "" ]
+then
+    logtoboth /mnt/sdm "> Copy file '$exports' to /etc/exports"
+    cp $exports /mnt/sdm/etc/exports
+fi
+#
+# Copy user-specified sysctl config file into the image
+#
+if [ "$sysctl" != "" ]
+then
+    logtoboth /mnt/sdm "> Copy file '$sysctl' to /etc/sysctl.d/$(basename $sysctl)"
+    cp $sysctl /mnt/sdm/etc/sysctl.d/
 fi
 #
 # Set HDMI configuration if requested

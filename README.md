@@ -313,6 +313,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--dhcpcdwait` &mdash; Enable 'wait for network' (raspi-config System option S6).
 * `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
 * `--eeprom` *value* &mdash; Change the eeprom value in /etc/default/rpi-eeprom-update. The RasPiOS default is 'critical', which is fine for most users. Change only if you know what you're doing.
+* `--exports` *file* &mdash; Copy the specified file into the image as /etc/exports
 * `--fstab` *file* &mdash; Append the contents of the specified file to /etc/fstab in the Customized Image. This is useful if you want the same /etc/fstab entries on your RasPiOS systems.
 * `--hdmi-force-hotplug` &mdash; Enable the hdmi_force_hotplug setting in /boot/config.txt
 * `--hdmigroup` *num* &mdash; hdmigroup setting in /boot/config.txt
@@ -351,6 +352,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. By default, if `--ssh` is not specified, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
 * `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
+* `--sysctl` *file* &mdash; Copy the specified file into the image in /etc/sysctl.d. The filename must end with '.conf'
 * `--timezone` *tzname* &mdash; Set the timezone for the system.  See `sudo timedatectl list-timezones | less` for a complete list of timezones.
 * `--user` *username* &mdash; Specify a username to be created in the IMG. 
 * `--uid` *uid* &mdash; Use the specified uid rather than the next assignable uid for the new user, if created.

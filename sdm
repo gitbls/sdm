@@ -280,6 +280,7 @@ dhcpcd:$dhcpcd
 dhcpcdwait:$dhcpcdwait
 ecolors:$ecolors
 eeprom:$eeprom
+exports:$exports
 fstab:$fstab
 hdmiforcehotplug:$hdmiforcehotplug
 hdmigroup:$hdmigroup
@@ -298,6 +299,7 @@ rootpwd:$rootpwd
 showapt:$showapt
 src:$src
 ssh:$ssh
+sysctl:$sysctl
 timezone:$timezone
 wificountry:$wificountry
 wpaconf:$wpaconf
@@ -314,7 +316,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.13"
+version="V3.14"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -339,6 +341,7 @@ dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
 dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
 ecolors="blue:gray:red"     #fg:bg:cursor
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
+exports=""                  #If set, copy file to /etc/exports
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 fdomount=0                  #1=Do a mount and drop into bash
@@ -369,6 +372,7 @@ rebootwait=20               #Number of seconds to wait after systemd thinks syst
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
+sysctl=""                   #Copy named file to /etc/sysctl.d
 timezone=""                 #Timezone setting
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
@@ -398,10 +402,10 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
-cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,ecolors:,eeprom:,explore,extend,\
+cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,mount,noextend,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,\
-rootpwd,showapt,ssh:,svcdisable:,svcenable:,timezone:,uid:,user:,\
+rootpwd,showapt,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,uid:,user:,\
 wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
@@ -439,6 +443,7 @@ do
 	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--explore)     fexplore=1    ; shift ;;
+	--exports)     exports=$2    ; shift 2 ;;
 	--extend)      fextendonly=1 ; shift ;;
 	--fstab)       fstab=$2      ; shift 2 ;;
 	--hdmi-force-hotplug) hdmiforcehotplug=1 ; shift 1 ;;
@@ -466,6 +471,7 @@ do
 	--ssh)         ssh=$2        ; shift 2 ;;
 	--svcdisable)  svcdisable=$2 ; shift 2 ;;
 	--svcenable)   svcenable=$2  ; shift 2 ;;
+	--sysctl)      sysctl=$2     ; shift 2 ;;
 	--timezone)    timezone=$2   ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
@@ -520,6 +526,7 @@ echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
 echo " --dhcpcd file       Append file to /etc/dhcpcd.conf" ;
 echo " --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG" ;
 echo " --eeprom str        Set the Pi eeprom directory" ;
+echo " --exports file      Copy named file to /etc/exports" ;
 echo " --extend            Only extend the image; no other customizations" ;
 echo " --noextend          Do not extend the image when doing customizations" ;
 echo " --fstab file        Append file to /etc/fstab" ;
@@ -542,6 +549,7 @@ echo " --showapt           Display apt output as well as logging it" ;
 echo " --ssh none|socket   No ssh or ssh sockets [Default: ssh service]" ;
 echo " --svcdisable svc1,svc2,... Disable the named services" ;
 echo " --svcenable  svc1,svc2,... Enable  the named services" ;
+echo " --sysctl file       Copy the named file to /etc/sysctl.d" ;
 echo " --timezone tzname   Set the timezone" ;
 echo " --uid uid           UID for non-root user [next free]" ;
 echo " --user username     Non-root user to create" ;
@@ -681,6 +689,10 @@ then
 	echo "% --eeprom value '$eeprom' is not one of the standard 'critical/stable/beta'. Continuing..."
     fi
 fi    
+[ "$dhcpcd" != ""  -a ! -f "$dhcpcd" ]  && errexit "? --dhcpcd file '$dhcpcd' not found"
+[ "$exports" != "" -a ! -f "$exports" ] && errexit "? --exports file '$exports' not found"
+[ "$sysctl" != ""  -a ! -f "$sysctl" ]  && errexit "? --sysctl file '$sysctl' not found"
+[ "$sysctl" != ""  -a "$sysctl" == "${sysctl%%.conf}" ] && errexit "? --sysctl file '$sysctl' must have file type '.conf'"
 #
 # parse and set ecolors
 #
@@ -766,6 +778,9 @@ then
 	# Save settings made with the --burn command
 	bapip=$apip
 	bapssid=$apssid
+	bdhcpcd=$dhcpcd
+	bexports=$exports
+	bsysctl=$sysctl
 	breboot=$reboot
 	bnoreboot=$noreboot
 	brebootwait=$rebootwait
@@ -790,6 +805,9 @@ then
 	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	[ "$bdhpcd" != "" ] && cat $bdhcpcd >> /mnt/sdm/etc/dhcpcd.conf && burnmsg+=("$(thisdate) > Append '$bdhcpcd' to /etc/dhcpcd.conf")
+	[ "$bexports" != "" ] && cp $bexports /mnt/sdm/etc/exports && burnmsg+=("$(thisdate) > Copy '$bexports' to /etc/exports")
+	[ "$bsysctl" != "" ] && cp $bsysctl /mnt/sdm/etc/sysctl.d && burnmsg+=("$(thisdate) > Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)")
 	if [ "$bwpaconf" != "" ] # was --wpa specified on the burn command?
 	then
 	    [ ! -f $bwpaconf ] && echo "% --wpa config file '$bwpaconf' not found; Skipping"

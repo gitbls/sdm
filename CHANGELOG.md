@@ -1,5 +1,12 @@
 # Changelog
 
+## V3.14
+
+* Add --exports file which copies the specified file into the image as /etc/exports
+* Add --sysctl file which copies the specified file into the image in /etc/sysctl.d The filename must end with '.conf'
+* Change --dhcpcd behavior to append to /etc/dhcpcd.conf in the image during Phase 0, so that it is in place for the first system boot.
+* Support --exports, --sysctl, and --dhcpcd on the burn command as well.
+
 ## V3.13
 
 * Improve help if image has already been customized
