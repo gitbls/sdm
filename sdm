@@ -316,7 +316,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.14"
+version="V3.15"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -805,19 +805,34 @@ then
 	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	[ "$bdhpcd" != "" ] && cat $bdhcpcd >> /mnt/sdm/etc/dhcpcd.conf && burnmsg+=("$(thisdate) > Append '$bdhcpcd' to /etc/dhcpcd.conf")
-	[ "$bexports" != "" ] && cp $bexports /mnt/sdm/etc/exports && burnmsg+=("$(thisdate) > Copy '$bexports' to /etc/exports")
-	[ "$bsysctl" != "" ] && cp $bsysctl /mnt/sdm/etc/sysctl.d && burnmsg+=("$(thisdate) > Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)")
+	if [ "$bdhcpcd" != "" ]
+	then
+	    cat $bdhcpcd >> /mnt/sdm/etc/dhcpcd.conf
+	    burnmsg+=("$(thisdate) > Append '$bdhcpcd' to /etc/dhcpcd.conf")
+	    echo "> Append '$bdhcpcd' to /etc/dhcpcd.conf"
+	fi
+	if [ "$bexports" != "" ]
+	then
+	    cp $bexports /mnt/sdm/etc/exports
+	    burnmsg+=("$(thisdate) > Copy '$bexports' to /etc/exports")
+	    echo "> Copy '$bexports' to /etc/exports"
+	fi
+	if [ "$bsysctl" != "" ]
+	then
+	    cp $bsysctl /mnt/sdm/etc/sysctl.d
+	    burnmsg+=("$(thisdate) > Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)")
+	    echo "> Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)"
+	fi
 	if [ "$bwpaconf" != "" ] # was --wpa specified on the burn command?
 	then
 	    [ ! -f $bwpaconf ] && echo "% --wpa config file '$bwpaconf' not found; Skipping"
 	    if [ $burn -eq 1 ]
 	    then
 		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'")
-		echo "* Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'"
+		echo "> Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'"
 	    else
 		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to Image '$burnfilefile'")
-		echo "* Copy WPA Supplicant configuration '$bwpaconf' to '$burnfilefile'"
+		echo "> Copy WPA Supplicant configuration '$bwpaconf' to '$burnfilefile'"
 	    fi
 	    [ -f $bwpaconf ] && cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
@@ -830,13 +845,13 @@ then
 	[ $reboot -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot automatic restart enabled") || \
 		burnmsg+=("$(thisdate) > FirstBoot System Boot automatic restart disabled")
 	[ $burn -eq 1 ] && burnmsg+=("$(thisdate) * Burn Completed") || burnmsg+=("$(thisdate) * Image Completed")
-	[ $burn -eq 1 ] && echo "* Write burn log entry to storage '$burndev'" || echo "* Write burn log entry to Image '$burnfilefile'"
+	[ $burn -eq 1 ] && echo "> Write burn log entry to storage '$burndev'" || echo "> Write burn log entry to Image '$burnfilefile'"
 	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
 	do
 	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
 	done
-	[ $bootscripts -eq 1 ] && echo "  First System Boot Custom Boot Scripts enabled" || echo "  First System Boot Custom Boot Scripts disabled"
-	[ $reboot -eq 1 ] && echo "  First System Boot automatic restart enabled${wmsg}" || echo "  First System Boot automatic restart disabled"
+	[ $bootscripts -eq 1 ] && echo "> First System Boot Custom Boot Scripts enabled" || echo "> First System Boot Custom Boot Scripts disabled"
+	[ $reboot -eq 1 ] && echo "> First System Boot automatic restart enabled${wmsg}" || echo "> First System Boot automatic restart disabled"
     else
 	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
     fi

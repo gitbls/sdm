@@ -1,5 +1,10 @@
 # Changelog
 
+## V3.15
+
+* Complete logging of --exports, --sysctl, and --dhcpcd on burn command
+* Improve --burn messages consistency
+
 ## V3.14
 
 * Add --exports file which copies the specified file into the image as /etc/exports
