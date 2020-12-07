@@ -187,7 +187,8 @@ fi
 #
 # I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
 #
-logtoboth "" "> Disable wpa_supplicant.service"
+logtoboth "" "> Disable wpa_supplicant.service, which is only used by Network Manager and (maybe) hostapd"
+logtoboth "" "  dhcpcd will start an interface-specific wpa_supplicant if needed"
 systemctl disable wpa_supplicant
 #
 # Handle system settings that can be done in Phase 1

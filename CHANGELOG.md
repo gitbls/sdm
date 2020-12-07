@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.16
+
+* Add --bootset powerled:n for Pi Zero and Pi400 (currently). n=0 to flash LED on disk activity, n=1 on constantly
+
 ## V3.15
 
 * Complete logging of --exports, --sysctl, and --dhcpcd on burn command

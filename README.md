@@ -221,6 +221,7 @@ The following can only be set in the context of a running system, so are set dur
 * **blanking** &mdash; Enable screen blanking
 * **overscan** &mdash; Enable compensation for displays with overscan.
 * **pixdub** &mdash; Enable pixel doubling
+* **powerled** &mdash; **0**:Enable disk activity flashing on Power LED, **1**:Power LED always on (Pi Zero and Pi400 only)
 * **audio** &mdash; Set the audio setting. Valid settings are: **0**:Auto, **1**:Force 3.5mm jack, **2**:Force HDMI
 * **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1**:4Kp60, **V2**:Analog TV out, **V3**:Disable both 4Kp60 and Analog
 * **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1**:Text console no autologin, **B2**:Text console with autologin, **B3**:Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin

@@ -277,6 +277,18 @@ function doconfig() {
 		    bootlog "set boot_behaviour to '$value'"
 		    SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
 		    ;;
+		powerled)
+		    ssys=0
+		    (grep -q "\\[actpwr\\]" /sys/class/leds/led0/trigger > /dev/null 2>&1) && ssys=1
+		    (grep -q "\\[default-on\\]" /sys/class/leds/led0/trigger > /dev/null 2>&1) && ssys=1
+		    if [ $ssys -eq 1 ]
+		    then
+			bootlog "Set Power LED to '$value'"
+			SUDO_USER=${myuser:-pi} raspi-config do_leds $value nonint
+		    else
+			bootlog "This Pi does not support setting the Power LED; Skipped"
+		    fi
+		    ;;
 		audio|pi4video|boot_splash|boot_order|\
 		    spi|i2c|boot_wait|net_names|overscan|blanking|\
 		    pixdub|overclock|rgpio|camera|onewire)
