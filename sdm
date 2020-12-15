@@ -316,7 +316,7 @@ EOF
 # Initialize and Parse the command
 #
 #
-version="V3.16"
+version="V3.17"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -420,7 +420,7 @@ do
 	--1piboot)     pi1bootconf=$2; shift 2 ;;
 	--apip)        apip=$2       ; shift 2 ;;
 	--apssid)      apssid=$2     ; shift 2 ;;
-	--apps)        apps=$2       ; shift 2 ;;
+	--apps)        apps="$2"     ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--aptconfirm)  aptconfirm=1  ; shift ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
@@ -477,7 +477,7 @@ do
 	--user)        myuser=$2     ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
-	--xapps)       xapps=$2      ; shift 2 ;;
+	--xapps)       xapps="$2"    ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
 	--custom2)     custom2=$2    ; shift 2 ;;
@@ -706,12 +706,12 @@ ecolors="$efg:$ebg:$ecursor"
 #
 # Process --apps and --xapps switches
 #
-appfile="$(findappfile $apps)" #Gets real @file nam or list of apps into '$appfile'
+appfile=$(findappfile "$apps") #Gets real @file nam or list of apps into '$appfile'
 exitiferr "$appfile"
-apps="$(getapplist $appfile)"    #Gets definitive app list into '$apps'
-xappfile="$(findappfile $xapps)" #Ditto for xappfile and xapps
+apps=$(getapplist "$appfile")    #Gets definitive app list into '$apps'
+xappfile=$(findappfile "$xapps") #Ditto for xappfile and xapps
 exitiferr "$xappfile"
-xapps="$(getapplist $xappfile)"
+xapps=$(getapplist "$xappfile")
 #
 # Process the command. Actions are burn, burnfile, mount, extend, explore, or customize
 #

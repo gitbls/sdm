@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.17
+
+* Correct --apps and --xapps switch value handling
+
 ## V3.16
 
 * Add --bootset powerled:n for Pi Zero and Pi400 (currently). n=0 to flash LED on disk activity, n=1 on constantly
