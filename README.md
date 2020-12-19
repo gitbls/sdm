@@ -39,7 +39,7 @@ Throughout this document read "SD Card" as "SSD or SD Card". They are treated eq
 
 * **If needed, download the desired RasPiOS zipped IMG** from the raspberrypi.org website and unzip it. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org/). Pick the latest image in the folder **raspios_full_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit Beta), or **raspios_lite_arm64** (64-bit Beta), as appropriate.
 
-* **Customize the image:** `sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --noextend --L10n --restart`
+* **Customize the image:** `sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart`
 
     sdm will copy your Localizaton settings (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running, and prompt for a new password for user 'pi'. No additional packages will be installed in this example, but 'apt update' and 'apt upgrade' will be done.
 
@@ -137,11 +137,11 @@ sdm operates on the SD Card image in distinct phases:
 
 ## Usage Examples
 
-* `sudo /usr/local/sdm/sdm --poptions apps --apps @myapps --user bls --uid 1600 --hdmigroup 2 --hdmimode 82 2020-08-20-raspios-buster-armhf-full.img`
+* `sudo /usr/local/sdm/sdm --customize --poptions apps --apps @myapps --user bls --uid 1600 --hdmigroup 2 --hdmimode 82 2020-08-20-raspios-buster-armhf-full.img`
 
     Installs the apps from the list in the file myapps into the image, creates user bls with the specified UID, and sets the HDMI settings in /boot/config.txt needed for my monitor.
 
-* `sudo /usr/local/sdm/sdm --poptions apps --apps "iperf3 zip nmap" --user bls --uid 1600 --bootconfig hdmigroup:2,hdmimode:82 2020-08-20-raspios-buster-armhf-full.img`
+* `sudo /usr/local/sdm/sdm --customize --poptions apps --apps "iperf3 zip nmap" --user bls --uid 1600 --bootconfig hdmigroup:2,hdmimode:82 2020-08-20-raspios-buster-armhf-full.img`
 
     This is similar to the above, showing how config.txt settings can be specified individually and apps can be listed on the command line instead of an @file.
 
