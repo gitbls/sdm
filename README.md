@@ -25,7 +25,7 @@ While better than not having ANY notes, this approach requires relatively comple
 
 ***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a RasPiOS package that lets you update all your Pis quickly by caching downloaded packages locally on your LAN. This can greatly reduce install and update time, as well as internet network consumption.
 
-sdm is for RasPiOS, and runs on RasPiOS Buster. It can also run on other Linux systems. See the 'Compatibility' section below. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
+sdm is for RasPiOS, and runs on RasPiOS Stretch and Buster. It can also run on other Linux systems. See the 'Compatibility' section below. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
 
 ## Usage overview
 
@@ -501,7 +501,7 @@ A couple of quick notes on loop devices, which are used to mount the IMG file in
 
 * sdm uses the single mount point /mnt/sdm, so there can only be one copy of sdm active at once. 
 * sdm must be run as root.
-* sdm has only been tested on RasPiOS Buster 32-bit and 64-bit (beta) IMG files.
+* sdm has been thoroughly tested on RasPiOS Buster 32-bit and 64-bit (beta) IMG files. It has been moderately tested on Raspbian Stretch, but obviously functions added to raspi-config in Buster are not supported on Stretch.
 
 ## Credits
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## V3.18
+
+* --extend should not require --nowpa *** Fix this up
+* Redo --extend handling. --extend will extend an image by --xmb N MB. --extend with --customize extends image and then customizes, if used without --customize, just extends and then exits. --noextend is no longer needed.
+* --customize is now required to customize an image.
+* Basic testing on Stretch images, which work fine. Functions added to raspi-config in Buster will obviously not work on Stretch, but still handy to have Localization, WiFi, SSH, and app installations working if you need to go back to Stretch for any reason.
+
 ## V3.17
 
 * Correct --apps and --xapps switch value handling
