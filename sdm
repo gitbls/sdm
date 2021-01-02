@@ -356,6 +356,8 @@ Command Switches for --customize and --burn or as noted
  --ddsw str          Switches for dd command [bs=16M oflag=direct]
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
+ --dtoverlay         Add dtoverlay=string setting to /boot/config.txt
+ --dtparam           Add dtparam=string setting to /boot/config.txt
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
  --eeprom str        Set the Pi eeprom directory
  --exports file      Copy named file to /etc/exports
@@ -395,7 +397,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.19"
+version="V3.19.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
