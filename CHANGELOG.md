@@ -1,5 +1,10 @@
 # Changelog
 
+## V3.19
+
+* Implement --dtparam and --dtoverlay. Multiple of each can be specified
+* Improve --help command code so it isn't so ugly
+
 ## V3.18
 
 * --extend should not require --nowpa *** Fix this up

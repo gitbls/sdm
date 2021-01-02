@@ -278,6 +278,8 @@ csrc:$csrc
 datefmt:$datefmt
 dhcpcd:$dhcpcd
 dhcpcdwait:$dhcpcdwait
+dtoverlay:$dtoverlay
+dtparam:$dtparam
 ecolors:$ecolors
 eeprom:$eeprom
 exports:$exports
@@ -312,11 +314,88 @@ thishost:$thishost
 EOF
 }
 
+function printhelp() {
+    echo $"sdm $version
+Usage:
+ sudo /usr/local/sdm/sdm --customize [switches] sd-image-file
+   Customize an SD Card image or SSD/SD Card
+ sudo $0 --explore sd-image-file
+   Explore an SD Card image or SSD/SD Card
+ sudo $0 --mount sd-image-file
+   Mount an SD Card image or SSD/SD Card
+ sudo $0 --burn /dev/sdx --host target-hostname IMG-file
+   Burn the SD Card image to the burn device
+ sudo $0 --aptmaint aptfunction sd-image-file
+   Do APT maintenance (update, upgrade) on an SD Card image or SSD/SD Card
+
+Commands
+ --burn devname      Copy the image to the storage device
+ --burnfile filename Create a ready-to-burn customized Image file
+ --customize         Customize the specified Image file
+ --explore           Explore (nspawn shell) into image
+ --info what         Display list of Locales, Keymaps, WiFi Countries, or Timezones
+ --mount             Mount IMG file partitions and drop into bash
+Command Switches for --customize and --burn or as noted
+ --1piboot conf-file Use alternate 1piboot.conf
+ --apps applist      List of app packages to install or @file with list
+ --xapps applist     List of X11 packages to install or @file with list
+ --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]
+ --apssid ssidname   SSID name for WiFi Captive Portal [sdm]
+ --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
+ --aptconfirm        Enable confirmation before apt commands
+ --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
+ --batch             Perform customize operation and exit
+ --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt
+ --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
+ --bootset key:value,key:value,.. Set boot-time device settings (see README)
+ --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
+ --cscript script    Custom Phase Configuration script
+ --csrc dir          Source directory passed for Custom Phase scripts
+ --custom[1-4] str   Can be used in Custom cscripts
+ --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
+ --ddsw str          Switches for dd command [bs=16M oflag=direct]
+ --dhcpcd file       Append file to /etc/dhcpcd.conf
+ --dhcpcdwait        Enable dhcpcd Wait for Internet
+ --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
+ --eeprom str        Set the Pi eeprom directory
+ --exports file      Copy named file to /etc/exports
+ --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
+ --fstab file        Append file to /etc/fstab
+ --hdmi-force-hotplug Set hdmi_force_hotplug=1 in /boot/config.txt
+ --hdmigroup n       Set /boot/config.txt hdmigroup value
+ --hdmimode n        Set /boot/config.txt hdmimode value
+ --host hostname     Hostname to write onto the storage device with --burn
+ --keymap keymapname Set Keymap
+ --L10n              Set Keymap, Locale, Timezone, and WiFi Country from running system
+ --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
+ --locale localename Set the Locale
+ --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
+ --nspawnsw str      Additional switches for nspawn command
+ --poptions str      Set Phase 1 auto-run options
+ --norestart         Do not restart after first boot
+ --reboot n          Restart the first boot of the system after n seconds
+ --restart           Restart the first boot of the system
+ --rootpwd           Set a root password into the image
+ --showapt           Display apt output as well as logging it
+ --ssh none|socket   No ssh or ssh sockets [Default: ssh service]
+ --svcdisable svc1,svc2,... Disable the named services
+ --svcenable  svc1,svc2,... Enable  the named services
+ --sysctl file       Copy the named file to /etc/sysctl.d
+ --timezone tzname   Set the Timezone
+ --uid uid           UID for non-root user [next free]
+ --user username     Create non-root user
+ --wifi-country country Set WiFi Country for unblocking WiFi
+ --wpa wpaconf       wpa_supplicant.conf file to use
+ --nowpa             Do not do WPA config file processing
+ --xmb n             Set the --extend size in MB [2048]
+ --version           Print sdm version number"
+}
+
 #
 # Initialize and Parse the command
 #
 #
-version="V3.18"
+version="V3.19"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -339,6 +418,8 @@ datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M oflag=direct"  #Switches for dd
 dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
 dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
+dtoverlay=""                #Collected --dtoverlay settings
+dtparam=""                  #Collected --dtparam settings
 ecolors="blue:gray:red"     #fg:bg:cursor
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
 exports=""                  #If set, copy file to /etc/exports
@@ -401,8 +482,10 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
-cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,ecolors:,eeprom:,explore,exports:,extend,\
-fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,info,keymap:,l10n,loadlocal:,locale:,\
+cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,\
+dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
+fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
+info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,mount,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,\
 rootpwd,showapt,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,uid:,user:,\
 wifi-country:,wificountry:,xapps:,xmb:,\
@@ -439,6 +522,8 @@ do
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
 	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
+	--dtoverlay)   [ "$dtoverlay" == "" ] && dtoverlay="$2" || dtoverlay="$dtoverlay|$2" ; shift 2 ;;
+	--dtparam)     [ "$dtparam" == "" ]   && dtparam="$2"   || dtparam="$dtparam|$2" ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
@@ -482,82 +567,7 @@ do
 	--custom4)     custom4=$2    ; shift 2 ;;
 	--version)     pvers=1       ; shift 1 ;;
 	--)            shift ; break ;;
-	-h|--help)     echo "sdm $version" ;
-echo "" ;
-echo "Usage:" ;
-echo " sudo /usr/local/sdm/sdm --customize [switches] sd-image-file" ;
-echo "   Customize an SD Card image or SSD/SD Card" ;
-echo " sudo $0 --explore sd-image-file" ;
-echo "   Explore an SD Card image or SSD/SD Card" ;
-echo " sudo $0 --mount sd-image-file" ;
-echo "   Mount an SD Card image or SSD/SD Card" ;
-echo " sudo $0 --burn /dev/sdx --host target-hostname IMG-file" ;
-echo "   Burn the SD Card image to the burn device" ;
-echo " sudo $0 --aptmaint aptfunction sd-image-file" ;
-echo "   Do APT maintenance (update, upgrade) on an SD Card image or SSD/SD Card" ;
-echo "" ;
-echo "Commands" ;
-echo " --burn devname      Copy the image to the storage device" ;
-echo " --burnfile filename Create a ready-to-burn customized Image file" ;
-echo " --customize         Customize the specified Image file" ;
-echo " --explore           Explore (nspawn shell) into image" ;
-echo " --info what         Display list of Locales, Keymaps, WiFi Countries, or Timezones" ;
-echo " --mount             Mount IMG file partitions and drop into bash" ;
-echo "Command Switches for --customize and --burn or as noted";
-echo " --1piboot conf-file Use alternate 1piboot.conf" ;
-echo " --apps applist      List of app packages to install or @file with list" ;
-echo " --xapps applist     List of X11 packages to install or @file with list" ;
-echo " --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]" ;
-echo " --apssid ssidname   SSID name for WiFi Captive Portal [sdm]" ;
-echo " --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'" ;
-echo " --aptconfirm        Enable confirmation before apt commands" ;
-echo " --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)" ;
-echo " --batch             Perform customize operation and exit" ;
-echo " --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt" ;
-echo " --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt" ;
-echo " --bootset key:value,key:value,.. Set boot-time device settings (see README)" ;
-echo " --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot" ;
-echo " --cscript script    Custom Phase Configuration script" ;
-echo " --csrc dir          Source directory passed for Custom Phase scripts" ;
-echo " --custom[1-4] str   Can be used in Custom cscripts" ;
-echo " --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]" ;
-echo " --ddsw str          Switches for dd command [bs=16M oflag=direct]" ;
-echo " --dhcpcd file       Append file to /etc/dhcpcd.conf" ;
-echo " --dhcpcdwait        Enable dhcpcd Wait for Internet" ;
-echo " --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG" ;
-echo " --eeprom str        Set the Pi eeprom directory" ;
-echo " --exports file      Copy named file to /etc/exports" ;
-echo " --extend            Extend the image by --xmb N MB [Default: 2048/2GB]" ;
-echo " --fstab file        Append file to /etc/fstab" ;
-echo " --hdmi-force-hotplug Set hdmi_force_hotplug=1 in /boot/config.txt" ;
-echo " --hdmigroup n       Set /boot/config.txt hdmigroup value" ;
-echo " --hdmimode n        Set /boot/config.txt hdmimode value" ;
-echo " --host hostname     Hostname to write onto the storage device with --burn" ;
-echo " --keymap keymapname Set Keymap" ;
-echo " --L10n              Set Keymap, Locale, Timezone, and WiFi Country from running system" ;
-echo " --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)" ;
-echo " --locale localename Set the Locale";
-echo " --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount" ;
-echo " --nspawnsw str      Additional switches for nspawn command" ;
-echo " --poptions str      Set Phase 1 auto-run options" ;
-echo " --norestart         Do not restart after first boot" ;
-echo " --reboot n          Restart the first boot of the system after n seconds" ;
-echo " --restart           Restart the first boot of the system" ;
-echo " --rootpwd           Set a root password into the image" ;
-echo " --showapt           Display apt output as well as logging it" ;
-echo " --ssh none|socket   No ssh or ssh sockets [Default: ssh service]" ;
-echo " --svcdisable svc1,svc2,... Disable the named services" ;
-echo " --svcenable  svc1,svc2,... Enable  the named services" ;
-echo " --sysctl file       Copy the named file to /etc/sysctl.d" ;
-echo " --timezone tzname   Set the Timezone" ;
-echo " --uid uid           UID for non-root user [next free]" ;
-echo " --user username     Non-root user to create" ;
-echo " --wifi-country country Set WiFi Country for unblocking WiFi" ;
-echo " --wpa wpaconf       wpa_supplicant.conf file to use" ;
-echo " --nowpa             Do not do WPA config file processing" ;
-echo " --xmb n             Set the --extend size in MB [2048]" ;
-echo " --version           Print sdm version number" ;
-shift ; exit ;;
+	-h|--help)     printhelp ; shift ; exit ;;
 	*) errexit "? $0: Internal error" ;;
     esac
 done

@@ -313,6 +313,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M oflag=direct". If `--ddsw` is specified, the default value is replaced.
 * `--dhcpcdwait` &mdash; Enable 'wait for network' (raspi-config System option S6).
 * `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
+* `--dtoverlay` *string* &mdash; Add a dtoverlay to /boot/config.txt with the specified string, one dtoverlay per switch. Multiple `--dtoverlay` switches can be specified. They will all be added to config.txt
+* `--dtparam *string* &mdash; Add a dtparam to /boot/config.txt with the specified string, one dtparam per switch. Multiple --dtparam switches can be specified. They will all be added to config.txt
 * `--eeprom` *value* &mdash; Change the eeprom value in /etc/default/rpi-eeprom-update. The RasPiOS default is 'critical', which is fine for most users. Change only if you know what you're doing.
 * `--exports` *file* &mdash; Copy the specified file into the image as /etc/exports
 * `--fstab` *file* &mdash; Append the contents of the specified file to /etc/fstab in the Customized Image. This is useful if you want the same /etc/fstab entries on your RasPiOS systems.

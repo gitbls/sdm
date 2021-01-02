@@ -3,6 +3,27 @@
 # Copies personalization files into an SD card image
 #
 
+function dodt() {
+    #
+    # $1 = name (either "dtoverlay" or "dtparam"
+    # $2 = value(s)
+    #
+    dtname="$1"
+    dtvalues="$2"
+    if [ "$dtvalues" != "" ]
+    then
+	logtoboth /mnt/sdm "> Add new $dtname settings to /boot/config.txt"
+	echo "" >> /mnt/sdm/boot/config.txt
+	echo "# $dtname items added by sdm --$dtname" >> /mnt/sdm/boot/config.txt
+	readarray -d\| citems <<< $dtvalues
+	for c in ${citems[@]}
+	do
+	    logtoboth /mnt/sdm ">  $dtname ${c%|}"
+	    echo "$dtname=${c%|}" >> /mnt/sdm/boot/config.txt
+	done
+    fi
+}
+
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
@@ -101,6 +122,11 @@ then
 	logtoboth /mnt/sdm "> /boot/config.txt already updated for --bootadd; skipping"
     fi
 fi
+#
+# Process --dtparm and --dtoverlay settings
+#
+dodt dtoverlay "$dtoverlay"
+dodt dtparam   "$dtparam"
 
 if [ "$myuser" != "" ]
 then
