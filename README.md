@@ -256,7 +256,7 @@ At that point, you can remove the SD card and move ahead with setting up your SS
 
 `sdm` commands consist of:
 
-* `sudo /usr/local/sdm/sdm raspios-image.img`
+* `sudo /usr/local/sdm/sdm --customize raspios-image.img`
 
     Perform Phase 0 configuration, and drops you in a shell inside the image for Phase 1 customization
 
@@ -274,7 +274,7 @@ At that point, you can remove the SD card and move ahead with setting up your SS
 
     `sudo /usr/local/sdm/sdm --explore /dev/sdX`
 
-    Uses systemd-nspawn to "go into" the IMG file (first example) or SD Card (second example) to explore and/or make manual changes to the image. `--explore` disables automatic image extension. When using `--explore` there is no access to the files in the running system.
+    Uses systemd-nspawn to "go into" the IMG file (first example) or SD Card (second example) to explore and/or make manual changes to the image. When using `--explore` there is no access to the files in the running system.
 
 * `sudo /usr/local/sdm/sdm --extend [--xmb nnn] raspios-image.img`
 
