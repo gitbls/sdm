@@ -10,6 +10,8 @@ function dodt() {
     #
     dtname="$1"
     dtvalues="$2"
+    sifs="$IFS"
+    IFS=""
     if [ "$dtvalues" != "" ]
     then
 	logtoboth /mnt/sdm "> Add new $dtname settings to /boot/config.txt"
@@ -18,10 +20,13 @@ function dodt() {
 	readarray -d\| citems <<< $dtvalues
 	for c in ${citems[@]}
 	do
-	    logtoboth /mnt/sdm ">  $dtname ${c%|}"
-	    echo "$dtname=${c%|}" >> /mnt/sdm/boot/config.txt
+	    c="${c%|}"
+	    c="${c/$'\n'}"
+	    logtoboth /mnt/sdm ">  $dtname $c"
+	    echo "$dtname=$c" >> /mnt/sdm/boot/config.txt
 	done
     fi
+    IFS="$sifs"
 }
 
 #
@@ -73,6 +78,29 @@ then
     logtoboth /mnt/sdm "> Copy file '$sysctl' to /etc/sysctl.d/$(basename $sysctl)"
     cp $sysctl /mnt/sdm/etc/sysctl.d/
 fi
+#
+# Copy any specified cron files
+#
+for c in d hourly daily weekly monthly
+do
+    ct="cron$c"
+    cf=${!ct}     #  (eval "cf=\$$ct" alternate way)
+    if [ "$cf" != "" ]
+    then
+	sifs="$IFS"
+	IFS=""
+	readarray -d\| citems <<< "$cf"
+	for fl in ${citems[@]}
+	do
+	    fl="${fl%|}"
+	    fl="${fl/$'\n'}"
+	    logtoboth /mnt/sdm "> Copy file '$fl' to /etc/cron.$c"
+	    cp $fl /mnt/sdm/etc/cron.$c
+	done
+	IFS="$sifs"
+    fi
+done
+
 #
 # Set HDMI configuration if requested
 #
@@ -142,7 +170,29 @@ then
     logtoboth /mnt/sdm "> Set rpi-eeprom to '$eeprom'"
     sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
 fi
-
+#
+# Add requested command(s) to /etc/rc.local
+# ** Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
+#
+if [ "$rclocal" != "" ]
+then
+    logtoboth /mnt/sdm "> Add commands to /etc/rc.local"
+    grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
+    sifs="$IFS"
+    IFS=""
+    readarray -d\| citems <<< "$rclocal"
+    for c in ${citems[@]}
+    do
+	c="${c%|}"
+	c="${c/$'\n'}"
+	logtoboth /mnt/sdm ">  $c"
+	echo "$c" >> /mnt/sdm/tmp/rc.local
+    done
+    echo "exit 0" >> /mnt/sdm/tmp/rc.local
+    IFS="$sifs"
+    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.orig
+    mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
+fi
 
 if [ "$cscript" != "" ]
 then

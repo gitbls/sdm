@@ -273,6 +273,11 @@ batch:$fbatch
 bootadd:$bootadd
 bootconfig:$bootconfig
 bootscripts:$bootscripts
+crond:$crond
+cronhourly:$cronhourly
+crondaily:$crondaily
+cronweekly:$cronweekly
+cronmonthly:$cronmonthly
 cscript:$cscript
 csrc:$csrc
 datefmt:$datefmt
@@ -294,6 +299,7 @@ myuid:$myuid
 myuser:$myuser
 pi1bootconf:$pi1bootconf
 poptions:$poptions
+rclocal:$rclocal
 reboot:$reboot
 noreboot:$noreboot
 rebootwait:$rebootwait
@@ -349,6 +355,11 @@ Command Switches for --customize and --burn or as noted
  --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
  --bootset key:value,key:value,.. Set boot-time device settings (see README)
  --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
+ --cron-d file       Copy provided cron file to /etc/cron.d
+ --cron-daily file   Copy provided cron file to /etc/cron.daily
+ --cron-hourly file  Copy provided cron file to /etc/cron.hourly
+ --cron-monthly file Copy provided cron file to /etc/cron.monthly
+ --cron-weekly file  Copy provided cron file to /etc/cron.weekly
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -375,6 +386,7 @@ Command Switches for --customize and --burn or as noted
  --nspawnsw str      Additional switches for nspawn command
  --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot
+ --rclocal string    Add string as a command in /etc/rc.local
  --reboot n          Restart the first boot of the system after n seconds
  --restart           Restart the first boot of the system
  --rootpwd           Set a root password into the image
@@ -397,7 +409,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.19.1"
+version="V3.20"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -449,6 +461,7 @@ noreboot=0                  #1=Do not restart system after first boot
 nspawnsw=""                 #Switches for nspawn
 poptions=""                 #Phase options
 pvers=0                     #Print version number
+rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
@@ -484,11 +497,12 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
+cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,\
 dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
-mcolors:,mount,norestart,noreboot,nspawnsw:,poptions:,reboot:,restart,\
+mcolors:,mount,norestart,noreboot,nspawnsw:,poptions:,rclocal:,reboot:,restart,\
 rootpwd,showapt,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,uid:,user:,\
 wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
@@ -517,6 +531,11 @@ do
 		       burndev=$2    ; shift 2 ;;
 	--burnfile)    burnfile=1 ;
 		       burnfilefile=$2 ; shift 2 ;;
+	--cron-d)      [ "$crond" == "" ] && crond="$2" || crond="$crond|$2" ; shift 2 ;;
+	--cron-hourly) [ "$cronhourly" == "" ] && cronhourly="$2" || cronhourly="$cronhourly|$2" ; shift 2 ;;
+	--cron-daily)  [ "$crondaily" == "" ] && crondaily="$2" || crondaily="$crondaily|$2" ; shift 2 ;;
+	--cron-weekly) [ "$cronweekly" == "" ] && cronweekly="$2" || cronweekly="$cronweekly|$2" ; shift 2 ;;
+	--cron-monthly) [ "$cronmonthly" == "" ] && cronmonthly="$2" || cronmonthly="$cronmonthly|$2" ; shift 2 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;
@@ -547,6 +566,7 @@ do
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--poptions)    poptions="${2,,}" ; shift 2 ;;
+	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}|$2" ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
 	--restart)      reboot=1     ; shift 1 ;;
@@ -705,6 +725,26 @@ fi
 [ "$exports" != "" -a ! -f "$exports" ] && errexit "? --exports file '$exports' not found"
 [ "$sysctl" != ""  -a ! -f "$sysctl" ]  && errexit "? --sysctl file '$sysctl' not found"
 [ "$sysctl" != ""  -a "$sysctl" == "${sysctl%%.conf}" ] && errexit "? --sysctl file '$sysctl' must have file type '.conf'"
+
+for c in d hourly daily weekly monthly
+do
+    ct="cron$c"
+    cf=${!ct}     #  (eval "cf=\$$ct" alternate way)
+    if [ "$cf" != "" ]
+    then
+	sifs="$IFS"
+	IFS=""
+	readarray -d\| citems <<< "$cf"
+	for fl in ${citems[@]}
+	do
+	    fl="${fl%|}"
+	    fl="${fl/$'\n'}"
+	    [ ! -f $fl ] && errexit "? --cron-$c file '$fl' not found"
+	done
+	IFS="$sifs"
+    fi
+done
+
 #
 # parse and set ecolors
 #

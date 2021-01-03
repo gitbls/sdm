@@ -306,6 +306,11 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--bootconfig` *key:value,key:value,...* &mdash; Update existing, commented keys in /boot/config.txt
 * `--bootset`  *key:value,key:value,...* &mdash; Change system configuration settings. See 1piboot.conf section above.
 * `--bootscripts` &mdash; Directs sdm-firstboot to run the boot scripts in 1piboot/*.sh. If `--bootscripts` is specified when creating the sdm-enhanced IMG, every SD Card burned will run the boot scripts on First Boot. If not specified on IMG creation, it can be also be specified when burning the SD Card to run the boot scripts on that SD Card.
+* `--cron-d` *file* &mdash; Copy the cron file to /etc/cron.d. `--cron-d` can be specified multiple times to copy multiple files.
+* `--cron-hourly` *file* &mdash; Copy the cron file to /etc/cron.hourly. `--cron-hourly` can be specified multiple times to copy multiple files.
+* `--cron-daily` *file* &mdash; Copy the cron file to /etc/cron.daily. `--cron-daily` can be specified multiple times to copy multiple files.
+* `--cron-weekly` *file* &mdash; Copy the cron file to /etc/cron.weekly. `--cron-weekly` can be specified multiple times to copy multiple files.
+* `--cron-monthly` *file* &mdash; Copy the cron file to /etc/cron.monthly. `--cron-monthly` can be specified multiple times to copy multiple files.
 * `--cscript` *scriptname* &mdash; Specifies the path to your Custom Phase Script, which will be run as described in the Custom Phase Script section below.
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.
@@ -350,6 +355,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
     Enter multiple values as a single string separated by commas. For example `--poptions apps,xapps` or `--poptions noupdate,noupgrade`
 
+* `--rclocal` *command* &mdash; Add the specified command to /etc/rc.local. Multiple `--rclocal` switches can be specified, and the commands are added in the order specified on the command line.
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
