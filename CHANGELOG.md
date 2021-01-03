@@ -1,5 +1,11 @@
 # Changelog
 
+## V3.20
+
+* Minor correction in handling of --dtparam --dtoverlay strings
+* Add --rclocal to add command lines to /etc/rc.local
+* Add --cron-{d,hourly,daily,weekly,monthly} to copy a crontab file to the corresponding /etc/cron.{d,hourly,daily,weekly,monthly} directory
+
 ## V3.19
 
 * Implement --dtparam and --dtoverlay. Multiple of each can be specified
