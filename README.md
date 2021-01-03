@@ -278,7 +278,7 @@ At that point, you can remove the SD card and move ahead with setting up your SS
 
 * `sudo /usr/local/sdm/sdm --extend [--xmb nnn] raspios-image.img`
 
-    Extends the image by the specified size and exits. Use --noextend if you need to re-enter sdm to prevent further unwanted extensions.
+    Extends the image by the specified size and exits.
 
 * `sudo /usr/local/sdm/sdm --mount raspios-image.img`
 
@@ -343,7 +343,6 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
 * `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See the Captive Portal section below for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
 * `--locale` *localename* &mdash; The locale is specified just as you'd set it in raspi-config. For example, in the USA, one might use en_US.UTF-8, and in the UK en_UK.UTF-8. See /usr/share/i18n/SUPPORTED for a complete locale list.
-* `--noextend` &mdash; Do not extend the IMG file at all
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
