@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.21
+
+* Handle partitions on /dev/mmcblk0 correctly, named "p1" and "p2", not "1" and "2"
+
 ## V3.20
 
 * Minor correction in handling of --dtparam --dtoverlay strings

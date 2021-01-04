@@ -61,9 +61,12 @@ function domount() {
 	mount -v ${loop}p2 /mnt/sdm
 	mount -v ${loop}p1 /mnt/sdm/boot
     else
+	p1="1"
+	p2="2"
+	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	echo "Mounting device '$dimg'"
-	mount -v ${dimg}2 /mnt/sdm
-	mount -v ${dimg}1 /mnt/sdm/boot
+	mount -v ${dimg}${p2} /mnt/sdm
+	mount -v ${dimg}${p1} /mnt/sdm/boot
 	loop=""
     fi
 }
@@ -409,7 +412,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.20"
+version="V3.21"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -797,8 +800,9 @@ then
 	# Prevent mount errors
 	sync ; sync
 	sleep 1
-	mount -v ${burndev}2 /mnt/sdm
-	! ismounted ${burndev}2 && errexit "? Unable to mount ${burndev}2"
+	[[ "$burndev" =~ "mmcblk" ]] && p2="p2" || p2="2"
+	mount -v ${burndev}${p2} /mnt/sdm
+	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
     else
 	#
 	# Burning to a file
@@ -910,7 +914,7 @@ then
     else
 	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
     fi
-    [ $burn -eq 1 ] && ismounted ${burndev}2 && umount -v ${burndev}2 || docleanup
+    [ $burn -eq 1 ] && ismounted ${burndev}${p2} && umount -v ${burndev}${p2} || docleanup
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
     exit 0
 fi
