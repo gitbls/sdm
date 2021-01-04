@@ -466,11 +466,13 @@ In order to do image customization or use `--explore` on an image on a non-RasPi
 
     sudo apt install qemu-user-static
 
-These components enable image customization and `--explore` on an RasPiOS image. If this doesn't work on your x86 Linux system, it may be too old and lacking updated support. I have tested this on Ubuntu 20.04, and it's able to operate on both RasPiOS 32 and 64-bit images.
+These components enable image customization and `--explore` on an RasPiOS image. If this doesn't work on your x86 Linux system, it may be too old and lacking updated support or fixes. I have tested this on Ubuntu 20.04, and it's able to operate on both RasPiOS 32 and 64-bit images. **NOTE: **It appears that several Linux distros, such as Debian 10.6.x don't work correctly as of January 2021. Since Ubuntu tends to update more frequently, it has picked up whatever fix is missing from the current released Debian.
 
 Running on 64-bit RasPiOS sdm can customize, explore, burn, and mount both 32-bit and 64-bit RasPiOS images.
 
 However, running on 32-bit RasPiOS sdm can only mount and burn 64-bit images; customization and `--explore` will not operate on 64-bit images when running on 32-bit RasPiOS. The systemd-nspawn command on 32-bit RasPiOS is not able to operate against a 64-bit RasPiOS image.
+
+
 
 ## Bread crumbs
 
