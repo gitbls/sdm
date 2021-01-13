@@ -7,10 +7,63 @@
 # Installs into /usr/local/sdm by default
 # If you specify a different directory (first argument), it assumes that sudo is not required
 #
+# At the moment requires apt-based package installs. Easy to fix, of course. It's only code...
+#
 
+function errexit() {
+    echo "$1"
+    exit 1
+}
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function getosdistro() {
+    local osdistro osversion
+    if [ -f "/etc/os-release" ]
+    then
+        osdistro=$(grep ^ID= /etc/os-release | (IFS='='; read a b ; echo $b))
+	osversion=$(grep ^VERSION_ID= /etc/os-release | (IFS='='; read a b ; echo $b))
+	[ "$osversion" == "" ] && osversion=$(grep ^VERSION= /etc/os-release | (IFS='='; read a b ; echo $b))
+    else
+        osdistro="unknown"
+	osversion="unknown"
+    fi
+    osdistro=${osdistro%\"} #Strip leading and trailing quotes
+    osdistro=${osdistro#\"}
+    osdistro=${osdistro,,}  #Lower case
+    [ "$osdistro" == "raspbian" ] && osdistro="raspios"
+    osversion=${osversion%\"}
+    osversion=${osversion#\"}
+    echo "$osdistro:$osversion"
+}
+#
+# Check OS Distro and version
+#
+myscript="$0 $@"
+IFS=":" read osdistro osversion <<< $(getosdistro)
+echo "/etc/os-release indicates this system is '$osdistro' version '$osversion'"
+if [ "$osdistro" != "raspios" ]
+then
+    mver=${osversion%%\.*}
+    if [ "$osdistro" != "ubuntu" -o $mver -lt  20 ]
+    then
+	echo "% sdm may not work on this system unless it is a derivative of Ubuntu 20.04 or later"
+	! askyn "* Do you want to continue" && exit
+    fi
+fi
+[ "$(which apt)" == "" ] && errexit "? apt not found; cannot install on this system"
+#
+# Create directories and download sdm
+#
 [ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
 
-#src="https://github.com/gitbls/sdm/raw/master"
 src="https://raw.githubusercontent.com/gitbls/sdm/master"
 [ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
 
@@ -31,15 +84,33 @@ done
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 
+#
+# If installed into the system (/usr/local/sdm) make sure that prerequisites installed
+#
 if [ "$dir" == "/usr/local/sdm" ]
 then
-    echo "Checking if systemd-container is installed"
+    echo "* Checking if 'systemd-container' is installed"
     if [ "$(which systemd-nspawn)" == "" ]
     then
-	echo " Installing systemd-container"
-	$sudo apt install systemd-container --no-install-recommends --yes
+	echo "> Installing 'systemd-container'"
+	$sudo apt install --yes --no-install-recommends systemd-container
     else
-	echo " Great! systemd-container is already installed"
+	echo "> Great! 'systemd-container' is already installed"
+    fi
+    if [ "$osdistro" != "raspios" ]
+    then
+	echo "* Additional packages must be installed since this is not RasPiOS"
+	echo "* Installing 'qemu-user-static' and 'binfmt-support' if needed"
+	for p in qemu-user-static binfmt-support
+	do
+	    if ! $sudo dpkg-query -s $p > /dev/null 2>&1
+	    then
+		echo "> Installing '$p'..."
+		$sudo apt install --yes --no-install-recommends $p
+	    else
+		echo "> Great! Package '$p' is already installed"
+	    fi
+	done
     fi
     echo ""
     echo "Invoke sdm with 'sudo $dir/sdm'"
@@ -47,9 +118,5 @@ else
     echo ""
     echo "You can inspect sdm in $1..."
     echo "To use sdm:"
-    echo "  Rerun this script and install into /usr/local/sdm"
-    echo "   or move the contents of '$dir' to /usr/local/sdm"
-    [ "$(which systemd-nspawn)" == "" ]  && echo "" && echo "AND  'sudo apt install systemd-container --no-install-recommends'"
+    echo "  Rerun this script ($myscript) and install into /usr/local/sdm"
 fi
-
-
