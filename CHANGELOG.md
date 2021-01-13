@@ -1,5 +1,13 @@
 # Changelog
 
+## V3.22
+
+* Correct --noreboot operation
+* Document switches supported on --burn command
+* Make EZsdmInstaller OS-aware and install additional packages as appropriate
+* Disable apt config file modification checking during apt upgrade
+	
+
 ## V3.21
 
 * Handle partitions on /dev/mmcblk0 correctly, named "p1" and "p2", not "1" and "2"
