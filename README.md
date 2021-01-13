@@ -398,6 +398,24 @@ That's exactly what `--fstab` does. It copies the file you provide to /etc/sdm/a
 
 No matter which mechanism you use, you'll need to create the mount point directories in the image during Phase 1.
 
+## Customization switches that can be used with --burn
+
+These switches can be used with `--burn`. When used this way, they affect only the output SSD/SD Card, and not the IMG file.
+
+* `--apip`
+* `--apssid`
+* `--dhcpcd`
+* `--exports`
+* `--sysctl`
+* `--reboot`
+* `--noreboot`
+* `--bootscripts`
+* `--wifi-country`
+* `--locale`
+* `--keymap`
+* `--timezone`
+* `--wpa`
+
 ## Captive Portal
 
 If `--loadlocal wifi` is specified on the command line during image customization, a Captive Portal is started during the system First Boot. The Captive Portal starts an Access Point named 'sdm' (can be changed with --apssid) and the IP Address 10.1.1.1 (can be changed with --apip). When you connect to http://10.1.1.1 a web page will be displayed that has two links on it.
