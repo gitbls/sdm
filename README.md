@@ -404,16 +404,16 @@ These switches can be used with `--burn`. When used this way, they affect only t
 
 * `--apip`
 * `--apssid`
+* `--bootscripts`
 * `--dhcpcd`
 * `--exports`
-* `--sysctl`
-* `--reboot`
-* `--noreboot`
-* `--bootscripts`
-* `--wifi-country`
-* `--locale`
 * `--keymap`
+* `--locale`
+* `--noreboot`
+* `--reboot`
+* `--sysctl`
 * `--timezone`
+* `--wifi-country`
 * `--wpa`
 
 ## Captive Portal
