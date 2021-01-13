@@ -19,6 +19,22 @@ function doinstalls() {
     fi
 }
 
+function upgkeepconf () {
+    #
+    # Write /etc/apt/apt.conf.d/02sdm-myconf
+    # Forcing apt to not query about conf file changes
+    # $1 = "--yes" or ""
+    # $2 = $showapt or 0 to not display output
+    #
+cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
+    Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+EOF
+doapt "$1 upgrade" "$2"
+rm -f /etc/apt/apt.conf.d/02sdm-myconf
+}
+
 #
 # Read configuration information from sdm
 #
@@ -30,9 +46,9 @@ cmd="$1"
 cmdoptions="$2"
 if [ "$cmd" == "apt" ]
 then
-    logtoboth "" "* Starting apt maintenance"
+    logtoboth "" "* Start apt maintenance"
     [[ "$cmdoptions" =~ "|update|" ]] &&  doapt "--yes update"  0
-    [[ "$cmdoptions" =~ "|upgrade|" ]] && doapt "--yes upgrade" 0
+    [[ "$cmdoptions" =~ "|upgrade|" ]] && upgkeepconf --yes 0  # usemyconf && doapt "--yes upgrade" 0 && rm -f /etc/apt/apt.conf.d/02sdm-myconf
     [[ "$cmdoptions" =~ "|autoremove|" ]] && doapt "--yes autoremove" 0
     logtoboth "" "* apt maintenance Completed"
     exit 0
@@ -239,12 +255,15 @@ then
     didapt=1
 fi
 
-[ $aptconfirm -eq 1 ] && yes="" || yes="-y"
+[ $aptconfirm -eq 1 ] && yes="" || yes="--yes"
 
 if ! [[ "$poptions" =~ "|noupgrade|" ]]
 then
     logtoboth "" "> Start 'apt upgrade'"
-    doapt "$yes upgrade" $showapt
+    upgkeepconf "$yes" "$showapt"
+#    usemyconf
+#    doapt "$yes upgrade" $showapt
+#    rm -f /etc/apt/apt.conf.d/02sdm-myconf
     didapt=1
 else
     logtoboth "" "> Skip 'apt upgrade' per --poption 'noupgrade'"
