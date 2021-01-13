@@ -48,7 +48,7 @@ if [ "$cmd" == "apt" ]
 then
     logtoboth "" "* Start apt maintenance"
     [[ "$cmdoptions" =~ "|update|" ]] &&  doapt "--yes update"  0
-    [[ "$cmdoptions" =~ "|upgrade|" ]] && upgkeepconf --yes 0  # usemyconf && doapt "--yes upgrade" 0 && rm -f /etc/apt/apt.conf.d/02sdm-myconf
+    [[ "$cmdoptions" =~ "|upgrade|" ]] && upgkeepconf --yes 0
     [[ "$cmdoptions" =~ "|autoremove|" ]] && doapt "--yes autoremove" 0
     logtoboth "" "* apt maintenance Completed"
     exit 0
@@ -261,9 +261,6 @@ if ! [[ "$poptions" =~ "|noupgrade|" ]]
 then
     logtoboth "" "> Start 'apt upgrade'"
     upgkeepconf "$yes" "$showapt"
-#    usemyconf
-#    doapt "$yes upgrade" $showapt
-#    rm -f /etc/apt/apt.conf.d/02sdm-myconf
     didapt=1
 else
     logtoboth "" "> Skip 'apt upgrade' per --poption 'noupgrade'"
