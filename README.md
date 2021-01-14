@@ -27,6 +27,8 @@ While better than not having ANY notes, this approach requires relatively comple
 
 sdm is for RasPiOS, and runs on RasPiOS Stretch and Buster. It can also run on other Linux systems. See the 'Compatibility' section below. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
 
+If you find sdm useful, please consider starring it to help me understand how many people are using it. Thanks!
+
 ## Usage overview
 
 ### sdm Quick Start
