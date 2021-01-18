@@ -74,16 +74,6 @@ then
 fi
 
 #
-# Copy fstab extension into the image
-#
-if [ "$fstab" != "" ]
-then
-    logtoboth /mnt/sdm "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
-    cp $fstab /mnt/sdm/etc/sdm/assets
-    echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-fi
-
-#
 # Copy user-defined exports file into the image
 #
 if [ "$exports" != "" ]
@@ -93,12 +83,13 @@ then
 fi
 
 #
-# Copy user-specified sysctl config file into the image
+# Copy fstab extension into the image
 #
-if [ "$sysctl" != "" ]
+if [ "$fstab" != "" ]
 then
-    logtoboth /mnt/sdm "> Copy file '$sysctl' to /etc/sysctl.d/$(basename $sysctl)"
-    cp $sysctl /mnt/sdm/etc/sysctl.d/
+    logtoboth /mnt/sdm "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
+    cp $fstab /mnt/sdm/etc/sdm/assets
+    echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
 
 #
@@ -112,6 +103,21 @@ do
 done
 
 #
+# Copy user-specified modprobe config files into the image
+#
+[ "$modprobe" != "" ] && copycufiles "$modprobe" "/mnt/sdm/etc/modprobe.d"
+
+#
+# Copy user-specified motd file into the image
+#
+[ "$motd" != "" ] && logtoboth /mnt/sdm "> Copy file '$motd' to /mnt/sdm/etc/motd" mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
+
+#
+# Copy user-specified sysctl config file into the image
+#
+[ "$sysctl" != "" ] && copycufiles "$sysctl" "/mnt/sdm/etc/sysctl.d"
+
+#
 # Copy any specified udev files
 #
 [ "$udev" != "" ] && copycufiles "$udev" "/mnt/sdm/etc/udev/rules.d"
@@ -121,7 +127,7 @@ done
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    logtoboth /mnt/sdm "> Set 'hdmigroup' and 'hdmimode' in /boot/config.txt"
+    logtoboth /mnt/sdm "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /boot/config.txt"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
 fi

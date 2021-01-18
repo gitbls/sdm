@@ -314,6 +314,8 @@ hdmimode:$hdmimode
 keymap:$keymap
 loadlocal:$loadlocal
 locale:$locale
+modprobe:$modprobe
+motd:$motd
 myuid:$myuid
 myuser:$myuser
 pi1bootconf:$pi1bootconf
@@ -403,6 +405,8 @@ Command Switches for --customize and --burn or as noted
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
  --locale localename Set the Locale
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
+ --modprobe file     Copy provided file to /etc/modprobe.d
+ --motd file         Use provided file as /etc/motd
  --nspawnsw str      Additional switches for nspawn command
  --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot
@@ -430,7 +434,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.23"
+version="V3.24"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -481,6 +485,8 @@ infocmd=0                   #1=--info command
 loadl10n=0                  #1=Load Localization settings from running system 
 loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
 locale=""                   #Locale
+modprobe=""                 #List of files to copy to /etc/modprobe.d
+motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
 noreboot=0                  #1=Do not restart system after first boot
@@ -529,7 +535,8 @@ cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,\
 dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
-mcolors:,mount,norestart,noreboot,nspawnsw:,poptions:,rclocal:,reboot:,restart,\
+mcolors:,modprobe:,motd:,mount,norestart,noreboot,nspawnsw:,\
+poptions:,rclocal:,reboot:,restart,\
 rootpwd,showapt,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
 wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
@@ -588,6 +595,8 @@ do
 	--loadlocal)   loadlocal="${2,,}" ; shift 2 ;;
 	--locale)      locale=$2     ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
+	--modprobe)    [ "$modprobe" == "" ] && modprobe="$2" || modprobe="$modprobe|$2" ; shift 2 ;;
+	--motd)        motd=$2       ; shift 2 ;;
 	--mount)       fdomount=1    ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
@@ -602,7 +611,7 @@ do
 	--ssh)         ssh=$2        ; shift 2 ;;
 	--svcdisable)  svcdisable=$2 ; shift 2 ;;
 	--svcenable)   svcenable=$2  ; shift 2 ;;
-	--sysctl)      sysctl=$2     ; shift 2 ;;
+	--sysctl)      [ "$sysctl" == "" ] && sysctl="$2" || sysctl="$sysctl|$2" ; shift 2 ;;
 	--timezone)    timezone=$2   ; shift 2 ;;
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
@@ -751,8 +760,6 @@ fi
 
 [ "$dhcpcd" != ""  -a ! -f "$dhcpcd" ]  && errexit "? --dhcpcd file '$dhcpcd' not found"
 [ "$exports" != "" -a ! -f "$exports" ] && errexit "? --exports file '$exports' not found"
-[ "$sysctl" != ""  -a ! -f "$sysctl" ]  && errexit "? --sysctl file '$sysctl' not found"
-[ "$sysctl" != ""  -a "$sysctl" == "${sysctl%%.conf}" ] && errexit "? --sysctl file '$sysctl' must have file type '.conf'"
 
 for c in d hourly daily weekly monthly
 do
@@ -761,6 +768,9 @@ do
     [ "$cf" != "" ] && checkfilelist "$cf" "--cron-$c"
 done
 
+[ "$sysctl" != ""  ] && checkfilelist "$sysctl" "--sysctl"
+[ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
+[ "$motd" != "" ] && checkfilelist "$motd" "$motd|"
 [ "$udev" != "" ] && checkfilelist "$udev" "--udev"
 
 #
