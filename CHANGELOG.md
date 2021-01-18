@@ -1,5 +1,11 @@
 # Changelog
 
+## V3.24
+
+* Add --modprobe to add /etc/modprobe.d config files into image
+* Add --motd to replace /etc/motd with a different message
+* --sysctl can be specified multiple times
+
 ## V3.23
 
 * Add --udev to add udev files into image
