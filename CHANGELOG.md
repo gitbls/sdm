@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.23
+
+* Add --udev to add udev files into image
+
 ## V3.22
 
 * Correct --noreboot operation
