@@ -364,6 +364,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
 * `--sysctl` *file* &mdash; Copy the specified file into the image in /etc/sysctl.d. The filename must end with '.conf'
 * `--timezone` *tzname* &mdash; Set the timezone for the system.  See `sudo timedatectl list-timezones | less` for a complete list of timezones.
+* `--udev` *file* &mdash; Copy the udev rule file to /etc/udev/rules.d. `--udev` can be specified multiple times to copy multiple files.
 * `--user` *username* &mdash; Specify a username to be created in the IMG. 
 * `--uid` *uid* &mdash; Use the specified uid rather than the next assignable uid for the new user, if created.
 * `--wifi-country` *countryname* &mdash; Specify the name of the country to use for the WiFi Country setting. See /usr/share/zoneinfo/iso3166.tab for the complete WiFi Country code list. Also see the `--l10n` command switch which will extract the current WiFi Country setting from /etc/wpa_supplicant/wpa_supplicant.conf or /etc/wpa_supplicant/wpa_supplicant-wlan0.conf on the system on which sdm is running.

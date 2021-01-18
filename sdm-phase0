@@ -29,6 +29,24 @@ function dodt() {
     IFS="$sifs"
 }
 
+function copycufiles() {
+    #
+    # $1 has list of "|"-separated files to copy
+    # $2 has destination directory
+    #
+    sifs="$IFS"
+    IFS=""
+    readarray -d\| citems <<< "$1"
+    for fl in ${citems[@]}
+    do
+	fl="${fl%|}"
+	fl="${fl/$'\n'}"
+	logtoboth /mnt/sdm "> Copy file '$fl' to $2"
+	cp $fl $2
+    done
+    IFS="$sifs"
+}
+
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
@@ -44,6 +62,7 @@ then
 else
     logtoboth "/mnt/sdm" ">%Skip wpa_supplicant configuration per command switch --nowpa"
 fi
+
 #
 # Copy dhcpcd.conf extension into the image
 #
@@ -53,6 +72,7 @@ then
     cat $dhcpcd >> /mnt/sdm/etc/dhcpcd.conf
 #    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
+
 #
 # Copy fstab extension into the image
 #
@@ -62,6 +82,7 @@ then
     cp $fstab /mnt/sdm/etc/sdm/assets
     echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
+
 #
 # Copy user-defined exports file into the image
 #
@@ -70,6 +91,7 @@ then
     logtoboth /mnt/sdm "> Copy file '$exports' to /etc/exports"
     cp $exports /mnt/sdm/etc/exports
 fi
+
 #
 # Copy user-specified sysctl config file into the image
 #
@@ -78,6 +100,7 @@ then
     logtoboth /mnt/sdm "> Copy file '$sysctl' to /etc/sysctl.d/$(basename $sysctl)"
     cp $sysctl /mnt/sdm/etc/sysctl.d/
 fi
+
 #
 # Copy any specified cron files
 #
@@ -85,21 +108,13 @@ for c in d hourly daily weekly monthly
 do
     ct="cron$c"
     cf=${!ct}     #  (eval "cf=\$$ct" alternate way)
-    if [ "$cf" != "" ]
-    then
-	sifs="$IFS"
-	IFS=""
-	readarray -d\| citems <<< "$cf"
-	for fl in ${citems[@]}
-	do
-	    fl="${fl%|}"
-	    fl="${fl/$'\n'}"
-	    logtoboth /mnt/sdm "> Copy file '$fl' to /etc/cron.$c"
-	    cp $fl /mnt/sdm/etc/cron.$c
-	done
-	IFS="$sifs"
-    fi
+    [ "$cf" != "" ] && copycufiles "$cf" "/mnt/sdm/etc/cron.$c"
 done
+
+#
+# Copy any specified udev files
+#
+[ "$udev" != "" ] && copycufiles "$udev" "/mnt/sdm/etc/udev/rules.d"
 
 #
 # Set HDMI configuration if requested
@@ -115,6 +130,7 @@ then
     logtoboth /mnt/sdm "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
     sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /mnt/sdm/boot/config.txt
 fi
+
 #
 # Set other config.txt settings (if any)
 #
@@ -170,6 +186,7 @@ then
     logtoboth /mnt/sdm "> Set rpi-eeprom to '$eeprom'"
     sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
 fi
+
 #
 # Add requested command(s) to /etc/rc.local
 # ** Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
