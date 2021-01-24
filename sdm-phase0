@@ -8,9 +8,7 @@ function dodt() {
     # $1 = name (either "dtoverlay" or "dtparam"
     # $2 = value(s)
     #
-    dtname="$1"
-    dtvalues="$2"
-    sifs="$IFS"
+    local dtname="$1" dtvalues="$2" sifs="$IFS" citems=() c
     IFS=""
     if [ "$dtvalues" != "" ]
     then
@@ -34,7 +32,7 @@ function copycufiles() {
     # $1 has list of "|"-separated files to copy
     # $2 has destination directory
     #
-    sifs="$IFS"
+    local citems=() fl sifs="$IFS"
     IFS=""
     readarray -d\| citems <<< "$1"
     for fl in ${citems[@]}
@@ -110,7 +108,7 @@ done
 #
 # Copy user-specified motd file into the image
 #
-[ "$motd" != "" ] && logtoboth /mnt/sdm "> Copy file '$motd' to /mnt/sdm/etc/motd" mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
+[ "$motd" != "" ] && logtoboth /mnt/sdm "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
 
 #
 # Copy user-specified sysctl config file into the image

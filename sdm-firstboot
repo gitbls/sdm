@@ -65,7 +65,7 @@ function readusbcreds() {
     # Find the credentials
     # NOTE: Doesn't handle # character in password. What about others?
     #
-    tmpf=$(mktemp -q /tmp/getcred.XXXX)
+    local tmpf=$(mktemp -q /tmp/getcred.XXXX)
     if [ ! -f /mnt/$wifile ]
     then
 	logger "? FirstBoot: Local Settings File '$wifile' Not Found on USB $sdx"

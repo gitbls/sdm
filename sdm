@@ -53,16 +53,19 @@ function ismounted() {
 }
 
 function domount() {
+    local p1="1" p2="2"
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
-    if [ $dimgdev -eq 0 ]
+    if [ $fdirtree -eq 1 ]
+    then
+	mount --bind $dimg      /mnt/sdm
+	mount --bind $dimg/boot /mnt/sdm/boot
+    elif [ $dimgdev -eq 0 ]
     then
 	echo "Mounting IMG '$dimg'"
 	loop=$(losetup --show -P -f $dimg)
 	mount -v ${loop}p2 /mnt/sdm
 	mount -v ${loop}p1 /mnt/sdm/boot
     else
-	p1="1"
-	p2="2"
 	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	echo "Mounting device '$dimg'"
 	mount -v ${dimg}${p2} /mnt/sdm
@@ -123,7 +126,7 @@ function poptcheck() {
     # Check options settings against valid settings
     # Report errors and exit
     #
-    local popt="$1" vopt="$2" switchname="$3" badopt="" nopt=""
+    local popt="$1" vopt="$2" switchname="$3" badopt="" nopt="" xopt=() o os badopt
     if [ "$popt" != "" ]
     then
 	readarray -d, xopt <<< $popt
@@ -152,6 +155,7 @@ function findappfile() {
     # Updates app/xapp output variable with actual file location
     # or the value of $1 if it's not a file location (no leading '@')
     #
+    local fn fnc
     if [ "${1:0:1}" == "@" ]
     then
 	fn="${1:1:999}"
@@ -179,7 +183,7 @@ function getapplist() {
     # $1 has list of apps or @file with list of apps
     # $2 has variable name to set with list of apps
     #
-    local lapps=""
+    local lapps="" newapp fn
     if [ "${1:0:1}" == "@" ]
     then
 	fn="${1:1:999}"
@@ -222,6 +226,7 @@ function setbootset() {
     #
     # Handle --bootset, --svcdisable and --svcenable for customize and burn commands
     #
+    local citems=() c key value
     if [ "$bootsetpairs" != "" ]
     then
 	readarray -d, citems <<< $bootsetpairs
@@ -260,7 +265,7 @@ function checkfilelist() {
     #
     # $1 has list of "|"-separated files
     # $2 has name of switch (--switchname)
-    sifs="$IFS"
+    local sifs="$IFS" citems=() fl
     IFS=""
     readarray -d\| citems <<< "$1"
     for fl in ${citems[@]}
@@ -387,6 +392,7 @@ Command Switches for --customize and --burn or as noted
  --custom[1-4] str   Can be used in Custom cscripts
  --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
  --ddsw str          Switches for dd command [bs=16M oflag=direct]
+ --directory         sd-image-file is a directory tree rather than an IMG
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
  --dtoverlay         Add dtoverlay=string setting to /boot/config.txt
@@ -434,7 +440,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.24"
+version="V3.25"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -469,6 +475,7 @@ eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
 exports=""                  #If set, copy file to /etc/exports
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
+fdirtree=0                  #1=source is a directory tree, not an IMG or device
 fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
@@ -531,7 +538,7 @@ cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,\
-cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,\
+cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
@@ -577,6 +584,7 @@ do
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
 	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
+        --directory)   fdirtree=1    ; shift 1 ;;
 	--dtoverlay)   [ "$dtoverlay" == "" ] && dtoverlay="$2" || dtoverlay="$dtoverlay|$2" ; shift 2 ;;
 	--dtparam)     [ "$dtparam" == "" ]   && dtparam="$2"   || dtparam="$dtparam|$2" ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
@@ -692,6 +700,7 @@ cscript="$(fndotfullpath $cscript)"
 [ $fcustomize -eq 1 -a $burning -eq 1 ] && errexit "? Switch conflict: --customize and --burn|--burnfile"
 [ $fcustomize -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --customize and --mount"
 [ $fcustomize -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --customize and --explore"
+[ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
 if [ "$aptmaint" != "" ]
 then
     [ $(($burning+$fcustomize+$fexplore+$fdomount)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
@@ -706,6 +715,7 @@ then
     [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount)"
     fextendonly=1
 fi
+[ $fdirtree -eq 1 ] && fextend=0 && fextendonly=0
 [ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
@@ -739,7 +749,10 @@ exitiferr "$aptmaint"
 #
 [ "$dimg" == "" ] && errexit "? No disk image specified"
 dimgdev=0
-if [ ! -f "$dimg" ]
+if [ $fdirtree -eq 1 ]
+then
+    [ ! -d $dimg ] && errexit "? Cannot find directory '$dimg'"
+elif [ ! -f "$dimg" ]
 then
     [ ! -b $burndev ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
@@ -770,7 +783,7 @@ done
 
 [ "$sysctl" != ""  ] && checkfilelist "$sysctl" "--sysctl"
 [ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
-[ "$motd" != "" ] && checkfilelist "$motd" "$motd|"
+[ "$motd" != "" -a "$motd" != "/dev/null" ] && checkfilelist "$motd" "--motd"
 [ "$udev" != "" ] && checkfilelist "$udev" "--udev"
 
 #
@@ -950,7 +963,12 @@ if [ $fdomount -eq 1 ]
 then
     domount
     echo ""
-    [ $dimgdev -eq 0 ] && echo "IMG '$dimg' mounted on /mnt/sdm" || echo "Device '$dimg' mounted on /mnt/sdm"
+    if [ $fdirtree -eq 1 ]
+    then
+	echo "Directory '$dimg' mounted on /mnt/sdm"
+    else
+	[ $dimgdev -eq 0 ] && echo "IMG '$dimg' mounted on /mnt/sdm" || echo "Device '$dimg' mounted on /mnt/sdm"
+    fi
     echo "** BE VERY CAREFUL! **"
     echo "** Precede all path references by /mnt/sdm or you may modify the running system **"
     echo ""

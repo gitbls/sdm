@@ -8,11 +8,11 @@ function readparams() {
     #
     # $1="/mnt/sdm" if in phase 0, "" if in phase 1
     #
-    local i="$1"
+    local i="$1" sifs=$IFS rpifun value
     [[ "$1" =~ "/mnt/sdm" ]]  && i="/mnt/sdm" || i=""
     if [ -f $i/etc/sdm/cparams ]
     then
-	sifs=$IFS; IFS=":"
+	IFS=":"
 	while read rpifun value
 	do
 	    if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
@@ -47,13 +47,13 @@ function logtoboth {
     # $1="/mnt/sdm" if in phase 0, "" if in phase 1
     # $2="message string" which will be split up
     #
+    local str=() i spc=""
     if [ ${#2} -le 96 ]
     then
 	logit "$1" "$2"
 	echo "$2"
     else
 	readarray -t str <<< $(fold -s -w96 <<< $(echo $2))
-	spc=""
 	for (( i=0 ; i < ${#str[@]} ; i++))
 	do
 	    logit "$1" "${spc}${str[$i]}"
@@ -95,15 +95,12 @@ function sdmuseradd() {
     # $2: UID
     # $3: password
     #
-    GROUPS="dialout,cdrom,floppy,audio,video,plugdev,users"
-    user=$1
+    local groups="dialout,cdrom,floppy,audio,video,plugdev,users"  user=$1 UID=$2 password="$3"
     [ "$user" == "" ] && echo "? Username required"
-    uid=$2
     [ "$uid" == "" ] && echo "? UID required"
-    password="$3"
     useradd -M -d /home/$user --uid $uid $user
     usermod --gid users $user
-    usermod --groups $GROUPS $user
+    usermod --groups $groups $user
     changepwd $user "$password"
 }
 
@@ -121,12 +118,12 @@ function outlong () {
     # Write the string in $1 to the file in $2
     # If the line is too long, it will be split up
     #
+    local str=() i spc=""
     if [ ${#1} -le 96 ]
     then
 	echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $2
     else
 	readarray -t str <<< $(fold -s -w96 <<< $(echo $1))
-	spc=""
 	for (( i=0 ; i < ${#str[@]} ; i++))
 	do
 	    echo "$(date +'%Y-%m-%d %H:%M:%S') ${spc}${str[$i]}" >> $2

@@ -346,7 +346,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See the Captive Portal section below for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
 * `--locale` *localename* &mdash; The locale is specified just as you'd set it in raspi-config. For example, in the USA, one might use en_US.UTF-8, and in the UK en_UK.UTF-8. See /usr/share/i18n/SUPPORTED for a complete locale list.
 * `--modprobe` *file* &mdash; Copy the modprobe file to /etc/modprobe.d. `--modprobe` can be specified multiple times to copy multiple files.
-* `--motd` *file* &mdash; Copy the specified file to /etc/motd. The original /etc/motd is renamed to /etc/motd.orig.
+* `--motd` *file* &mdash; Copy the specified file to /etc/motd. The original /etc/motd is renamed to /etc/motd.orig. You can easily create a null message of the day by using `--motd /dev/null`
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
