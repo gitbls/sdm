@@ -440,7 +440,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.25"
+version="V3.26"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -754,7 +754,7 @@ then
     [ ! -d $dimg ] && errexit "? Cannot find directory '$dimg'"
 elif [ ! -f "$dimg" ]
 then
-    [ ! -b $burndev ] && errexit "? Disk image file or device '$dimg' does not exist"
+    [ ! -b $dimg ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
 fi    
 #

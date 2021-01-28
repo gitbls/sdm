@@ -1,5 +1,9 @@
 # Changelog
 
+## V3.26
+
+* Correct block device check so sdm doesn't try to mount a non-existent IMG file
+
 ## V3.25
 
 * Enable sdm to operate on an OS directory tree with --directory
