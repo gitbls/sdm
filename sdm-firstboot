@@ -339,7 +339,7 @@ fi
 #
 # Now running in the fork
 #
-source /usr/local/sdm/sdm-cparse ; readparams ""
+source /usr/local/sdm/sdm-cparse ; readparams
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
 #
 # Set WiFi Country or load WiFi credentials

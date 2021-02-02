@@ -2,6 +2,13 @@
 #
 # Sample sdm Custom Phase script
 #
+function loadparams() {
+    local cf="/usr/local/sdm/sdm-cparse"
+    [ "$SDMPHASE0" != "" ] && cf="/mnt/sdm/$cf"
+    source $cf
+    readparams
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 
 #
@@ -15,35 +22,35 @@ then
     #
     # In Phase 0 all references to directories in the image must be preceded by /mnt/sdm
     #
-    source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
-    logtoboth /mnt/sdm "* $pfx Phase 0"
+    loadparams
+    logtoboth "* $pfx Phase 0"
 
 # INSERT Your Custom Phase 0 code here
     
-    logtoboth /mnt/sdm "* $pfx Phase 0 Completed"
+    logtoboth "* $pfx Phase 0 Completed"
 
 elif [ "$phase" == "1" ]
 then
     #
     # Phase 1 (in nspawn)
     #
-    source /usr/local/sdm/sdm-cparse ; readparams ""
-    logtoboth "" "* $pfx Phase 1"
+    loadparams
+    logtoboth "* $pfx Phase 1"
     #
     # INSERT your Custom Phase 1 customization stuff here
     # In Phase 1 all references to directories in the image can be direct
     #
-    logtoboth "" "* $pfx Phase 1 Completed"
+    logtoboth "* $pfx Phase 1 Completed"
 else
     #
     # Post-install edits
     #
-    source /usr/local/sdm/sdm-cparse ; readparams ""
-    logtoboth "" "* $pfx Custom Phase post-install"
+    loadparams
+    logtoboth "* $pfx Custom Phase post-install"
     #
     # INSERT Your Custom Phase post-install code here
     # In Phase post-install all references to directories in the image can be direct
     #
 
-    logtoboth "" "* $pfx Custom Phase post-install Completed"
+    logtoboth "* $pfx Custom Phase post-install Completed"
 fi

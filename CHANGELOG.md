@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.00
+
+* Rework readparams, logit, and logtoboth. If you are using a Custom Phase Script, you'll need to edit it and remove the first argument to logit and logtoboth. They now only take one argument, the string to be output. If you don't do this, you'll see blank lines, or lines with "/mnt/sdm".
+* Add --domain domainname. This is not used by sdm, but is available for use in your Custom Phase Script
+* Write hostname to cparams when burning
+
 ## V3.26
 
 * Correct block device check so sdm doesn't try to mount a non-existent IMG file

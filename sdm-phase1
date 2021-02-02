@@ -9,13 +9,13 @@ function doinstalls() {
     #
     if [ "$1" != "" ]
     then
-	logtoboth "" "* Start $2"
-	logtoboth "" "> ${2}: $1"
+	logtoboth "* Start $2"
+	logtoboth "> ${2}: $1"
 	[ $aptconfirm -eq 1 ] && yes="" || yes="-y"
 	doapt "install --no-install-recommends $yes $1" $showapt
-	logtoboth "" "* $2 Completed"
+	logtoboth "* $2 Completed"
     else
-	logtoboth "" "> Skip $2 per empty package list"
+	logtoboth "> Skip $2 per empty package list"
     fi
 }
 
@@ -38,7 +38,7 @@ rm -f /etc/apt/apt.conf.d/02sdm-myconf
 #
 # Read configuration information from sdm
 #
-source /usr/local/sdm/sdm-cparse ; readparams ""
+source /usr/local/sdm/sdm-cparse ; readparams
 #
 # If --apt just do those and exit
 #
@@ -46,29 +46,29 @@ cmd="$1"
 cmdoptions="$2"
 if [ "$cmd" == "apt" ]
 then
-    logtoboth "" "* Start apt maintenance"
+    logtoboth "* Start apt maintenance"
     [[ "$cmdoptions" =~ "|update|" ]] &&  doapt "--yes update"  0
     [[ "$cmdoptions" =~ "|upgrade|" ]] && upgkeepconf --yes 0
     [[ "$cmdoptions" =~ "|autoremove|" ]] && doapt "--yes autoremove" 0
-    logtoboth "" "* apt maintenance Completed"
+    logtoboth "* apt maintenance Completed"
     exit 0
 fi
-logtoboth "" "* Start Phase 1 image customization"
+logtoboth "* Start Phase 1 image customization"
 #
 # Set up ssh as requested
 #
 if [ "$ssh" == "" ]
 then
-    logtoboth "" "> Enable SSH service via /boot/ssh"
+    logtoboth "> Enable SSH service via /boot/ssh"
     touch /boot/ssh
 elif [ "$ssh" == "socket" ]
 then
-    logtoboth "" "> Enable SSH via ssh.socket"
+    logtoboth "> Enable SSH via ssh.socket"
     systemctl enable ssh.socket > /dev/null 2>&1
     systemctl disable sshswitch.service > /dev/null 2>&1
 elif [ "$ssh" == "none" ]
 then
-    logtoboth "" "> Disable SSH per command switch '--ssh none'"
+    logtoboth "> Disable SSH per command switch '--ssh none'"
     systemctl disable ssh.service > /dev/null 2>&1
 fi
     
@@ -90,16 +90,16 @@ then
     echo ""
     if [ $rootpwd -eq 1 ]
     then
-	logtoboth "" "> Set root password"
+	logtoboth "> Set root password"
 	changepwd root "$samepwd"
     else
-	logtoboth "" "> root password not set"
+	logtoboth "> root password not set"
     fi
 
 
     if [ "$myuser" != "" ]; then
 	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
-	logtoboth "" "> Add user '$myuser' and set password"
+	logtoboth "> Add user '$myuser' and set password"
 	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
@@ -107,21 +107,21 @@ then
 	changepwd $myuser "$samepwd"
 	[ ! -d /home/$myuser ] && mkdir /home/$myuser
 	chown -R $myuser.users /home/$myuser
-	logtoboth "" "> Add user '$myuser' to sudoers.d"
+	logtoboth "> Add user '$myuser' to sudoers.d"
 	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
 	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
     fi
 fi
-logtoboth "" "> Change user 'pi' password"
+logtoboth "> Change user 'pi' password"
 changepwd pi "$samepwd"
-logtoboth "" "> set /home/pi files ownership to 'pi.pi'"
+logtoboth "> set /home/pi files ownership to 'pi.pi'"
 chown -R pi.pi /home/pi
 #
 # Set up sdm-firstboot service. This service processes some settings that can only be done
 # on the first boot of the system.
 # Service will be enabled by creating run.firstboot when SD card is burned with sdm
 #
-logtoboth "" "> Configure sdm-firstboot service"
+logtoboth "> Configure sdm-firstboot service"
 [ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
 cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
@@ -143,10 +143,10 @@ EOF
 if ! [[ "$poptions" =~ "|nofirstboot|" ]]
 then
     systemctl enable sdm-firstboot > /dev/null 2>&1
-    logtoboth "" "> Enable sdm-firstboot service"
+    logtoboth "> Enable sdm-firstboot service"
 else
     systemctl disable sdm-firstboot > /dev/null 2>&1
-    logtoboth "" "> Disable sdm-firstboot service"
+    logtoboth "> Disable sdm-firstboot service"
 fi
 #
 # Set up apt-cacher-ng client if requested
@@ -154,21 +154,21 @@ fi
 if [ "$aptcache" != "" ]
 then
     /usr/local/sdm/sdm-apt-cacher client $aptcache
-    logtoboth "" "> Set image as apt-cacher-ng client using server $aptcache"
+    logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
 fi
 
 if ! [[ "$poptions" =~ "|noupdate|" ]]
 then
-    logtoboth "" "> Start 'apt update'"
+    logtoboth "> Start 'apt update'"
     doapt "update" $showapt
 else
-    logtoboth "" "> Skip 'apt update' per --poption 'noupdate'"
+    logtoboth "> Skip 'apt update' per --poption 'noupdate'"
 fi    
 
 if [ "$cscript" != "" ]
 then
     csfn="/usr/local/sdm/$(basename $cscript)"
-    logtoboth "" "> Run Custom Phase Script '$csfn' Phase 1" 
+    logtoboth "> Run Custom Phase Script '$csfn' Phase 1" 
     $csfn 1
 else
     csfn=""
@@ -182,9 +182,9 @@ then
     mkdir -p /etc/systemd/system/dhcpcd.service.d/
     if [ -f /etc/systemd/system/dhcpcd.service.d/wait.conf ]
     then
-	logtoboth "" "%dhcpcd 'wait for network connection' is already enabled"
+	logtoboth "%dhcpcd 'wait for network connection' is already enabled"
     else
-	logtoboth "" "> Enable dhcpcd 'wait for network connection'"
+	logtoboth "> Enable dhcpcd 'wait for network connection'"
 	cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
 [Service]
 ExecStart=
@@ -196,15 +196,15 @@ fi
 # If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
 if [[ "$loadlocal" =~ "|wifi|" ]]
 then
-    logtoboth "" "> Disable dhcpcd per '--loadlocal wifi"
-    logtoboth "" "  dhcpcd will be re-enabled at the end of First Boot"
+    logtoboth "> Disable dhcpcd per '--loadlocal wifi"
+    logtoboth "  dhcpcd will be re-enabled at the end of First Boot"
     systemctl disable dhcpcd
 fi
 #
 # I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
 #
-logtoboth "" "> Disable wpa_supplicant.service, which is only used by Network Manager and (maybe) hostapd"
-logtoboth "" "  dhcpcd will start an interface-specific wpa_supplicant if needed"
+logtoboth "> Disable wpa_supplicant.service, which is only used by Network Manager and (maybe) hostapd"
+logtoboth "  dhcpcd will start an interface-specific wpa_supplicant if needed"
 systemctl disable wpa_supplicant
 #
 # Handle system settings that can be done in Phase 1
@@ -212,18 +212,18 @@ systemctl disable wpa_supplicant
 #
 if [ "$locale" != "" ]
 then
-    logtoboth "" "> Set Locale to '$locale'"
+    logtoboth "> Set Locale to '$locale'"
     raspi-config do_change_locale "$locale" nonint
 fi
 if [ "$keymap" != "" ]
 then
-    logtoboth "" "> Set Keymap to '$keymap'"
-    logtoboth "" ">!Ignore invoke-rc.d messages"
+    logtoboth "> Set Keymap to '$keymap'"
+    logtoboth ">!Ignore invoke-rc.d messages"
     raspi-config do_configure_keyboard "$keymap" nonint
 fi
 if [ "$timezone" != "" ]
 then
-    logtoboth "" "> Set Timezone to '$timezone'"
+    logtoboth "> Set Timezone to '$timezone'"
     raspi-config do_change_timezone "$timezone" nonint
 fi
 
@@ -245,11 +245,11 @@ then
 fi
 if [[ "$poptions" =~ "|samba|" ]]
 then
-    logtoboth "" "> Install Samba silently"
+    logtoboth "> Install Samba silently"
     hostname $thishost  # For some reason, debconf needs a valid hostname (on the network?) V strange
-    echo "samba-common samba-common/workgroup string  WORKGROUP" | sudo debconf-set-selections
-    echo "samba-common samba-common/dhcp boolean false" | sudo debconf-set-selections
-    echo "samba-common samba-common/do_debconf boolean true" | sudo debconf-set-selections
+    echo "samba-common samba-common/workgroup string  WORKGROUP" | debconf-set-selections
+    echo "samba-common samba-common/dhcp boolean false" | debconf-set-selections
+    echo "samba-common samba-common/do_debconf boolean true" | debconf-set-selections
     doapt "install -y samba" $showapt
     hostname sdm
     didapt=1
@@ -259,15 +259,15 @@ fi
 
 if ! [[ "$poptions" =~ "|noupgrade|" ]]
 then
-    logtoboth "" "> Start 'apt upgrade'"
+    logtoboth "> Start 'apt upgrade'"
     upgkeepconf "$yes" "$showapt"
     didapt=1
 else
-    logtoboth "" "> Skip 'apt upgrade' per --poption 'noupgrade'"
+    logtoboth "> Skip 'apt upgrade' per --poption 'noupgrade'"
 fi    
 if [ $didapt -eq 1 ]
 then
-    logtoboth "" "> Start 'apt autoremove'"
+    logtoboth "> Start 'apt autoremove'"
     doapt "autoremove -y" $showapt
 fi
 #
@@ -276,30 +276,30 @@ fi
 #
 if [ -f /usr/bin/startlxde-pi ]
 then
-    logtoboth "" "> Set RasPiOS Full to 'console no login' for First Boot"
+    logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
     SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
     if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
     then
-	logtoboth "" ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
+	logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
     else
-	logtoboth "" ">%Desktop Autologin will be re-enabled after First Boot"
+	logtoboth ">%Desktop Autologin will be re-enabled after First Boot"
 	echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
     fi
 fi
 
-logtoboth "" "* Phase 1 Completed"
+logtoboth "* Phase 1 Completed"
 
-[ "$csfn" != "" ] && logtoboth "" "> Run Custom Phase Script '$csfn' post-install" && $csfn post-install
+[ "$csfn" != "" ] && logtoboth "> Run Custom Phase Script '$csfn' post-install" && $csfn post-install
 
 echo ""
 if [ $batch -eq 0 ]
 then
-    logtoboth "" "* Enter Shell Command Prompt"
+    logtoboth "* Enter Shell Command Prompt"
     IFS=":" read efg ebg ecursor <<< $ecolors
     stermcolors "$efg" "$ebg" "$ecursor" x1
     bash -i
     resetcolors x1
 else
-    logtoboth "" "* Batch Mode exit"
+    logtoboth "* Batch Mode exit"
     echo ""
 fi

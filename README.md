@@ -226,7 +226,7 @@ The following can only be set in the context of a running system, so are set dur
 * **powerled** &mdash; **0**:Enable disk activity flashing on Power LED, **1**:Power LED always on (Pi Zero and Pi400 only)
 * **audio** &mdash; Set the audio setting. Valid settings are: **0**:Auto, **1**:Force 3.5mm jack, **2**:Force HDMI
 * **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1**:4Kp60, **V2**:Analog TV out, **V3**:Disable both 4Kp60 and Analog
-* **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1**:Text console no autologin, **B2**:Text console with autologin, **B3**:Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin
+* **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1**:Text console no autologin, **B2**:Text console with autologin, **B3**:Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin. **NOTE:** If `--user` was specified, autologin will be set for that user. If not, user "pi" is enabled.
 * **boot_order** &mdash; Set the boot order. Valid settings are: **B1**:Boot from USB device if SD Card boot fails, **B2**:Network boot if SD Card boot fails. See the "Boot Order" section below.
 * **overclock** &mdash; Enable overclocking. Valid settings are: **None**, **Modest**, **Medium**, **High**, **Turbo**. This setting is for Pi 1 and 2 only and will silently fail on all other Pi models.
 

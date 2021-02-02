@@ -12,7 +12,7 @@ function dodt() {
     IFS=""
     if [ "$dtvalues" != "" ]
     then
-	logtoboth /mnt/sdm "> Add new $dtname settings to /boot/config.txt"
+	logtoboth "> Add new $dtname settings to /boot/config.txt"
 	echo "" >> /mnt/sdm/boot/config.txt
 	echo "# $dtname items added by sdm --$dtname" >> /mnt/sdm/boot/config.txt
 	readarray -d\| citems <<< $dtvalues
@@ -20,7 +20,7 @@ function dodt() {
 	do
 	    c="${c%|}"
 	    c="${c/$'\n'}"
-	    logtoboth /mnt/sdm ">  $dtname $c"
+	    logtoboth ">  $dtname $c"
 	    echo "$dtname=$c" >> /mnt/sdm/boot/config.txt
 	done
     fi
@@ -39,7 +39,7 @@ function copycufiles() {
     do
 	fl="${fl%|}"
 	fl="${fl/$'\n'}"
-	logtoboth /mnt/sdm "> Copy file '$fl' to $2"
+	logtoboth "> Copy file '$fl' to $2"
 	cp $fl $2
     done
     IFS="$sifs"
@@ -48,13 +48,13 @@ function copycufiles() {
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
-source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams /mnt/sdm
+source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams
 
-logtoboth /mnt/sdm "* Start Phase 0 image customization"
+logtoboth "* Start Phase 0 image customization"
 
 if [ "$wpaconf" != "" ]
 then
-    logtoboth /mnt/sdm "> Copy wpa supplicant configuration from '$wpaconf'"
+    logtoboth "> Copy wpa supplicant configuration from '$wpaconf'"
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 else
@@ -66,7 +66,7 @@ fi
 #
 if [ "$dhcpcd" != "" ]
 then
-    logtoboth /mnt/sdm "> Append dhcpcd.conf extension '$dhcpcd' to /etc/dhcpcd.conf"
+    logtoboth "> Append dhcpcd.conf extension '$dhcpcd' to /etc/dhcpcd.conf"
     cat $dhcpcd >> /mnt/sdm/etc/dhcpcd.conf
 #    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
@@ -76,7 +76,7 @@ fi
 #
 if [ "$exports" != "" ]
 then
-    logtoboth /mnt/sdm "> Copy file '$exports' to /etc/exports"
+    logtoboth "> Copy file '$exports' to /etc/exports"
     cp $exports /mnt/sdm/etc/exports
 fi
 
@@ -85,7 +85,7 @@ fi
 #
 if [ "$fstab" != "" ]
 then
-    logtoboth /mnt/sdm "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
+    logtoboth "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
     cp $fstab /mnt/sdm/etc/sdm/assets
     echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
@@ -108,7 +108,7 @@ done
 #
 # Copy user-specified motd file into the image
 #
-[ "$motd" != "" ] && logtoboth /mnt/sdm "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
+[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
 
 #
 # Copy user-specified sysctl config file into the image
@@ -125,13 +125,13 @@ done
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    logtoboth /mnt/sdm "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /boot/config.txt"
+    logtoboth "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /boot/config.txt"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
 fi
 if [ "$hdmiforcehotplug" == "1" ]
 then
-    logtoboth /mnt/sdm "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
+    logtoboth "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
     sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /mnt/sdm/boot/config.txt
 fi
 
@@ -140,22 +140,22 @@ fi
 #
 if [ "$bootconfig" != "" ]
 then
-    logtoboth /mnt/sdm "> Update /boot/config.txt for bootconfig: $bootconfig"
+    logtoboth "> Update /boot/config.txt for bootconfig: $bootconfig"
     readarray -d, citems <<< $bootconfig
     for c in ${citems[@]}
     do
 	IFS=":=" read key value <<< $c
 	value="${value%,}"
 	sed -i "s/\#$key=.*/$key=$value/" /mnt/sdm/boot/config.txt
-	logtoboth /mnt/sdm ">  $key=$value"
+	logtoboth ">  $key=$value"
     done
 fi
 if [ "$bootadd" != "" ]
 then
     if ! grep -q 'Following items added by sdm --bootadd' /mnt/sdm/boot/config.txt
     then
-	logtoboth /mnt/sdm "> Add new keys to /boot/config.txt"
-	logtoboth /mnt/sdm "> Update /boot/config.txt for bootadd: $bootadd"
+	logtoboth "> Add new keys to /boot/config.txt"
+	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
 	echo "# Following items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
 	readarray -d, citems <<< $bootadd
 	for c in ${citems[@]}
@@ -163,11 +163,11 @@ then
 	    IFS=":=" read key value <<< $c
 	    value="${value%,}"
 	    echo "$key=$value" >> /mnt/sdm/boot/config.txt
-	    logtoboth /mnt/sdm ">  $key=$value"
+	    logtoboth ">  $key=$value"
 	done
 	echo "# Above items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
     else
-	logtoboth /mnt/sdm "> /boot/config.txt already updated for --bootadd; skipping"
+	logtoboth "> /boot/config.txt already updated for --bootadd; skipping"
     fi
 fi
 #
@@ -187,7 +187,7 @@ fi
 
 if [ "$eeprom" != "" ]
 then
-    logtoboth /mnt/sdm "> Set rpi-eeprom to '$eeprom'"
+    logtoboth "> Set rpi-eeprom to '$eeprom'"
     sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
 fi
 
@@ -197,7 +197,7 @@ fi
 #
 if [ "$rclocal" != "" ]
 then
-    logtoboth /mnt/sdm "> Add commands to /etc/rc.local"
+    logtoboth "> Add commands to /etc/rc.local"
     grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
     sifs="$IFS"
     IFS=""
@@ -206,7 +206,7 @@ then
     do
 	c="${c%|}"
 	c="${c/$'\n'}"
-	logtoboth /mnt/sdm ">  $c"
+	logtoboth ">  $c"
 	echo "$c" >> /mnt/sdm/tmp/rc.local
     done
     echo "exit 0" >> /mnt/sdm/tmp/rc.local
@@ -218,8 +218,8 @@ fi
 if [ "$cscript" != "" ]
 then
     csfn="/mnt/sdm/usr/local/sdm/$(basename $cscript)"
-    logtoboth /mnt/sdm "> Run Custom Phase Script '$csfn' Phase 0"
+    logtoboth "> Run Custom Phase Script '$csfn' Phase 0"
     $csfn 0
 fi
 
-logtoboth /mnt/sdm "* Phase 0 Completed"
+logtoboth "* Phase 0 Completed"

@@ -307,6 +307,7 @@ csrc:$csrc
 datefmt:$datefmt
 dhcpcd:$dhcpcd
 dhcpcdwait:$dhcpcdwait
+domain:$domain
 dtoverlay:$dtoverlay
 dtparam:$dtparam
 ecolors:$ecolors
@@ -316,6 +317,7 @@ fstab:$fstab
 hdmiforcehotplug:$hdmiforcehotplug
 hdmigroup:$hdmigroup
 hdmimode:$hdmimode
+hostname:$hostname
 keymap:$keymap
 loadlocal:$loadlocal
 locale:$locale
@@ -395,6 +397,7 @@ Command Switches for --customize and --burn or as noted
  --directory         sd-image-file is a directory tree rather than an IMG
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
+ --domain name       Domain name (for your use; sdm does not use this)
  --dtoverlay         Add dtoverlay=string setting to /boot/config.txt
  --dtparam           Add dtparam=string setting to /boot/config.txt
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
@@ -440,7 +443,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V3.26"
+version="V4.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -468,6 +471,7 @@ datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M oflag=direct"  #Switches for dd
 dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
 dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
+domain=""                   #--domain name
 dtoverlay=""                #Collected --dtoverlay settings
 dtparam=""                  #Collected --dtparam settings
 ecolors="blue:gray:red"     #fg:bg:cursor
@@ -486,6 +490,7 @@ hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
+hostname=""                 #Written to cparams during --burn
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
 keymap=""                   #Keyboard configuration
 infocmd=0                   #1=--info command
@@ -539,7 +544,7 @@ longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
-dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
+domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,modprobe:,motd:,mount,norestart,noreboot,nspawnsw:,\
@@ -585,6 +590,7 @@ do
 	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
 	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
+	--domain)      domain=$2     ; shift 2 ;;
 	--dtoverlay)   [ "$dtoverlay" == "" ] && dtoverlay="$2" || dtoverlay="$dtoverlay|$2" ; shift 2 ;;
 	--dtparam)     [ "$dtparam" == "" ]   && dtparam="$2"   || dtparam="$dtparam|$2" ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
@@ -887,7 +893,9 @@ then
 	bkeymap="$keymap"
 	btimezone="$timezone"
 	bwpaconf="$wpaconf"
-	readparams /mnt/sdm                    # Read settings from the SD card
+	declare -x SDMPHASE0="PHASE0" # Force readparams to use /mnt/sdm
+	readparams                    # Read settings from the SD card
+	unset SDMPHASE0
         [ $breboot -eq 1 ] && reboot=$breboot
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
         [ $bscript -eq 1 ] && bootscripts=$bscript  #If we weren't set to run scripts, use setting from IMG
@@ -934,6 +942,7 @@ then
 	    [ -f $bwpaconf ] && cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
 	fi
+	hostname="$hname"         # So it gets written to updated params on SD card
 	setbootset    # Handle --bootset settings
   	writeconfig                  # Write updated params to the SD card
 	[ $rebootwait -ne $drebootwait ] && wmsg=" with a $rebootwait second wait" || wmsg=""
@@ -1052,6 +1061,7 @@ else
 	    echo ""
 	fi
     fi
+    declare -x SDMPHASE0="PHASE0"
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
@@ -1070,21 +1080,21 @@ else
     [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
     cp -f $src/1piboot/*.sh /mnt/sdm/usr/local/sdm/1piboot
     chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
-    logtoboth /mnt/sdm "* Start Configuration"
-    logtoboth /mnt/sdm "> Command Line: $cmdline"
-    logtoboth /mnt/sdm "> Copy sdm to /usr/local/sdm in the IMG"   # Yes, already done above ;)
+    logtoboth "* Start Configuration"
+    logtoboth "> Command Line: $cmdline"
+    logtoboth "> Copy sdm to /usr/local/sdm in the IMG"   # Yes, already done above ;)
     if [ $loadl10n -eq 1 ]
     then
 	readl10n
-	logtoboth /mnt/sdm "> Load Localization (L10N) settings from running system"
-	logtoboth /mnt/sdm "> * Keymap:       $keymap"
-	logtoboth /mnt/sdm "> * Locale:       $locale"
-	logtoboth /mnt/sdm "> * Timezone:     $timezone"
-	logtoboth /mnt/sdm "> * WiFi Country: $wificountry"
+	logtoboth "> Load Localization (L10N) settings from running system"
+	logtoboth "> * Keymap:       $keymap"
+	logtoboth "> * Locale:       $locale"
+	logtoboth "> * Timezone:     $timezone"
+	logtoboth "> * WiFi Country: $wificountry"
     fi
     if [ "$pi1bootconf" != "" ]
     then
-	logtoboth /mnt/sdm "> Copy Custom 1piboot.conf '$pi1bootconf' to the IMG"
+	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the IMG"
 	cp $pi1bootconf /mnt/sdm/etc/sdm/1piboot.conf
 	cp $pi1bootconf /mnt/sdm/usr/local/sdm/1piboot                                         #Drop a copy in /usr/local/sdm in the IMG
     else
@@ -1093,7 +1103,7 @@ else
     chmod 644 /mnt/sdm/etc/sdm/1piboot.conf
     if [ "$cscript" != "" ]
     then
-	logtoboth /mnt/sdm "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the IMG"
+	logtoboth "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the IMG"
 	cp $cscript /mnt/sdm/usr/local/sdm
     fi
     chmod 755 /mnt/sdm/usr/local/sdm/*
@@ -1108,6 +1118,7 @@ else
     # Perform Phase 0 on the image
     #
     /mnt/sdm/usr/local/sdm/sdm-phase0
+    unset SDMPHASE0
     touch $sdmdone
     
     echo "* nspawn into image '$dimg' for Phase 1"

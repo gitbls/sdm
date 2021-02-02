@@ -1,16 +1,14 @@
 #!/bin/bash
 #
-# This file is sourced by some sdm-related scripts
+# This file is sourced by other sdm scripts
 #
 function readparams() {
     #
     # Restores the global variables from /etc/sdm/cparams
     #
-    # $1="/mnt/sdm" if in phase 0, "" if in phase 1
-    #
-    local i="$1" sifs=$IFS rpifun value
-    [[ "$1" =~ "/mnt/sdm" ]]  && i="/mnt/sdm" || i=""
-    if [ -f $i/etc/sdm/cparams ]
+    local sifs=$IFS rpifun value cf="/etc/sdm/cparams"
+    [ "$SDMPHASE0" != "" ] && cf="/mnt/sdm/$cf"
+    if [ -f $cf ]
     then
 	IFS=":"
 	while read rpifun value
@@ -25,7 +23,7 @@ function readparams() {
 		value="${value#\'}"     # Del closing single-quotes 
 		eval "${rpifun}=\"$value\""
 	    fi
-	done < $i/etc/sdm/cparams
+	done < $cf
 	IFS=$sifs
     fi
 }
@@ -35,28 +33,32 @@ function readparams() {
 #
 function logit {
     #
-    # $1="/mnt/sdm" if in phase 0, "" if in phase 1
-    # $2="message string"
-    echo "$(thisdate) $2" >> $1/etc/sdm/history
+    # Writes message to /etc/sdm/history
+    #
+    # $1="message string"
+    #
+    local mnt=""
+    [ "$SDMPHASE0" != "" ] && mnt="/mnt/sdm"
+    echo "$(thisdate) $1" >> $mnt/etc/sdm/history
 }
 
 function logtoboth {
     #
     # Writes the message to the terminal and also to /etc/sdm/history
     #
-    # $1="/mnt/sdm" if in phase 0, "" if in phase 1
-    # $2="message string" which will be split up
+    # $1="message string" which will be split up across multiple lines if needed
     #
+    local msg="$1"
     local str=() i spc=""
-    if [ ${#2} -le 96 ]
+    if [ ${#msg} -le 96 ]
     then
-	logit "$1" "$2"
-	echo "$2"
+	logit "$msg"
+	echo "$msg"
     else
-	readarray -t str <<< $(fold -s -w96 <<< $(echo $2))
+	readarray -t str <<< $(fold -s -w96 <<< $(echo $msg))
 	for (( i=0 ; i < ${#str[@]} ; i++))
 	do
-	    logit "$1" "${spc}${str[$i]}"
+	    logit "${spc}${str[$i]}"
 	    echo "${spc}${str[$i]}"
 	    spc="  "
 	done
