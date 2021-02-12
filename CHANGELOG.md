@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.01
+
+* EZinstaller update to make LAN-based testing easier
+* Improve some help text
+* Only copy "known" 1piboot/*.sh files when copying sdm into an image. If you have other scripts you want in the image, copy them using a Custom Phase Script.
+
 ## V4.00
 
 * Rework readparams, logit, and logtoboth. If you are using a Custom Phase Script, you'll need to edit it and remove the first argument to logit and logtoboth. They now only take one argument, the string to be output. If you don't do this, you'll see blank lines, or lines with "/mnt/sdm".
