@@ -64,7 +64,9 @@ fi
 #
 [ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
 
-src="https://raw.githubusercontent.com/gitbls/sdm/master"
+[ "$SDMLAN" != "" ] && src=$SDMLAN || src="https://raw.githubusercontent.com/gitbls/sdm/master"
+[ "$SDMLAN" != "" ] && curl="scp" || curl="curl"
+
 [ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
 
 $sudo mkdir -p $dir $dir/1piboot
@@ -78,7 +80,12 @@ for f in sdm sdm-phase0 sdm-phase1 sdm-cparse \
 	     1piboot/030-disable-rsyslog.sh
 do
     echo "Downloading '$f' to '$dir/$f'"
-    $sudo curl --silent --show-error -L $src/$f -o $dir/$f
+    if [ "$SDMLAN" == "" ]
+    then
+	$sudo curl --silent --show-error -L $src/$f -o $dir/$f
+    else
+	scp $SDMLAN/$f $dir/$f
+    fi
 done
 
 $sudo chmod -R 755 $dir/*
