@@ -369,7 +369,7 @@ Commands
  --customize         Customize the specified Image file
  --explore           Explore (nspawn shell) into image
  --info what         Display list of Locales, Keymaps, WiFi Countries, or Timezones
- --mount             Mount IMG file partitions and drop into bash
+ --mount             Mount IMG file partitions and drop into interactive bash shell
 Command Switches for --customize and --burn or as noted
  --1piboot conf-file Use alternate 1piboot.conf
  --apps applist      List of app packages to install or @file with list
@@ -384,11 +384,11 @@ Command Switches for --customize and --burn or as noted
  --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
  --bootset key:value,key:value,.. Set boot-time device settings (see README)
  --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
- --cron-d file       Copy provided cron file to /etc/cron.d
- --cron-daily file   Copy provided cron file to /etc/cron.daily
- --cron-hourly file  Copy provided cron file to /etc/cron.hourly
- --cron-monthly file Copy provided cron file to /etc/cron.monthly
- --cron-weekly file  Copy provided cron file to /etc/cron.weekly
+ --cron-d file       Copy provided cron file to /etc/cron.d (can be used multiple times)
+ --cron-daily file   Copy provided cron file to /etc/cron.daily (can be used multiple times)
+ --cron-hourly file  Copy provided cron file to /etc/cron.hourly (can be used multiple times)
+ --cron-monthly file Copy provided cron file to /etc/cron.monthly (can be used multiple times)
+ --cron-weekly file  Copy provided cron file to /etc/cron.weekly (can be used multiple times)
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -398,8 +398,8 @@ Command Switches for --customize and --burn or as noted
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
  --domain name       Domain name (for your use; sdm does not use this)
- --dtoverlay         Add dtoverlay=string setting to /boot/config.txt
- --dtparam           Add dtparam=string setting to /boot/config.txt
+ --dtoverlay         Add dtoverlay=string setting to /boot/config.txt (can be used multiple times)
+ --dtparam           Add dtparam=string setting to /boot/config.txt (can be used multiple times)
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
  --eeprom str        Set the Pi eeprom directory
  --exports file      Copy named file to /etc/exports
@@ -414,22 +414,22 @@ Command Switches for --customize and --burn or as noted
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
  --locale localename Set the Locale
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
- --modprobe file     Copy provided file to /etc/modprobe.d
+ --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
  --nspawnsw str      Additional switches for nspawn command
  --poptions str      Set Phase 1 auto-run options
- --norestart         Do not restart after first boot
- --rclocal string    Add string as a command in /etc/rc.local
+ --norestart         Do not restart after first boot (use on --burn command)
+ --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
  --reboot n          Restart the first boot of the system after n seconds
- --restart           Restart the first boot of the system
+ --restart           Restart the first boot of the system after 20 seconds
  --rootpwd           Set a root password into the image
  --showapt           Display apt output as well as logging it
  --ssh none|socket   No ssh or ssh sockets [Default: ssh service]
  --svcdisable svc1,svc2,... Disable the named services
  --svcenable  svc1,svc2,... Enable  the named services
- --sysctl file       Copy the named file to /etc/sysctl.d
+ --sysctl file       Copy the named file to /etc/sysctl.d (can be used multiple times)
  --timezone tzname   Set the Timezone
- --udev file         Copy provided udev rules file to /etc/udev/rules.d
+ --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
  --uid uid           UID for non-root user [next free]
  --user username     Create non-root user
  --wifi-country country Set WiFi Country for unblocking WiFi
@@ -443,7 +443,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.0"
+version="V4.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -646,6 +646,7 @@ do
 done
 
 dimg="$1"
+[ "${dimg,,}" == "help" ] && printhelp && exit
 src=$(dirname $0)
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
 source /usr/local/sdm/sdm-cparse           # Get function defs
@@ -1078,7 +1079,7 @@ else
     chmod 755 /mnt/sdm/usr/local/sdm/*
     [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
     [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
-    cp -f $src/1piboot/*.sh /mnt/sdm/usr/local/sdm/1piboot
+    cp -f $src/1piboot/{010-disable-triggerhappy.sh,030-disable-rsyslog.sh} /mnt/sdm/usr/local/sdm/1piboot
     chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
     logtoboth "* Start Configuration"
     logtoboth "> Command Line: $cmdline"
