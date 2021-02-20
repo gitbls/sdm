@@ -323,6 +323,7 @@ loadlocal:$loadlocal
 locale:$locale
 modprobe:$modprobe
 motd:$motd
+groups:$groups
 myuid:$myuid
 myuser:$myuser
 pi1bootconf:$pi1bootconf
@@ -338,6 +339,8 @@ ssh:$ssh
 sysctl:$sysctl
 timezone:$timezone
 udev:$udev
+vnc:$vnc
+vncbase:$vncbase
 wificountry:$wificountry
 wpaconf:$wpaconf
 fnowpa:$fnowpa
@@ -405,6 +408,8 @@ Command Switches for --customize and --burn or as noted
  --exports file      Copy named file to /etc/exports
  --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
  --fstab file        Append file to /etc/fstab
+ --groups list,of,groups Use this list of groups for user created with --user
+                     [dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio]
  --hdmi-force-hotplug Set hdmi_force_hotplug=1 in /boot/config.txt
  --hdmigroup n       Set /boot/config.txt hdmigroup value
  --hdmimode n        Set /boot/config.txt hdmimode value
@@ -432,6 +437,7 @@ Command Switches for --customize and --burn or as noted
  --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
  --uid uid           UID for non-root user [next free]
  --user username     Create non-root user
+ --vnc name,res1,res2,...,resx Enable tight or tiger VNC server with specified resolutions
  --wifi-country country Set WiFi Country for unblocking WiFi
  --wpa wpaconf       wpa_supplicant.conf file to use
  --nowpa             Do not do WPA config file processing
@@ -443,7 +449,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.1"
+version="V4.02"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -486,6 +492,7 @@ fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
 fnowpa=0                    #1=I really man no automatic no wpa config
 fstab=""                    #Append this custom fstab to /etc/fstab
+groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
 hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
@@ -516,9 +523,11 @@ timezone=""                 #Timezone setting
 udev=""                     #Copy named udev files to /etc/udev/rules.d
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
-vpoptions="|apps|nofirstboot|noupdate|noupgrade|samba|xwindows|xapps|" #Valid --poptions
+vpoptions="|apps|nofirstboot|noupdate|noupgrade|nodmconsole|samba|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
+vnc=""                      #--vnc arguments
+vncbase="5900"              # Base port for VNC socket services
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
 xapps=""                    #List of X apps to install in sdm-X-installs
@@ -545,12 +554,12 @@ batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
-fstab:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
+fstab:,groups:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,modprobe:,motd:,mount,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
 rootpwd,showapt,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
-wifi-country:,wificountry:,xapps:,xmb:,\
+vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
 OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
@@ -599,6 +608,7 @@ do
 	--exports)     exports=$2    ; shift 2 ;;
 	--extend)      fextend=1     ; shift 1 ;;
 	--fstab)       fstab=$2      ; shift 2 ;;
+	--groups)      groups=$2     ; shift 2 ;;
 	--hdmi-force-hotplug) hdmiforcehotplug=1 ; shift 1 ;;
 	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
@@ -630,6 +640,8 @@ do
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
+	--vnc)         vnc="$2"      ; shift 2 ;;
+	--vncbase)     vncbase="$2"  ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
 	--xapps)       xapps="$2"    ; shift 2 ;;
@@ -792,7 +804,10 @@ done
 [ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
 [ "$motd" != "" -a "$motd" != "/dev/null" ] && checkfilelist "$motd" "--motd"
 [ "$udev" != "" ] && checkfilelist "$udev" "--udev"
-
+if [ "$vnc" != "" ]
+then
+    ! [[ "$vnc" =~ "tiger" ]] && ! [[ "$vnc" =~ "tight" ]] && errexit "? --vnc argument must contain 'tiger' or 'tight'"
+fi
 #
 # parse and set ecolors
 #
@@ -840,7 +855,7 @@ then
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
 	echo "$ddcmd"
 	$ddcmd
-	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	[ $? -ne 0 ] && errexit "? dd error"
 	burnmsg+=("$(thisdate) > dd Copy completed")
 	# Prevent mount errors
 	sync ; sync

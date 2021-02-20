@@ -69,6 +69,8 @@ What else can sdm do? Here are a few examples:
 
 * **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system
 
+* **Install and configure VNC** &mdash; Have every system come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops.
+
 * **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab
 
 * **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm
@@ -325,6 +327,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--eeprom` *value* &mdash; Change the eeprom value in /etc/default/rpi-eeprom-update. The RasPiOS default is 'critical', which is fine for most users. Change only if you know what you're doing.
 * `--exports` *file* &mdash; Copy the specified file into the image as /etc/exports
 * `--fstab` *file* &mdash; Append the contents of the specified file to /etc/fstab in the Customized Image. This is useful if you want the same /etc/fstab entries on your RasPiOS systems.
+* `--groups` *grouplist* &mdash; Specify the groups to be added to new user created with `--user`. The default list is: dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio
 * `--hdmi-force-hotplug` &mdash; Enable the hdmi_force_hotplug setting in /boot/config.txt
 * `--hdmigroup` *num* &mdash; hdmigroup setting in /boot/config.txt
 * `--hdmimode` *num* &mdash; hdmimode setting in /boot/config.txt
@@ -352,6 +355,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
     *  **apps** &mdash; install the *apps*
     * **noupdate** &mdash; do not do an `apt update`
+    * **nodmconsole** &mdash; do not enable Display Manager on console (xdm or wdm only)
     * **noupgrade** &mdash; do not do an `apt upgrade`
     * **samba** &mdash; streamlined, promptless Samba install
     * **xapps** &mdash; install the *xapps*
@@ -369,6 +373,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--udev` *file* &mdash; Copy the udev rule file to /etc/udev/rules.d. `--udev` can be specified multiple times to copy multiple files.
 * `--user` *username* &mdash; Specify a username to be created in the IMG. 
 * `--uid` *uid* &mdash; Use the specified uid rather than the next assignable uid for the new user, if created.
+* `--vnc` *args* &mdash; Install VNC into the image. See the Installing/Configuring VNC section below for complete details.
+* `--vncbase` *base* &mdash; Set the base port for VNC virtual desktops; RealVNC Console service is not changed.
 * `--wifi-country` *countryname* &mdash; Specify the name of the country to use for the WiFi Country setting. See /usr/share/zoneinfo/iso3166.tab for the complete WiFi Country code list. Also see the `--l10n` command switch which will extract the current WiFi Country setting from /etc/wpa_supplicant/wpa_supplicant.conf or /etc/wpa_supplicant/wpa_supplicant-wlan0.conf on the system on which sdm is running.
 * `--wpa` *conffile* &mdash; Specify the wpa_supplicant.conf file to use. You can either specify your wpa_supplicant.conf on the command line, or copy it into your image in your sdm-customphase script. See the sample sdm-customphase for an example. `--wpa` can also be specified when burning the SD Card.
 * `--nowpa` &mdash; Use this to tell sdm that you really meant to not provide a wpa_supplicant.conf file. You must either specify `--wpa` or `--nowpa` when customizing an IMG. This is useful if you want to build SD Cards for different networks. You can use `--nowpa` when you customize the IMG, and then specify `--wpa` *conffile* when burning the SD Card.
@@ -390,6 +396,30 @@ A Custom Phase Script is a script provided by you. It is called 3 times: Once fo
 If a Custom Phase Script wants to run a script at boot time, even if `--bootscripts` is not specified, the Custom Phase script should put the script in /etc/sdm/0piboot in the IMG and named 0*-*.sh (e.g., 010-customize-something.sh). These scripts are always run by FirstBoot.
 
 The best way to build a Custom Phase Script is to start with the example Custom Phase Script `sdm-customphase`, and extend it as desired.
+
+## Installing/Configuring VNC
+
+The `--vnc` switch is used to install and configure VNC in your image. The arguments to the `--vnc` switch include:
+
+* **real** &mdash; Install RealVNC. This is only needed on RasPiOS Lite, as it's already installed on RasPiOS Desktop versions
+* **tiger** &mdash; Install TigerVNC server for virtual desktops
+* **tight** &mdash; Install TightVNC server for virtual desktops
+* *resolutions* &mdash; Specify a list of resolutions for virtual desktops
+
+By default Virtual VNC desktops are configured with ports 5901, 5902, ... This can be modified with the `--vncbase` *base* switch. For instance, `--vncbase 6400` would place the VNC virtual desktops at ports 6401, 6402, ...
+
+For RasPiOS Desktop, RealVNC Server will be enabled automatically. Well, actually, it will be disabled for the first boot of the system as will the graphical desktop, and the sdm FirstBoot service will-reenable both for subsequent use.
+
+For RasPiOS Lite, if `--poptions nodmconsole` is specified AND the Display Manager is xdm or wdm, the Display Manager will not be started on the console, and neither will RealVNC Server. It can be started later, if desired, with `sudo systemctl enable --now vncserver-x11-serviced`. Note, however, that you must enable the Display Manager as well for it to really be enabled. To enable the Display Manager:
+
+* **xdm:**&nbsp;`sed -i "s/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers`
+* **wdm:** `sed -i "s/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers`
+
+
+**Examples:**
+
+* `--vnc real,tiger,2540x1350,1880x960,1700x1200,1880x1100` &mdash; Install/enable RealVNC for connecting to the RasPiOS Console on port 5900. Create 4 VNC virtual desktops, each with a different resolution. These VNC Servers are on TCP ports 5901, 5902, 5903, 5904. 
+* `--vnc tiger,1024x768` &mdash; Install TigerVNC Server with one configured virtual desktop resolution on port 5901
 
 ## /etc/fstab
 

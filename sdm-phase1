@@ -19,7 +19,7 @@ function doinstalls() {
     fi
 }
 
-function upgkeepconf () {
+function upgkeepconf() {
     #
     # Write /etc/apt/apt.conf.d/02sdm-myconf
     # Forcing apt to not query about conf file changes
@@ -35,6 +35,24 @@ doapt "$1 upgrade" "$2"
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
+function delaydmenable {
+    #
+    # Disable the display manager in $1 and set for re-enable during First Boot
+    #
+    dm="$1"
+    logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
+    logtoboth "  The sdm FirstBoot process will re-enable it"
+#    [ -L /etc/systemd/system/display-manager.service ] && rm -f /etc/systemd/system/display-manager.service
+    systemctl set-default multi-user.target > /dev/null 2>&1
+    cat > /etc/sdm/0piboot/020-$dm-console.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Re-Enable Display Manager '$dm'"
+#ln -s /lib/systemd/system/$dm.service /etc/systemd/system/display-manager.service
+systemctl set-default graphical.target
+EOF
+    chmod 755 /etc/sdm/0piboot/020-$dm-console.sh
+}
+
 #
 # Read configuration information from sdm
 #
@@ -47,9 +65,9 @@ cmdoptions="$2"
 if [ "$cmd" == "apt" ]
 then
     logtoboth "* Start apt maintenance"
-    [[ "$cmdoptions" =~ "|update|" ]] &&  doapt "--yes update"  0
-    [[ "$cmdoptions" =~ "|upgrade|" ]] && upgkeepconf --yes 0
-    [[ "$cmdoptions" =~ "|autoremove|" ]] && doapt "--yes autoremove" 0
+    [[ "$cmdoptions" =~ "update" ]] &&  doapt "--yes update"  0
+    [[ "$cmdoptions" =~ "upgrade" ]] && upgkeepconf --yes 0
+    [[ "$cmdoptions" =~ "autoremove" ]] && doapt "--yes autoremove" 0
     logtoboth "* apt maintenance Completed"
     exit 0
 fi
@@ -103,7 +121,7 @@ then
 	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
-	usermod --groups dialout,cdrom,floppy,audio,video,plugdev,users $myuser
+	usermod --groups $groups $myuser
 	changepwd $myuser "$samepwd"
 	[ ! -d /home/$myuser ] && mkdir /home/$myuser
 	chown -R $myuser.users /home/$myuser
@@ -140,14 +158,19 @@ GuessMainPID=no
 WantedBy=multi-user.target
 EOF
 # Enable firstboot unless 'nofirstboot' set
-if ! [[ "$poptions" =~ "|nofirstboot|" ]]
+if ! [[ "$poptions" =~ "nofirstboot" ]]
 then
-    systemctl enable sdm-firstboot > /dev/null 2>&1
     logtoboth "> Enable sdm-firstboot service"
+    systemctl enable sdm-firstboot > /dev/null 2>&1
+    #
+    # Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
+    #
+    [ "$wpaconf" != "" ] && logtoboth "> Disable check for /boot/wpa_supplicant (raspberrypi-net-mods); it's already installed" && rm -f /etc/systemd/system/multi-user.target.wants/raspberrypi-net-mods.service
 else
     systemctl disable sdm-firstboot > /dev/null 2>&1
     logtoboth "> Disable sdm-firstboot service"
 fi
+
 #
 # Set up apt-cacher-ng client if requested
 #
@@ -157,7 +180,7 @@ then
     logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
 fi
 
-if ! [[ "$poptions" =~ "|noupdate|" ]]
+if ! [[ "$poptions" =~ "noupdate" ]]
 then
     logtoboth "> Start 'apt update'"
     doapt "update" $showapt
@@ -194,7 +217,7 @@ EOF
 fi
 #
 # If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
-if [[ "$loadlocal" =~ "|wifi|" ]]
+if [[ "$loadlocal" =~ "wifi" ]]
 then
     logtoboth "> Disable dhcpcd per '--loadlocal wifi"
     logtoboth "  dhcpcd will be re-enabled at the end of First Boot"
@@ -238,26 +261,142 @@ then
     doinstalls "$apps" "Application Installs"
     [ "$apps" != "" ] && didapt=1
 fi
-if [[ "$poptions" =~ "|xwindows|" ]] || [[ "$poptions" =~ "|xapps|" ]]
+if [[ "$poptions" =~ "xwindows" ]] || [[ "$poptions" =~ "xapps" ]]
 then
     doinstalls "$xapps" "xapp/XWindows Installs"
     [ "$xapps" != "" ] && didapt=1
 fi
-if [[ "$poptions" =~ "|samba|" ]]
+
+[ $aptconfirm -eq 1 ] && yes="" || yes="--yes"
+
+#
+# Configure VNC if requested
+#
+if [ "$vnc" != "" ]
+then
+    logtoboth "* Configure VNC per command switch --vnc $vnc"
+    if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
+    then
+	! [[ "$vnc" =~ "real" ]] && vnc="real,$vnc"
+    fi
+    vbase="${vncbase-5900}" ; realvnc=""
+    vncp="tigervnc-standalone-server" ; vncserver="" ; citems=() ; sifs="$IFS" ; othervnc="tightvnc"
+    IFS=""
+    readarray -d, citems <<< "$vnc,"
+    n=1
+    for res in ${citems[@]}
+    do
+	res="${res%,}"
+	res="${res/$'\n'}"
+	if [ "$res" != "" ]
+	then
+	    # NOTE that this won't work well if user provides any resolutions before vnc server name(s)
+	    [[ "$res" =~ "tight" ]] && vncserver="tightvnc" && vncp="tightvncserver" && othervnc="tigervnc" && continue
+	    [[ "$res" =~ "tiger" ]] && vncserver="tigervnc" && continue
+	    [[ "$res" =~ "real" ]]  && realvnc="realvnc-vnc-server" && continue
+	    [ "$vncserver" == "" ] && logtoboth "% --vnc did not specify 'tight' or 'tiger', assuming 'tiger'" && vncserver="tigervnc"
+	    port=$(($vbase+$n))
+	    logtoboth "> Create $vncserver Service xvnc$n Port $port Resolution $res"
+	    cat > /etc/systemd/system/xvnc$n.socket <<EOF
+[Unit]
+Description=XVNC Server $n
+
+[Socket]
+ListenStream=$port
+Accept=yes
+
+[Install]
+WantedBy=sockets.target
+EOF
+	    stype="-SecurityTypes None"
+	    [ "$vncserver" == "tightvnc" ] && stype="" # TightVNC appears not to support this
+	    cat > /etc/systemd/system/xvnc$n@.service <<EOF
+[Unit]
+Description=XVNC Per-Connection Daemon $n
+
+[Service]
+ExecStart=-/usr/bin/X${vncserver} -inetd -query 127.0.0.1 -geometry $res -pn -once $stype
+User=nobody
+StandardInput=socket
+StandardOutput=socket
+StandardError=syslog
+EOF
+	    systemctl enable xvnc$n.socket > /dev/null 2>&1
+	    n=$(($n+1))
+	fi
+    done
+    #
+    # Ensure VNC server is installed (install if not), and ensure one of lightdm or xdm is installed
+    #
+    if ! dpkg-query -s $vncp > /dev/null 2&>1
+    then
+	[ -f /usr/bin/X${othervnc} ] && logtoboth "% '$othervnc' is installed as well as the requested '$vncserver'"
+	# This VV does not work here. Why? It's done outside of the 'if vnc' block where it works
+	#doapt "install --yes $vncp" "$showapt"
+    else
+	vncp="" 
+    fi
+
+    [ ! -f /etc/lightdm/lightdm.conf -a ! -d /etc/X11/xdm -a ! -d /etc/X11/wdm ] && logtoboth "% No known Display Manager installed; no Display Manager processing will be done"
+    if [ -d /etc/X11/xdm ]
+    then
+	logtoboth "> Configure xdm for VNC"
+	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/xdm/xdm-config
+	sed -i "s/\#\*					#any host can get a login window/\*					#any host can get a login window/"  /etc/X11/xdm/Xaccess
+    fi
+    if [ -f /etc/lightdm/lightdm.conf ]
+    then
+	logtoboth "> Configure lightdm for VNC"
+	sed -i "s/\[XDMCPServer\]/\[XDMCPServer\]\nenabled=true\nport=177/" /etc/lightdm/lightdm.conf
+    fi
+    if [ -d /etc/X11/wdm ]
+    then
+	logtoboth "> Configure wdm for VNC"
+	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
+    fi
+    IFS="$sifs"
+fi
+# For some reason this VV works outside the 'if vnc' block, but not inside ;(
+[ "$vncp" != "" ] && logtoboth "> Install VNC server $vncp" && doapt "install --yes $vncp" "$showapt"
+if [ "$realvnc" != "" ]
+then
+    if ! dpkg-query -s $realvnc > /dev/null 2>&1
+    then
+	logtoboth "> Install RealVNC server '$realvnc'"
+	doapt "install --yes $realvnc" "$showapt"
+    fi
+    systemctl disable vncserver-x11-serviced.service > /dev/null 2&>1
+    cat > /etc/sdm/0piboot/030-realvnc-server.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Enable RealVNC Server vncserver-x11-serviced"
+#
+# enable RealVNC server during FirstBoot service
+#
+systemctl enable vncserver-x11-serviced.service
+#
+# vncserver-virtuald apparently requires an Enterprise license, so disabling it
+# If you find it works for you, there are no sdm issues to worry about
+# vncserver-virtuald uses port 5999 so there is no confict with using
+# sdm-provided xvnc dynamic VNC desktops
+#
+systemctl disable vncserver-virtuald.service
+EOF
+    chmod 755 /etc/sdm/0piboot/030-realvnc-server.sh
+fi
+
+if [[ "$poptions" =~ "samba" ]]
 then
     logtoboth "> Install Samba silently"
     hostname $thishost  # For some reason, debconf needs a valid hostname (on the network?) V strange
     echo "samba-common samba-common/workgroup string  WORKGROUP" | debconf-set-selections
     echo "samba-common samba-common/dhcp boolean false" | debconf-set-selections
     echo "samba-common samba-common/do_debconf boolean true" | debconf-set-selections
-    doapt "install -y samba" $showapt
+    doapt "install samba --yes" $showapt
     hostname sdm
     didapt=1
 fi
 
-[ $aptconfirm -eq 1 ] && yes="" || yes="--yes"
-
-if ! [[ "$poptions" =~ "|noupgrade|" ]]
+if ! [[ "$poptions" =~ "noupgrade" ]]
 then
     logtoboth "> Start 'apt upgrade'"
     upgkeepconf "$yes" "$showapt"
@@ -268,7 +407,7 @@ fi
 if [ $didapt -eq 1 ]
 then
     logtoboth "> Start 'apt autoremove'"
-    doapt "autoremove -y" $showapt
+    doapt "--yes autoremove" $showapt
 fi
 #
 # If RasPiOS Full switch to console no login for first boot
@@ -286,6 +425,38 @@ then
 	echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
     fi
 fi
+#
+# If xdm installed, disable it on console if requested
+#
+dm=""
+if [ -d /etc/X11/xdm ]
+then
+    # VV This overrides default LISTEN * and disables xdmcp finder (if use 127.0.0.1. OK with 0.0.0.0)
+    echo "LISTEN 0.0.0.0" >> /etc/X11/xdm/Xaccess
+    if [[ "$poptions" =~ "nodmconsole" ]]
+    then
+	logtoboth "> Disable xdm on console"
+	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
+	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && rm -f /etc/sdm/0piboot/030-realvnc-server.sh
+    fi
+    dm="xdm"
+fi
+#
+# Ditto for lightdm and/or wdm
+#
+[ -d /etc/lightdm ] && dm="lightdm"
+if [ -d /etc/X11/wdm ]
+then
+    if [[ "$poptions" =~ "nodmconsole" ]]
+    then
+	logtoboth "> Disable wdm on console"
+	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
+	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && rm -f /etc/sdm/0piboot/030-realvnc-server.sh
+    fi
+    dm="wdm"
+fi
+
+[ "$dm" != "" -a $reboot -eq 1 ] && delaydmenable $dm
 
 logtoboth "* Phase 1 Completed"
 
