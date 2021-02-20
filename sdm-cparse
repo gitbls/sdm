@@ -91,21 +91,6 @@ $user:$upwd
 EOF
 }
 
-function sdmuseradd() {
-    #
-    # $1: Username
-    # $2: UID
-    # $3: password
-    #
-    local groups="dialout,cdrom,floppy,audio,video,plugdev,users"  user=$1 UID=$2 password="$3"
-    [ "$user" == "" ] && echo "? Username required"
-    [ "$uid" == "" ] && echo "? UID required"
-    useradd -M -d /home/$user --uid $uid $user
-    usermod --gid users $user
-    usermod --groups $groups $user
-    changepwd $user "$password"
-}
-
 function askyn() {
     local ans
     echo -n "$1" '[y/n]? ' ; read $2 ans
