@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.02
+
+* Add --vnc switch to configure tigervnc or tightvnc virtual servers, and/or the RealVNC graphical console server. You can easily install the RealVNC server attached to the graphical console (Lite), and several Virtual VNC servers (Desktop and Lite), each with their own preconfigured geometry (handy if you connect to a host from different systems with varied screen sizes)
+* If xdm or wdm is installed, enable it on console after FirstBoot unless --poptions nodmconsole (lightdm is not configurable for this?)
+* Add --groups to control which groups are added to user created with --user
+
 ## V4.01
 
 * EZinstaller update to make LAN-based testing easier
