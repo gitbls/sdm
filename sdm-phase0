@@ -185,12 +185,6 @@ then
     [ ! -d /home/$myuser ] && mkdir /home/$myuser
 fi
 
-if [ "$eeprom" != "" ]
-then
-    logtoboth "> Set rpi-eeprom to '$eeprom'"
-    sed -i "s/critical/$eeprom/" /mnt/sdm/etc/default/rpi-eeprom-update
-fi
-
 #
 # Add requested command(s) to /etc/rc.local
 # ** Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
