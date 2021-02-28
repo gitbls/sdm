@@ -81,7 +81,7 @@ function changepwd() {
     local user="$1" tpwd="$2" upwd
     if [ "$tpwd" == "" ]
     then
-        echo -n "Password for user '$1': " && read -s upwd
+        echo -n "Password for user '$user': " && read -s upwd
         echo ""
     else
         upwd="$tpwd"
@@ -89,6 +89,7 @@ function changepwd() {
     chpasswd <<EOF
 $user:$upwd
 EOF
+    [ $showpwd -eq 1 ] && logit "> Set password for '$user' to '$upwd'"
 }
 
 function askyn() {
