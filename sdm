@@ -334,6 +334,7 @@ noreboot:$noreboot
 rebootwait:$rebootwait
 rootpwd:$rootpwd
 showapt:$showapt
+showpwd:$showpwd
 src:$src
 ssh:$ssh
 sysctl:$sysctl
@@ -400,7 +401,7 @@ Command Switches for --customize and --burn or as noted
  --directory         sd-image-file is a directory tree rather than an IMG
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
- --domain name       Domain name (for your use; sdm does not use this)
+ --domain name       Domain name (for use in Custom Phase Script; sdm does not use)
  --dtoverlay         Add dtoverlay=string setting to /boot/config.txt (can be used multiple times)
  --dtparam           Add dtparam=string setting to /boot/config.txt (can be used multiple times)
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
@@ -429,6 +430,7 @@ Command Switches for --customize and --burn or as noted
  --restart           Restart the first boot of the system after 20 seconds
  --rootpwd           Set a root password into the image
  --showapt           Display apt output as well as logging it
+ --showpwd           Log password in /etc/sdm/history
  --ssh none|socket   No ssh or ssh sockets [Default: ssh service]
  --svcdisable svc1,svc2,... Disable the named services
  --svcenable  svc1,svc2,... Enable  the named services
@@ -449,7 +451,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.02"
+version="V4.03"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -516,6 +518,7 @@ rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
+showpwd=0                   #1=Log password into /etc/sdm/history
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
 sysctl=""                   #Copy named file to /etc/sysctl.d
@@ -523,7 +526,7 @@ timezone=""                 #Timezone setting
 udev=""                     #Copy named udev files to /etc/udev/rules.d
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
-vpoptions="|apps|nofirstboot|noupdate|noupgrade|nodmconsole|samba|xwindows|xapps|none|" #Valid --poptions
+vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|novnc|samba|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vnc=""                      #--vnc arguments
@@ -558,7 +561,7 @@ fstab:,groups:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,modprobe:,motd:,mount,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
-rootpwd,showapt,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
+rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
@@ -632,6 +635,7 @@ do
 	--restart)      reboot=1     ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
+	--showpwd)     showpwd=1     ; shift 1 ;;
 	--ssh)         ssh=$2        ; shift 2 ;;
 	--svcdisable)  svcdisable=$2 ; shift 2 ;;
 	--svcenable)   svcenable=$2  ; shift 2 ;;
@@ -1084,6 +1088,7 @@ else
     # Create and populate /usr/local/sdm tree
     #
     [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm /mnt/sdm/etc/sdm/assets /mnt/sdm/etc/sdm/0piboot
+    chmod 700 /mnt/sdm/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > /mnt/sdm/etc/sdm/auto-1piboot.conf
     setbootset    # Handle --bootset settings
     [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm \
