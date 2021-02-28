@@ -130,7 +130,8 @@ then
 	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
     fi
 fi
-logtoboth "> Change user 'pi' password"
+# if --showpwd password change will be logged in changepwd
+[ $showpwd -eq 0 ] && logtoboth "> Change user 'pi' password"
 changepwd pi "$samepwd"
 logtoboth "> set /home/pi files ownership to 'pi.pi'"
 chown -R pi.pi /home/pi
@@ -139,7 +140,7 @@ chown -R pi.pi /home/pi
 # on the first boot of the system.
 # Service will be enabled by creating run.firstboot when SD card is burned with sdm
 #
-logtoboth "> Configure sdm-firstboot service"
+logtoboth "> Configure and enable sdm-firstboot service"
 [ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
 cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
@@ -157,19 +158,12 @@ GuessMainPID=no
 [Install]
 WantedBy=multi-user.target
 EOF
-# Enable firstboot unless 'nofirstboot' set
-if ! [[ "$poptions" =~ "nofirstboot" ]]
-then
-    logtoboth "> Enable sdm-firstboot service"
-    systemctl enable sdm-firstboot > /dev/null 2>&1
-    #
-    # Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
-    #
-    [ "$wpaconf" != "" ] && logtoboth "> Disable check for /boot/wpa_supplicant (raspberrypi-net-mods); it's already installed" && rm -f /etc/systemd/system/multi-user.target.wants/raspberrypi-net-mods.service
-else
-    systemctl disable sdm-firstboot > /dev/null 2>&1
-    logtoboth "> Disable sdm-firstboot service"
-fi
+
+systemctl enable sdm-firstboot > /dev/null 2>&1
+#
+# Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
+#
+[ "$wpaconf" != "" ] && logtoboth "> Disable unneeded check for /boot/wpa_supplicant (raspberrypi-net-mods); wpa_supplicant.conf already configured" && rm -f /etc/systemd/system/multi-user.target.wants/raspberrypi-net-mods.service
 
 #
 # Set up apt-cacher-ng client if requested
@@ -195,6 +189,17 @@ then
     $csfn 1
 else
     csfn=""
+fi
+
+if [ "$eeprom" != "" ]
+then
+    logtoboth "> Set rpi-eeprom to '$eeprom' during FirstBoot"
+    cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
+sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
+EOF
+    chmod 755 /etc/sdm/0piboot/030-rpi-eeprom.sh
 fi
 
 #
@@ -272,7 +277,7 @@ fi
 #
 # Configure VNC if requested
 #
-if [ "$vnc" != "" ]
+if [ "$vnc" != "" ] && [[ ! "$poptions" =~ "novnc" ]]
 then
     logtoboth "* Configure VNC per command switch --vnc $vnc"
     if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
@@ -406,8 +411,13 @@ else
 fi    
 if [ $didapt -eq 1 ]
 then
-    logtoboth "> Start 'apt autoremove'"
-    doapt "--yes autoremove" $showapt
+    if [[ ! "$poptions" =~ "noautoremove" ]]
+    then
+	logtoboth "> Start 'apt autoremove'"
+	doapt "--yes autoremove" $showapt
+    else
+	logtoboth "> Skip 'apt autoremove' per --poption 'noautoremove'"
+    fi
 fi
 #
 # If RasPiOS Full switch to console no login for first boot
@@ -428,35 +438,34 @@ fi
 #
 # If xdm installed, disable it on console if requested
 #
-dm=""
 if [ -d /etc/X11/xdm ]
 then
-    # VV This overrides default LISTEN * and disables xdmcp finder (if use 127.0.0.1. OK with 0.0.0.0)
-    echo "LISTEN 0.0.0.0" >> /etc/X11/xdm/Xaccess
+    # VV This overrides default LISTEN * ; 127.0.0.1 disables xdmcp finder, finder enabled with 0.0.0.0. By default xdmcp finder is enabled
+    #echo "LISTEN 0.0.0.0" >> /etc/X11/xdm/Xaccess
     if [[ "$poptions" =~ "nodmconsole" ]]
     then
 	logtoboth "> Disable xdm on console"
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
-	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && rm -f /etc/sdm/0piboot/030-realvnc-server.sh
+	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/030-realvnc-server.sh /etc/sdm/0piboot/.030-realvnc-server.sh
+    else
+	delaydmenable xdm
     fi
-    dm="xdm"
 fi
 #
 # Ditto for lightdm and/or wdm
 #
-[ -d /etc/lightdm ] && dm="lightdm"
+[ -d /etc/lightdm ] && delaydmenable lightdm  # Always disable lightdm/re-enable in FirstBoot
 if [ -d /etc/X11/wdm ]
 then
     if [[ "$poptions" =~ "nodmconsole" ]]
     then
 	logtoboth "> Disable wdm on console"
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
-	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && rm -f /etc/sdm/0piboot/030-realvnc-server.sh
+	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/030-realvnc-server.sh /etc/sdm/0piboot/.030-realvnc-server.sh
+    else
+	delaydmenable wdm
     fi
-    dm="wdm"
 fi
-
-[ "$dm" != "" -a $reboot -eq 1 ] && delaydmenable $dm
 
 logtoboth "* Phase 1 Completed"
 
