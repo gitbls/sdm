@@ -353,10 +353,12 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
-    *  **apps** &mdash; install the *apps*
+    * **apps** &mdash; install the *apps*
+    * **noautoremove** &mdash; do not do an `apt autoremove`
     * **noupdate** &mdash; do not do an `apt update`
     * **nodmconsole** &mdash; do not enable Display Manager on console (xdm or wdm only)
     * **noupgrade** &mdash; do not do an `apt upgrade`
+    * **novnc** &mdash; do not configure VNC even if `--vnc` on command line
     * **samba** &mdash; streamlined, promptless Samba install
     * **xapps** &mdash; install the *xapps*
 
@@ -366,6 +368,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
+* `--showpwd` &mdash; Show the passwords set on accounts in /etc/sdm/history
 * `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. By default, if `--ssh` is not specified, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
 * `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
 * `--sysctl` *file* &mdash; Copy the specified file into the image in /etc/sysctl.d. `--sysctl` can be speicified multiple times to copy multiple files.
