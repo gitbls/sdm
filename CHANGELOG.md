@@ -1,9 +1,19 @@
 # Changelog
 
+## V4.03
+
+* Set --eeprom value during FirstBoot so an upgrade during Phase 1 doesn't risk a deadlock if apt asks for resolution on the modified /etc/default/rpi-eeprom-update
+* Disable --poptions 'nofirstboot' poption. It's still accepted in case anyone was using it, but it is ignored.
+* Polished Display Manager configuration in Phase 1
+* Add --poption 'noautoremove' to skip the apt autoremove in Phase 1
+* Add --poption 'novnc' to skip processing --vnc. Useful for scripting.
+* Add --showpwd to log passwords created in /etc/sdm/history. Explicitly set protection of /etc/sdm to 700.
+* If --wpa is used to provide a wpa_supplicant.conf, disable raspberrypi-net-mods to speed up boot time by an infintesimally small amount.
+
 ## V4.02
 
 * Add --vnc switch to configure tigervnc or tightvnc virtual servers, and/or the RealVNC graphical console server. You can easily install the RealVNC server attached to the graphical console (Lite), and several Virtual VNC servers (Desktop and Lite), each with their own preconfigured geometry (handy if you connect to a host from different systems with varied screen sizes)
-* If xdm or wdm is installed, enable it on console after FirstBoot unless --poptions nodmconsole (lightdm is not configurable for this?)
+* If xdm or wdm is installed, enable it on console after FirstBoot unless --poptions 'nodmconsole' (lightdm is not configurable for this AFAICT)
 * Add --groups to control which groups are added to user created with --user
 
 ## V4.01
