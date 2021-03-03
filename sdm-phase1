@@ -65,13 +65,16 @@ cmdoptions="$2"
 if [ "$cmd" == "apt" ]
 then
     logtoboth "* Start apt maintenance"
+    logfreespace
     [[ "$cmdoptions" =~ "update" ]] &&  doapt "--yes update"  0
     [[ "$cmdoptions" =~ "upgrade" ]] && upgkeepconf --yes 0
     [[ "$cmdoptions" =~ "autoremove" ]] && doapt "--yes autoremove" 0
+    cklogfreespace
     logtoboth "* apt maintenance Completed"
     exit 0
 fi
 logtoboth "* Start Phase 1 image customization"
+logfreespace
 #
 # Set up ssh as requested
 #
@@ -470,6 +473,11 @@ fi
 logtoboth "* Phase 1 Completed"
 
 [ "$csfn" != "" ] && logtoboth "> Run Custom Phase Script '$csfn' post-install" && $csfn post-install
+
+#
+# Check for device out of space and warn if so
+#
+cklogfreespace
 
 echo ""
 if [ $batch -eq 0 ]

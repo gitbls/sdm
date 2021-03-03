@@ -307,12 +307,15 @@ csrc:$csrc
 datefmt:$datefmt
 dhcpcd:$dhcpcd
 dhcpcdwait:$dhcpcdwait
+dimg:$dimg
+dimgdev:$dimgdev
 domain:$domain
 dtoverlay:$dtoverlay
 dtparam:$dtparam
 ecolors:$ecolors
 eeprom:$eeprom
 exports:$exports
+fdirtree:$fdirtree
 fstab:$fstab
 hdmiforcehotplug:$hdmiforcehotplug
 hdmigroup:$hdmigroup
@@ -451,7 +454,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.03"
+version="V4.04"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1103,6 +1106,7 @@ else
     chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
     logtoboth "* Start Configuration"
     logtoboth "> Command Line: $cmdline"
+    logfreespace
     logtoboth "> Copy sdm to /usr/local/sdm in the IMG"   # Yes, already done above ;)
     if [ $loadl10n -eq 1 ]
     then

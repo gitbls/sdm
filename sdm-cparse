@@ -148,6 +148,46 @@ function ord() {
     printf '%d' "'$1"
 }
 
+function getfsdf() {
+    #
+    # $1: fs name (e.g., /, /mnt/sdm, etc)
+    # $2: df component: pcent, avail, etc
+    #
+    echo $(df --output=$2 $1 | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))
+}
+
+function logfreespace() {
+    #
+    # Logs the current free space on $dimg
+    #
+    local dev="/"
+    [ "$SDMPHASE0" != "" ] && dev="/mnt/sdm"
+    local simdev="IMG"
+    [ $dimgdev -eq 1 ] && simdev="Device"
+    [ $fdirtree -eq 1 ] && simdev="Directory"
+    logtoboth "> $simdev '$dimg' has $(getfsdf $dev avail) 1K-blocks free"
+}
+
+function cklogfreespace() {
+    #
+    # Report if IMG looks full. If not, just log free space
+    #
+    local dused=$(getfsdf / pcent)
+    local simdev="IMG"
+    if [ $dused -ge 98 ]
+    then
+	logtoboth "%%%"
+	[ $dimgdev -eq 1 ] && simdev="Device"
+	[ $fdirtree -eq 1 ] && simdev="Directory"
+	logtoboth "% $simdev '$dimg' is ${dused}% full ($(getfsdf / avail) 1K-blocks free)"
+	logtoboth "% Review /etc/sdm/apt.log in the image for insufficient disk space errors"
+	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space"
+	logtoboth "%%%"
+    else
+	logfreespace
+    fi
+}
+    
 function gterm1() {
     #
     # $1: control (10:foreground, 11:background, 12:cursor, 13:mousefg, 14:mousebg)
