@@ -1,5 +1,9 @@
 # Changelog
 
+## V4.04
+
+* Have you been burned by running of of space in an IMG during customization and not noticing it? This fix is for you (and me!) Print number of free blocks at start of customization, start of Phase 1, and at the end of Phase 1. Also, if IMG appears full at end of Phase 1, log a very visible message.
+
 ## V4.03
 
 * Set --eeprom value during FirstBoot so an upgrade during Phase 1 doesn't risk a deadlock if apt asks for resolution on the modified /etc/default/rpi-eeprom-update
