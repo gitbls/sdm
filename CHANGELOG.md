@@ -1,5 +1,10 @@
 # Changelog
 
+## V4.05
+
+* Log apt maintenance steps
+* Add --cron-systemd to disable the cron service and use systemd timers instead.
+
 ## V4.04
 
 * Have you been burned by running of of space in an IMG during customization and not noticing it? This fix is for you (and me!) Print number of free blocks at start of customization, start of Phase 1, and at the end of Phase 1. Also, if IMG appears full at end of Phase 1, log a very visible message.
