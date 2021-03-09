@@ -302,6 +302,7 @@ cronhourly:$cronhourly
 crondaily:$crondaily
 cronweekly:$cronweekly
 cronmonthly:$cronmonthly
+cronsystemd:$cronsystemd
 cscript:$cscript
 csrc:$csrc
 datefmt:$datefmt
@@ -396,6 +397,7 @@ Command Switches for --customize and --burn or as noted
  --cron-hourly file  Copy provided cron file to /etc/cron.hourly (can be used multiple times)
  --cron-monthly file Copy provided cron file to /etc/cron.monthly (can be used multiple times)
  --cron-weekly file  Copy provided cron file to /etc/cron.weekly (can be used multiple times)
+ --cron-systemd      Disable cron service and enable systemd-based timers
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -454,7 +456,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.04"
+version="V4.05"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -476,6 +478,7 @@ cronhourly=""
 crondaily=""
 cronweekly=""
 cronmonthly=""
+cronsystemd=0               #1=disable cron service and enable systemd cron timers
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
@@ -557,7 +560,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
-cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,\
+cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
@@ -597,6 +600,7 @@ do
 	--cron-daily)  [ "$crondaily" == "" ] && crondaily="$2" || crondaily="$crondaily|$2" ; shift 2 ;;
 	--cron-weekly) [ "$cronweekly" == "" ] && cronweekly="$2" || cronweekly="$cronweekly|$2" ; shift 2 ;;
 	--cron-monthly) [ "$cronmonthly" == "" ] && cronmonthly="$2" || cronmonthly="$cronmonthly|$2" ; shift 2 ;;
+	--cron-systemd) cronsystemd=1 ; shift 1 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;

@@ -66,9 +66,9 @@ if [ "$cmd" == "apt" ]
 then
     logtoboth "* Start apt maintenance"
     logfreespace
-    [[ "$cmdoptions" =~ "update" ]] &&  doapt "--yes update"  0
-    [[ "$cmdoptions" =~ "upgrade" ]] && upgkeepconf --yes 0
-    [[ "$cmdoptions" =~ "autoremove" ]] && doapt "--yes autoremove" 0
+    [[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doapt "--yes update"  0
+    [[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0
+    [[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doapt "--yes autoremove" 0
     cklogfreespace
     logtoboth "* apt maintenance Completed"
     exit 0
@@ -175,6 +175,46 @@ if [ "$aptcache" != "" ]
 then
     /usr/local/sdm/sdm-apt-cacher client $aptcache
     logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
+fi
+#
+# Disable cron service and enable cron timers if requsted
+#
+if [ $cronsystemd -eq 1 ]
+then
+    logtoboth "> Switch cron to systemd timers"
+    cat > /etc/systemd/system/cron@.service <<EOF
+[Unit]
+Description=%I job for /etc/cron.%I
+RefuseManualStart=yes
+RefuseManualStop=yes
+ConditionDirectoryNotEmpty=/etc/cron.%I
+
+[Service]
+Type=oneshot
+IgnoreSIGPIPE=no
+WorkingDirectory=/
+ExecStart=/bin/run-parts --report /etc/cron.%I
+EOF
+    cat > /etc/systemd/system/cron@.timer <<EOF
+[Unit]
+Description=%I timer for /etc/cron.%I
+PartOf=crontab.target
+RefuseManualStart=yes
+RefuseManualStop=yes
+
+[Timer]
+OnCalendar=%I
+Persistent=yes
+
+[Install]
+WantedBy=timers.target
+EOF
+    for timeset in hourly daily monthly weekly
+    do
+	systemctl enable cron@${timeset}.timer  > /dev/null 2>&1
+    done
+    systemctl disable cron > /dev/null 2>&1
+    systemctl mask    cron > /dev/null 2>&1
 fi
 
 if ! [[ "$poptions" =~ "noupdate" ]]
@@ -345,7 +385,7 @@ EOF
 	vncp="" 
     fi
 
-    [ ! -f /etc/lightdm/lightdm.conf -a ! -d /etc/X11/xdm -a ! -d /etc/X11/wdm ] && logtoboth "% No known Display Manager installed; no Display Manager processing will be done"
+    [ ! -f /etc/lightdm/lightdm.conf -a ! -d /etc/X11/xdm -a ! -d /etc/X11/wdm ] && logtoboth "% No sdm-known Display Manager installed; VNC enable will not be done"
     if [ -d /etc/X11/xdm ]
     then
 	logtoboth "> Configure xdm for VNC"
