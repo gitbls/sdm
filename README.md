@@ -310,7 +310,6 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--apssid` *SSID* &mdash; Use the specified SSID for the Captive Portal instead of the default 'sdm'. See the Captive Portal section below for details.
 * `--apip` *IPaddr* &mdash; use the specified IP Address instead of the default 10.1.1.1. See the Captive Portal section below for details.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
-* `--aptconfirm` &mdash; Prompt for confirmation before APT installs and updates are done in sdm Phase 1
 * `--batch` &mdash; Do not provide an interactive command prompt inside the nspawn container
 * `--bootadd` *key:value,key:value,...* &mdash; Add new keys/values to /boot/config.txt
 * `--bootconfig` *key:value,key:value,...* &mdash; Update existing, commented keys in /boot/config.txt
@@ -357,6 +356,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--locale` *localename* &mdash; The locale is specified just as you'd set it in raspi-config. For example, in the USA, one might use en_US.UTF-8, and in the UK en_UK.UTF-8. See /usr/share/i18n/SUPPORTED for a complete locale list.
 * `--modprobe` *file* &mdash; Copy the modprobe file to /etc/modprobe.d. `--modprobe` can be specified multiple times to copy multiple files.
 * `--motd` *file* &mdash; Copy the specified file to /etc/motd. The original /etc/motd is renamed to /etc/motd.orig. You can easily create a null message of the day by using `--motd /dev/null`
+* `--mouse left` &mdash; If LXDE is installed, set the Mouse to be left-handed (for those that are in their right mind).
+* `--nopiwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accoomplished in sdm.
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:

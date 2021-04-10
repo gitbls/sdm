@@ -292,7 +292,6 @@ xappfile:$xappfile
 apip:$apip
 apssid:$apssid
 aptcache:$aptcache
-aptconfirm:$aptconfirm
 batch:$fbatch
 bootadd:$bootadd
 bootconfig:$bootconfig
@@ -317,6 +316,7 @@ ecolors:$ecolors
 eeprom:$eeprom
 exports:$exports
 fdirtree:$fdirtree
+fmouse:$fmouse
 fstab:$fstab
 hdmiforcehotplug:$hdmiforcehotplug
 hdmigroup:$hdmigroup
@@ -330,6 +330,7 @@ motd:$motd
 groups:$groups
 myuid:$myuid
 myuser:$myuser
+nopiwiz:$nopiwiz
 pi1bootconf:$pi1bootconf
 poptions:$poptions
 rclocal:$rclocal
@@ -385,7 +386,6 @@ Command Switches for --customize and --burn or as noted
  --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]
  --apssid ssidname   SSID name for WiFi Captive Portal [sdm]
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
- --aptconfirm        Enable confirmation before apt commands
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
  --batch             Perform customize operation and exit
  --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt
@@ -427,6 +427,8 @@ Command Switches for --customize and --burn or as noted
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
  --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
+ --mouse left        Enable left-handed mouse if LXDE installed
+ --nopiwiz           Disable piwiz dialog in booted system
  --nspawnsw str      Additional switches for nspawn command
  --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot (use on --burn command)
@@ -456,13 +458,12 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.05"
+version="V4.06"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
-aptconfirm=0                #1=Pause before apt commands in sdm-apt-install and sdm-X-install
 aptmaint=""                 #--aptmaint switch values
 aptfunction=0               #1=Some apt batch function specified
 bootadd=""                  #Items to add to /boot/config.txt
@@ -498,6 +499,7 @@ fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
+fmouse=0                    #1=Set left-handed mouse if LXDE installed
 fnowpa=0                    #1=I really man no automatic no wpa config
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
@@ -516,6 +518,7 @@ modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
+nopiwiz=0                   #1=Disable piwiz 
 noreboot=0                  #1=Do not restart system after first boot
 nspawnsw=""                 #Switches for nspawn
 poptions=""                 #Phase options
@@ -558,14 +561,14 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,aptconfirm,aptmaint:,apip:,apssid:,\
+longopts="help,1piboot:,apps:,aptcache:,aptmaint:,apip:,apssid:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
 info,keymap:,l10n,loadlocal:,locale:,\
-mcolors:,modprobe:,motd:,mount,norestart,noreboot,nspawnsw:,\
+mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
 rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
@@ -584,7 +587,6 @@ do
 	--apssid)      apssid=$2     ; shift 2 ;;
 	--apps)        apps="$2"     ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
-	--aptconfirm)  aptconfirm=1  ; shift ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
 	--batch)       fbatch=1      ; shift 1 ;;
 	--bootadd)     bootadd=$2    ; shift 2 ;;
@@ -631,7 +633,9 @@ do
 	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--modprobe)    [ "$modprobe" == "" ] && modprobe="$2" || modprobe="$modprobe|$2" ; shift 2 ;;
 	--motd)        motd=$2       ; shift 2 ;;
+	--mouse)       fmouse=1      ; shift 2 ;;  #switch value required but ignored for now
 	--mount)       fdomount=1    ; shift 1 ;;
+	--nopiwiz)     nopiwiz=1     ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;

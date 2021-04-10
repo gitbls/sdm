@@ -11,8 +11,7 @@ function doinstalls() {
     then
 	logtoboth "* Start $2"
 	logtoboth "> ${2}: $1"
-	[ $aptconfirm -eq 1 ] && yes="" || yes="-y"
-	doapt "install --no-install-recommends $yes $1" $showapt
+	doapt "install --no-install-recommends -y $1" $showapt
 	logtoboth "* $2 Completed"
     else
 	logtoboth "> Skip $2 per empty package list"
@@ -39,6 +38,7 @@ function delaydmenable {
     #
     # Disable the display manager in $1 and set for re-enable during First Boot
     #
+    [ $2 -eq "0" ] && return
     dm="$1"
     logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
     logtoboth "  The sdm FirstBoot process will re-enable it"
@@ -315,7 +315,10 @@ then
     [ "$xapps" != "" ] && didapt=1
 fi
 
-[ $aptconfirm -eq 1 ] && yes="" || yes="--yes"
+#
+# Post-install Configuration
+#
+
 
 #
 # Configure VNC if requested
@@ -447,7 +450,7 @@ fi
 if ! [[ "$poptions" =~ "noupgrade" ]]
 then
     logtoboth "> Start 'apt upgrade'"
-    upgkeepconf "$yes" "$showapt"
+    upgkeepconf "-y" "$showapt"
     didapt=1
 else
     logtoboth "> Skip 'apt upgrade' per --poption 'noupgrade'"
@@ -468,14 +471,37 @@ fi
 #
 if [ -f /usr/bin/startlxde-pi ]
 then
-    logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-    SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+    if [ $reboot -eq 1 ]
     then
-	logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
-    else
-	logtoboth ">%Desktop Autologin will be re-enabled after First Boot"
-	echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
+	logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
+	SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+	then
+	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
+	else
+	    logtoboth ">%Desktop Autologin will be re-enabled after First Boot"
+	    echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
+	fi
+    fi
+    # Disable piwiz if requested to do so
+    if [ $nopiwiz -eq 1 ]
+    then
+        logtoboth "> Disable running piwiz on first boot"
+	mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/piwiz.desktop.orig
+    fi
+    # System has LXDE, so set left-handed mouse if requested
+    if [ $fmouse -eq 1 ]
+    then
+	userx=${myuser:-pi}	
+	[ "$userx" == "pi" ] && gx=pi || gx=users
+	logtoboth "> Enable left-handed mouse for user '$userx'"
+	dirx="/home/$userx/.config/lxsession/LXDE-pi"
+	mkdir -p $dirx
+	cp /etc/xdg/lxsession/LXDE-pi/desktop.conf $dirx
+	chown -R $userx:$gx /home/$userx/.config
+	chmod -R 700 /home/$userx/.config
+	chmod 644 $dirx/desktop.conf
+	sed -i "s/LeftHanded=0/LeftHanded=1/" $dirx/desktop.conf
     fi
 fi
 #
@@ -491,13 +517,13 @@ then
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
 	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/030-realvnc-server.sh /etc/sdm/0piboot/.030-realvnc-server.sh
     else
-	delaydmenable xdm
+	delaydmenable xdm $reboot
     fi
 fi
 #
 # Ditto for lightdm and/or wdm
 #
-[ -d /etc/lightdm ] && delaydmenable lightdm  # Always disable lightdm/re-enable in FirstBoot
+[ -d /etc/lightdm ] && delaydmenable lightdm  $reboot # Always disable lightdm/re-enable in FirstBoot
 if [ -d /etc/X11/wdm ]
 then
     if [[ "$poptions" =~ "nodmconsole" ]]
@@ -506,7 +532,7 @@ then
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
 	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/030-realvnc-server.sh /etc/sdm/0piboot/.030-realvnc-server.sh
     else
-	delaydmenable wdm
+	delaydmenable wdm $reboot
     fi
 fi
 
