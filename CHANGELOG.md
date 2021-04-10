@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.06
+
+* Add --mouse left to enable left-handed mouse in LXDE (for those that are in their right mind)
+* Add --nopiwiz to disable piwiz from running on LXDE desktop systems (no effect if no LXDE)
+* Remove --aptconfirm, a holdover from very early releases (didn't work, and could hang apt waiting for input)
+
 ## V4.05
 
 * Log apt maintenance steps
