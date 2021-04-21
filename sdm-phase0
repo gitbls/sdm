@@ -101,6 +101,15 @@ do
 done
 
 #
+# copy hotspot configuration file into the image
+#
+if [ "$hotspot" != "" ]
+then
+    logtoboth "> Copy hotspot configuration file to /etc/sdm/assets"
+    cp $hotspot /mnt/sdm/etc/sdm/assets
+fi
+
+#
 # Copy user-specified modprobe config files into the image
 #
 [ "$modprobe" != "" ] && copycufiles "$modprobe" "/mnt/sdm/etc/modprobe.d"

@@ -435,6 +435,11 @@ EOF
     chmod 755 /etc/sdm/0piboot/030-realvnc-server.sh
 fi
 
+if [ "$hotspot" != "" ]
+then
+    /usr/local/sdm/sdm-hotspot
+fi
+
 if [[ "$poptions" =~ "samba" ]]
 then
     logtoboth "> Install Samba silently"

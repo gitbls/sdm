@@ -54,6 +54,8 @@ function ismounted() {
 
 function domount() {
     local p1="1" p2="2"
+    local mimg=$1
+
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
     if [ $fdirtree -eq 1 ]
     then
@@ -61,8 +63,8 @@ function domount() {
 	mount --bind $dimg/boot /mnt/sdm/boot
     elif [ $dimgdev -eq 0 ]
     then
-	echo "Mounting IMG '$dimg'"
-	loop=$(losetup --show -P -f $dimg)
+	echo "Mounting IMG '$mimg'"
+	loop=$(losetup --show -P -f $mimg)
 	mount -v ${loop}p2 /mnt/sdm
 	mount -v ${loop}p1 /mnt/sdm/boot
     else
@@ -293,6 +295,8 @@ apip:$apip
 apssid:$apssid
 aptcache:$aptcache
 batch:$fbatch
+b1script:$b1script
+b2script:$b2script
 bootadd:$bootadd
 bootconfig:$bootconfig
 bootscripts:$bootscripts
@@ -322,6 +326,7 @@ hdmiforcehotplug:$hdmiforcehotplug
 hdmigroup:$hdmigroup
 hdmimode:$hdmimode
 hostname:$hostname
+hotspot:$hotspot
 keymap:$keymap
 loadlocal:$loadlocal
 locale:$locale
@@ -388,6 +393,8 @@ Command Switches for --customize and --burn or as noted
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
  --batch             Perform customize operation and exit
+ --b1script script   Script to run after burn has completed
+ --b2script script   Like --b1script, but done in nspawn (can do both b1script and b2script)
  --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt
  --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
  --bootset key:value,key:value,.. Set boot-time device settings (see README)
@@ -420,6 +427,7 @@ Command Switches for --customize and --burn or as noted
  --hdmigroup n       Set /boot/config.txt hdmigroup value
  --hdmimode n        Set /boot/config.txt hdmimode value
  --host hostname     Hostname to write onto the storage device with --burn
+ --hotspot config    Configure the image with a WiFi hotspot using hostapd
  --keymap keymapname Set Keymap
  --L10n              Set Keymap, Locale, Timezone, and WiFi Country from running system
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
@@ -458,7 +466,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.06"
+version="V4.07"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -466,6 +474,8 @@ apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptmaint=""                 #--aptmaint switch values
 aptfunction=0               #1=Some apt batch function specified
+b1script=""                 #Customization script to run after burn
+b2script=""                 #Like b1script but done in nspawn
 bootadd=""                  #Items to add to /boot/config.txt
 bootconfig=""               #/boot/config.txt items to set
 bootscripts=0               #Run FirstBoot custom boot scripts
@@ -508,6 +518,7 @@ hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
 hostname=""                 #Written to cparams during --burn
+hotspot=""                  #WiFi config file
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
 keymap=""                   #Keyboard configuration
 infocmd=0                   #1=--info command
@@ -562,12 +573,13 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,aptmaint:,apip:,apssid:,\
+b1script:,b2script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
-info,keymap:,l10n,loadlocal:,locale:,\
+hotspot:,info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
 rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
@@ -588,6 +600,8 @@ do
 	--apps)        apps="$2"     ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
+	--b1script)    b1script=$2   ; shift 2 ;;
+	--b2script)    b2script=$2   ; shift 2 ;;
 	--batch)       fbatch=1      ; shift 1 ;;
 	--bootadd)     bootadd=$2    ; shift 2 ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
@@ -625,6 +639,7 @@ do
 	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
+	--hotspot)     hotspot=$2    ; shift 2 ;;
 	--keymap)      keymap=$2     ; shift 2 ;;
 	--l10n)        loadl10n=1    ; shift 1 ;;
 	--info)        infocmd=1     ; shift 1 ;;
@@ -819,6 +834,19 @@ done
 [ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
 [ "$motd" != "" -a "$motd" != "/dev/null" ] && checkfilelist "$motd" "--motd"
 [ "$udev" != "" ] && checkfilelist "$udev" "--udev"
+if [ "$hotspot" != "" ]
+then
+    [ ! -f $hotspot ] && errexit "? --hotspot file '$hotspot' not found"
+    reboot=1
+fi
+if [ "$b1script" != "" ]
+then
+    [ ! -f $b1script ] && errexit "? --b1script file '$b1script' not found"
+fi
+if [ "$b2script" != "" ]
+then
+    [ ! -f $b2script ] && errexit "? --b2script file '$b2script' not found"
+fi
 if [ "$vnc" != "" ]
 then
     ! [[ "$vnc" =~ "tiger" ]] && ! [[ "$vnc" =~ "tight" ]] && errexit "? --vnc argument must contain 'tiger' or 'tight'"
@@ -910,6 +938,8 @@ then
     if [ -d /mnt/sdm/usr/local/sdm -a -d /mnt/sdm/etc/sdm ]
     then
 	# Save settings made with the --burn command
+	bb1script=$b1script
+	bb2script=$b2script
 	bapip=$apip
 	bapssid=$apssid
 	bdhcpcd=$dhcpcd
@@ -927,6 +957,8 @@ then
 	declare -x SDMPHASE0="PHASE0" # Force readparams to use /mnt/sdm
 	readparams                    # Read settings from the SD card
 	unset SDMPHASE0
+	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
+	[ "$bb2script" != "$b2script" ] && b2script=$bb2script
         [ $breboot -eq 1 ] && reboot=$breboot
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
         [ $bscript -eq 1 ] && bootscripts=$bscript  #If we weren't set to run scripts, use setting from IMG
@@ -941,6 +973,12 @@ then
 	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	if [ "$b2script" != "" ]
+	then
+	    burnmsg+=("$(thisdate) > Copy '$b2script' to /etc/sdm/assets")
+	    cp $b2script /mnt/sdm/etc/sdm/assets
+	    chmod 755 /mnt/sdm/etc/sdm/assets/$(basename $b2script)
+	fi
 	if [ "$bdhcpcd" != "" ]
 	then
 	    cat $bdhcpcd >> /mnt/sdm/etc/dhcpcd.conf
@@ -989,6 +1027,20 @@ then
 	done
 	[ $bootscripts -eq 1 ] && echo "> First System Boot Custom Boot Scripts enabled" || echo "> First System Boot Custom Boot Scripts disabled"
 	[ $reboot -eq 1 ] && echo "> First System Boot automatic restart enabled${wmsg}" || echo "> First System Boot automatic restart disabled"
+	if [ "$b1script" != "" ]
+	then
+	    declare -x SDMPHASE0="PHASE0"         #So b1script can use logtoboth if desired
+	    echo "> Execute --b1script '$b1script'"
+	    echo "$(thisdate) > Execute --b1script '$b1script'" >> /mnt/sdm/etc/sdm/history
+	    $b1script
+	    unset SDMPHASE0
+	fi
+	if [ "$b2script" != "" ]
+	then
+	    echo "> Execute --b2script '$b2script' in nspawn"
+	    echo "$(thisdate) > Execute --b2script '$b2script' in nspawn" >> /mnt/sdm/etc/sdm/history
+	    systemd-nspawn --directory=/mnt/sdm /etc/sdm/assets/$(basename $b2script) < $(tty)
+	fi
     else
 	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
     fi
@@ -1001,7 +1053,7 @@ fi
 #
 if [ $fdomount -eq 1 ]
 then
-    domount
+    domount "$dimg"
     echo ""
     if [ $fdirtree -eq 1 ]
     then
@@ -1038,7 +1090,7 @@ then
     #
     # Mount the image file into a loop device and resize the file system
     #
-    domount
+    domount "$dimg"
     echo " * (Ignore on-line resizing message) *"
     resize2fs ${loop}p2
 fi
@@ -1049,7 +1101,7 @@ then
     exit 0
 else
     # Not --extend (only)
-    [ ! -d /mnt/sdm/boot ] && domount
+    [ ! -d /mnt/sdm/boot ] && domount "$dimg"
 fi
 #
 # Handle commands --aptmaint, --customize, and --explore
@@ -1106,7 +1158,7 @@ else
 					     /mnt/sdm/usr/local/sdm/1piboot
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-cportal,sdm-logmsg} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg} /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
     [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
     [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
