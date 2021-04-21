@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# Perform apt commands inside the nspawn and log the results
+# apt commands supported include: update, upgrade, install, remove
+#
+# $1: 0 to not show apt output on console
+#     1 show apt output on console
+# $2-$8: words of the apt command
+#
+# Examples:
+#          sdm-apt 0 install "emacs vim putty"
+#          sdm-apt 0 "install --no-install-recommends --yes emacs vim putty"
+#
+# Read configuration information from sdm (/etc/sdm/cparams)
+#
+source /usr/local/sdm/sdm-cparse ; readparams
+
+logtoboth "* Start manual apt operation"
+logtoboth "> apt command: $2 $3 $4 $5 $6 $7 $8"
+
+doapt "$2 $3 $4 $5 $6 $7 $8" "$1"
+
+logtoboth "* Manual apt operation completed"
