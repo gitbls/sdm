@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.07
+
+* Add --hotspot to install and configure a hotspot, either as 'local', 'routed', or 'bridged'
+* Add --b1script to run a script after the SSD/SD Card has been burned. See README
+* Add --b2script to run a script, like --b1script, but in the context of the newly-burned SD Card (nspawn)
+
 ## V4.06
 
 * Add --mouse left to enable left-handed mouse in LXDE (for those that are in their right mind)
