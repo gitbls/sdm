@@ -15,7 +15,7 @@ What does *ready-to-go* mean? It means that every one of your systems is fully c
 
 In other words, all ready to work on your next project.
 
-With sdm you'll spend a lot less time rebuilding SSDs/SD Cards, configuring your system, and installing packages, and more time on the things you really want to do with your Pi.
+With `sdm` you'll spend a lot less time rebuilding SSDs/SD Cards, configuring your system, and installing packages, and more time on the things you really want to do with your Pi.
 
 Someone in the RaspberryPi.org forums said *"Generally I get by by reflashing an SD card and reinstalling everything from the notes I made previously. That is not such a long winded process."*
 
@@ -23,9 +23,14 @@ While better than not having ANY notes, this approach requires relatively comple
 
 `sdm` lets you keep your notes in simple working bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card or SSD. And the disk is built with ALL of your favorite apps installed and all your favorite customizations.
 
-***As a bonus***, sdm includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a RasPiOS package that lets you update all your Pis quickly by caching downloaded packages locally on your LAN. This can greatly reduce install and update time, as well as internet network consumption.
+***As a bonus***, `sdm` includes an *optional* script to install and configure `apt-cacher-ng`. `apt-cacher-ng` is a RasPiOS package that lets you update all your Pis quickly by caching downloaded packages locally on your LAN. This can greatly reduce install and update time, as well as internet network consumption.
 
-sdm is for RasPiOS, and runs on RasPiOS Stretch and Buster. It can also run on other Linux systems. See the 'Compatibility' section below. sdm requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use sdm to rewrite the running system's SD Card or system disk.
+`sdm` is for RasPiOS, and runs on RasPiOS Stretch and Buster. It can also run on other Linux systems. See the 'Compatibility' section below. `sdm` requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use `sdm` to rewrite the running system's SD Card or system disk.
+
+`sdm` is written completely in Bash, except for the Captive Portal module, which is Python. This means that you can:
+
+* **Easily inspect** EVERYTHING that sdm does
+* **Easily make changes to sdm**, although by using provided customization hooks, you can avoid modifying sdm itself and ease your "sdm upgrade problem"
 
 If you find sdm useful, please consider starring it to help me understand how many people are using it. Thanks!
 
@@ -35,7 +40,7 @@ If you find sdm useful, please consider starring it to help me understand how ma
 
 Here's how to quickly and easily to create and customize an IMG file and burn it to an SD Card. It's assumed that there is an SD Card in /dev/sde.
 
-Throughout this document read "SD Card" as "SSD or SD Card". They are treated equivalently by sdm.
+**Throughout this document read "SD Card" as "SSD or SD Card".** They are treated equivalently by sdm.
 
 * **Install sdm and systemd-container:** `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
@@ -51,7 +56,7 @@ Now, load the SD card into a Pi and power it up. The system will come up as it a
 
 * Resizes the root file system and restarts automatically
 * After the system restarts it goes through a complete system startup, just as it always does on a fresh SD Card
-* Toward the end of the boot process an sdm systemd service script runs once and sets the WiFi country, unblocking WiFi
+* Toward the end of the boot process an sdm systemd service script runs once and sets the WiFi country, unblocking WiFi. It will also take other actions as needed to fulfill the switch settings.
 * When the system boot is fully complete (it can take a while on a large SD card!), the system automatically restarts again
 
 When the system comes back up your Pi is all happy, ready to go, and configured with:
@@ -67,19 +72,21 @@ What else can sdm do? Here are a few examples:
 
 * **Install applications**  &mdash; Editors (emacs, vim, etc), and any other packages you always install in a new system. sdm has two built-in package install lists, creatively named *apps* and *xapps*. You can select which of the two lists to include when you build an image, so you can build images with no additional apps, *apps* only, *xapps* only, or both.
 
-* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system
-
 * **Install and configure VNC** &mdash; Have every system come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops.
+
+* **Install and configure an Access Point (hotspot)** &mdash; Install a customizable, fully operational hotspot in any of three modes: *local*, *routed*, or *bridged*.
+
+* **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation
+
+* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system
 
 * **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab
 
 * **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm
 
-* **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation
-
 * **Other customizations** &mdash; Done through a simple batch script. The file sdm-customphase is a skeleton Custom Phase Script that you can copy, modify, and use. **Full disclosure:** You'll need to use a Custom Phase Script to copy your .bashrc or perform systemd service management, etc.
 
-    See the section Custom Phase Script below for details, and see the section below on /etc/fstab as well.
+    See the sections *Custom Phase Script* and *Burn Scripts* below for details.
 
 * **Burn SD Card Image for network distribution** &mdash; You can build a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
 
@@ -110,10 +117,12 @@ Installation is simple. sdm must be installed in and uses the path `/usr/local/s
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-phase1 -o /usr/local/sdm/sdm-phase1
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-cparse -o /usr/local/sdm/sdm-cparse
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-firstboot -o /usr/local/sdm/sdm-firstboot
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-apt -o /usr/local/sdm/sdm-apt
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-apt-cacher -o /usr/local/sdm/sdm-apt-cacher
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-customphase -o /usr/local/sdm/sdm-customphase
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-logmsg -o /usr/local/sdm/sdm-logmsg
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-cportal -o /usr/local/sdm/sdm-cportal
+    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-hotspot -o /usr/local/sdm/sdm-hotspot
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/1piboot.conf -o /usr/local/sdm/1piboot/1piboot.conf
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/010-disable-triggerhappy.sh -o /usr/local/sdm/1piboot/010-disable-triggerhappy.sh
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/1piboot/030-disable-rsyslog.sh
@@ -131,15 +140,15 @@ On Linux distros other than RasPiOS you may need to also install qemu-user-stati
 
 sdm operates on the SD Card image in distinct phases:
 
-* **Phase 0:** *Operating in the logical context of your physical RasPiOS system, copying files into the RasPiOS IMG file.* sdm takes care of Phase 0 for you. The Phase 0 script `sdm-phase0` performs the Phase 0 copying. It will also optionally call a Custom Phase script provided by you to perform customized personal steps. See *Custom Phase Script *below for details.
+* **Phase 0:** *Operating in the logical context of your physical RasPiOS system, copying files into the RasPiOS IMG file.* sdm takes care of Phase 0 for you. The Phase 0 script `sdm-phase0` performs the Phase 0 copying. It will also optionally call a Custom Phase script provided by you to perform customized personal steps. See *Custom Phase Script* below for details.
 
 * **Phase 1:** *Operating inside the IMG file and in the context of that system (via systemd-nspawn)*. When operating in this context, all changes made only affect the SD Card IMG, not the physical RasPiOS system on which sdm is running
 
-    Most, but not all commands can be used in Phase 1. For instance, most `systemctl` commands don't work because systemd is not running in the nspawn'ed image. However, `systemctl disable` and `systemctl enable` do work. 
+    Most, but not all commands can be used in Phase 1. For instance, most `systemctl` commands don't work because systemd is not running in the nspawn'ed image. Importantly, however, `systemctl disable` and `systemctl enable` do work.
 
     Other functions you might want to do in Phase 1 include: add new users, set or change passwords, install packages, etc. In other words, you can do almost everything you want to configure a system for repeated SD card burns.
 
-    Once sdm has started the nspawn container, it will automatically run `/usr/local/sdm/sdm-phase1` to perform Phase 1 customization. As with Phase 0, your optional Custom Phase Script will be called. After Phase 1 completes, sdm will provide a command prompt inside the container unless you specified `--batch`, in which case sdm will exit the container. **NOTE:** When sdm provides a command prompt, either with Phase 1 customization or with `--mount`, the terminal colors are changed to remind you that the IMG is mounted. See the section on Terminal Colors below.
+    Once sdm has started the nspawn container, it will automatically run `/usr/local/sdm/sdm-phase1` to perform Phase 1 customization. As with Phase 0, your optional Custom Phase Script will be called. After Phase 1 completes, sdm will provide a command prompt inside the container unless you specified `--batch`, in which case sdm will exit the container. **NOTE:** When sdm provides a command prompt, either with Phase 1 customization or with `--mount`, the terminal colors are changed (if your terminal supports it) to remind you that the IMG is mounted. See the section on Terminal Colors below.
 
 * **Phase 2:** *Write the SD Card*. Using the `sdm --burn` command, the IMG is written to the new physical SD card using ***dd***, and the new system name is written to the SD card. *This enables a single IMG file to be the source for as many Pi systems as you'd like.* Of course, you can burn the SD Card using a different tool if you'd prefer, although you'll need to set the hostname with another mechanism.
 
@@ -167,7 +176,7 @@ sdm operates on the SD Card image in distinct phases:
 
 ## sdm Script Details
 
-sdm consists of a primary script `sdm` and several supporting scripts:
+sdm consists of a primary script sdm and several supporting scripts:
 
 * **sdm-phase0**  &mdash; Script run by sdm before nspawn-ing into the IMG file. sdm-phase0 has access to the running Pi system as well as the file system within the IMG file. You can customize what's done in Phase 0 by using a Custom Phase Script (see below). sdm-phase0 performs several steps:
 
@@ -264,7 +273,7 @@ At that point, you can remove the SD card and move ahead with setting up your SS
 
 ## Complete sdm Command List
 
-`sdm` commands consist of:
+sdm commands consist of:
 
 * `sudo /usr/local/sdm/sdm --customize raspios-image.img`
 
@@ -310,6 +319,8 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--apssid` *SSID* &mdash; Use the specified SSID for the Captive Portal instead of the default 'sdm'. See the Captive Portal section below for details.
 * `--apip` *IPaddr* &mdash; use the specified IP Address instead of the default 10.1.1.1. See the Captive Portal section below for details.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
+* `--b1script` *script* &mdash; Call *script* when burning. *script* will be called after the output has been burned, and operates in effectively a *Phase 0* environment. See section *Burn Scripts* below.
+* `--b2script` *script* &mdash; Like `--b1script`, but is called in an nspawn container. See section *Burn Scripts* below.
 * `--batch` &mdash; Do not provide an interactive command prompt inside the nspawn container
 * `--bootadd` *key:value,key:value,...* &mdash; Add new keys/values to /boot/config.txt
 * `--bootconfig` *key:value,key:value,...* &mdash; Update existing, commented keys in /boot/config.txt
@@ -338,8 +349,49 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--hdmigroup` *num* &mdash; hdmigroup setting in /boot/config.txt
 * `--hdmimode` *num* &mdash; hdmimode setting in /boot/config.txt
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
+* `--hotspot` *config-file* &mdash; Install and Configure a hotspot (Access Point). This is done in accordance with the guides on the Raspberry Pi website:
+    * [https://www.raspberrypi.org/documentation/configuration/wireless/access-point-routed.md](URL)
+    * [https://www.raspberrypi.org/documentation/configuration/wireless/access-point-bridged.md](URL)
+    
+    When `--hotspot` is used, the hotspot is installed and configured at the end of Phase 1. The system is set to automatically restart at the completion of FirstBoot to help ensure that the hotspot is correctly configured. **Check the logs!**
+
+    The hotspot configuration is specified in *config-file*, which contains a set of directives, one per line. The settings shown here are the defaults:
+
+```
+# Type of hotspot
+#  local: Clients can only access the hotspot IP itself
+#  routed: Clients can access the hotspot IP; non-local traffic is routed to the Pi's eth0 network
+#  bridged: The Client network is bridged onto the Pi's eth0 network
+config="local"
+# Channel to use
+channel="36"
+# WiFi mode: "g" for 2.4Ghz, "a" for 5Ghz
+# See https://en.wikipedia.org/wiki/List_of_WLAN_channels for legal channels/modes per country
+hwmode="a"
+# Country: defaults to --wifi-country setting but can be changed here
+country="us"
+# Network device to use. Default is "wlan0"
+dev="wlan0"
+# IP address for the hotspot WiFi network device
+wlanip="192.168.4.1"
+# Range of IP addresses and netmask to use for DHCP server on the hotspot network
+dhcprange="192.168.4.2,192.168.4.32,255.255.255.0"
+# Lease time for IP addresses leased on the hotspot network
+leasetime="24h"
+# SSID for the hotspot network
+ssid="MyPiNet"
+# Passphrase for the hotspot network
+passphrase="password"
+# Domain name for the hotspot network
+domain="wlan.net"
+# If enable=true, the hotspot will be enabled at system boot
+enable="true"
+# If non-null, specifies a file that is concatenated onto /etc/hostapd/hostapd.conf
+include=""
+```
+
 * `--keymap` *keymapname* &mdash; Specifies the keymap to set into the image, or burn onto the SD Card. `--keymap` can be specified when customizing the image and/or when burning the SD card. Specifying `--keymap` with `--burn` overrides whatever is in the image. Also see `--l10n`. See the *layout* section in /usr/share/doc/keyboard-configuration/xorg.list for a complete list of keymaps.
-* `--l10n` &mdash; Build the image with the Keymap, Locale, Timezone, and WiFi Country of the system on which sdm is running. Note that the switch name is lowercase *L10N*, which is shorthand for "localization", just like I18N is shorthand for "internationalization"
+* `--l10n` &mdash; Build the image with the Keymap, Locale, Timezone, and WiFi Country of the system on which sdm is running. Note that the switch name is lowercase *L10N*, which is shorthand for "localization", just like *I18N* is shorthand for "internationalization". Both `--l10n` and `--L10n` are accepted.
 * `--loadlocal USB` &mdash; WiFi Credentials are read from a USB device. The switch keyword value USB is required. The Credentials must be in the file `local-settings.txt` in the root directory of the USB device. `local-settings.txt` has three text lines in it, specifying the WiFi Country, WiFi SSID and password in the format:
 
         country=2 letter country code
@@ -442,7 +494,7 @@ One drawback with this approach is that your fstab additions will be processed d
 
 That's exactly what `--fstab` does. It copies the file you provide to /etc/sdm/assets in the IMG, and then processes that during the system FirstBoot.
 
-No matter which mechanism you use, you'll need to create the mount point directories in the image during Phase 1.
+**NOTE: **No matter which mechanism you use, you'll need to create the mount point directories in the image during Phase 1.
 
 ## Customization switches that can be used with --burn
 
@@ -450,6 +502,8 @@ These switches can be used with `--burn`. When used this way, they affect only t
 
 * `--apip`
 * `--apssid`
+* `--b1script`
+* `--b2script`
 * `--bootscripts`
 * `--dhcpcd`
 * `--exports`
@@ -461,6 +515,26 @@ These switches can be used with `--burn`. When used this way, they affect only t
 * `--timezone`
 * `--wifi-country`
 * `--wpa`
+
+## Burn Scripts
+
+There are cases where it is desirable to do per-device customization on the SD Card or burn image after it has been burned. Examples include:
+
+* Copy additional files onto the SD Card
+* Customized configuration files
+* Customized app installs
+
+If the only differences between your "standard" image and per-device customizations are relatively modest (from your perspective), it you can use Burn Scripts to implement these customizations on the burn output device or file.
+
+In the first case, your script will need access to both the host system and the SD Card. `--b1script` should be used for this. The execution environment for `--b1script` is the same as *Phase 0* described above, and should follow the guidelines for a Custom Phase Script Phase 0.
+
+In the second and third cases, your script wants to do things in the context of the newly-created system. sdm will nspawn into the SD Card, so your script should follow the guidelines for a Custom Phase Script Phase 1.
+
+Both switches require a /complete/path/to/script as an argument.
+
+If you want to do any logging in your Burn Script, execute the command `/mnt/sdm/usr/local/sdm/sdm-cparse` (for `--b1script`) or `/usr/local/sdm/sdm-cparse` (for `--b2script`) at the top of your script. You can then use `logtoboth "string to log"` to write additional log entries onto the SD Card.
+
+Note that the `--b2script` script will be copied to /etc/sdm/assets on the SD Card/image before the nspawn, and is not deleted.
 
 ## Captive Portal
 
@@ -489,7 +563,7 @@ In addition to the basic install, you can of course do also do other configurati
 
 ## Terminal Colors
 
-sdm changes the terminal colors when providing a command prompt in Phase 1, or when using the `--mount` command, to remind you that things are not quite "normal".
+If possible (depends on your terminal; xterm definitely works), sdm changes the terminal colors when providing a command prompt in Phase 1, or when using the `--mount` command, to remind you that things are not quite "normal".
 
 The colors are controlled by the `--ecolors` command switch, which takes an argument specified as 3 colors. The default is `--ecolors blue:gray:red` which sets the foreground (text) blue, the background gray, and the cursor red.
 
