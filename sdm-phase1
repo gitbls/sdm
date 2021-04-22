@@ -56,6 +56,7 @@ EOF
 #
 # Read configuration information from sdm
 #
+declare -x SDMNSPAWN="Phase1"
 source /usr/local/sdm/sdm-cparse ; readparams
 #
 # If --apt just do those and exit
@@ -73,6 +74,22 @@ then
     logtoboth "* apt maintenance Completed"
     exit 0
 fi
+#
+# Process b2script if specified
+#
+if [ "$cmd" == "b2script" ]
+then
+    fn="/etc/sdm/assets/$(basename $cmdoptions)"
+    if [ -f $fn ]
+    then
+	logtoboth "> Execute --b2script '$cmdoptions' [$fn] in nspawn"
+	/etc/sdm/assets/$(basename $cmdoptions)
+    else
+	logtoboth "? Internal error: --b2script file '$fn' not found"
+    fi
+    exit 0
+fi
+    
 logtoboth "* Start Phase 1 image customization"
 logfreespace
 #
@@ -274,7 +291,7 @@ fi
 #
 # I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
 #
-logtoboth "> Disable wpa_supplicant.service, which is only used by Network Manager and (maybe) hostapd"
+logtoboth "> Disable wpa_supplicant.service, which is only used by Network Manager"
 logtoboth "  dhcpcd will start an interface-specific wpa_supplicant if needed"
 systemctl disable wpa_supplicant
 #

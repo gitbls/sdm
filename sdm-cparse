@@ -7,7 +7,7 @@ function readparams() {
     # Restores the global variables from /etc/sdm/cparams
     #
     local sifs=$IFS rpifun value cf="/etc/sdm/cparams"
-    [ "$SDMPHASE0" != "" ] && cf="/mnt/sdm/$cf"
+    [ "$SDMNSPAWN" == "" ] && cf="/mnt/sdm/$cf"
     if [ -f $cf ]
     then
 	IFS=":"
@@ -38,7 +38,7 @@ function logit {
     # $1="message string"
     #
     local mnt=""
-    [ "$SDMPHASE0" != "" ] && mnt="/mnt/sdm"
+    [ "$SDMNSPAWN" == "" ] && mnt="/mnt/sdm"
     echo "$(thisdate) $1" >> $mnt/etc/sdm/history
 }
 
@@ -161,7 +161,7 @@ function logfreespace() {
     # Logs the current free space on $dimg
     #
     local dev="/"
-    [ "$SDMPHASE0" != "" ] && dev="/mnt/sdm"
+    [ "$SDMNSPAWN" == "" ] && dev="/mnt/sdm"
     local simdev="IMG"
     [ $dimgdev -eq 1 ] && simdev="Device"
     [ $fdirtree -eq 1 ] && simdev="Directory"

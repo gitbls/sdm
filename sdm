@@ -466,7 +466,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.07"
+version="V4.08"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -954,9 +954,7 @@ then
 	bkeymap="$keymap"
 	btimezone="$timezone"
 	bwpaconf="$wpaconf"
-	declare -x SDMPHASE0="PHASE0" # Force readparams to use /mnt/sdm
 	readparams                    # Read settings from the SD card
-	unset SDMPHASE0
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
 	[ "$bb2script" != "$b2script" ] && b2script=$bb2script
         [ $breboot -eq 1 ] && reboot=$breboot
@@ -975,9 +973,23 @@ then
 	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 	if [ "$b2script" != "" ]
 	then
-	    burnmsg+=("$(thisdate) > Copy '$b2script' to /etc/sdm/assets")
-	    cp $b2script /mnt/sdm/etc/sdm/assets
-	    chmod 755 /mnt/sdm/etc/sdm/assets/$(basename $b2script)
+	    if [ -f $b2script ]
+	    then
+		if [ ! -f /mnt/sdm/etc/sdm/assets/$(basename $b2script) ]
+		then
+		    echo "> Copy '$b2script' to /etc/sdm/assets"
+		    burnmsg+=("$(thisdate) > Copy '$b2script' to /etc/sdm/assets")
+		    cp $b2script /mnt/sdm/etc/sdm/assets
+		    chmod 755 /mnt/sdm/etc/sdm/assets/$(basename $b2script)
+		fi
+	    else
+		if [ ! -f /mnt/sdm/etc/sdm/assets/$(basename $b2script) ]
+		then
+		   echo "? --b2script '$b2script' not found"
+		   burnmsg+=("$(thisdate) ? --b2script '$b2script' not found")
+		   b2script=""
+		fi
+	    fi
 	fi
 	if [ "$bdhcpcd" != "" ]
 	then
@@ -1029,17 +1041,12 @@ then
 	[ $reboot -eq 1 ] && echo "> First System Boot automatic restart enabled${wmsg}" || echo "> First System Boot automatic restart disabled"
 	if [ "$b1script" != "" ]
 	then
-	    declare -x SDMPHASE0="PHASE0"         #So b1script can use logtoboth if desired
-	    echo "> Execute --b1script '$b1script'"
-	    echo "$(thisdate) > Execute --b1script '$b1script'" >> /mnt/sdm/etc/sdm/history
+	    logtoboth "> Execute --b1script '$b1script'"
 	    $b1script
-	    unset SDMPHASE0
 	fi
 	if [ "$b2script" != "" ]
 	then
-	    echo "> Execute --b2script '$b2script' in nspawn"
-	    echo "$(thisdate) > Execute --b2script '$b2script' in nspawn" >> /mnt/sdm/etc/sdm/history
-	    systemd-nspawn --directory=/mnt/sdm /etc/sdm/assets/$(basename $b2script) < $(tty)
+	    systemd-nspawn --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 b2script $b2script < $(tty)
 	fi
     else
 	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
@@ -1144,7 +1151,6 @@ else
 	    echo ""
 	fi
     fi
-    declare -x SDMPHASE0="PHASE0"
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
@@ -1203,7 +1209,6 @@ else
     # Perform Phase 0 on the image
     #
     /mnt/sdm/usr/local/sdm/sdm-phase0
-    unset SDMPHASE0
     touch $sdmdone
     
     echo "* nspawn into image '$dimg' for Phase 1"

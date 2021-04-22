@@ -80,6 +80,11 @@ then
     cp $exports /mnt/sdm/etc/exports
 fi
 
+if [ "$b2script" != "" ]
+then
+    logtoboth "> Copy --b2script '$b2script' to /etc/sdm/assets"
+    cp $b2script /mnt/sdm/etc/sdm/assets
+fi
 #
 # Copy fstab extension into the image
 #
