@@ -1,5 +1,10 @@
 # Changelog
 
+## V4.08
+
+* Improve and simplify Phase 0 vs 1 identification to reduce code complexity
+* Improve --b2script handling
+
 ## V4.07
 
 * Add --hotspot to install and configure a hotspot, either as 'local', 'routed', or 'bridged'
