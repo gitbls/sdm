@@ -526,13 +526,13 @@ There are cases where it is desirable to do per-device customization on the SD C
 
 If the only differences between your "standard" image and per-device customizations are relatively modest (from your perspective), it you can use Burn Scripts to implement these customizations on the burn output device or file.
 
-In the first case, your script will need access to both the host system and the SD Card. `--b1script` should be used for this. The execution environment for `--b1script` is the same as *Phase 0* described above, and should follow the guidelines for a Custom Phase Script Phase 0.
+In the first case (copying additional files), your script will need access to both the host system and the SD Card. `--b1script` should be used for this. The execution environment for `--b1script` is the same as *Phase 0* described above, and should follow the guidelines for a Custom Phase Script Phase 0.
 
 In the second and third cases, your script wants to do things in the context of the newly-created system. sdm will nspawn into the SD Card, so your script should follow the guidelines for a Custom Phase Script Phase 1.
 
 Both switches require a /complete/path/to/script as an argument.
 
-If you want to do any logging in your Burn Script, execute the command `/mnt/sdm/usr/local/sdm/sdm-cparse` (for `--b1script`) or `/usr/local/sdm/sdm-cparse` (for `--b2script`) at the top of your script. You can then use `logtoboth "string to log"` to write additional log entries onto the SD Card.
+If you want to do any logging in your Burn Scripts, execute the command `source /mnt/sdm/usr/local/sdm/sdm-cparse` (for `--b1script`) or `source /usr/local/sdm/sdm-cparse` (for `--b2script`) at the top of your script. You can then use `logtoboth "string to log"` to write additional log entries onto the SD Card.
 
 Note that the `--b2script` script will be copied to /etc/sdm/assets on the SD Card/image before the nspawn, and is not deleted.
 
