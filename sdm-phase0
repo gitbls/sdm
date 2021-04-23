@@ -148,7 +148,11 @@ then
     logtoboth "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
     sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /mnt/sdm/boot/config.txt
 fi
-
+if [ "$hdmiignoreedid" == "1" ]
+then
+    logtoboth "> set 'hdmi_ignore_edid=0xa5000080' in /boot/config.txt"
+    sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /boot/config.txt
+fi
 #
 # Set other config.txt settings (if any)
 #
@@ -170,7 +174,7 @@ then
     then
 	logtoboth "> Add new keys to /boot/config.txt"
 	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
-	echo "# Following items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
+	echo "# Items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
 	readarray -d, citems <<< $bootadd
 	for c in ${citems[@]}
 	do

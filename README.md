@@ -336,7 +336,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.
 * `--datefmt "fmt"` &mdash; Use the specified date format instead of the default "%Y-%m-%d %H:%M:%S". See `man date` for format string details.
-* `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M oflag=direct". If `--ddsw` is specified, the default value is replaced.
+* `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, the default value is replaced.
 * `--dhcpcdwait` &mdash; Enable 'wait for network' (raspi-config System option S6).
 * `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
 * `--dtoverlay` *string* &mdash; Add a dtoverlay to /boot/config.txt with the specified string, one dtoverlay per switch. Multiple `--dtoverlay` switches can be specified. They will all be added to config.txt

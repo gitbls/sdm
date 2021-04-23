@@ -7,23 +7,55 @@
 #  Use sudo systemctl disable sdm-hostapd-iptables to disable routing if desired
 #  hwmode G doesn't work well (at least with channel 7. Test more)
 #
+# Hotspot type:
+#   local: Clients can only access the IP of the hotspot (web pages, etc)
+#   routed: Clients can access the IP of the hotspot AND the network to which hotspot is connected
+#   bridged: Clients appear to become part of the network to which the hotspot is connected
+#
+# To use without sdm:
+# * Invoke with 'sudo sdm-hotspot config-file`
+#
+
 function saveorig() {
     #
     # $1 = filename to save
+    # $2 = "" (move file to .orig) or 1 (keep original and copy to .orig)
     # Only renames it to $1.orig if $1.orig doesn't already exist
     # If $1.orig already exists, the file $1 is simply deleted
     #
     [ ! -f $1 ] && return
-    [ -f $1.orig ] && ( rm -f $1 ; return ) || mv $1 $1.orig
+    [ -f $1.orig ] && ( [ "$2" != "1" ] && rm -f $1 ; return )
+    [ "$2" == "1" ] && cp $1 $1.orig || mv $1 $1.orig
     return
 }
 
-source /usr/local/sdm/sdm-cparse ; readparams
+function logtoboth() {
+    #
+    # Overridden if used in sdm
+    #
+    echo "$1"
+    return
+}
+
+function doapt() {
+    #
+    # Overridden if used in sdm
+    #
+    apt $1
+    return
+}
+
+# $SDMNSPAWN != "" if called from within sdm
+if [ "$SDMNSPAWN" != "" ]
+then
+    source /usr/local/sdm/sdm-cparse ; readparams
+    # sdm copies the hotspot config file into the image in sdm-phase0
+    fhotspot="/etc/sdm/assets/$(basename $hotspot)"
+else
+    fhotspot="$1"
+fi
 
 logtoboth "* Start Access Point (hotspot) installation and configuration"
-# sdm copies the hotspot config file into the image in sdm-phase0
-fhotspot="/etc/sdm/assets/$(basename $hotspot)"
-
 #
 # set defaults
 #
@@ -105,15 +137,20 @@ IFS=$sifs
 #
 # Validity checks
 #
-if [[ ! "local|routed|bridged" =~ "$hotconfig" ]]
+if [[ ! "local|routed|bridged" =~ "$hotconfig" ]] || [ "$hotconfig" == "" ]
 then
     logtoboth "? Unrecognized Access Point configuration type '$hotconfig'"
     exit
+fi
+if [ "$hotinclude" != "" ]
+then
+    [ ! -f $hotinclude ] && logtoboth "% hostapd.conf include file '$hotinclude' not found; ignoring"
 fi
 
 # install hostapd and dnsmasq
 svcs="hostapd"
 logtoboth "> Install and disable hostapd"
+[ "$SDMNSPAWN" == "" ] && logtoboth "% Ignore any service start errors"
 doapt "install --no-install-recommends --yes hostapd" "$showapt"
 systemctl unmask hostapd
 systemctl disable hostapd
@@ -124,7 +161,7 @@ then
     doapt "install --no-install-recommends --yes dnsmasq" "$showapt"
     systemctl disable dnsmasq
 fi
-logtoboth "% $svcs will be re-enabled during FirstBoot"
+[ "$SDMNSPAWN" != "" ] && logtoboth "% $svcs will be re-enabled during FirstBoot"
 
 # Create hostapd and dnsmasq config files
 logtoboth "> hostapd will be configured for mode '$hotconfig'"
@@ -177,20 +214,13 @@ logger_stdout=-1
 logger_stdout_level=1
 
 EOF
-if [ "$hotinclude" != "" ]
-then
-    if [ -f $hotinclude ]
-    then
-	cat $hotinclude >> /etc/hostapd/hostapd.conf
-    else
-	logtoboth "% hostapd.conf include file '$hotinclude' not found; ignoring"
-    fi
-fi
+# Cat the include file to the end of hostpad.conf if specified
+[ "$hotinclude" != "" ] && cat $hotinclude >> /etc/hostapd/hostapd.conf
 
 if [ "$hotconfig" != "bridged" ]
 then
     logtoboth "> Create dnsmasq configuration"
-    saveorig /etc/dnsmasq.conf
+    saveorig /etc/dnsmasq.conf 1
     cat >> /etc/dnsmasq.conf <<EOF
 # sdm hotspot dnsmasq configuration $(date)
 interface=$hotdev
@@ -218,6 +248,11 @@ Description=sdm-hostapd-iptables
 After=network.target
 
 [Service]
+#
+# This service should be:
+#  Enabled for a routed access point
+#  Disabled for a local or bridged access point
+#
 ExecStart=/sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 RemainAfterExit=true
 Type=oneshot
@@ -244,7 +279,7 @@ Name=eth0
 Bridge=br0
 EOF
     systemctl enable systemd-networkd
-    saveorig /etc/dhcpcd.conf
+    saveorig /etc/dhcpcd.conf 1
     sed -i '1 i\denyinterfaces wlan0 eth0' /etc/dhcpcd.conf
     echo -e "\n# sdm bridged network configuration $(date)" >> /etc/dhcpcd.conf
     echo 'interface br0' >> /etc/dhcpcd.conf
@@ -261,16 +296,30 @@ fi
 
 if [ "$hotenable" == "true" ]
 then
-    logtoboth "> Set hostapd and dnsmasq to enable during FirstBoot"
-    cat > /etc/sdm/0piboot/040-hostapd-enable.sh <<EOF
+    if [ "$SDMNSPAWN" != "" ]
+    then
+	logtoboth "> Set hostapd and dnsmasq to enable during FirstBoot"
+	cat > /etc/sdm/0piboot/040-hostapd-enable.sh <<EOF
 #!/bin/bash
 #source /usr/local/sdm/sdm-cparse ; readparams
 logger "FirstBoot: Enable hostapd and dnsmasq"
 systemctl enable hostapd
 rfkill unblock wlan
 EOF
-    [ "$hotconfig" == "routed" ] && echo "systemctl enable dnsmasq" >> /etc/sdm/0piboot/040-hostapd-enable.sh 
-    chmod 755 /etc/sdm/0piboot/040-hostapd-enable.sh
+	[ "$hotconfig" == "routed" ] && echo "systemctl enable dnsmasq" >> /etc/sdm/0piboot/040-hostapd-enable.sh 
+	chmod 755 /etc/sdm/0piboot/040-hostapd-enable.sh
+    else  # SDMNSPAWN == "" (not in sdm)
+	systemctl enable hostapd
+	[ "$hotconfig" == "routed" ] && systemctl enable dnsmasq
+    fi
+else
+    if [ "$SDMNSPAWN" == "" ]
+    then
+	se="sudo systemctl enable hostapd"
+	[ "$hotconfig" != "bridged" ] && se="$se ; sudo systemctl enable dnsmasq"
+	logtoboth "> Use '$se' to enable the hotspot"
+    fi
 fi
 logtoboth "* Hotspot Install Completed"
+[ "$SDMNSPAWN" == "" ] && logtoboth "" && logtoboth "% Restart your system to ensure configuration is correct"
 exit

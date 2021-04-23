@@ -68,7 +68,7 @@ function logtoboth {
 function bootlog() {
     # Write string in $1 to the system log/journal and /etc/sdm/history.log
     logger "FirstBoot: $1"
-    logit "" "> FirstBoot $1"
+    logit "> FirstBoot $1"
 }
 
 function getpwd() {

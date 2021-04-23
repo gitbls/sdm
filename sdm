@@ -323,6 +323,7 @@ fdirtree:$fdirtree
 fmouse:$fmouse
 fstab:$fstab
 hdmiforcehotplug:$hdmiforcehotplug
+hdmiignoreedid:$hdmiignoreedid
 hdmigroup:$hdmigroup
 hdmimode:$hdmimode
 hostname:$hostname
@@ -409,7 +410,7 @@ Command Switches for --customize and --burn or as noted
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
  --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
- --ddsw str          Switches for dd command [bs=16M oflag=direct]
+ --ddsw str          Switches for dd command [bs=16M iflag=direct]
  --directory         sd-image-file is a directory tree rather than an IMG
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
@@ -424,6 +425,7 @@ Command Switches for --customize and --burn or as noted
  --groups list,of,groups Use this list of groups for user created with --user
                      [dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio]
  --hdmi-force-hotplug Set hdmi_force_hotplug=1 in /boot/config.txt
+ --hdmi-ignore-edid  Set hdmi_ignore_edid=0xa5000080 in /boot/config.txt
  --hdmigroup n       Set /boot/config.txt hdmigroup value
  --hdmimode n        Set /boot/config.txt hdmimode value
  --host hostname     Hostname to write onto the storage device with --burn
@@ -454,7 +456,7 @@ Command Switches for --customize and --burn or as noted
  --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
  --uid uid           UID for non-root user [next free]
  --user username     Create non-root user
- --vnc name,res1,res2,...,resx Enable tight or tiger VNC server with specified resolutions
+ --vnc name,res1,res2,...,resx Enable tightvnc or tigerVNC server and/or RealVNC with specified resolutions
  --wifi-country country Set WiFi Country for unblocking WiFi
  --wpa wpaconf       wpa_supplicant.conf file to use
  --nowpa             Do not do WPA config file processing
@@ -466,7 +468,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.08"
+version="V4.09"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -493,7 +495,7 @@ cronsystemd=0               #1=disable cron service and enable systemd cron time
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
-ddsw="bs=16M oflag=direct"  #Switches for dd
+ddsw="bs=16M iflag=direct"  #Switches for dd
 dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
 dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
 domain=""                   #--domain name
@@ -514,6 +516,7 @@ fnowpa=0                    #1=I really man no automatic no wpa config
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
 hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
+hdmiignoreedid=0            #1=Set hdmiignoreedid=0xa5000080 in /boot/config.txt
 hdmigroup=""                #If set, edit /boot/config.txt and set
 hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
@@ -578,7 +581,7 @@ batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
-fstab:,groups:,hdmi-force-hotplug,hdmigroup:,hdmimode:,host:,hostname:,\
+fstab:,groups:,hdmi-force-hotplug,hdmiignoreedid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
@@ -636,6 +639,7 @@ do
 	--fstab)       fstab=$2      ; shift 2 ;;
 	--groups)      groups=$2     ; shift 2 ;;
 	--hdmi-force-hotplug) hdmiforcehotplug=1 ; shift 1 ;;
+	--hdmi-ignore-edid) hdmiignoreedid=1 ; shift 1 ;;
 	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
