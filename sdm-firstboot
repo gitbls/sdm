@@ -339,6 +339,7 @@ fi
 #
 # Now running in the fork
 #
+declare -x SDMNSPAWN="FirstBoot"
 source /usr/local/sdm/sdm-cparse ; readparams
 
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
@@ -386,7 +387,7 @@ doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated FirstBoot"
 
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
-    logit "" "> FirstBoot Disable sdm-firstboot service"
+    logit "> FirstBoot Disable sdm-firstboot service"
     systemctl disable sdm-firstboot > /dev/null 2>&1
     # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
     # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
