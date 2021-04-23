@@ -1,5 +1,12 @@
 # Changelog
 
+## V4.09
+
+* Add --hdmi-ignore-edid which sets hdmi_ignore_edid=0xa5000080 in /boot/config.txt
+* Correct some references to logit function
+* Correct dd switches for improved performance
+* Enable sdm-hotspot to install hotspot without using sdm (see source)
+
 ## V4.08
 
 * Improve and simplify Phase 0 vs 1 identification to reduce code complexity
