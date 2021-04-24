@@ -306,11 +306,11 @@ logger "FirstBoot: Enable hostapd and dnsmasq"
 systemctl enable hostapd
 rfkill unblock wlan
 EOF
-	[ "$hotconfig" == "routed" ] && echo "systemctl enable dnsmasq" >> /etc/sdm/0piboot/040-hostapd-enable.sh 
+	[ "$hotconfig" != "bridged" ] && echo "systemctl enable dnsmasq" >> /etc/sdm/0piboot/040-hostapd-enable.sh 
 	chmod 755 /etc/sdm/0piboot/040-hostapd-enable.sh
     else  # SDMNSPAWN == "" (not in sdm)
 	systemctl enable hostapd
-	[ "$hotconfig" == "routed" ] && systemctl enable dnsmasq
+	[ "$hotconfig" != "bridged" ] && systemctl enable dnsmasq
     fi
 else
     if [ "$SDMNSPAWN" == "" ]
