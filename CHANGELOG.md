@@ -1,5 +1,9 @@
 # Changelog
 
+## V4.10
+
+* Add missing hyphens to hdmi-ignore-edid in switch table
+
 ## V4.09
 
 * Add --hdmi-ignore-edid which sets hdmi_ignore_edid=0xa5000080 in /boot/config.txt

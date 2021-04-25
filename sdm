@@ -468,7 +468,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.09"
+version="V4.10"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -581,7 +581,7 @@ batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
-fstab:,groups:,hdmi-force-hotplug,hdmiignoreedid,hdmigroup:,hdmimode:,host:,hostname:,\
+fstab:,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,keymap:,l10n,loadlocal:,locale:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
