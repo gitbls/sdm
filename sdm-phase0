@@ -151,7 +151,7 @@ fi
 if [ "$hdmiignoreedid" == "1" ]
 then
     logtoboth "> set 'hdmi_ignore_edid=0xa5000080' in /boot/config.txt"
-    sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /boot/config.txt
+    sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /mnt/sdm/boot/config.txt
 fi
 #
 # Set other config.txt settings (if any)
