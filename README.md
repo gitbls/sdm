@@ -32,6 +32,8 @@ While better than not having ANY notes, this approach requires relatively comple
 * **Easily inspect** EVERYTHING that sdm does
 * **Easily make changes to sdm**, although by using provided customization hooks, you can avoid modifying sdm itself and ease your "sdm upgrade problem"
 
+Have questions about sdm? Please don't hesitate to ask in the Issues section of this github. If you don't have a github account (so can't post an issue/question here), please feel free to email me at: [gitbls@outlook.com](mailto:gitbls@outlook.com).
+
 If you find sdm useful, please consider starring it to help me understand how many people are using it. Thanks!
 
 ## Usage overview
@@ -244,7 +246,7 @@ The following can only be set in the context of a running system, so are set dur
 * **audio** &mdash; Set the audio setting. Valid settings are: **0**:Auto, **1**:Force 3.5mm jack, **2**:Force HDMI
 * **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1**:4Kp60, **V2**:Analog TV out, **V3**:Disable both 4Kp60 and Analog
 * **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1**:Text console no autologin, **B2**:Text console with autologin, **B3**:Graphical Desktop no autologin, and **B4:**Graphical Desktop with autologin. **NOTE:** If `--user` was specified, autologin will be set for that user. If not, user "pi" is enabled.
-* **boot_order** &mdash; Set the boot order. Valid settings are: **B1**:Boot from USB device if SD Card boot fails, **B2**:Network boot if SD Card boot fails. See the "Boot Order" section below.
+* **boot_order** &mdash; Set the boot order. Valid settings are: **B1**:Boot from SD Card if available else boot from USB, **B2**:Boot from USB USB if available else boot from SD Card, **B3**: Network boot if SD Card boot fails. See the "Boot Order" section below.
 * **overclock** &mdash; Enable overclocking. Valid settings are: **None**, **Modest**, **Medium**, **High**, **Turbo**. This setting is for Pi 1 and 2 only and will silently fail on all other Pi models.
 
 **NOTE:** Not all of the above settings have been thoroughy tested and verified. They simply call `raspi-config`, so *should just work*. If you run into a problem, please open an issue on this github.
@@ -265,7 +267,7 @@ First Boot Automatic System Restart is useful for a couple reasons:
 
 #### Boot Order
 
-The *boot_order* configuration setting is different than other settings, in that in modifies the Raspberry Pi eeprom so that boot from USB disk or boot from Network are enabled. If your Pi already has a current system on it, you can use the command `sudo raspi-config do_boot_order XX` to set the boot_order to B1 (Boot from USB device) or B2 (Boot from Network).
+The *boot_order* configuration setting is different than other settings, in that in modifies the Raspberry Pi eeprom so that boot from USB disk or boot from Network are enabled. If your Pi already has a current system on it, you can use the command `sudo raspi-config do_boot_order XX` to set the boot_order to B1 (Boot from SD Card if available else USB device), B2 (Boot from USB if available else SD Card) or B3 (Boot from Network if SD Card boot fails).
 
 If the target system doesn't have a current system on it, you can update the eeprom with sdm by setting up a separate image that is enabled with boot_order, and has all updates installed. Burn that image to an SD card and boot up the target Pi hardware. The system will use raspi-config to change the boot_order setting, and the restart again.
 
