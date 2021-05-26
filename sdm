@@ -28,7 +28,7 @@
 #
 
 function errexit() {
-    echo "$1"
+    echo -e "$1"
     ismounted /mnt/sdm && docleanup
     exit 1
 }
@@ -468,7 +468,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.10"
+version="V4.11"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -810,6 +810,13 @@ then
     [ ! -b $dimg ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
 fi    
+if [ -f "$dimg" ]
+then
+    if [ "${dimg%%.zip}" != "$dimg" -o "${dimg%%.ZIP}" != "$dimg" ]
+    then
+	errexit "? File '$dimg' appears to be a ZIP file\n  Unzip it to operate on the .IMG contained within it"
+    fi
+fi
 #
 # Ensure wpa is correctly configured for the request, if needed
 #
