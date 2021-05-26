@@ -396,7 +396,7 @@ EOF
     #
     # Ensure VNC server is installed (install if not), and ensure one of lightdm or xdm is installed
     #
-    if ! dpkg-query -s $vncp > /dev/null 2&>1
+    if ! dpkg-query -s $vncp > /dev/null 2>&1
     then
 	[ -f /usr/bin/X${othervnc} ] && logtoboth "% '$othervnc' is installed as well as the requested '$vncserver'"
 	# This VV does not work here. Why? It's done outside of the 'if vnc' block where it works
@@ -433,7 +433,7 @@ then
 	logtoboth "> Install RealVNC server '$realvnc'"
 	doapt "install --yes $realvnc" "$showapt"
     fi
-    systemctl disable vncserver-x11-serviced.service > /dev/null 2&>1
+    systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
     cat > /etc/sdm/0piboot/030-realvnc-server.sh <<EOF
 #!/bin/bash
 logger "FirstBoot: Enable RealVNC Server vncserver-x11-serviced"
