@@ -200,7 +200,7 @@ then
     # Create user directory now, so that Custom Phase Script can copy into it if desired
     # Can't create the new user and fix directory ownership until sdm-phase1
     #
-    [ ! -d /home/$myuser ] && mkdir /home/$myuser
+    [ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser
 fi
 
 #
