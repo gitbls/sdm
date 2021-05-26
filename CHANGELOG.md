@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.11
+
+* Fix sdm-phase0 creating $myuser home directory on running system rather than in /mnt/sdm
+* Fix erroneous redirects in sdm-phase1 (and checked others!)
+* Have you ever mistakenly pointed sdm to a ZIP file instead of the IMG contained within it? I did today. Never again though!
+
 ## V4.10
 
 * Add missing hyphens to hdmi-ignore-edid in switch table
