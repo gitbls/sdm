@@ -14,6 +14,7 @@
 #
 # To use without sdm:
 # * Invoke with 'sudo sdm-hotspot config-file`
+# * See https://github.com/gitbls/sdm/README.md for details on the --hotspot config-file
 #
 
 function saveorig() {
