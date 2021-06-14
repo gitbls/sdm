@@ -396,7 +396,7 @@ EOF
     #
     # Ensure VNC server is installed (install if not), and ensure one of lightdm or xdm is installed
     #
-    if ! dpkg-query -s $vncp > /dev/null 2>&1
+    if ! ispkginstalled $vncp
     then
 	[ -f /usr/bin/X${othervnc} ] && logtoboth "% '$othervnc' is installed as well as the requested '$vncserver'"
 	# This VV does not work here. Why? It's done outside of the 'if vnc' block where it works
@@ -428,7 +428,7 @@ fi
 [ "$vncp" != "" ] && logtoboth "> Install VNC server $vncp" && doapt "install --yes $vncp" "$showapt"
 if [ "$realvnc" != "" ]
 then
-    if ! dpkg-query -s $realvnc > /dev/null 2>&1
+    if ! ispkginstalled $realvnc
     then
 	logtoboth "> Install RealVNC server '$realvnc'"
 	doapt "install --yes $realvnc" "$showapt"
