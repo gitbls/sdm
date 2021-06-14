@@ -136,6 +136,20 @@ function doapt() {
     fi
 }
 
+function ispkginstalled() {
+    #
+    # $1 has package name
+    #
+    iver=$(apt-cache policy $1 | grep Installed:)
+    if [ "$iver" == "" ]
+    then
+        return 1
+    else
+        [[ "$iver" =~ "(none)" ]] && return 1 || return 0
+    fi
+    return
+}
+
 function thisdate() {
     echo  "$(date +"$datefmt")"
 }
