@@ -385,10 +385,11 @@ doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated FirstBoot"
 #
 [ "$bootscripts" == "1" ] && doscripts "/usr/local/sdm/1piboot/0*-*.sh" "Custom FirstBoot" || bootlog "Skip Custom FirstBoot Scripts"
 
+logit "> FirstBoot Disable sdm-firstboot service"
+systemctl disable sdm-firstboot > /dev/null 2>&1
+
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
-    logit "> FirstBoot Disable sdm-firstboot service"
-    systemctl disable sdm-firstboot > /dev/null 2>&1
     # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
     # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
     lc=0
