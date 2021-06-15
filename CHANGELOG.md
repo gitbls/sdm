@@ -1,5 +1,11 @@
 # Changelog
 
+## V4.12
+
+* Always disable sdm-firstboot service at end of FirstBoot processing
+* Improve check for "is package installed"
+	
+
 ## V4.11
 
 * Fix sdm-phase0 creating $myuser home directory on running system rather than in /mnt/sdm
