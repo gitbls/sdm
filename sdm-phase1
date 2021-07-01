@@ -66,11 +66,11 @@ cmdoptions="$2"
 if [ "$cmd" == "apt" ]
 then
     logtoboth "* Start apt maintenance"
-    logfreespace
+    logfreespace "at start of 'apt $cmdoptions'"
     [[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doapt "--yes update"  0
     [[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0
     [[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doapt "--yes autoremove" 0
-    cklogfreespace
+    cklogfreespace "at end of 'apt $cmdoptions'"
     logtoboth "* apt maintenance Completed"
     exit 0
 fi
@@ -91,7 +91,7 @@ then
 fi
     
 logtoboth "* Start Phase 1 image customization"
-logfreespace
+logfreespace "at start of Phase 1 image customization"
 #
 # Set up ssh as requested
 #
@@ -180,10 +180,16 @@ WantedBy=multi-user.target
 EOF
 
 systemctl enable sdm-firstboot > /dev/null 2>&1
+
 #
 # Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
 #
-[ "$wpaconf" != "" ] && logtoboth "> Disable unneeded check for /boot/wpa_supplicant (raspberrypi-net-mods); wpa_supplicant.conf already configured" && rm -f /etc/systemd/system/multi-user.target.wants/raspberrypi-net-mods.service
+if [ "$wpaconf" != "" ]
+then
+    logtoboth "> Disable unneeded check for /boot/wpa_supplicant (raspberrypi-net-mods service)"
+    logtoboth "  wpa_supplicant.conf is already configured"
+    systemctl disable raspberrypi-net-mods.service > /dev/null 2>&1
+fi
 
 #
 # Set up apt-cacher-ng client if requested
@@ -237,7 +243,9 @@ fi
 if ! [[ "$poptions" =~ "noupdate" ]]
 then
     logtoboth "> Start 'apt update'"
+    logfreespace "at start of 'apt update'"
     doapt "update" $showapt
+    logfreespace "at end of 'apt update'"
 else
     logtoboth "> Skip 'apt update' per --poption 'noupdate'"
 fi    
@@ -323,19 +331,22 @@ fi
 didapt=0
 if [[ "$poptions" =~ "|apps|" ]]
 then
+    logfreespace "at start of Application Installs"
     doinstalls "$apps" "Application Installs"
+    logfreespace "at end of Application Installs"
     [ "$apps" != "" ] && didapt=1
 fi
 if [[ "$poptions" =~ "xwindows" ]] || [[ "$poptions" =~ "xapps" ]]
 then
+    logfreespace "at start of xapp/XWindows Installs"
     doinstalls "$xapps" "xapp/XWindows Installs"
     [ "$xapps" != "" ] && didapt=1
+    logfreespace "at end of xapp/XWindows Installs"
 fi
 
 #
 # Post-install Configuration
 #
-
 
 #
 # Configure VNC if requested
@@ -391,7 +402,7 @@ StandardError=syslog
 EOF
 	    systemctl enable xvnc$n.socket > /dev/null 2>&1
 	    n=$(($n+1))
-	fi
+        fi
     done
     #
     # Ensure VNC server is installed (install if not), and ensure one of lightdm or xdm is installed
@@ -423,15 +434,23 @@ EOF
 	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
     fi
     IFS="$sifs"
+    # For some reason this VV works outside the 'if vnc' block, but not inside ;(
+    if [ "$vncp" != "" ]
+    then
+	logtoboth "> Install VNC server $vncp"
+	logfreespace "at start of install VNC server $vncp"
+	doapt "install --yes $vncp" "$showapt"
+	logfreespace "at end of install VNC server $vncp"
+    fi
 fi
-# For some reason this VV works outside the 'if vnc' block, but not inside ;(
-[ "$vncp" != "" ] && logtoboth "> Install VNC server $vncp" && doapt "install --yes $vncp" "$showapt"
 if [ "$realvnc" != "" ]
 then
     if ! ispkginstalled $realvnc
     then
 	logtoboth "> Install RealVNC server '$realvnc'"
+	logfreespace "at start of RealVNC Server install"
 	doapt "install --yes $realvnc" "$showapt"
+	logfreespace "at end of RealVNC Server install"
     fi
     systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
     cat > /etc/sdm/0piboot/030-realvnc-server.sh <<EOF
@@ -472,7 +491,9 @@ fi
 if ! [[ "$poptions" =~ "noupgrade" ]]
 then
     logtoboth "> Start 'apt upgrade'"
+    logfreespace "at start of 'apt upgrade'"
     upgkeepconf "-y" "$showapt"
+    logfreespace "at end of 'apt upgrade'"
     didapt=1
 else
     logtoboth "> Skip 'apt upgrade' per --poption 'noupgrade'"
@@ -482,7 +503,9 @@ then
     if [[ ! "$poptions" =~ "noautoremove" ]]
     then
 	logtoboth "> Start 'apt autoremove'"
+	logfreespace "at start of 'apt autoremove'"
 	doapt "--yes autoremove" $showapt
+	logfreespace "at end of 'apt autoremove'"
     else
 	logtoboth "> Skip 'apt autoremove' per --poption 'noautoremove'"
     fi
@@ -558,14 +581,18 @@ then
     fi
 fi
 
+logfreespace "at end of Phase 1"
 logtoboth "* Phase 1 Completed"
 
-[ "$csfn" != "" ] && logtoboth "> Run Custom Phase Script '$csfn' post-install" && $csfn post-install
-
+if [ "$csfn" != "" ]
+then
+    logtoboth "> Run Custom Phase Script '$csfn' post-install"
+    $csfn post-install
+fi
 #
 # Check for device out of space and warn if so
 #
-cklogfreespace
+cklogfreespace "at end of Customization"
 
 echo ""
 if [ $batch -eq 0 ]

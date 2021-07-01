@@ -47,10 +47,11 @@ function logtoboth {
     # Writes the message to the terminal and also to /etc/sdm/history
     #
     # $1="message string" which will be split up across multiple lines if needed
+    # $2="nosplit" if lines should not be split up
     #
     local msg="$1"
     local str=() i spc=""
-    if [ ${#msg} -le 96 ]
+    if [ ${#msg} -le 96 -o "$2" == "nosplit" ]
     then
 	logit "$msg"
 	echo "$msg"
@@ -174,31 +175,31 @@ function logfreespace() {
     #
     # Logs the current free space on $dimg
     #
-    local dev="/"
+    local dev="/" extramsg="$1"
     [ "$SDMNSPAWN" == "" ] && dev="/mnt/sdm"
     local simdev="IMG"
     [ $dimgdev -eq 1 ] && simdev="Device"
     [ $fdirtree -eq 1 ] && simdev="Directory"
-    logtoboth "> $simdev '$dimg' has $(getfsdf $dev avail) 1K-blocks free"
+    logtoboth "> $simdev '$dimg' has $(getfsdf $dev avail) 1K-blocks free $extramsg" nosplit
 }
 
 function cklogfreespace() {
     #
     # Report if IMG looks full. If not, just log free space
     #
-    local dused=$(getfsdf / pcent)
+    local dused=$(getfsdf / pcent) extramsg="$1"
     local simdev="IMG"
     if [ $dused -ge 98 ]
     then
 	logtoboth "%%%"
 	[ $dimgdev -eq 1 ] && simdev="Device"
 	[ $fdirtree -eq 1 ] && simdev="Directory"
-	logtoboth "% $simdev '$dimg' is ${dused}% full ($(getfsdf / avail) 1K-blocks free)"
-	logtoboth "% Review /etc/sdm/apt.log in the image for insufficient disk space errors"
-	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space"
+	logtoboth "% $simdev '$dimg' is ${dused}% full ($(getfsdf / avail) 1K-blocks free)" nosplit
+	logtoboth "% Review /etc/sdm/apt.log in the image for insufficient disk space errors" nosplit
+	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space" nosplit
 	logtoboth "%%%"
     else
-	logfreespace
+	logfreespace "$extramsg"
     fi
 }
     
