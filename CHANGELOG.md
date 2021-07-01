@@ -1,5 +1,9 @@
 # Changelog
 
+## V4.13
+
+* Improve disk space used logging
+
 ## V4.12
 
 * Always disable sdm-firstboot service at end of FirstBoot processing
