@@ -329,14 +329,19 @@ hdmimode:$hdmimode
 hostname:$hostname
 hotspot:$hotspot
 keymap:$keymap
+libfmconf:$libfmconf
 loadlocal:$loadlocal
 locale:$locale
+logwidth:$logwidth
+lxdeconflist:"$lxdeconflist"
+lxterminalconf:$lxterminalconf
 modprobe:$modprobe
 motd:$motd
 groups:$groups
 myuid:$myuid
 myuser:$myuser
 nopiwiz:$nopiwiz
+pcmanfmconf:$pcmanfmconf
 pi1bootconf:$pi1bootconf
 poptions:$poptions
 rclocal:$rclocal
@@ -434,6 +439,8 @@ Command Switches for --customize and --burn or as noted
  --L10n              Set Keymap, Locale, Timezone, and WiFi Country from running system
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
  --locale localename Set the Locale
+ --logwidth N        Split log lines longer than N characters [Default: 96]
+ --lxde-config files See README for details
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
  --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
@@ -468,7 +475,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.13"
+version="V4.14"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -525,9 +532,14 @@ hotspot=""                  #WiFi config file
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
 keymap=""                   #Keyboard configuration
 infocmd=0                   #1=--info command
+libfmconf=""                #Config file for libfm
 loadl10n=0                  #1=Load Localization settings from running system 
 loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
 locale=""                   #Locale
+logwidth=96                 #Split log lines longer than this
+lxdeconfig=""               #Arguments to --lxde-config
+lxdeconflist="libfm pcmanfm lxterminal" #These are the configs that we process
+lxterminalconf=""           #Config file for lxterminal
 modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
@@ -535,6 +547,7 @@ myuid=""                    #UID for non-root user if created
 nopiwiz=0                   #1=Disable piwiz 
 noreboot=0                  #1=Do not restart system after first boot
 nspawnsw=""                 #Switches for nspawn
+pcmanfmconf=""              #Config file for pcmanfm
 poptions=""                 #Phase options
 pvers=0                     #Print version number
 rclocal=""                  #Command(s) to add to /etc/rc.local
@@ -582,7 +595,7 @@ cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
-hotspot:,info,keymap:,l10n,loadlocal:,locale:,\
+hotspot:,info,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
 poptions:,rclocal:,reboot:,restart,\
 rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
@@ -649,6 +662,8 @@ do
 	--info)        infocmd=1     ; shift 1 ;;
 	--loadlocal)   loadlocal="${2,,}" ; shift 2 ;;
 	--locale)      locale=$2     ; shift 2 ;;
+	--logwidth)    logwidth=$2   ; shift 2 ;;
+	--lxde-config) lxdeconfig=$2 ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--modprobe)    [ "$modprobe" == "" ] && modprobe="$2" || modprobe="$modprobe|$2" ; shift 2 ;;
 	--motd)        motd=$2       ; shift 2 ;;
@@ -797,6 +812,26 @@ loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
 exitiferr "$aptmaint"
+#
+# Process --lxde-config switch
+#
+if [ "$lxdeconfig" != "" ]
+then
+    readarray -d, citems <<< $lxdeconfig
+    for c in ${citems[@]}
+    do
+        IFS=":=" read key value <<< $c
+	value="${value%,}"
+	case "${key,,}" in
+	    libfm|pcmanfm|lxterminal)
+		cf="${key}conf"
+		[ ! -f $value ] && errexit "? --lxde-config $cf config file '$value' not found"
+		export $cf=$value #Copies the filename into one of libfmconf|pcmanfmconf|lxterminalconf
+		;;
+	    *) errexit "? Unknown --lxde-config key '$key'" ;;
+	esac
+    done
+fi
 #
 # Check sanity of the disk image argument
 #

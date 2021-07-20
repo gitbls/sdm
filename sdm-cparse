@@ -51,12 +51,12 @@ function logtoboth {
     #
     local msg="$1"
     local str=() i spc=""
-    if [ ${#msg} -le 96 -o "$2" == "nosplit" ]
+    if [ ${#msg} -le $logwidth -o "$2" == "nosplit" ]
     then
 	logit "$msg"
 	echo "$msg"
     else
-	readarray -t str <<< $(fold -s -w96 <<< $(echo $msg))
+	readarray -t str <<< $(fold -s -w$logwidth <<< $(echo $msg))
 	for (( i=0 ; i < ${#str[@]} ; i++))
 	do
 	    logit "${spc}${str[$i]}"

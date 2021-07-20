@@ -58,7 +58,7 @@ then
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 else
-    logtoboth "/mnt/sdm" ">%Skip wpa_supplicant configuration per command switch --nowpa"
+    logtoboth ">%Skip wpa_supplicant configuration per command switch --nowpa"
 fi
 
 #
@@ -94,7 +94,19 @@ then
     cp $fstab /mnt/sdm/etc/sdm/assets
     echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
-
+#
+# Copy lxde-config config files into the image
+#
+for fm in $lxdeconflist
+do
+    cname="${fm}conf"
+    fmconf="${!cname}"
+    if [ "$fmconf" != "" ]
+    then
+	logtoboth "> Copy --lxde-config $fm config file '$fmconf' to /etc/sdm/assets"
+	cp $fmconf /mnt/sdm/etc/sdm/assets
+    fi
+done
 #
 # Copy any specified cron files
 #

@@ -408,6 +408,8 @@ include=""
 
 * `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See the Captive Portal section below for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
 * `--locale` *localename* &mdash; The locale is specified just as you'd set it in raspi-config. For example, in the USA, one might use en_US.UTF-8, and in the UK en_UK.UTF-8. See /usr/share/i18n/SUPPORTED for a complete locale list.
+* `--logwidth` *N* &mdash; Set the maximum log line width before lines are split. Default is 96 characters.
+* `--lxde-config` *args* &mdash; Copy the specified LXDE app configuration files into the image. See the section below "Using the --lxde-config switch"
 * `--modprobe` *file* &mdash; Copy the modprobe file to /etc/modprobe.d. `--modprobe` can be specified multiple times to copy multiple files.
 * `--motd` *file* &mdash; Copy the specified file to /etc/motd. The original /etc/motd is renamed to /etc/motd.orig. You can easily create a null message of the day by using `--motd /dev/null`
 * `--mouse left` &mdash; If LXDE is installed, set the Mouse to be left-handed (for those that are in their right mind).
@@ -445,6 +447,29 @@ include=""
 * `--nowpa` &mdash; Use this to tell sdm that you really meant to not provide a wpa_supplicant.conf file. You must either specify `--wpa` or `--nowpa` when customizing an IMG. This is useful if you want to build SD Cards for different networks. You can use `--nowpa` when you customize the IMG, and then specify `--wpa` *conffile* when burning the SD Card.
 * `--xapps` *xapplist* &mdash; Like `--apps`, but specifies the list of apps to install when `--poptions xapps` is specified.
 * `--xmb` *n* &mdash; Specify the number of MB to extend the image. The default is 2048 (MB), which is 2GB. You may need to increase this depending on the number of packages you choose to install in Phase 1. If the image isn't large enough, package installations will fail. If the image is too large, it will consume more disk space, and burning the image to an SD Card will take longer.
+
+## Using the --lxde-config switch
+
+The `--lxde-config` switch directs sdm to load the specified app LXDE configuration files into the image in the /home/*user*/.config directory tree. *user* will be pi by default, or the user specified by `--user`.
+
+The `--lxde-config` switch takes a comma-separate argument. The complete switch specification is:
+
+    --lxde-config pcmanfm:/path/to/pcmanfm.conf,libfm:/path/to/libfm.conf,lxterminal:/path/to/lxterminal.conf
+
+You do not need to specify all the config files. If you only want to customize lxterminal, you only need specify that. If you are customizing pcmanfm, you'll need to specify config files for both pcmanfm AND libfm (I have no idea why pcmanfm uses two config files!)
+
+Here's how to establish your custom configuration files:
+
+* Boot a RasPiOS Desktop system with LXDE
+* Customize lxterminal and/or pcmanfm preferences in the apps as desired
+* Copy the configuration files from your Pi to a shared directory, so that they are available on the Pi that you'll be using for sdm. They don't really need to be in a *shared directory* per se, just a directory available to sdm. The config files can be found at
+    * **libfm:** /home/*user*/.config/libfm.conf
+    * **pcmanfm:** /home/*user*/.config/LXDE-pi/pcmanfm.conf
+    * **lxterminal:** /home/*user*/.config/lxterminal/lxterminal.conf
+* Add the --lxde-config switch with the appropriate arguments to your sdm command line
+* The specified files will be copied into the IMG during Phase 0, when both the host and IMG are acessible
+* The files will be moved to the correct directory locations in /home/*user*/.config during Phase 1
+* When you boot your newly-created customized image, your settings will be in place
 
 ## sdm-firstboot
 

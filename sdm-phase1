@@ -292,7 +292,7 @@ fi
 # If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
 if [[ "$loadlocal" =~ "wifi" ]]
 then
-    logtoboth "> Disable dhcpcd per '--loadlocal wifi"
+    logtoboth "> Disable dhcpcd per '--loadlocal wifi'"
     logtoboth "  dhcpcd will be re-enabled at the end of First Boot"
     systemctl disable dhcpcd
 fi
@@ -516,10 +516,12 @@ fi
 #
 if [ -f /usr/bin/startlxde-pi ]
 then
+    userx=${myuser:-pi}	
+    [ "$userx" == "pi" ] && gx=pi || gx=users
     if [ $reboot -eq 1 ]
     then
 	logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-	SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
@@ -528,26 +530,38 @@ then
 	    echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
 	fi
     fi
-    # Disable piwiz if requested to do so
+    # Disable piwiz if requested
     if [ $nopiwiz -eq 1 ]
     then
         logtoboth "> Disable running piwiz on first boot"
 	mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/piwiz.desktop.orig
     fi
-    # System has LXDE, so set left-handed mouse if requested
+    # Set left-handed mouse if requested
     if [ $fmouse -eq 1 ]
     then
-	userx=${myuser:-pi}	
-	[ "$userx" == "pi" ] && gx=pi || gx=users
 	logtoboth "> Enable left-handed mouse for user '$userx'"
 	dirx="/home/$userx/.config/lxsession/LXDE-pi"
 	mkdir -p $dirx
 	cp /etc/xdg/lxsession/LXDE-pi/desktop.conf $dirx
-	chown -R $userx:$gx /home/$userx/.config
-	chmod -R 700 /home/$userx/.config
 	chmod 644 $dirx/desktop.conf
 	sed -i "s/LeftHanded=0/LeftHanded=1/" $dirx/desktop.conf
     fi
+    # Copy LXDE config files if requested
+    for fm in $lxdeconflist
+    do
+	cname="${fm}conf"
+	fmconf="${!cname}"
+	if [ "$fmconf" != "" ]
+	then
+	    dirx="/home/$userx/.config/$fm"
+	    logtoboth "> Copy --lxde-config $fm config file '$(basename $fmconf)' to '$dirx'"
+	    mkdir -p $dirx
+	    cp /etc/sdm/assets/$(basename $fmconf) $dirx/$fm.conf
+	fi
+    done
+    logtoboth "> Set owner to '$userx:$gx' and protection to 700 on '/home/$userx/.config' directory tree"
+    chown -R $userx:$gx /home/$userx/.config
+    chmod -R 700 /home/$userx/.config
 fi
 #
 # If xdm installed, disable it on console if requested
