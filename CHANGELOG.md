@@ -1,5 +1,10 @@
 # Changelog
 
+## V4.14
+
+* Add --lxde-config, which enables you to correctly load config files for lxterminal and pcmanfm. See the README for details. If there are other apps that you'd like to see included, please open an issue on this github. (Side note: The bash construct `${!symbol}` is so cool!)
+* Add --logwidth N, which sets the maximum log line width before splitting. Default is 96 characters.
+
 ## V4.13
 
 * Improve disk space used logging
