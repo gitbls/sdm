@@ -89,7 +89,21 @@ then
     fi
     exit 0
 fi
-    
+#
+# Process burn-time password changes
+#
+if [ "$cmd" == "burn-change-passwords" ]
+then
+    fn="/etc/sdm/assets/$(basename $cmdoptions)"
+    if [ -f $fn ]
+    then
+	logtoboth "* Execute burn-time password changes [$fn] in nspawn"
+	/etc/sdm/assets/$(basename $cmdoptions)
+    else
+	logtoboth "? Internal error: burn-change-passwords script '$fn' not found"
+    fi
+    exit 0
+fi
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
 #
@@ -117,32 +131,42 @@ if [ $rootpwd -eq 1 -o "$myuser" != "" ]
 then
     [ "$myuser" != "" ] && puser="${puser} and '$myuser'" && susers="users"
     [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
-
-    if askyn "** Use same password for $susers $puser" "-n 1"
+    usesamepwd=$passwordsame
+    if [ $usesamepwd -eq 0 ]
     then
+	askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
 	echo ""
-	echo -n "Password: "
-	samepwd="$(getpwd Password)"
+    elif [ $usesamepwd -eq 1 ]
+    then
+	logtoboth "> Using same password for $susers $puser"
+	[ "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
+	[ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
+	[ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
     fi
-
-    echo ""
+    if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
+    then
+	echo -n "** Enter password to use for $susers $puser: "
+	samepwd=$(getpwd)
+	echo ""
+    fi
     if [ $rootpwd -eq 1 ]
     then
 	logtoboth "> Set root password"
-	changepwd root "$samepwd"
+	[ $usesamepwd -eq 1 ] && rpwd="$samepwd" || rpwd="$passwordroot"
+	changepwd root "$rpwd"
     else
 	logtoboth "> root password not set"
     fi
-
-
-    if [ "$myuser" != "" ]; then
+    if [ "$myuser" != "" ]
+    then
 	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
 	logtoboth "> Add user '$myuser' and set password"
 	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
 	usermod --groups $groups $myuser
-	changepwd $myuser "$samepwd"
+	[ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
+	changepwd $myuser "$upwd"
 	[ ! -d /home/$myuser ] && mkdir /home/$myuser
 	chown -R $myuser.users /home/$myuser
 	logtoboth "> Add user '$myuser' to sudoers.d"
@@ -150,8 +174,8 @@ then
 	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
     fi
 fi
-# if --showpwd password change will be logged in changepwd
-[ $showpwd -eq 0 ] && logtoboth "> Change user 'pi' password"
+logtoboth "> Change user 'pi' password"
+[ "$samepwd" == "" ] && samepwd="$passwordpi"
 changepwd pi "$samepwd"
 logtoboth "> set /home/pi files ownership to 'pi.pi'"
 chown -R pi.pi /home/pi
@@ -608,7 +632,6 @@ fi
 #
 cklogfreespace "at end of Customization"
 
-echo ""
 if [ $batch -eq 0 ]
 then
     logtoboth "* Enter Shell Command Prompt"
@@ -618,5 +641,4 @@ then
     resetcolors x1
 else
     logtoboth "* Batch Mode exit"
-    echo ""
 fi
