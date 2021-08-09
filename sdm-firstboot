@@ -297,8 +297,9 @@ function doconfig() {
 		    SUDO_USER=${myuser:-pi} raspi-config do_$rpifun $value nonint
 		    ;;
 		#
-		# dhcpcd, fstab, keymap, locale, and timezone may be set via sdm --burn command
+		# fstab, keymap, locale, and timezone may be set via sdm --burn command
 		#
+		# dhcpcd not currently used by sdm, keep for future just in case
 		dhcpcd)
 		    bootlog "Append dhcpcd.conf extension '$value' to /etc/dhcpcd.conf"
 		    cat /etc/sdm/assets/$value >> /etc/dhcpcd.conf
