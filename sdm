@@ -63,13 +63,13 @@ function domount() {
 	mount --bind $dimg/boot /mnt/sdm/boot
     elif [ $dimgdev -eq 0 ]
     then
-	echo "Mounting IMG '$mimg'"
+	echo "* Mount IMG '$mimg'"
 	loop=$(losetup --show -P -f $mimg)
 	mount -v ${loop}p2 /mnt/sdm
 	mount -v ${loop}p1 /mnt/sdm/boot
     else
 	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
-	echo "Mounting device '$dimg'"
+	echo "* Mount device '$dimg'"
 	mount -v ${dimg}${p2} /mnt/sdm
 	mount -v ${dimg}${p1} /mnt/sdm/boot
 	loop=""
@@ -117,11 +117,28 @@ function extendimage() {
 print
 EOF
 ) # This closes the above parted command
-    echo "Resize partition 2 and file system"
+    echo "* Resize partition 2"
     parted $ldimg <<EOF
 resizepart 2 $dsiz
 EOF
 }
+
+function extendandresize() {
+    #
+    # IMG must not be mounted
+    # Leaves IMG mounted on completion
+    #
+    echo "* Extend $dimgdevname by ${imgext}MB..."
+    extendimage "$dimg" "$imgext"
+    #
+    # Mount the image file into a loop device and resize the file system
+    #
+    echo "* Remount $dimgdevname to resize the file system"
+    domount "$dimg"
+    echo "* Resize the file system"
+    echo "% (Ignore on-line resizing message)"
+    resize2fs ${loop}p2
+}    
 
 function poptcheck() {
     #
@@ -313,6 +330,7 @@ dhcpcd:$dhcpcd
 dhcpcdwait:$dhcpcdwait
 dimg:$dimg
 dimgdev:$dimgdev
+dimgdevname:$dimgdevname
 domain:$domain
 dtoverlay:$dtoverlay
 dtparam:$dtparam
@@ -341,6 +359,10 @@ groups:$groups
 myuid:$myuid
 myuser:$myuser
 nopiwiz:$nopiwiz
+passwordpi:$passwordpi
+passwordroot:$passwordroot
+passwordsame:$passwordsame
+passworduser:$passworduser
 pcmanfmconf:$pcmanfmconf
 pi1bootconf:$pi1bootconf
 poptions:$poptions
@@ -348,6 +370,7 @@ rclocal:$rclocal
 reboot:$reboot
 noreboot:$noreboot
 rebootwait:$rebootwait
+redocustomize:$redocustomize
 rootpwd:$rootpwd
 showapt:$showapt
 showpwd:$showpwd
@@ -447,10 +470,15 @@ Command Switches for --customize and --burn or as noted
  --mouse left        Enable left-handed mouse if LXDE installed
  --nopiwiz           Disable piwiz dialog in booted system
  --nspawnsw str      Additional switches for nspawn command
+ --password-pi pwd   Set password for Pi user (will prompt if not provided)
+ --password-user pwd Set password for the --user user (will prompt if not provided)
+ --password-root pwd Set password for root (will prompt if not provided and --rootpwd)
+ --password-same y|n Use same password for pi, --user user (if set), and root (if --rootpwd)
  --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot (use on --burn command)
  --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
  --reboot n          Restart the first boot of the system after n seconds
+ --redo-customize    If image already customized, redo without prompting
  --restart           Restart the first boot of the system after 20 seconds
  --rootpwd           Set a root password into the image
  --showapt           Display apt output as well as logging it
@@ -475,7 +503,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.14"
+version="V4.15"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -503,6 +531,7 @@ csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M iflag=direct"  #Switches for dd
+dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
 dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
 dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
 domain=""                   #--domain name
@@ -540,6 +569,7 @@ logwidth=96                 #Split log lines longer than this
 lxdeconfig=""               #Arguments to --lxde-config
 lxdeconflist="libfm pcmanfm lxterminal" #These are the configs that we process
 lxterminalconf=""           #Config file for lxterminal
+mcolors="black:LightSalmon1:blue" #fg:bg:cursor
 modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
@@ -547,6 +577,11 @@ myuid=""                    #UID for non-root user if created
 nopiwiz=0                   #1=Disable piwiz 
 noreboot=0                  #1=Do not restart system after first boot
 nspawnsw=""                 #Switches for nspawn
+passwordpi=""               #Values for --password-xxx
+passwordroot=""
+passwordsame=0              #1=same password for all, -1=--password-same n, 0=not specified
+samepwd=""                  #For command parsing only. Set to value of --password-same if specified
+passworduser=""
 pcmanfmconf=""              #Config file for pcmanfm
 poptions=""                 #Phase options
 pvers=0                     #Print version number
@@ -554,6 +589,7 @@ rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
+redocustomize=0             #1=Don't prompt if image already customized
 showpwd=0                   #1=Log password into /etc/sdm/history
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
@@ -597,7 +633,7 @@ domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
-poptions:,rclocal:,reboot:,restart,\
+password-pi:,password-root:,password-same:,password-user:,poptions:,rclocal:,reboot:,redo-customize,restart,\
 rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
@@ -673,10 +709,15 @@ do
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
+	--password-pi) passwordpi=$2 ; shift 2 ;;
+	--password-root) passwordroot=$2 ; shift 2 ;;
+	--password-same) samepwd=$2  ; shift 2 ;;
+	--password-user) passworduser=$2 ; shift 2 ;;
 	--poptions)    poptions="${2,,}" ; shift 2 ;;
 	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}|$2" ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
+	--redo-customize) redocustomize=1 ; shift 1 ;;
 	--restart)      reboot=1     ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
@@ -707,7 +748,6 @@ do
 done
 
 dimg="$1"
-[ "${dimg,,}" == "help" ] && printhelp && exit
 src=$(dirname $0)
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
 source /usr/local/sdm/sdm-cparse           # Get function defs
@@ -744,20 +784,20 @@ then
 	    less /usr/share/zoneinfo/iso3166.tab ;;
 	help|*)
 	    [ "${dimg,,}" != "help" ] && echo "? Unrecognized --info option '$dimg'" ;
-	    echo "" ;
-	    echo "The --info command accepts one of four switch values:" ;
-	    echo "timezone:     Show --timezone values";
-	    echo "locale:       Show --locale values" ;
-	    echo "keymap:       Show --keymap values" ;
-	    echo "wifi-country: Show --wifi-country values" ;
-	    echo "" ;
-	    echo "Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'" ;
+	    echo $"
+The --info command accepts one of four switch values:
+timezone:     Show --timezone values
+locale:       Show --locale values
+keymap:       Show --keymap values
+wifi-country: Show --wifi-country values
+
+Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'"
 	    ;;
 	*)
     esac
 exit 0
 fi
-
+[ "${dimg,,}" == "help" ] && printhelp && exit
 cscript="$(fndotfullpath $cscript)"
 [ $burn -eq 1 -a $burnfile -eq 1 ] && errexit "? Switch conflict: --burn and --burnfile"
 [ $burn -eq 1 -o $burnfile -eq 1 ] && burning=1 || burning=0
@@ -783,7 +823,6 @@ then
     [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount)"
     fextendonly=1
 fi
-[ $fdirtree -eq 1 ] && fextend=0 && fextendonly=0
 [ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
@@ -813,6 +852,21 @@ exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
 exitiferr "$aptmaint"
 #
+# Password-related switches
+#
+if [ "$samepwd" != "" ]
+then
+    case "${samepwd,,}" in
+	y*)
+	    passwordsame=1
+	    ;;
+	n*)
+	    passwordsame=-1
+	    ;;
+	*) errexit "? Unrecognized value '$samepwd' for --password-same switch"
+    esac
+fi
+#
 # Process --lxde-config switch
 #
 if [ "$lxdeconfig" != "" ]
@@ -835,15 +889,19 @@ fi
 #
 # Check sanity of the disk image argument
 #
+dimgdevname="IMG"
 [ "$dimg" == "" ] && errexit "? No disk image specified"
 dimgdev=0
 if [ $fdirtree -eq 1 ]
 then
     [ ! -d $dimg ] && errexit "? Cannot find directory '$dimg'"
+    dimgdevname="Directory"
+    [ $fextend -eq 1 ] && echo "% Ignoring --extend for non-file-based IMG '$dimg'" && fextend=0 
 elif [ ! -f "$dimg" ]
 then
     [ ! -b $dimg ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
+    dimgdevname="Device"
 fi    
 if [ -f "$dimg" ]
 then
@@ -851,6 +909,9 @@ then
     then
 	errexit "? File '$dimg' appears to be a ZIP file\n  Unzip it to operate on the .IMG contained within it"
     fi
+elif [ $fextend -eq 1 ]
+then
+    echo "% Ignoring --extend for non-file-based IMG '$dimg'" && fextend=0
 fi
 #
 # Ensure wpa is correctly configured for the request, if needed
@@ -906,7 +967,6 @@ IFS=":" read efg ebg ecursor <<< $ecolors
 [ "$ebg" == "" ] && ebg="gray"
 [ "$ecursor" == "" ] && ecursor="red"
 ecolors="$efg:$ebg:$ecursor"
-
 #
 # Process --apps and --xapps switches
 #
@@ -1000,6 +1060,9 @@ then
 	bkeymap="$keymap"
 	btimezone="$timezone"
 	bwpaconf="$wpaconf"
+	bpasswordpi="$passwordpi"
+	bpasswordroot="$passwordroot"
+	bpassworduser="$passworduser"
 	readparams                    # Read settings from the SD card
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
 	[ "$bb2script" != "$b2script" ] && b2script=$bb2script
@@ -1085,14 +1148,30 @@ then
 	done
 	[ $bootscripts -eq 1 ] && echo "> First System Boot Custom Boot Scripts enabled" || echo "> First System Boot Custom Boot Scripts disabled"
 	[ $reboot -eq 1 ] && echo "> First System Boot automatic restart enabled${wmsg}" || echo "> First System Boot automatic restart disabled"
+	bcp=""
+	if [ "$bpasswordpi" != "" -o "$bpasswordroot" != "" -o "$bpassworduser" != "" ]
+	then
+	    bcp="/mnt/sdm/etc/sdm/assets/burn-change-passwords"
+	    echo "#!/bin/bash" > $bcp
+	    echo "source /usr/local/sdm/sdm-cparse ; readparams" >> $bcp
+	    [ "$bpasswordpi" != "" ] && echo "changepwd pi \"$bpasswordpi\"" >> $bcp
+	    [ "$bpasswordroot" != "" ] && echo "changepwd root \"$bpasswordroot\"" >> $bcp
+	    [ "$bpassworduser" != "" ] && echo "changepwd $myuser \"$bpassworduser\"" >> $bcp
+	    chmod 755 $bcp
+	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Execute --b1script '$b1script'"
 	    $b1script
 	fi
+	if [ "$bcp" != "" ]
+	then
+	    systemd-nspawn -q --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 burn-change-passwords /etc/sdm/assets/$bcp < $(tty)
+	fi
 	if [ "$b2script" != "" ]
 	then
-	    systemd-nspawn --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 b2script $b2script < $(tty)
+	    echo "> Run --b2script '$b2script'"
+	    systemd-nspawn -q --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 b2script $b2script < $(tty)
 	fi
     else
 	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
@@ -1107,24 +1186,14 @@ fi
 if [ $fdomount -eq 1 ]
 then
     domount "$dimg"
-    echo ""
-    if [ $fdirtree -eq 1 ]
-    then
-	echo "Directory '$dimg' mounted on /mnt/sdm"
-    else
-	[ $dimgdev -eq 0 ] && echo "IMG '$dimg' mounted on /mnt/sdm" || echo "Device '$dimg' mounted on /mnt/sdm"
-    fi
-    echo "** BE VERY CAREFUL! **"
-    echo "** Precede all path references by /mnt/sdm or you may modify the running system **"
-    echo ""
-    echo "Use 'exit' to Exit the Bash shell and unmount the IMG file"
-    echo ""
-    [ "$mcolors" == "" ] && mcolors="black:LightSalmon1:blue"
+    echo "* $dimgdevname '$dimg' mounted on /mnt/sdm"
+    echo $"** BE VERY CAREFUL!! **
+** Precede all path references by '/mnt/sdm' or you will modify your running system **
+** Use 'exit' to Exit the bash shell and unmount the $dimgdevname"
     IFS=":" read mfg mbg mcursor <<< $mcolors
     [ "$mfg" == "" ] && mfg="black"
     [ "$mbg" == "" ] && mbg="LightSalmon1"
     [ "$mcursor" == "" ] && mcursor="blue"
-
     stermcolors "$mfg" "$mbg" "$mcursor" xt
     cd /mnt/sdm
     bash < $(tty)
@@ -1136,26 +1205,17 @@ fi
 #
 # Extend the image if --extend
 #
-if [ $fextend -eq 1 ]
-then
-    echo "Extend disk image by ${imgext}MB..."
-    extendimage "$dimg" "$imgext"
-    #
-    # Mount the image file into a loop device and resize the file system
-    #
-    domount "$dimg"
-    echo " * (Ignore on-line resizing message) *"
-    resize2fs ${loop}p2
-fi
 if [ $fextendonly -eq 1 ]
 then
-    # --extend (only). Cleanup and exit
-    docleanup
+    if [ $fextend -eq 1 ] # Only on if file-based (e.g., can be extended)
+    then
+	extendandresize
+	docleanup # --extend (only). Cleanup and exit
+    fi
     exit 0
-else
-    # Not --extend (only)
-    [ ! -d /mnt/sdm/boot ] && domount "$dimg"
 fi
+# Not --extend (only). Other steps need IMG mounted
+[ ! -d /mnt/sdm/boot ] && domount "$dimg"
 #
 # Handle commands --aptmaint, --customize, and --explore
 #
@@ -1168,7 +1228,7 @@ then
 	spawncmd="/usr/local/sdm/sdm-phase1 apt $aptmaint"
 	if [ ! -f /mnt/sdm/usr/local/sdm/sdm-phase1 ]
 	then
-	    echo "? sdm has not customized image '$dimg'"
+	    echo "? sdm has not customized $dimgdevname '$dimg'"
 	    docleanup
 	    exit 1
 	fi
@@ -1176,7 +1236,7 @@ then
 	#
 	# Doing --explore
 	#
-	[ $dimgdev -eq 0 ] && echo "* nspawn into image '$dimg'" || echo "* nspawn into device '$dimg'"
+	echo "* nspawn into $dimgdevname '$dimg'"
 	spawncmd=""
 	icolors=1
     fi
@@ -1185,9 +1245,9 @@ else
     # Doing a customization
     # Create and populate /usr/local/sdm and /etc/sdm in the IMG
     #
-    if [ -f $sdmdone ]
+    if [ -f $sdmdone -a $redocustomize -eq 0 ]
     then
-	if ! askyn "** Image '$dimg' has already been customized. Redo?" "-n 1"
+	if ! askyn "** $dimgdevname '$dimg' has already been customized. Redo?" "-n 1"
 	then
 	    echo ""
 	    echo "** You can explore the image with '$0 --explore $dimg'"
@@ -1197,17 +1257,25 @@ else
 	    echo ""
 	fi
     fi
+    #
+    # Extend image if requested
+    #
+    if [ $fextend -eq 1 ]
+    then
+	echo "* Unmount $dimgdevname for --extend"
+	docleanup
+	extendandresize
+    fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
     # Create and populate /usr/local/sdm tree
     #
-    [ ! -d /mnt/sdm/etc/sdm ] && mkdir /mnt/sdm/etc/sdm /mnt/sdm/etc/sdm/assets /mnt/sdm/etc/sdm/0piboot
+    [ ! -d /mnt/sdm/etc/sdm ] && mkdir -p /mnt/sdm/etc/sdm/assets /mnt/sdm/etc/sdm/0piboot
     chmod 700 /mnt/sdm/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > /mnt/sdm/etc/sdm/auto-1piboot.conf
     setbootset    # Handle --bootset settings
-    [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir /mnt/sdm/usr/local/sdm \
-					     /mnt/sdm/usr/local/sdm/1piboot
+    [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir -p /mnt/sdm/usr/local/sdm/1piboot
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg} /mnt/sdm/usr/local/sdm
@@ -1219,7 +1287,7 @@ else
     logtoboth "* Start Configuration"
     logtoboth "> Command Line: $cmdline"
     logfreespace
-    logtoboth "> Copy sdm to /usr/local/sdm in the IMG"   # Yes, already done above ;)
+    logtoboth "> Copy sdm to /usr/local/sdm in the $dimgdevname"   # Yes, already done above ;)
     if [ $loadl10n -eq 1 ]
     then
 	readl10n
@@ -1231,7 +1299,7 @@ else
     fi
     if [ "$pi1bootconf" != "" ]
     then
-	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the IMG"
+	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"
 	cp $pi1bootconf /mnt/sdm/etc/sdm/1piboot.conf
 	cp $pi1bootconf /mnt/sdm/usr/local/sdm/1piboot                                         #Drop a copy in /usr/local/sdm in the IMG
     else
@@ -1240,7 +1308,7 @@ else
     chmod 644 /mnt/sdm/etc/sdm/1piboot.conf
     if [ "$cscript" != "" ]
     then
-	logtoboth "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the IMG"
+	logtoboth "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the $dimgdevname"
 	cp $cscript /mnt/sdm/usr/local/sdm
     fi
     chmod 755 /mnt/sdm/usr/local/sdm/*
@@ -1258,11 +1326,10 @@ else
     touch $sdmdone
     
     echo "* nspawn into image '$dimg' for Phase 1"
-    echo ""
 fi
 
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
-systemd-nspawn --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
+systemd-nspawn -q --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
 docleanup
 [ $icolors -eq 1 ] && resetcolors xt
 
