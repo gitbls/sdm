@@ -1,5 +1,15 @@
 # Changelog
 
+## V4.15
+
+* Add --password-pi, --password-user, and --password-root to set account passwords from the command line. See README for details, especially the important note about Password retention in the image. These switches can also be used to apply unique passwords when burning an SSD/SD Card.
+* Add --password-same y|n, which avoids the "Use same password?" question during customization
+* Add --redo-customize, which skips the "Image is already customized, Redo?" prompt
+* add -q to systemd-nspawn command to eliminate some extraneous message spew
+* Correct mis-handling of --info help command
+* General message improvements
+* General code improvements
+
 ## V4.14
 
 * Add --lxde-config, which enables you to correctly load config files for lxterminal and pcmanfm. See the README for details. If there are other apps that you'd like to see included, please open an issue on this github. (Side note: The bash construct `${!symbol}` is so cool!)
