@@ -80,6 +80,11 @@ function getpwd() {
 
 function changepwd() {
     local user="$1" tpwd="$2" upwd
+    if ! grep -q -E "^${user}:" /etc/passwd > /dev/null 2>&1
+    then
+	logtoboth "% Cannot change password for ${user}; user not found in /etc/passwd"
+	return
+    fi
     if [ "$tpwd" == "" ]
     then
         echo -n "Password for user '$user': " && read -s upwd
@@ -90,7 +95,7 @@ function changepwd() {
     chpasswd <<EOF
 $user:$upwd
 EOF
-    [ $showpwd -eq 1 ] && logit "> Set password for '$user' to '$upwd'"
+    [ $showpwd -eq 1 ] && logit "> Set password for user '$user' to '$upwd'" || logit "> Set password for user '$user'"
 }
 
 function askyn() {
@@ -177,10 +182,7 @@ function logfreespace() {
     #
     local dev="/" extramsg="$1"
     [ "$SDMNSPAWN" == "" ] && dev="/mnt/sdm"
-    local simdev="IMG"
-    [ $dimgdev -eq 1 ] && simdev="Device"
-    [ $fdirtree -eq 1 ] && simdev="Directory"
-    logtoboth "> $simdev '$dimg' has $(getfsdf $dev avail) 1K-blocks free $extramsg" nosplit
+    logtoboth "> $dimgdevname '$dimg' has $(getfsdf $dev avail) 1K-blocks free $extramsg" nosplit
 }
 
 function cklogfreespace() {
@@ -188,13 +190,10 @@ function cklogfreespace() {
     # Report if IMG looks full. If not, just log free space
     #
     local dused=$(getfsdf / pcent) extramsg="$1"
-    local simdev="IMG"
     if [ $dused -ge 98 ]
     then
 	logtoboth "%%%"
-	[ $dimgdev -eq 1 ] && simdev="Device"
-	[ $fdirtree -eq 1 ] && simdev="Directory"
-	logtoboth "% $simdev '$dimg' is ${dused}% full ($(getfsdf / avail) 1K-blocks free)" nosplit
+	logtoboth "% $dimgdevname '$dimg' is ${dused}% full ($(getfsdf / avail) 1K-blocks free)" nosplit
 	logtoboth "% Review /etc/sdm/apt.log in the image for insufficient disk space errors" nosplit
 	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space" nosplit
 	logtoboth "%%%"
