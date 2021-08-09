@@ -12,7 +12,7 @@ function dodt() {
     IFS=""
     if [ "$dtvalues" != "" ]
     then
-	logtoboth "> Add new $dtname settings to /boot/config.txt"
+	logtoboth "> Add new $dtname settings to /mnt/sdm/boot/config.txt"
 	echo "" >> /mnt/sdm/boot/config.txt
 	echo "# $dtname items added by sdm --$dtname" >> /mnt/sdm/boot/config.txt
 	readarray -d\| citems <<< $dtvalues
@@ -66,8 +66,9 @@ fi
 #
 if [ "$dhcpcd" != "" ]
 then
-    logtoboth "> Append dhcpcd.conf extension '$dhcpcd' to /etc/dhcpcd.conf"
+    logtoboth "> Append dhcpcd.conf extension '$dhcpcd' to /mnt/sdm/etc/dhcpcd.conf"
     cat $dhcpcd >> /mnt/sdm/etc/dhcpcd.conf
+# Don't need to do it this way, but keep for future just in case
 #    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
 
@@ -76,13 +77,13 @@ fi
 #
 if [ "$exports" != "" ]
 then
-    logtoboth "> Copy file '$exports' to /etc/exports"
+    logtoboth "> Copy file '$exports' to /mnt/sdm/etc/exports"
     cp $exports /mnt/sdm/etc/exports
 fi
 
 if [ "$b2script" != "" ]
 then
-    logtoboth "> Copy --b2script '$b2script' to /etc/sdm/assets"
+    logtoboth "> Copy --b2script '$b2script' to /mnt/sdm/etc/sdm/assets"
     cp $b2script /mnt/sdm/etc/sdm/assets
 fi
 #
@@ -90,7 +91,7 @@ fi
 #
 if [ "$fstab" != "" ]
 then
-    logtoboth "> Copy fstab extension '$fstab' to /etc/sdm/assets and enable for FirstBoot"
+    logtoboth "> Copy fstab extension '$fstab' to /mnt/sdm/etc/sdm/assets and enable for FirstBoot"
     cp $fstab /mnt/sdm/etc/sdm/assets
     echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
@@ -103,7 +104,7 @@ do
     fmconf="${!cname}"
     if [ "$fmconf" != "" ]
     then
-	logtoboth "> Copy --lxde-config $fm config file '$fmconf' to /etc/sdm/assets"
+	logtoboth "> Copy --lxde-config $fm config file '$fmconf' to /mnt/sdm/etc/sdm/assets"
 	cp $fmconf /mnt/sdm/etc/sdm/assets
     fi
 done
@@ -122,7 +123,7 @@ done
 #
 if [ "$hotspot" != "" ]
 then
-    logtoboth "> Copy hotspot configuration file to /etc/sdm/assets"
+    logtoboth "> Copy hotspot configuration file to /mnt/sdm/etc/sdm/assets"
     cp $hotspot /mnt/sdm/etc/sdm/assets
 fi
 
@@ -151,18 +152,18 @@ fi
 #
 if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
 then
-    logtoboth "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /boot/config.txt"
+    logtoboth "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /mnt/sdm/boot/config.txt"
     sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
     sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
 fi
 if [ "$hdmiforcehotplug" == "1" ]
 then
-    logtoboth "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
+    logtoboth "> Set 'hdmi_force_hotplug=1' in /mnt/sdm/boot/config.txt"
     sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /mnt/sdm/boot/config.txt
 fi
 if [ "$hdmiignoreedid" == "1" ]
 then
-    logtoboth "> set 'hdmi_ignore_edid=0xa5000080' in /boot/config.txt"
+    logtoboth "> set 'hdmi_ignore_edid=0xa5000080' in /mnt/sdm/boot/config.txt"
     sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /mnt/sdm/boot/config.txt
 fi
 #
@@ -170,7 +171,7 @@ fi
 #
 if [ "$bootconfig" != "" ]
 then
-    logtoboth "> Update /boot/config.txt for bootconfig: $bootconfig"
+    logtoboth "> Update /mnt/sdm/boot/config.txt for bootconfig: $bootconfig"
     readarray -d, citems <<< $bootconfig
     for c in ${citems[@]}
     do
@@ -184,8 +185,8 @@ if [ "$bootadd" != "" ]
 then
     if ! grep -q 'Following items added by sdm --bootadd' /mnt/sdm/boot/config.txt
     then
-	logtoboth "> Add new keys to /boot/config.txt"
-	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
+	logtoboth "> Add new keys to /mnt/sdm/boot/config.txt"
+	logtoboth "> Update /mnt/sdm/boot/config.txt for bootadd: $bootadd"
 	echo "# Items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
 	readarray -d, citems <<< $bootadd
 	for c in ${citems[@]}
@@ -197,7 +198,7 @@ then
 	done
 	echo "# Above items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
     else
-	logtoboth "> /boot/config.txt already updated for --bootadd; skipping"
+	logtoboth "> /mnt/sdm/boot/config.txt already updated for --bootadd; skipping"
     fi
 fi
 #
@@ -221,7 +222,7 @@ fi
 #
 if [ "$rclocal" != "" ]
 then
-    logtoboth "> Add commands to /etc/rc.local"
+    logtoboth "> Add commands to /mnt/sdm/etc/rc.local"
     grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
     sifs="$IFS"
     IFS=""
