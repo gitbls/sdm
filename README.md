@@ -156,6 +156,8 @@ sdm operates on the SD Card image in distinct phases:
 
 * **Phase 3:** *Boot the newly-created SD card on a Pi*. When the new system boots the first time, the systemd service sdm-firstboot.service sets WiFi Country, and any device-specific settings you've enabled (see below), and then disables itself so it doesn't run on subsequent system boots.
 
+Once Phase 1 is completed, **Phase 2** and **Phase 3** can be repeated as often as needed to create fresh bootable devices for one or more of your Pi fleet configured exactly as you want them to be.
+
 ## Usage Examples
 
 * `sudo /usr/local/sdm/sdm --customize --poptions apps --apps @myapps --user bls --uid 1600 --hdmigroup 2 --hdmimode 82 2020-08-20-raspios-buster-armhf-full.img`
@@ -414,6 +416,7 @@ include=""
 * `--motd` *file* &mdash; Copy the specified file to /etc/motd. The original /etc/motd is renamed to /etc/motd.orig. You can easily create a null message of the day by using `--motd /dev/null`
 * `--mouse left` &mdash; If LXDE is installed, set the Mouse to be left-handed (for those that are in their right mind).
 * `--nopiwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accoomplished in sdm.
+* `--noswap` &mdash; Disables the dphys-swapfile service. No service, no swap file.
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--password-pi` *password* &mdash; Specify the password for the "pi" user. See *Important note about Passwords* below for details
