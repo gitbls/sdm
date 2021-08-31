@@ -419,10 +419,9 @@ Description=XVNC Per-Connection Daemon $n
 
 [Service]
 ExecStart=-/usr/bin/X${vncserver} -inetd -query 127.0.0.1 -geometry $res -pn -once $stype
-User=nobody
 StandardInput=socket
 StandardOutput=socket
-StandardError=syslog
+StandardError=journal
 EOF
 	    systemctl enable xvnc$n.socket > /dev/null 2>&1
 	    n=$(($n+1))
@@ -534,6 +533,18 @@ then
 	logtoboth "> Skip 'apt autoremove' per --poption 'noautoremove'"
     fi
 fi
+
+#
+# Disable swap if requested
+#
+if [ $noswap -eq 1 ]
+then
+    logtoboth "> Disable swapfile per --noswap"
+    systemctl disable dphys-swapfile
+# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
+#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+fi
+
 #
 # If RasPiOS Full switch to console no login for first boot
 #  and set to switch back to graphical autologin after first boot unless 1piboot has an uncommented boot_behav* 
