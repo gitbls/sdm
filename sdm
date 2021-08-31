@@ -359,6 +359,7 @@ groups:$groups
 myuid:$myuid
 myuser:$myuser
 nopiwiz:$nopiwiz
+noswap:$noswap
 passwordpi:$passwordpi
 passwordroot:$passwordroot
 passwordsame:$passwordsame
@@ -469,6 +470,7 @@ Command Switches for --customize and --burn or as noted
  --motd file         Use provided file as /etc/motd
  --mouse left        Enable left-handed mouse if LXDE installed
  --nopiwiz           Disable piwiz dialog in booted system
+ --noswap            Disable swapfile
  --nspawnsw str      Additional switches for nspawn command
  --password-pi pwd   Set password for Pi user (will prompt if not provided)
  --password-user pwd Set password for the --user user (will prompt if not provided)
@@ -503,7 +505,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.15"
+version="V4.16"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -576,6 +578,7 @@ myuser=""                   #Non-root user to create. Default is no non-root use
 myuid=""                    #UID for non-root user if created
 nopiwiz=0                   #1=Disable piwiz 
 noreboot=0                  #1=Do not restart system after first boot
+noswap=0                    #1=Disable swap
 nspawnsw=""                 #Switches for nspawn
 passwordpi=""               #Values for --password-xxx
 passwordroot=""
@@ -632,7 +635,7 @@ cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,\
+mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,noswap,nspawnsw:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,rclocal:,reboot:,redo-customize,restart,\
 rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
@@ -706,6 +709,7 @@ do
 	--mouse)       fmouse=1      ; shift 2 ;;  #switch value required but ignored for now
 	--mount)       fdomount=1    ; shift 1 ;;
 	--nopiwiz)     nopiwiz=1     ; shift 1 ;;
+	--noswap)      noswap=1      ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
