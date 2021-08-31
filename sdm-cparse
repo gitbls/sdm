@@ -136,9 +136,9 @@ function doapt() {
     echo "" >> /etc/sdm/apt.log
     if [ "$2" == "1" ]
     then
-	apt -q $1 2>&1 | tee -a /etc/sdm/apt.log
+	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
     else
-	apt -q $1 >> /etc/sdm/apt.log 2>&1
+	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
     fi
 }
 
