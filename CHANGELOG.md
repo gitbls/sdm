@@ -1,5 +1,12 @@
 # Changelog
 
+## V4.16
+
+* Add --noswap to disable dphys-swapfile and hence no swapfile created or used
+* Suppress "Reading database" messages from apt/dpkg that were spewed into /etc/sdm/apt.log
+* Correct xvnc*@.service definitions for Bullseye systemd: Remove User=nobody, set StandardError to journal
+* 1piboot script 030-disble-rsyslog now writes the config change to a file in /etc/systemd/journald.conf.d/
+
 ## V4.15
 
 * Add --password-pi, --password-user, and --password-root to set account passwords from the command line. See README for details, especially the important note about Password retention in the image. These switches can also be used to apply unique passwords when burning an SSD/SD Card.
