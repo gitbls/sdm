@@ -1,5 +1,9 @@
 # Changelog
 
+## V4.17
+
+* Add --journal to control the system journal configuration (syslog, journal|persistent, volatile, none)
+
 ## V4.16
 
 * Add --noswap to disable dphys-swapfile and hence no swapfile created or used
