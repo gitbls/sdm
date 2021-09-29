@@ -394,6 +394,10 @@ enable="true"
 include=""
 ```
 
+* `--journal` *type* &mdash; *type* specifies how to configure the system log. The default is `syslog`, which is "as configured" in RasPiOS. For the other values, the rsyslog service is disabled and logging configured:
+    * `persistent`: Makes a permanent journal in /var/log
+    * `volatile`: The journal is in memory and not retained across system restarts
+    * `none`: There is no system journal
 * `--keymap` *keymapname* &mdash; Specifies the keymap to set into the image, or burn onto the SD Card. `--keymap` can be specified when customizing the image and/or when burning the SD card. Specifying `--keymap` with `--burn` overrides whatever is in the image. Also see `--l10n`. See the *layout* section in /usr/share/doc/keyboard-configuration/xorg.list for a complete list of keymaps.
 * `--l10n` &mdash; Build the image with the Keymap, Locale, Timezone, and WiFi Country of the system on which sdm is running. Note that the switch name is lowercase *L10N*, which is shorthand for "localization", just like *I18N* is shorthand for "internationalization". Both `--l10n` and `--L10n` are accepted.
 * `--loadlocal USB` &mdash; WiFi Credentials are read from a USB device. The switch keyword value USB is required. The Credentials must be in the file `local-settings.txt` in the root directory of the USB device. `local-settings.txt` has three text lines in it, specifying the WiFi Country, WiFi SSID and password in the format:

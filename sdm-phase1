@@ -123,7 +123,26 @@ then
     logtoboth "> Disable SSH per command switch '--ssh none'"
     systemctl disable ssh.service > /dev/null 2>&1
 fi
-    
+#
+# Set system journal as requested
+#
+case "$journal" in
+    persistent|volatile|none)
+	logtoboth "> Set system journal to '$journal' and disable rsyslog"
+	mkdir -p /etc/systemd/journald.conf.d
+	cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
+[Journal]
+Storage=$journal
+ForwardToSyslog=no
+EOF
+	systemctl disable rsyslog
+	systemctl mask rsyslog
+	;;
+    syslog|*)
+	logtoboth "> System journal configuration not modified"
+	;;
+esac
+
 samepwd=""
 puser="'pi'"
 susers="user"

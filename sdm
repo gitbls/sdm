@@ -346,6 +346,7 @@ hdmigroup:$hdmigroup
 hdmimode:$hdmimode
 hostname:$hostname
 hotspot:$hotspot
+journal:$journal
 keymap:$keymap
 libfmconf:$libfmconf
 loadlocal:$loadlocal
@@ -459,6 +460,7 @@ Command Switches for --customize and --burn or as noted
  --hdmimode n        Set /boot/config.txt hdmimode value
  --host hostname     Hostname to write onto the storage device with --burn
  --hotspot config    Configure the image with a WiFi hotspot using hostapd
+ --journal type      Controls system journal (D:syslog; Or persistent, volatile, none)
  --keymap keymapname Set Keymap
  --L10n              Set Keymap, Locale, Timezone, and WiFi Country from running system
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
@@ -505,7 +507,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.16"
+version="V4.17"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -561,6 +563,7 @@ hname=""                    #Host name when using --burn
 hostname=""                 #Written to cparams during --burn
 hotspot=""                  #WiFi config file
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
+journal="syslog"            #Default journal (system log) setting
 keymap=""                   #Keyboard configuration
 infocmd=0                   #1=--info command
 libfmconf=""                #Config file for libfm
@@ -603,6 +606,7 @@ wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|novnc|samba|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
+vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vnc=""                      #--vnc arguments
 vncbase="5900"              # Base port for VNC socket services
@@ -634,7 +638,7 @@ cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
-hotspot:,info,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
+hotspot:,info,journal:,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,noswap,nspawnsw:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,rclocal:,reboot:,redo-customize,restart,\
 rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
@@ -696,6 +700,7 @@ do
 	--hdmimode)    hdmimode=$2   ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
 	--hotspot)     hotspot=$2    ; shift 2 ;;
+	--journal)     journal="${2,,}" ; shift 2 ;;
 	--keymap)      keymap=$2     ; shift 2 ;;
 	--l10n)        loadl10n=1    ; shift 1 ;;
 	--info)        infocmd=1     ; shift 1 ;;
@@ -855,6 +860,9 @@ loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
 exitiferr "$aptmaint"
+journal=$(poptcheck "$journal" "$vjournalopts" "--journal")
+exitiferr "$journal"
+journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
 #
 # Password-related switches
 #
