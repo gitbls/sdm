@@ -106,43 +106,107 @@ then
 fi
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
+
+logtoboth "*+Phase 1 sdm configuration"
+#
+# Set up sdm-firstboot service. This service processes some settings that can only be done
+# on the first boot of the system.
+# Service will be enabled by creating run.firstboot when SD card is burned with sdm
+#
+logtoboth "> Configure and enable FirstBoot (sdm-firstboot) service"
+[ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
+cat > /etc/systemd/system/sdm-firstboot.service <<EOF
+[Unit]
+Description=sdm System FirstBoot Configuration
+After=network.target
+#Before=rc-local.service
+
+[Service]
+Type=forking
+ExecStart=/usr/local/sdm/sdm-firstboot
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable sdm-firstboot > /dev/null 2>&1
+
+logtoboth "*+Phase 1 Network/WiFi/Bluetooth configuration"
+#
+# I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
+#
+logtoboth "> Disable wpa_supplicant.service, which is only used by Network Manager"
+logtoboth "  dhcpcd will start an interface-specific wpa_supplicant if needed"
+systemctl disable wpa_supplicant
+#
+# Set to disable bluetooth and/or wifi if requested
+#
+if [[ "$disables" =~ "bluetooth" ]]
+then
+    logtoboth "> Set Bluetooth to disable in FirstBoot per --disable bluetooth"
+    fndis="/etc/sdm/0piboot/050-disable-bt.sh"
+    [ -f $fndis ] && rm -f $fndis
+    cat > $fndis <<EOF
+#!/bin/bash
+blfile="blacklist-sdm-bluetooth.conf"
+logger "FirstBoot Disable bluetooth using /etc/modprobe.d/\$blfile"
+printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
+EOF
+    chmod 755 $fndis
+    systemctl disable hciuart
+fi
+if [[ "$disables" =~ "wifi" ]]
+then
+    logtoboth "> Set WiFi to disable in FirstBoot per --disable wifi"
+    fndis="/etc/sdm/0piboot/055-disable-wifi.sh"
+    [ -f $fndis ] && rm -f $fndis
+    cat > $fndis <<EOF
+#!/bin/bash
+blfile="blacklist-sdm-wifi.conf"
+logger "FirstBoot Disable wlan0 using /etc/modprobe.d/\$blfile"
+printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
+EOF
+    chmod 755 $fndis
+fi
+#
+# Set dhcpcd wait if requested
+#
+if [ "$dhcpcdwait" == "1" ]
+then
+    mkdir -p /etc/systemd/system/dhcpcd.service.d/
+    if [ -f /etc/systemd/system/dhcpcd.service.d/wait.conf ]
+    then
+	logtoboth "%dhcpcd 'wait for network connection' is already enabled"
+    else
+	logtoboth "> Enable dhcpcd 'wait for network connection'"
+	cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
+[Service]
+ExecStart=
+ExecStart=/usr/lib/dhcpcd5/dhcpcd -q -w
+EOF
+    fi
+fi
 #
 # Set up ssh as requested
 #
-if [ "$ssh" == "" ]
+if [ "$ssh" == "service" ]
 then
     logtoboth "> Enable SSH service via /boot/ssh"
     touch /boot/ssh
 elif [ "$ssh" == "socket" ]
 then
-    logtoboth "> Enable SSH via ssh.socket"
+    logtoboth "> Enable SSH via ssh.socket per --ssh socket"
     systemctl enable ssh.socket > /dev/null 2>&1
     systemctl disable sshswitch.service > /dev/null 2>&1
 elif [ "$ssh" == "none" ]
 then
-    logtoboth "> Disable SSH per command switch '--ssh none'"
+    logtoboth "> Disable SSH per --ssh none"
     systemctl disable ssh.service > /dev/null 2>&1
 fi
-#
-# Set system journal as requested
-#
-case "$journal" in
-    persistent|volatile|none)
-	logtoboth "> Set system journal to '$journal' and disable rsyslog"
-	mkdir -p /etc/systemd/journald.conf.d
-	cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
-[Journal]
-Storage=$journal
-ForwardToSyslog=no
-EOF
-	systemctl disable rsyslog
-	systemctl mask rsyslog
-	;;
-    syslog|*)
-	logtoboth "> System journal configuration not modified"
-	;;
-esac
-
+logtoboth "*+Phase 1 User configuration"
 samepwd=""
 puser="'pi'"
 susers="user"
@@ -187,6 +251,7 @@ then
 	[ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
 	changepwd $myuser "$upwd"
 	[ ! -d /home/$myuser ] && mkdir /home/$myuser
+	logtoboth "> Set /home/$myuser files ownership to '${myuser}:users'"
 	chown -R $myuser.users /home/$myuser
 	logtoboth "> Add user '$myuser' to sudoers.d"
 	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
@@ -196,42 +261,42 @@ fi
 logtoboth "> Change user 'pi' password"
 [ "$samepwd" == "" ] && samepwd="$passwordpi"
 changepwd pi "$samepwd"
-logtoboth "> set /home/pi files ownership to 'pi.pi'"
+logtoboth "> Set /home/pi files ownership to 'pi.pi'"
 chown -R pi.pi /home/pi
+logtoboth "*+Phase 1 System congfiguration"
 #
-# Set up sdm-firstboot service. This service processes some settings that can only be done
-# on the first boot of the system.
-# Service will be enabled by creating run.firstboot when SD card is burned with sdm
+# Handle system settings that can be done in Phase 1
+# WiFi Country is done when the system first boots by sdm-firstboot
 #
-logtoboth "> Configure and enable sdm-firstboot service"
-[ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
-cat > /etc/systemd/system/sdm-firstboot.service <<EOF
-[Unit]
-Description=sdm System FirstBoot Configuration
-After=network.target
-#Before=rc-local.service
-
-[Service]
-Type=forking
-ExecStart=/usr/local/sdm/sdm-firstboot
-TimeoutSec=0
-RemainAfterExit=yes
-GuessMainPID=no
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl enable sdm-firstboot > /dev/null 2>&1
-
-#
-# Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
-#
-if [ "$wpaconf" != "" ]
+if [ "$locale" != "" ]
 then
-    logtoboth "> Disable unneeded check for /boot/wpa_supplicant (raspberrypi-net-mods service)"
-    logtoboth "  wpa_supplicant.conf is already configured"
-    systemctl disable raspberrypi-net-mods.service > /dev/null 2>&1
+    logtoboth "> Set Locale to '$locale'"
+    #raspi-config do_change_locale "$locale" nonint
+    do_raspiconfig do_change_locale "$locale"
+fi
+if [ "$keymap" != "" ]
+then
+    logtoboth "> Set Keymap to '$keymap'"
+    logtoboth ">!Ignore invoke-rc.d messages"
+    #raspi-config do_configure_keyboard "$keymap" nonint
+    do_raspiconfig  do_configure_keyboard "$keymap" 
+fi
+if [ "$timezone" != "" ]
+then
+    logtoboth "> Set Timezone to '$timezone'"
+    #raspi-config do_change_timezone "$timezone" nonint
+    do_raspiconfig do_change_timezone "$timezone" 
+fi
+
+if [ "$eeprom" != "" ]
+then
+    logtoboth "> Set rpi-eeprom to '$eeprom' during FirstBoot"
+    cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
+sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
+EOF
+    chmod 755 /etc/sdm/0piboot/030-rpi-eeprom.sh
 fi
 
 #
@@ -282,6 +347,71 @@ EOF
     systemctl disable cron > /dev/null 2>&1
     systemctl mask    cron > /dev/null 2>&1
 fi
+#
+# Set system journal as requested
+#
+case "$journal" in
+    persistent|volatile|none)
+	logtoboth "> Set system journal to '$journal' and disable rsyslog"
+	mkdir -p /etc/systemd/journald.conf.d
+	cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
+[Journal]
+Storage=$journal
+ForwardToSyslog=no
+EOF
+	systemctl disable rsyslog
+	systemctl mask rsyslog
+	;;
+    syslog|*)
+	logtoboth "> System journal configuration not modified"
+	;;
+esac
+#
+# Disable swap if requested
+#
+if [[ "$disables" =~ "swap" ]]
+then
+    logtoboth "> Disable swapfile per --disable swap"
+    systemctl disable dphys-swapfile
+# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
+#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+fi
+#
+# Copy systemd config files to their locations
+#
+for c in login network resolve system timesync user
+do
+    nsdfn="sdfn${c}"
+    fn="${!nsdfn}"
+    if [ "$fn" != "" ]
+    then
+	tdir=$c
+	[ "$c" != "system" -a "$c" != "user" ] && tdir="${tdir}d"
+	logtoboth "> Copy systemd '$c' config file '$fn' from /etc/sdm/assets to /etc/systemd/$tdir.conf.d"
+	mkdir -p /etc/systemd/$tdir.conf.d
+	cp /etc/sdm/assets/$(basename $fn) /etc/systemd/$tdir.conf.d
+    fi
+done
+#
+# Disable Triggerhappy service if requested
+#
+if [[ "$disables" =~ "triggerhappy" ]]
+then
+    logtoboth "> Disable triggerhappy service per --disable triggerhappy"
+    systemctl disable triggerhappy.service
+    systemctl disable triggerhappy.socket
+    #Eliminate thd.socket errors from udev
+    [ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
+fi
+#
+# Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
+#
+if [ "$wpaconf" != "" ]
+then
+    logtoboth "> Disable check for /boot/wpa_supplicant (raspberrypi-net-mods service)"
+    logtoboth "  Not needed since wpa_supplicant.conf is already configured"
+    systemctl disable raspberrypi-net-mods.service > /dev/null 2>&1
+fi
 
 if ! [[ "$poptions" =~ "noupdate" ]]
 then
@@ -290,7 +420,7 @@ then
     doapt "update" $showapt
     logfreespace "at end of 'apt update'"
 else
-    logtoboth "> Skip 'apt update' per --poption 'noupdate'"
+    logtoboth "> Skip 'apt update' per --poption noupdate"
 fi    
 
 if [ "$cscript" != "" ]
@@ -302,70 +432,14 @@ else
     csfn=""
 fi
 
-if [ "$eeprom" != "" ]
-then
-    logtoboth "> Set rpi-eeprom to '$eeprom' during FirstBoot"
-    cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
-#!/bin/bash
-logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
-sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
-EOF
-    chmod 755 /etc/sdm/0piboot/030-rpi-eeprom.sh
-fi
-
-#
-# Set dhcpcd wait if requested
-#
-if [ "$dhcpcdwait" == "1" ]
-then
-    mkdir -p /etc/systemd/system/dhcpcd.service.d/
-    if [ -f /etc/systemd/system/dhcpcd.service.d/wait.conf ]
-    then
-	logtoboth "%dhcpcd 'wait for network connection' is already enabled"
-    else
-	logtoboth "> Enable dhcpcd 'wait for network connection'"
-	cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
-[Service]
-ExecStart=
-ExecStart=/usr/lib/dhcpcd5/dhcpcd -q -w
-EOF
-    fi
-fi
 #
 # If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
 if [[ "$loadlocal" =~ "wifi" ]]
 then
-    logtoboth "> Disable dhcpcd per '--loadlocal wifi'"
+    logtoboth "> Disable dhcpcd per --loadlocal wifi"
     logtoboth "  dhcpcd will be re-enabled at the end of First Boot"
     systemctl disable dhcpcd
 fi
-#
-# I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
-#
-logtoboth "> Disable wpa_supplicant.service, which is only used by Network Manager"
-logtoboth "  dhcpcd will start an interface-specific wpa_supplicant if needed"
-systemctl disable wpa_supplicant
-#
-# Handle system settings that can be done in Phase 1
-# WiFi Country is done when the system first boots by sdm-firstboot
-#
-if [ "$locale" != "" ]
-then
-    logtoboth "> Set Locale to '$locale'"
-    raspi-config do_change_locale "$locale" nonint
-fi
-if [ "$keymap" != "" ]
-then
-    logtoboth "> Set Keymap to '$keymap'"
-    logtoboth ">!Ignore invoke-rc.d messages"
-    raspi-config do_configure_keyboard "$keymap" nonint
-fi
-if [ "$timezone" != "" ]
-then
-    logtoboth "> Set Timezone to '$timezone'"
-    raspi-config do_change_timezone "$timezone" nonint
-fi
-
 #
 # These are enabled by use of the --poptions switch
 # For example: --poptions apps          installs your personal set of apps
@@ -390,7 +464,7 @@ fi
 #
 # Post-install Configuration
 #
-
+logtoboth "* Phase 1 post-app/xapp installation/configuration"
 #
 # Configure VNC if requested
 #
@@ -538,7 +612,7 @@ then
     logfreespace "at end of 'apt upgrade'"
     didapt=1
 else
-    logtoboth "> Skip 'apt upgrade' per --poption 'noupgrade'"
+    logtoboth "> Skip 'apt upgrade' per --poption noupgrade"
 fi    
 if [ $didapt -eq 1 ]
 then
@@ -549,19 +623,8 @@ then
 	doapt "--yes autoremove" $showapt
 	logfreespace "at end of 'apt autoremove'"
     else
-	logtoboth "> Skip 'apt autoremove' per --poption 'noautoremove'"
+	logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
     fi
-fi
-
-#
-# Disable swap if requested
-#
-if [ $noswap -eq 1 ]
-then
-    logtoboth "> Disable swapfile per --noswap"
-    systemctl disable dphys-swapfile
-# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
-#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
 fi
 
 #
@@ -575,7 +638,8 @@ then
     if [ $reboot -eq 1 ]
     then
 	logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	#SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	do_raspiconfig do_boot_behaviour B1
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
@@ -585,10 +649,10 @@ then
 	fi
     fi
     # Disable piwiz if requested
-    if [ $nopiwiz -eq 1 ]
+    if [[ "$disables" =~ "piwiz" ]]
     then
         logtoboth "> Disable running piwiz on first boot"
-	mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/piwiz.desktop.orig
+	mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/piwiz.desktop.sdm
     fi
     # Set left-handed mouse if requested
     if [ $fmouse -eq 1 ]

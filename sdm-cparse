@@ -21,7 +21,8 @@ function readparams() {
 		value="${value#\"}"     # Del closing double-quotes 
 		value="${value%\'}"     # Del opening single-quotes 
 		value="${value#\'}"     # Del closing single-quotes 
-		eval "${rpifun}=\"$value\""
+		printf -v "$rpifun" "%s" "$value"     #eval "${rpifun}=\"$value\""
+
 	    fi
 	done < $cf
 	IFS=$sifs
@@ -202,6 +203,19 @@ function cklogfreespace() {
     fi
 }
     
+function do_raspiconfig() {
+    #
+    # $1=command
+    # $2=value
+    local cmd=$1 value=$2
+    if type -P raspi-config > /dev/null
+    then
+	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint
+    else
+	logtoboth ">!Unable to find raspi-config for function '$cmd' with value '$value'"
+    fi
+}
+
 function gterm1() {
     #
     # $1: control (10:foreground, 11:background, 12:cursor, 13:mousefg, 14:mousebg)
@@ -214,7 +228,7 @@ function gterm1() {
     # Trim response to just the color string and return it in the named variable
     cval="${cval:2:${#cval}-3}"   # Strip off ESC] at beginning and ctrl-g at end of string
     cval="${cval##*;}"            # Strip off leading semi-colon
-    eval "${vname}=\"$cval\""     # Define a variable for the value
+    printf -v "$vname" "%s" "$cval" #eval "${vname}=\"$cval\""     # Define a variable for the value
 }
 
 function gtermcolors() {
@@ -248,7 +262,11 @@ function resetcolors() {
     # Set all colors saved from stermcolors
     #
     local tfg tbg tcursor
-    eval "tfg=\$${1}fg ; tbg=\$${1}bg ; tcursor=\$${1}cursor"
+    # old way: eval "tfg=\$${1}fg ; tbg=\$${1}bg ; tcursor=\$${1}cursor"
+    tfgn="${1}fg" ; tbgn="${1}bg" ; tcn="${1}cursor" 
+    printf -v tfg "%s" "${!tfgn}" 
+    printf -v tbg "%s" "${!tbgn}"
+    printf -v tcursor "%s" "${!tcn}"
     stermcolors "$tfg" "$tbg" "$tcursor"
 }
 

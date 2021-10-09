@@ -147,7 +147,8 @@ function loadusbcreds() {
 	[ "$udhcpwait" != "" ] && dhcpwait=$udhcpwait || dhcpwait=15
 	[ $dhcpwait -eq 0 ] && dhcpwait=15            #Make sure that it's not 0!
 	bootlog "Set WiFi Country to '$uwificountry'"
-	SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$uwificountry" nonint
+	#SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$uwificountry" nonint
+	do_raspiconfig do_wifi_country "$uwificountry"
 	wpa="/etc/wpa_supplicant/wpa_supplicant.conf"
 #	systemctl stop wpa_supplicant > /dev/null 2>&1 # This isn't even used with dhcpcd and is disabled in sdm-phase1
 	systemctl stop dhcpcd > /dev/null 2>&1
@@ -263,7 +264,8 @@ function doconfig() {
 		# * do_resolution still needs to be sorted out
 		serial)
 		    bootlog "Set Serial Port to '$value'"
-		    SUDO_USER=${myuser:-pi} raspi-config do_serial $value nonint
+		    #SUDO_USER=${myuser:-pi} raspi-config do_serial $value nonint
+		    do_raspiconfig do_serial $value nonint
 		    ;;
 		service-enable)
 		    bootlog "Enable Service '$value'"
@@ -275,7 +277,8 @@ function doconfig() {
 		    ;;
 		boot_behavior|boot_behaviour)  # Allow US spelling as well ;)
 		    bootlog "set boot_behaviour to '$value'"
-		    SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
+		    #SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
+		    do_raspiconfig do_boot_behaviour $value
 		    ;;
 		powerled)
 		    ssys=0
@@ -284,7 +287,8 @@ function doconfig() {
 		    if [ $ssys -eq 1 ]
 		    then
 			bootlog "Set Power LED to '$value'"
-			SUDO_USER=${myuser:-pi} raspi-config do_leds $value nonint
+			#SUDO_USER=${myuser:-pi} raspi-config do_leds $value nonint
+			do_raspiconfig do_leds $value
 		    else
 			bootlog "This Pi does not support setting the Power LED; Skipped"
 		    fi
@@ -294,7 +298,8 @@ function doconfig() {
 		    pixdub|overclock|rgpio|camera|onewire)
 		    # These are simple on/off and less commonly used so no elaborate logging for them
 		    bootlog "Set $rpifun to '$value'"
-		    SUDO_USER=${myuser:-pi} raspi-config do_$rpifun $value nonint
+		    #SUDO_USER=${myuser:-pi} raspi-config do_$rpifun $value nonint
+		    do_raspiconfig do_$rpifun $value 
 		    ;;
 		#
 		# fstab, keymap, locale, and timezone may be set via sdm --burn command
@@ -310,16 +315,19 @@ function doconfig() {
 		    ;;
 		keymap)
 		    bootlog "Set Keymap to '$value' (!Ignore invoke-rc.d messages)"
-		    SUDO_USER=${myuser:-pi} raspi-config do_configure_keyboard "$value" nonint
+		    #SUDO_USER=${myuser:-pi} raspi-config do_configure_keyboard "$value" nonint
+		    do_raspiconfig do_configure_keyboard "$value"
 		    ;;
 		locale)
 		    bootlog "Set Locale to '$value'"
-		    SUDO_USER=${myuser:-pi} raspi-config do_change_locale "$value" nonint
+		    #SUDO_USER=${myuser:-pi} raspi-config do_change_locale "$value" nonint
+		    do_raspiconfig do_change_locale "$value"
 		    declare -x LANG="$value"
 		    ;;
 		timezone)
 		    bootlog "Set Timezone to '$value'"
-		    SUDO_USER=${myuser:-pi} raspi-config do_change_timezone "$value" nonint
+		    #SUDO_USER=${myuser:-pi} raspi-config do_change_timezone "$value" nonint
+		    do_raspiconfig do_change_timezone "$value" 
 		    ;;
 		*)
 		    bootlog "% Unrecognized option '$rpifun' in '$cfgfile'"

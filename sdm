@@ -331,6 +331,7 @@ dhcpcdwait:$dhcpcdwait
 dimg:$dimg
 dimgdev:$dimgdev
 dimgdevname:$dimgdevname
+disables:$disables
 domain:$domain
 dtoverlay:$dtoverlay
 dtparam:$dtparam
@@ -361,6 +362,7 @@ myuid:$myuid
 myuser:$myuser
 nopiwiz:$nopiwiz
 noswap:$noswap
+os:$os
 passwordpi:$passwordpi
 passwordroot:$passwordroot
 passwordsame:$passwordsame
@@ -374,6 +376,12 @@ noreboot:$noreboot
 rebootwait:$rebootwait
 redocustomize:$redocustomize
 rootpwd:$rootpwd
+sdfnlogin:$sdfnlogin
+sdfnnetwork:$sdfnnetwork
+sdfnresolve:$sdfnresolve
+sdfnsystem:$sdfnsystem
+sdfntimesync:$sdfntimesync
+sdfnuser:$sdfnuser
 showapt:$showapt
 showpwd:$showpwd
 src:$src
@@ -441,6 +449,7 @@ Command Switches for --customize and --burn or as noted
  --custom[1-4] str   Can be used in Custom cscripts
  --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
  --ddsw str          Switches for dd command [bs=16M iflag=direct]
+ --disable arg,arg   Disables specific complex services (bluetooth,piwiz,swap,triggerhappy,wifi)
  --directory         sd-image-file is a directory tree rather than an IMG
  --dhcpcd file       Append file to /etc/dhcpcd.conf
  --dhcpcdwait        Enable dhcpcd Wait for Internet
@@ -471,8 +480,6 @@ Command Switches for --customize and --burn or as noted
  --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
  --mouse left        Enable left-handed mouse if LXDE installed
- --nopiwiz           Disable piwiz dialog in booted system
- --noswap            Disable swapfile
  --nspawnsw str      Additional switches for nspawn command
  --password-pi pwd   Set password for Pi user (will prompt if not provided)
  --password-user pwd Set password for the --user user (will prompt if not provided)
@@ -480,6 +487,7 @@ Command Switches for --customize and --burn or as noted
  --password-same y|n Use same password for pi, --user user (if set), and root (if --rootpwd)
  --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot (use on --burn command)
+ --os osname         Specify OS in the Image (D:raspios, ubuntu)
  --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
  --reboot n          Restart the first boot of the system after n seconds
  --redo-customize    If image already customized, redo without prompting
@@ -487,10 +495,11 @@ Command Switches for --customize and --burn or as noted
  --rootpwd           Set a root password into the image
  --showapt           Display apt output as well as logging it
  --showpwd           Log password in /etc/sdm/history
- --ssh none|socket   No ssh or ssh sockets [Default: ssh service]
+ --ssh none|socket|service  No ssh or ssh sockets [Default: ssh service]
  --svcdisable svc1,svc2,... Disable the named services
  --svcenable  svc1,svc2,... Enable  the named services
  --sysctl file       Copy the named file to /etc/sysctl.d (can be used multiple times)
+ --systemd-config item:file,... Provide config files for systemd functions. See README for details
  --timezone tzname   Set the Timezone
  --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
  --uid uid           UID for non-root user [next free]
@@ -507,7 +516,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.17"
+version="V4.18"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -536,6 +545,7 @@ cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddsw="bs=16M iflag=direct"  #Switches for dd
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
+disables=""                 #Complex services to disable
 dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
 dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
 domain=""                   #--domain name
@@ -582,6 +592,7 @@ myuid=""                    #UID for non-root user if created
 nopiwiz=0                   #1=Disable piwiz 
 noreboot=0                  #1=Do not restart system after first boot
 noswap=0                    #1=Disable swap
+os="raspios"                #Default OS for images
 nspawnsw=""                 #Switches for nspawn
 passwordpi=""               #Values for --password-xxx
 passwordroot=""
@@ -596,18 +607,28 @@ reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
+sdfnlogin=""                #File to augment /etc/systemd/logind.conf
+sdfnnetwork=""              #File to augment /etc/systemd/networkd.conf
+sdfnresolve=""              #File to augment /etc/systemd/resolved.conf
+sdfnsystem=""               #File to augment /etc/systemd/system.conf
+sdfntimesync=""             #file to augment /etc/systemd/timesyncd.conf
+sdfnuser=""                 #File to augment /etc/ysstemd/user.conf
 showpwd=0                   #1=Log password into /etc/sdm/history
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
 sysctl=""                   #Copy named file to /etc/sysctl.d
+systemdconfig=""            #Raw args to --systemd-config
+timesyncd=""                #timesynd.conf file to set into the image
 timezone=""                 #Timezone setting
 udev=""                     #Copy named udev files to /etc/udev/rules.d
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|novnc|samba|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
+vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
 vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
+vosopts="|raspios|raspbian|ubuntu|"
 vnc=""                      #--vnc arguments
 vncbase="5900"              # Base port for VNC socket services
 rootpwd=0                   #1=Set root password as well
@@ -635,13 +656,13 @@ longopts="help,1piboot:,apps:,aptcache:,aptmaint:,apip:,apssid:,\
 b1script:,b2script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
-cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,\
+cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,noswap,nspawnsw:,\
+mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,noswap,nspawnsw:,os:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,rclocal:,reboot:,redo-customize,restart,\
-rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,timezone:,udev:,uid:,user:,\
+rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
@@ -684,6 +705,7 @@ do
 	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
 	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
+	--disable)     disables="${2,,}" ; shift 2 ;;
 	--domain)      domain=$2     ; shift 2 ;;
 	--dtoverlay)   [ "$dtoverlay" == "" ] && dtoverlay="$2" || dtoverlay="$dtoverlay|$2" ; shift 2 ;;
 	--dtparam)     [ "$dtparam" == "" ]   && dtparam="$2"   || dtparam="$dtparam|$2" ; shift 2 ;;
@@ -718,6 +740,7 @@ do
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
+	--os)          os="${2,,}"   ; shift 2 ;;
 	--password-pi) passwordpi=$2 ; shift 2 ;;
 	--password-root) passwordroot=$2 ; shift 2 ;;
 	--password-same) samepwd=$2  ; shift 2 ;;
@@ -731,10 +754,12 @@ do
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
 	--showpwd)     showpwd=1     ; shift 1 ;;
-	--ssh)         ssh=$2        ; shift 2 ;;
+	--ssh)         ssh="${2,,}"        ; shift 2 ;;
 	--svcdisable)  svcdisable=$2 ; shift 2 ;;
 	--svcenable)   svcenable=$2  ; shift 2 ;;
 	--sysctl)      [ "$sysctl" == "" ] && sysctl="$2" || sysctl="$sysctl|$2" ; shift 2 ;;
+	--systemd-config) systemdconfig=$2 ; shift 2 ;;
+	--timesyncd)   timesyncd=$2  ; shift 2 ;;
 	--timezone)    timezone=$2   ; shift 2 ;;
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
@@ -840,8 +865,9 @@ p1bootconf="$(fndotfullpath $p1bootconf)"
 [ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
 if [ "$ssh" != "" ]
 then
-    [[ ! "|none|socket|" =~ "|$ssh|" ]] && errexit "? Unknown value '$ssh' for --ssh"
+    [[ ! "|none|socket|service|" =~ "|$ssh|" ]] && errexit "? Unknown value '$ssh' for --ssh"
 fi
+[ "$ssh" == "" ] && ssh="service"
 [ "$rebootwait" != "" ] && checknumeric "$rebootwait" "--reboot"
 [ "$hdmigroup" != "" ] && checknumeric "$hdmigroup" "--hdmigroup"
 [ "$hdmimode" != "" ] && checknumeric "$hdmimode" "--hdmimode"
@@ -854,6 +880,8 @@ fi
 ! cklocale $locale && errexit "? Unknown Locale '$locale'"
 ! ckkeymap $keymap && errexit "? Unknown Keymap '$keymap'"
 
+disables=$(poptcheck "$disables" "$vdisableopts" "--disable")
+exitiferr "$disables"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--poption")
 exitiferr "$poptions"
 loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
@@ -863,6 +891,41 @@ exitiferr "$aptmaint"
 journal=$(poptcheck "$journal" "$vjournalopts" "--journal")
 exitiferr "$journal"
 journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
+os=$(poptcheck "$os" "$vosopts" "--os")
+exitiferr "$os"
+os=${os#|} ; os=${os%|}  #Strip off the vbars
+[ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
+[ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
+#
+# --systemd-config
+#
+if [ "$systemdconfig" != "" ]
+then
+    emsg=""
+    readarray -d, itemlist <<< $systemdconfig
+    for o in ${itemlist[@]}
+    do
+	IFS=":" read olname fname <<< $o
+	lname=${olname,,} ; lname=${lname%d}    #Copy name and strip trailing 'd' if present (easy typo)
+	fname=${fname%,}    #Strip trailing comma
+	case "$lname" in
+	    login|network|resolve|system|timesync|user)
+		if [ -f $fname ]
+		then
+		    nsdfn="sdfn${lname}"
+		    printf -v "$nsdfn" "%s" "$fname"   #Update variable named sdfn${lname}
+		else
+		    [ "$emsg" != "" ] && emsg="$emsg,${olname}:${fname}" || emsg="${olname}:${fname}"
+		fi
+		;;
+	    *)
+		[ "$emsg" != "" ] && emsg="$emsg,${olname}:is-unknown" || emsg="${olname}:is-unknown"
+		;;
+	esac
+    done
+    [ "$emsg" != "" ] && errexit "? --systemd-config file(s) not found: $emsg"
+fi
+
 #
 # Password-related switches
 #
@@ -953,6 +1016,7 @@ done
 [ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
 [ "$motd" != "" -a "$motd" != "/dev/null" ] && checkfilelist "$motd" "--motd"
 [ "$udev" != "" ] && checkfilelist "$udev" "--udev"
+
 if [ "$hotspot" != "" ]
 then
     [ ! -f $hotspot ] && errexit "? --hotspot file '$hotspot' not found"
@@ -1276,7 +1340,7 @@ else
     then
 	echo "* Unmount $dimgdevname for --extend"
 	docleanup
-	extendandresize
+	extendandresize   # Remounts IMG afterward
     fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
@@ -1294,9 +1358,17 @@ else
     chmod 755 /mnt/sdm/usr/local/sdm/*
     [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
     [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
-    cp -f $src/1piboot/{010-disable-triggerhappy.sh,030-disable-rsyslog.sh} /mnt/sdm/usr/local/sdm/1piboot
-    chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
-    logtoboth "* Start Configuration"
+    logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
+    if compgen -G "$src/1piboot/*.sh" > /dev/null
+    then
+	cp -f $src/1piboot/*.sh /mnt/sdm/usr/local/sdm/1piboot
+	if [ $bootscripts -eq 1 ]
+	then
+	    [ -f /mnt/sdm/usr/local/sdm/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports --triggerhappy; suggest removing /usr/local/sdm/1piboot/010-disable-triggerhappy.sh"
+	    [ -f /mnt/sdm/usr/local/sdm/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing /usr/local/sdm/1piboot/030-disable-rsyslog.sh"
+	fi
+	chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
+    fi
     logtoboth "> Command Line: $cmdline"
     logfreespace
     logtoboth "> Copy sdm to /usr/local/sdm in the $dimgdevname"   # Yes, already done above ;)

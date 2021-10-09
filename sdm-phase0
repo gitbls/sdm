@@ -51,16 +51,35 @@ function copycufiles() {
 source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams
 
 logtoboth "* Start Phase 0 image customization"
+#
+# These are ordered by: sdm, network, user, system, pi-hardware
+# And then alphabetically within each group
+#
 
-if [ "$wpaconf" != "" ]
+logtoboth "*+Phase 0 sdm configuration"
+if [ "$b2script" != "" ]
 then
-    logtoboth "> Copy wpa supplicant configuration from '$wpaconf'"
+    logtoboth "> Copy --b2script '$b2script' to /mnt/sdm/etc/sdm/assets"
+    cp $b2script /mnt/sdm/etc/sdm/assets
+fi
+#
+# copy hotspot configuration file into the image
+#
+if [ "$hotspot" != "" ]
+then
+    logtoboth "> Copy hotspot configuration file to /mnt/sdm/etc/sdm/assets"
+    cp $hotspot /mnt/sdm/etc/sdm/assets
+fi
+
+logtoboth "*+Phase 0 Network configuration"
+if [ "$wpaconf" != "" ]    #First b/c it's most important
+then
+    logtoboth "> Copy wpa supplicant config from '$wpaconf' to /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf"
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
 else
-    logtoboth ">%Skip wpa_supplicant configuration per command switch --nowpa"
+    logtoboth ">%Skip wpa_supplicant configuration per --nowpa"
 fi
-
 #
 # Copy dhcpcd.conf extension into the image
 #
@@ -71,9 +90,8 @@ then
 # Don't need to do it this way, but keep for future just in case
 #    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
-
 #
-# Copy user-defined exports file into the image
+# Copy exports file into the image
 #
 if [ "$exports" != "" ]
 then
@@ -81,20 +99,7 @@ then
     cp $exports /mnt/sdm/etc/exports
 fi
 
-if [ "$b2script" != "" ]
-then
-    logtoboth "> Copy --b2script '$b2script' to /mnt/sdm/etc/sdm/assets"
-    cp $b2script /mnt/sdm/etc/sdm/assets
-fi
-#
-# Copy fstab extension into the image
-#
-if [ "$fstab" != "" ]
-then
-    logtoboth "> Copy fstab extension '$fstab' to /mnt/sdm/etc/sdm/assets and enable for FirstBoot"
-    cp $fstab /mnt/sdm/etc/sdm/assets
-    echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-fi
+logtoboth "*+Phase 0 User configuration"
 #
 # Copy lxde-config config files into the image
 #
@@ -104,10 +109,11 @@ do
     fmconf="${!cname}"
     if [ "$fmconf" != "" ]
     then
-	logtoboth "> Copy --lxde-config $fm config file '$fmconf' to /mnt/sdm/etc/sdm/assets"
+	logtoboth "> Copy --lxde-config '$fm' config file '$fmconf' to /mnt/sdm/etc/sdm/assets"
 	cp $fmconf /mnt/sdm/etc/sdm/assets
     fi
 done
+logtoboth "*+Phase 0 System configuration"
 #
 # Copy any specified cron files
 #
@@ -119,12 +125,13 @@ do
 done
 
 #
-# copy hotspot configuration file into the image
+# Copy fstab extension into the image
 #
-if [ "$hotspot" != "" ]
+if [ "$fstab" != "" ]
 then
-    logtoboth "> Copy hotspot configuration file to /mnt/sdm/etc/sdm/assets"
-    cp $hotspot /mnt/sdm/etc/sdm/assets
+    logtoboth "> Copy fstab extension '$fstab' to /mnt/sdm/etc/sdm/assets and enable for FirstBoot"
+    cp $fstab /mnt/sdm/etc/sdm/assets
+    echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
 fi
 
 #
@@ -138,15 +145,52 @@ fi
 [ "$motd" != "" ] && logtoboth "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
 
 #
+# Add requested command(s) to /etc/rc.local
+# ?? Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
+#
+if [ "$rclocal" != "" ]
+then
+    logtoboth "> Add commands to /mnt/sdm/etc/rc.local"
+    grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
+    sifs="$IFS"
+    IFS=""
+    readarray -d\| citems <<< "$rclocal"
+    for c in ${citems[@]}
+    do
+	c="${c%|}"
+	c="${c/$'\n'}"
+	logtoboth ">  $c"
+	echo "$c" >> /mnt/sdm/tmp/rc.local
+    done
+    echo "exit 0" >> /mnt/sdm/tmp/rc.local
+    IFS="$sifs"
+    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.orig
+    mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
+fi
+#
 # Copy user-specified sysctl config file into the image
 #
 [ "$sysctl" != "" ] && copycufiles "$sysctl" "/mnt/sdm/etc/sysctl.d"
 
 #
+# Copy systemd config files into the image
+#
+for c in login network resolve system timesync user
+do
+    nsdfn="sdfn${c}"
+    fn="${!nsdfn}"
+    if [ "$fn" != "" ]
+    then
+	logtoboth "> Copy systemd '$c' config file '$fn' to /mnt/sdm/etc/sdm/assets"
+	cp $fn /mnt/sdm/etc/sdm/assets
+    fi
+done
+#
 # Copy any specified udev files
 #
 [ "$udev" != "" ] && copycufiles "$udev" "/mnt/sdm/etc/udev/rules.d"
 
+logtoboth "*+Phase 0 Raspberry Pi-specific configuration"
 #
 # Set HDMI configuration if requested
 #
@@ -213,31 +257,7 @@ then
     # Create user directory now, so that Custom Phase Script can copy into it if desired
     # Can't create the new user and fix directory ownership until sdm-phase1
     #
-    [ ! -d /mnt/sdm/home/$myuser ] && mkdir /mnt/sdm/home/$myuser
-fi
-
-#
-# Add requested command(s) to /etc/rc.local
-# ** Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
-#
-if [ "$rclocal" != "" ]
-then
-    logtoboth "> Add commands to /mnt/sdm/etc/rc.local"
-    grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
-    sifs="$IFS"
-    IFS=""
-    readarray -d\| citems <<< "$rclocal"
-    for c in ${citems[@]}
-    do
-	c="${c%|}"
-	c="${c/$'\n'}"
-	logtoboth ">  $c"
-	echo "$c" >> /mnt/sdm/tmp/rc.local
-    done
-    echo "exit 0" >> /mnt/sdm/tmp/rc.local
-    IFS="$sifs"
-    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.orig
-    mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
+    [ ! -d /mnt/sdm/home/$myuser ] && logtoboth "> Create user '$myuser' home directory /home/$myuser" && mkdir -p /mnt/sdm/home/$myuser
 fi
 
 if [ "$cscript" != "" ]
