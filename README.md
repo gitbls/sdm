@@ -126,9 +126,7 @@ Installation is simple. sdm must be installed in and uses the path `/usr/local/s
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-cportal -o /usr/local/sdm/sdm-cportal
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-hotspot -o /usr/local/sdm/sdm-hotspot
     sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/1piboot.conf -o /usr/local/sdm/1piboot/1piboot.conf
-    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/010-disable-triggerhappy.sh -o /usr/local/sdm/1piboot/010-disable-triggerhappy.sh
-    sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/sdm-1piboot/030-disable-rsyslog.sh -o /usr/local/sdm/1piboot/030-disable-rsyslog.sh
-    sudo chmod -R 755 /usr/local/sdm/* /usr/local/sdm/1piboot/*.sh
+    sudo chmod -R 755 /usr/local/sdm/*
     sudo chmod 644 /usr/local/sdm/{sdm-apps-example,sdm-xapps-example} /usr/local/sdm/1piboot/1piboot.conf
     sudo apt install systemd-container --no-install-recommends --yes
 
@@ -343,6 +341,12 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, the default value is replaced.
 * `--dhcpcdwait` &mdash; Enable 'wait for network' (raspi-config System option S6).
 * `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
+* `--disable` *option* &mdash; Disable specified options in the comma-separated list. Supported options: `bluetooth`, `piwiz`, `swap`, `triggerhappy`, `wifi`.
+    * `bluetooth` &mdash; Block bluetooth via /etc/modprobe.d/blacklist-sdm-bluetooth.conf and disable the hciuart service
+    * `piwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accomplished in sdm
+    * `swap` &mdash; Disables the dphys-swapfile service. No service, no swap file.
+    * `triggerhappy` &mdash; Disable the Triggerhappy service, which most people don't use. This also disables the udev rule that creates boot-time log spew.
+    * `wifi` &mdash; Disable wifi via /etc/modprobe.d/blacklist-sdm-wifi.conf, which disables the onboard WiFi adapter.
 * `--dtoverlay` *string* &mdash; Add a dtoverlay to /boot/config.txt with the specified string, one dtoverlay per switch. Multiple `--dtoverlay` switches can be specified. They will all be added to config.txt
 * `--dtparam` *string* &mdash; Add a dtparam to /boot/config.txt with the specified string, one dtparam per switch. Multiple --dtparam switches can be specified. They will all be added to config.txt
 * `--eeprom` *value* &mdash; Change the eeprom value in /etc/default/rpi-eeprom-update. The RasPiOS default is 'critical', which is fine for most users. Change only if you know what you're doing.
@@ -419,8 +423,6 @@ include=""
 * `--modprobe` *file* &mdash; Copy the modprobe file to /etc/modprobe.d. `--modprobe` can be specified multiple times to copy multiple files.
 * `--motd` *file* &mdash; Copy the specified file to /etc/motd. The original /etc/motd is renamed to /etc/motd.orig. You can easily create a null message of the day by using `--motd /dev/null`
 * `--mouse left` &mdash; If LXDE is installed, set the Mouse to be left-handed (for those that are in their right mind).
-* `--nopiwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accoomplished in sdm.
-* `--noswap` &mdash; Disables the dphys-swapfile service. No service, no swap file.
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--password-pi` *password* &mdash; Specify the password for the "pi" user. See *Important note about Passwords* below for details
@@ -445,9 +447,10 @@ include=""
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--showpwd` &mdash; Show the passwords set on accounts in /etc/sdm/history
-* `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. By default, if `--ssh` is not specified, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
+* `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. If `--ssh` is not specified or if  *SSHoption* is `service`, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled at all. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
 * `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
 * `--sysctl` *file* &mdash; Copy the specified file into the image in /etc/sysctl.d. `--sysctl` can be speicified multiple times to copy multiple files.
+* `--systemd-config` *item*:*file* &mdash; Specify config files for the various systemd functions. *item* is one of: 	    `login`, `network`, `resolve`, `system`, `timesync`, `user`. The specified file is put into the directory /etc/systemd/*item*.conf.d, and the filename must be terminated with ".conf" in order for systemd to process them during systemd initialization. See the corresponding man page for details: `man logind.conf`, `man networkd.conf`, `man resolved.conf`, `man systemd-system.conf`, `man timesyncd.conf`, and `man systemd-user.conf`. The most useful of these is probably 'timesync', which lets you easily set a time server address.
 * `--timezone` *tzname* &mdash; Set the timezone for the system.  See `sudo timedatectl list-timezones | less` for a complete list of timezones.
 * `--udev` *file* &mdash; Copy the udev rule file to /etc/udev/rules.d. `--udev` can be specified multiple times to copy multiple files.
 * `--user` *username* &mdash; Specify a username to be created in the IMG. 
