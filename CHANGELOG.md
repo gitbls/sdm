@@ -1,5 +1,12 @@
 # Changelog
 
+## V4.18
+
+* Add --disable options,in,a,list. Valid options are bluetooth, piwiz, swap, triggerhappy, and wifi
+* Add --systemd-config item:filename to augment systemd config files for: login,network,resolve,system,timesync,user. See README for details
+* Remove --noswap and --nopiwiz in favor of --disable
+* Reorder and group processing "similar" Phase 0 and Phase 1 customizations together (sdm, networks, user, system)
+
 ## V4.17
 
 * Add --journal to control the system journal configuration (syslog, journal|persistent, volatile, none)
@@ -34,7 +41,6 @@
 
 * Always disable sdm-firstboot service at end of FirstBoot processing
 * Improve check for "is package installed"
-	
 
 ## V4.11
 
