@@ -203,12 +203,8 @@ sdm consists of a primary script sdm and several supporting scripts:
 * **sdm-apt**  &mdash; sdm-apt is an optional script that you can use to issue apt commands when in Phase 1 or via `sdm --explore`. It logs the apt output in /etc/sdm/apt.log along with all the other apt operations done in by sdm in customizing your image. Refer to the script for details.
 * **sdm-firstboot**  &mdash; sdm-firstboot is a systemd service run on first system boot to set the WiFi country, enables Pi-specific devices if configured, and optionally run any Custom FirstBoot scripts.
 
-* **1piboot/*** &mdash;  Configuration file and sample scripts. You may edit the configuration file (1piboot.conf) if you wish, or you can use the --bootset command switch to control all the settings. See the next section for details. This directory will also be installed onto the SD Card in /usr/local/sdm/1piboot. 
-
-    If enabled, the custom scripts in 1piboot/0*-*.sh are run when the system first boots, and provide system tuning improvements. You can, of course, disable any of these by renaming them with a leading period, or changing the file type (from ".sh" to ".sh-disabled", for example). The custom scripts are enabled by the switch `--bootscripts` on either the command line that builds the IMG, or on the `sdm --burn` command when burning a new SD card. Two example scripts are provided. You can use either, both, or none of these, as you desire.
-
-    * **010-disable-triggerhappy.sh**  &mdash; Disables the TriggerHappy service, which you may not be using. (Does anyone actually use TriggerHappy? Asking for a friend)
-    * **030-disable-syslog.sh**  &mdash; Switches the system log from using rsyslog, writing several text-based log files in /var/log (daemon.log, syslog, auth.log, kern.log, and messages) to using journalctl and writing a log in /var/log/journal. The `sudo journalctl` command can be used to view the log (in either scenario).
+* **1piboot/*** &mdash;  Configuration file and sample scripts. You may edit the configuration file (1piboot.conf) if you wish, or you can use the --bootset command switch to control all the settings. See the next section for details. This directory will also be installed onto the SD Card in /usr/local/sdm/1piboot.
+    If enabled, the custom scripts in 1piboot/0*-*.sh are run when the system first boots, and can perform system tuning improvements. The custom scripts are enabled by the switch `--bootscripts` on either the command line that builds the IMG, or on the `sdm --burn` command when burning a new SD card. The scripts can do anything you want, of course, although having several small focused scripts is probably preferable for your sanity over the long term.
 
 * **sdm-cparse**  &mdash; Helper script that defines some sdm-internal bash functions.
 
