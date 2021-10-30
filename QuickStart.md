@@ -8,7 +8,7 @@ It's assumed that there is a freshly downloaded copy of a RasPiOS IMG file (e.g.
 `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
 ### Customize the image
-`sudo /usr/local/sdm/sdm 2021-05-07-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --L10n --restart `
+`sudo /usr/local/sdm/sdm --customize 2021-05-07-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --L10n --restart `
 
 sdm will make the following changes to your IMG file:
 * Copy your Localization settings (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running
