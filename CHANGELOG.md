@@ -1,5 +1,13 @@
 # Changelog
 
+## V4.19
+
+* Add --gadget-mode to configure the image for USB Gadget Mode
+* Add --swap n to set swap size to nMB
+* Add --regenerate-ssh-host-keys to regenerate SSH host keys after system time is synced (or 60 seconds elapse)
+* Enable --rclocal to be used on the burn command. (Each target burn can have a different set of rc.local commands if desired)
+* Copy 1piboot.conf to /usr/local/sdm/1piboot as well as to /etc/sdm
+
 ## V4.18
 
 * Add --disable options,in,a,list. Valid options are bluetooth, piwiz, swap, triggerhappy, and wifi
