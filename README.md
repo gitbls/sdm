@@ -348,6 +348,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--eeprom` *value* &mdash; Change the eeprom value in /etc/default/rpi-eeprom-update. The RasPiOS default is 'critical', which is fine for most users. Change only if you know what you're doing.
 * `--exports` *file* &mdash; Copy the specified file into the image as /etc/exports
 * `--fstab` *file* &mdash; Append the contents of the specified file to /etc/fstab in the Customized Image. This is useful if you want the same /etc/fstab entries on your RasPiOS systems.
+* `--gadget-mode` &mdash; Configure the image to be a USB gadget.
 * `--groups` *grouplist* &mdash; Specify the groups to be added to new user created with `--user`. The default list is: dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio
 * `--hdmi-force-hotplug` &mdash; Enable the hdmi_force_hotplug setting in /boot/config.txt
 * `--hdmigroup` *num* &mdash; hdmigroup setting in /boot/config.txt
@@ -440,11 +441,13 @@ include=""
 * `--rclocal` *command* &mdash; Add the specified command to /etc/rc.local. Multiple `--rclocal` switches can be specified, and the commands are added in the order specified on the command line.
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
 * `--redo-customize` &mdash; Directs sdm to not prompt for confirmation to redo the customization on a target found to already be customized.
+* `--regenerate-ssh-host-keys` &mdash; The sdm FirstBoot process will regenerate the SSH host keys on the first system boot once the system time has been synchronized. The system will move ahead and regenerate the keys if the time has not been synchronized within 60 seconds.
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--showpwd` &mdash; Show the passwords set on accounts in /etc/sdm/history
 * `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. If `--ssh` is not specified or if  *SSHoption* is `service`, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled at all. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
 * `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
+* `--swap` *n* &mdash; Set the swap size to *n*MB. This overrides `--disable swap`
 * `--sysctl` *file* &mdash; Copy the specified file into the image in /etc/sysctl.d. `--sysctl` can be speicified multiple times to copy multiple files.
 * `--systemd-config` *item*:*file* &mdash; Specify config files for the various systemd functions. *item* is one of: 	    `login`, `network`, `resolve`, `system`, `timesync`, `user`. The specified file is put into the directory /etc/systemd/*item*.conf.d, and the filename must be terminated with ".conf" in order for systemd to process them during systemd initialization. See the corresponding man page for details: `man logind.conf`, `man networkd.conf`, `man resolved.conf`, `man systemd-system.conf`, `man timesyncd.conf`, and `man systemd-user.conf`. The most useful of these is probably 'timesync', which lets you easily set a time server address.
 * `--timezone` *tzname* &mdash; Set the timezone for the system.  See `sudo timedatectl list-timezones | less` for a complete list of timezones.
@@ -562,6 +565,7 @@ These switches can be used with `--burn`. When used this way, they affect only t
 * `--password-pi`
 * `--password-user`
 * `--password-root`
+* `--rclocal`
 * `--reboot`
 * `--sysctl`
 * `--timezone`
