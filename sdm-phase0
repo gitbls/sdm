@@ -142,7 +142,7 @@ fi
 #
 # Copy user-specified motd file into the image
 #
-[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.orig && cp $motd /mnt/sdm/etc/motd
+[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.sdm && cp $motd /mnt/sdm/etc/motd
 
 #
 # Add requested command(s) to /etc/rc.local
@@ -164,7 +164,7 @@ then
     done
     echo "exit 0" >> /mnt/sdm/tmp/rc.local
     IFS="$sifs"
-    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.orig
+    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.sdm
     mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
 fi
 #

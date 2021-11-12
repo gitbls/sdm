@@ -337,6 +337,32 @@ function doconfig() {
     done < $cfgfile
     bootlog "Configuration with configuration file '$cfgfile' Completed"
 }
+
+timesyncwait() {
+    #
+    # Waits for time to be synced or 60 seconds
+    #
+    for (( secs=1 ; secs<=60 ; secs++))
+    do
+	[ "$(timedatectl status | grep synchronized | (IFS=' ' ; read a b c d ; echo $d))" == "yes" ] && break
+	if [ $secs -eq 60 ]
+	then
+	    echo "$(thisdate) FirstBoot: System time not synchronized after 60 second wait; Proceeding..." > /dev/console
+	    bootlog "System time not synchronized after 60 second wait; proceeding to regenerate SSH host keys"
+	    return
+	fi
+	if [ $((secs%10)) -eq 0 ]
+	then
+	    echo "$(thisdate) FirstBoot: Waiting $secs/60 seconds for system time synchronization" > /dev/console
+	    bootlog "Waiting $secs/60 seconds for system time synchronization\n" > /dev/console
+	fi
+	sleep 1
+    done
+    bootlog "System time synchronization achieved"
+    echo "$(thisdate) FirstBoot: System time synchronization achieved" > /dev/console
+    return
+}
+
 #
 # Mainline
 #
@@ -397,6 +423,18 @@ doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated FirstBoot"
 logit "> FirstBoot Disable sdm-firstboot service"
 systemctl disable sdm-firstboot > /dev/null 2>&1
 
+if [ $regensshkeys -eq 1 ]
+then
+    bootlog "Start Regenerate SSH Host Keys Process"
+    timesyncwait
+    bootlog "Restart regenerate_ssh_host_keys to run again (once)..."
+    systemctl start regenerate_ssh_host_keys
+    while [ "$(systemctl show -p ActiveState regenerate_ssh_host_keys --value)" == "active" ]
+    do
+	sleep 1
+    done
+fi
+
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
     # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
@@ -409,7 +447,7 @@ then
 	[ $flashled -eq 0 ] && morseled "-..- -..-"
 	sleep 1
     done
-    echo -e "\n$(thisdate) FirstBoot: Restarting the system in $rebootwait seconds\n" > /dev/console
+    echo -e "\n$(thisdate) FirstBoot: System startup complete; Restarting the system in $rebootwait seconds\n" > /dev/console
     bootlog "Restarting the system in $rebootwait seconds"
     sleep $rebootwait
     systemctl daemon-reload

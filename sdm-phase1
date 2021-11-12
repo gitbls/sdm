@@ -206,6 +206,14 @@ then
     logtoboth "> Disable SSH per --ssh none"
     systemctl disable ssh.service > /dev/null 2>&1
 fi
+if [ $fgadgetmode -eq 1 ]
+then
+    # dtoverlay=dwc2 set in sdm if gadget-mode
+    # ssh enabled by default. We don't check if user has disabled.
+    logtoboth "> Enable Gadget Mode"
+    sed -i "s/rootwait/rootwait modules-load=dwc2,g_ether/" /boot/cmdline.txt
+fi
+
 logtoboth "*+Phase 1 User configuration"
 samepwd=""
 puser="'pi'"
@@ -366,15 +374,21 @@ EOF
 	logtoboth "> System journal configuration not modified"
 	;;
 esac
-#
-# Disable swap if requested
-#
-if [[ "$disables" =~ "swap" ]]
+if [ $swapsize -gt 0 ]
 then
-    logtoboth "> Disable swapfile per --disable swap"
-    systemctl disable dphys-swapfile
-# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
-#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+    logtoboth "> Set Swap Size to ${swapsize}MB"
+    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=$swapsize/" /etc/dphys-swapfile
+else
+    #
+    # Disable swap if requested
+    #
+    if [[ "$disables" =~ "swap" ]]
+    then
+	logtoboth "> Disable swapfile per --disable swap"
+	systemctl disable dphys-swapfile
+	# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
+	#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+    fi
 fi
 #
 # Copy systemd config files to their locations
