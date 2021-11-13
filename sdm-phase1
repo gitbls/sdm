@@ -691,9 +691,12 @@ then
 	    cp /etc/sdm/assets/$(basename $fmconf) $dirx/$fm.conf
 	fi
     done
-    logtoboth "> Set owner to '$userx:$gx' and protection to 700 on '/home/$userx/.config' directory tree"
-    chown -R $userx:$gx /home/$userx/.config
-    chmod -R 700 /home/$userx/.config
+    if [ -d /home/$userx/.config ]
+    then
+	logtoboth "> Set owner to '$userx:$gx' and protection to 700 on '/home/$userx/.config' directory tree"
+	chown -R $userx:$gx /home/$userx/.config
+	chmod -R 700 /home/$userx/.config
+    fi
 fi
 #
 # If xdm installed, disable it on console if requested
