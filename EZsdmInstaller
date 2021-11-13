@@ -94,31 +94,11 @@ $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.c
 #
 if [ "$dir" == "/usr/local/sdm" ]
 then
-    echo "* Checking if 'systemd-container' is installed"
-    if [ "$(which systemd-nspawn)" == "" ]
-    then
-	echo "> Installing 'systemd-container'"
-	$sudo apt install --yes --no-install-recommends systemd-container
-    else
-	echo "> Great! 'systemd-container' is already installed"
-    fi
-    if [ "$osdistro" != "raspios" ]
-    then
-	echo "* Additional packages must be installed since this is not RasPiOS"
-	echo "* Installing 'qemu-user-static' and 'binfmt-support' if needed"
-	for p in qemu-user-static binfmt-support
-	do
-	    if ! $sudo dpkg-query -s $p > /dev/null 2>&1
-	    then
-		echo "> Installing '$p'..."
-		$sudo apt install --yes --no-install-recommends $p
-	    else
-		echo "> Great! Package '$p' is already installed"
-	    fi
-	done
-    fi
+    echo "* Ensure required packages are installed: systemd-container qemu-user-static binfmt-support"
+    $sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static binfmt-support
     echo ""
-    echo "Invoke sdm with 'sudo $dir/sdm'"
+    echo "% Invoke sdm with 'sudo $dir/sdm'"
+    echo "  See the sdm documentation at https://github.com/gitbls/sdm"
 else
     echo ""
     echo "You can inspect sdm in $1..."
