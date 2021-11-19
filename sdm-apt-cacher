@@ -11,8 +11,8 @@ function enablecacher () {
     else
 	if ! (grep $1 /etc/apt/sources.list > /dev/null 2>&1)
 	then
-	    sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list
-	    sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list.d/raspi.list
+	    sudo sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list
+	    sudo sed -i "s/http:\/\//http:\/\/$1\//" /etc/apt/sources.list.d/raspi.list
 	fi
     fi
 }
@@ -28,8 +28,20 @@ then
 else
     echo "% Setting up apt caching server"
     echo "% Answer NO to enabling HTTPS tunnels"
-    apt install -y apt-cacher-ng
+    sudo apt install -y apt-cacher-ng
     enablecacher 127.0.0.1:$port
-    rm -rf /var/lib/apt/lists
-    rm -rf /var/cache/apt/*
+    sudo rm -rf /var/lib/apt/lists
+    sudo rm -rf /var/cache/apt/*
 fi
+
+#
+# Resetting the apt-cacher-ng server cache
+#
+# No need to do it regularly unless disk space or other issues
+#
+# sudo stop apt-cacher-ng
+# sudo rm -rf /var/cache/apt-cacher-ng
+# sudo mkdir -p /var/cache/apt-cacher-ng
+# sudo chown -R apt-cacher-ng:apt-cacher-ng /var/cache/apt-cacher-ng
+# sudo systemctl start apt-cacher-ng
+#
