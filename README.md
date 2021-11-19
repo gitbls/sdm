@@ -34,6 +34,8 @@ While better than not having ANY notes, this approach requires relatively comple
 
 Have questions about sdm? Please don't hesitate to ask in the Issues section of this github. If you don't have a github account (so can't post an issue/question here), please feel free to email me at: [gitbls@outlook.com](mailto:gitbls@outlook.com).
 
+Need more details? Watch sdm in action [here](https://youtu.be/CpntmXK2wpA)
+
 If you find sdm useful, please consider starring it to help me understand how many people are using it. Thanks!
 
 ## Usage overview
@@ -317,6 +319,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--apssid` *SSID* &mdash; Use the specified SSID for the Captive Portal instead of the default 'sdm'. See the Captive Portal section below for details.
 * `--apip` *IPaddr* &mdash; use the specified IP Address instead of the default 10.1.1.1. See the Captive Portal section below for details.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
+* `--apt-dist-upgrade` &mdash; Some RasPiOS Bullseye images have a strange software configuration, which causes `apt-get upgrade` to fail. This switch forces sdm to use `apt-get --dist-upgrade` which updates correctly. [In the 2021-10-30 set of images, the "with Desktop" versions have a set of problematic VLC modules installed.]
 * `--b1script` *script* &mdash; Call *script* when burning. *script* will be called after the output has been burned, and operates in effectively a *Phase 0* environment. See section *Burn Scripts* below.
 * `--b2script` *script* &mdash; Like `--b1script`, but is called in an nspawn container. See section *Burn Scripts* below.
 * `--batch` &mdash; Do not provide an interactive command prompt inside the nspawn container
