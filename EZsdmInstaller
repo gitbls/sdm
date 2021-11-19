@@ -47,17 +47,7 @@ function getosdistro() {
 # Check OS Distro and version
 #
 myscript="$0 $@"
-IFS=":" read osdistro osversion <<< $(getosdistro)
-echo "/etc/os-release indicates this system is '$osdistro' version '$osversion'"
-if [ "$osdistro" != "raspios" ]
-then
-    mver=${osversion%%\.*}
-    if [ "$osdistro" != "ubuntu" -o $mver -lt  20 ]
-    then
-	echo "% sdm may not work on this system unless it is a derivative of Ubuntu 20.04 or later"
-	! askyn "* Do you want to continue" && exit
-    fi
-fi
+#IFS=":" read osdistro osversion <<< $(getosdistro)
 [ "$(which apt)" == "" ] && errexit "? apt not found; cannot install on this system"
 #
 # Create directories and download sdm
