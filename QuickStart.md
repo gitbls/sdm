@@ -41,3 +41,6 @@ When the system comes back up your Pi is all happy, ready to go, and configured 
 
 If you want to build an SD Card for another Pi, you only need redo the `sdm --burn` command, specifying the new host. 
 
+### See sdm in action!
+
+Watch a short video discussing sdm with video segments showing it in action [here](https://youtu.be/CpntmXK2wpA)
