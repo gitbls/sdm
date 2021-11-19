@@ -24,13 +24,15 @@ function upgkeepconf() {
     # Forcing apt to not query about conf file changes
     # $1 = "--yes" or ""
     # $2 = $showapt or 0 to not display output
+    # $3 = 0 [upgrade] or 1 [dist-upgrade]
     #
 cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
     Dpkg::Options {
    "--force-confdef";
    "--force-confold";
 EOF
-doapt "$1 upgrade" "$2"
+[ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
+doapt "$1 $upg" "$2"
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
@@ -68,7 +70,7 @@ then
     logtoboth "* Start apt maintenance"
     logfreespace "at start of 'apt $cmdoptions'"
     [[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doapt "--yes update"  0
-    [[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0
+    [[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt $upg'" && upgkeepconf --yes 0 $aptdistupgrade
     [[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doapt "--yes autoremove" 0
     cklogfreespace "at end of 'apt $cmdoptions'"
     logtoboth "* apt maintenance Completed"
@@ -620,10 +622,11 @@ fi
 
 if ! [[ "$poptions" =~ "noupgrade" ]]
 then
-    logtoboth "> Start 'apt upgrade'"
-    logfreespace "at start of 'apt upgrade'"
-    upgkeepconf "-y" "$showapt"
-    logfreespace "at end of 'apt upgrade'"
+    [ $aptdistupgrade -eq 0 ] && upg="upgrade" || upg="dist-upgrade"
+    logtoboth "> Start 'apt $upg'"
+    logfreespace "at start of 'apt $upg'"
+    upgkeepconf "-y" "$showapt" $aptdistupgrade
+    logfreespace "at end of 'apt $upg'"
     didapt=1
 else
     logtoboth "> Skip 'apt upgrade' per --poption noupgrade"
@@ -729,7 +732,6 @@ then
 	delaydmenable wdm $reboot
     fi
 fi
-
 logfreespace "at end of Phase 1"
 logtoboth "* Phase 1 Completed"
 

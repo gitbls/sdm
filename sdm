@@ -311,6 +311,7 @@ xappfile:$xappfile
 apip:$apip
 apssid:$apssid
 aptcache:$aptcache
+aptdistupgrade:$aptdistupgrade
 batch:$fbatch
 b1script:$b1script
 b2script:$b2script
@@ -431,6 +432,7 @@ Command Switches for --customize and --burn or as noted
  --xapps applist     List of X11 packages to install or @file with list
  --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]
  --apssid ssidname   SSID name for WiFi Captive Portal [sdm]
+ --apt-dist-upgrade  Use apt-get dist-upgrade instead of upgrade 
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
  --batch             Perform customize operation and exit
@@ -521,12 +523,13 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.19"
+version="V4.20"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
+aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
 aptfunction=0               #1=Some apt batch function specified
 b1script=""                 #Customization script to run after burn
@@ -659,7 +662,7 @@ paramfile="/mnt/sdm/etc/sdm/cparams"
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,aptmaint:,apip:,apssid:,\
+longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:,\
 b1script:,b2script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
@@ -687,6 +690,7 @@ do
 	--apssid)      apssid=$2     ; shift 2 ;;
 	--apps)        apps="$2"     ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
+	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
 	--b1script)    b1script=$2   ; shift 2 ;;
 	--b2script)    b2script=$2   ; shift 2 ;;
