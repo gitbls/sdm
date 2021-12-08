@@ -3,30 +3,6 @@
 # Copies personalization files into an SD card image
 #
 
-function dodt() {
-    #
-    # $1 = name (either "dtoverlay" or "dtparam"
-    # $2 = value(s)
-    #
-    local dtname="$1" dtvalues="$2" sifs="$IFS" citems=() c
-    IFS=""
-    if [ "$dtvalues" != "" ]
-    then
-	logtoboth "> Add new $dtname settings to /mnt/sdm/boot/config.txt"
-	echo "" >> /mnt/sdm/boot/config.txt
-	echo "# $dtname items added by sdm --$dtname" >> /mnt/sdm/boot/config.txt
-	readarray -d\| citems <<< $dtvalues
-	for c in ${citems[@]}
-	do
-	    c="${c%|}"
-	    c="${c/$'\n'}"
-	    logtoboth ">  $dtname $c"
-	    echo "$dtname=$c" >> /mnt/sdm/boot/config.txt
-	done
-    fi
-    IFS="$sifs"
-}
-
 function copycufiles() {
     #
     # $1 has list of "|"-separated files to copy
@@ -48,6 +24,7 @@ function copycufiles() {
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
+declare -x SDMNSPAWN="Phase0"
 source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams
 
 logtoboth "* Start Phase 0 image customization"
@@ -145,29 +122,6 @@ fi
 [ "$motd" != "" ] && logtoboth "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.sdm && cp $motd /mnt/sdm/etc/motd
 
 #
-# Add requested command(s) to /etc/rc.local
-# ?? Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
-#
-if [ "$rclocal" != "" ]
-then
-    logtoboth "> Add commands to /mnt/sdm/etc/rc.local"
-    grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
-    sifs="$IFS"
-    IFS=""
-    readarray -d\| citems <<< "$rclocal"
-    for c in ${citems[@]}
-    do
-	c="${c%|}"
-	c="${c/$'\n'}"
-	logtoboth ">  $c"
-	echo "$c" >> /mnt/sdm/tmp/rc.local
-    done
-    echo "exit 0" >> /mnt/sdm/tmp/rc.local
-    IFS="$sifs"
-    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.sdm
-    mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
-fi
-#
 # Copy user-specified sysctl config file into the image
 #
 [ "$sysctl" != "" ] && copycufiles "$sysctl" "/mnt/sdm/etc/sysctl.d"
@@ -191,65 +145,6 @@ done
 [ "$udev" != "" ] && copycufiles "$udev" "/mnt/sdm/etc/udev/rules.d"
 
 logtoboth "*+Phase 0 Raspberry Pi-specific configuration"
-#
-# Set HDMI configuration if requested
-#
-if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
-then
-    logtoboth "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /mnt/sdm/boot/config.txt"
-    sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /mnt/sdm/boot/config.txt
-    sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /mnt/sdm/boot/config.txt
-fi
-if [ "$hdmiforcehotplug" == "1" ]
-then
-    logtoboth "> Set 'hdmi_force_hotplug=1' in /mnt/sdm/boot/config.txt"
-    sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /mnt/sdm/boot/config.txt
-fi
-if [ "$hdmiignoreedid" == "1" ]
-then
-    logtoboth "> set 'hdmi_ignore_edid=0xa5000080' in /mnt/sdm/boot/config.txt"
-    sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /mnt/sdm/boot/config.txt
-fi
-#
-# Set other config.txt settings (if any)
-#
-if [ "$bootconfig" != "" ]
-then
-    logtoboth "> Update /mnt/sdm/boot/config.txt for bootconfig: $bootconfig"
-    readarray -d, citems <<< $bootconfig
-    for c in ${citems[@]}
-    do
-	IFS=":=" read key value <<< $c
-	value="${value%,}"
-	sed -i "s/\#$key=.*/$key=$value/" /mnt/sdm/boot/config.txt
-	logtoboth ">  $key=$value"
-    done
-fi
-if [ "$bootadd" != "" ]
-then
-    if ! grep -q 'Following items added by sdm --bootadd' /mnt/sdm/boot/config.txt
-    then
-	logtoboth "> Add new keys to /mnt/sdm/boot/config.txt"
-	logtoboth "> Update /mnt/sdm/boot/config.txt for bootadd: $bootadd"
-	echo "# Items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
-	readarray -d, citems <<< $bootadd
-	for c in ${citems[@]}
-	do
-	    IFS=":=" read key value <<< $c
-	    value="${value%,}"
-	    echo "$key=$value" >> /mnt/sdm/boot/config.txt
-	    logtoboth ">  $key=$value"
-	done
-	echo "# Above items added by sdm --bootadd" >> /mnt/sdm/boot/config.txt
-    else
-	logtoboth "> /mnt/sdm/boot/config.txt already updated for --bootadd; skipping"
-    fi
-fi
-#
-# Process --dtparm and --dtoverlay settings
-#
-dodt dtoverlay "$dtoverlay"
-dodt dtparam   "$dtparam"
 
 if [ "$myuser" != "" ]
 then

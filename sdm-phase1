@@ -55,6 +55,30 @@ EOF
     chmod 755 /etc/sdm/0piboot/020-$dm-console.sh
 }
 
+function dodt() {
+    #
+    # $1 = name (either "dtoverlay" or "dtparam"
+    # $2 = value(s)
+    #
+    local dtname="$1" dtvalues="$2" sifs="$IFS" citems=() c
+    IFS=""
+    if [ "$dtvalues" != "" ]
+    then
+	logtoboth "> Add new $dtname settings to /boot/config.txt"
+	echo "" >> /boot/config.txt
+	echo "# $dtname items added by sdm --$dtname" >> /boot/config.txt
+	readarray -d\| citems <<< $dtvalues
+	for c in ${citems[@]}
+	do
+	    c="${c%|}"
+	    c="${c/$'\n'}"
+	    logtoboth ">  $dtname $c"
+	    echo "$dtname=$c" >> /boot/config.txt
+	done
+    fi
+    IFS="$sifs"
+}
+
 #
 # Read configuration information from sdm
 #
@@ -65,47 +89,41 @@ source /usr/local/sdm/sdm-cparse ; readparams
 #
 cmd="$1"
 cmdoptions="$2"
-if [ "$cmd" == "apt" ]
-then
-    logtoboth "* Start apt maintenance"
-    logfreespace "at start of 'apt $cmdoptions'"
-    [[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doapt "--yes update"  0
-    [[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt $upg'" && upgkeepconf --yes 0 $aptdistupgrade
-    [[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doapt "--yes autoremove" 0
-    cklogfreespace "at end of 'apt $cmdoptions'"
-    logtoboth "* apt maintenance Completed"
-    exit 0
-fi
-#
-# Process b2script if specified
-#
-if [ "$cmd" == "b2script" ]
-then
-    fn="/etc/sdm/assets/$(basename $cmdoptions)"
-    if [ -f $fn ]
-    then
-	logtoboth "> Execute --b2script '$cmdoptions' [$fn] in nspawn"
-	/etc/sdm/assets/$(basename $cmdoptions)
-    else
-	logtoboth "? Internal error: --b2script file '$fn' not found"
-    fi
-    exit 0
-fi
-#
-# Process burn-time password changes
-#
-if [ "$cmd" == "burn-change-passwords" ]
-then
-    fn="/etc/sdm/assets/$(basename $cmdoptions)"
-    if [ -f $fn ]
-    then
-	logtoboth "* Execute burn-time password changes [$fn] in nspawn"
-	/etc/sdm/assets/$(basename $cmdoptions)
-    else
-	logtoboth "? Internal error: burn-change-passwords script '$fn' not found"
-    fi
-    exit 0
-fi
+# case stmt falls through if not processed within
+case "$cmd" in
+    apt)
+	logtoboth "* Start apt maintenance"
+	logfreespace "at start of 'apt $cmdoptions'"
+	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doapt "--yes update"  0
+	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt $upg'" && upgkeepconf --yes 0 $aptdistupgrade
+	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doapt "--yes autoremove" 0
+	cklogfreespace "at end of 'apt $cmdoptions'"
+	logtoboth "* apt maintenance Completed"
+	exit 0
+	;;
+    b2script)   # Burn time run script 
+	fn="/etc/sdm/assets/$(basename $cmdoptions)"
+	if [ -f $fn ]
+	then
+	    logtoboth "> Execute --b2script '$cmdoptions' [$fn] in nspawn"
+	    /etc/sdm/assets/$(basename $cmdoptions)
+	else
+	    logtoboth "? Internal error: --b2script file '$fn' not found"
+	fi
+	exit 0
+	;;
+    burn-change-passwords)   # Burn-time password changes
+	fn="/etc/sdm/assets/$(basename $cmdoptions)"
+	if [ -f $fn ]
+	then
+	    logtoboth "> Execute burn-time password changes [$fn] in nspawn"
+	    /etc/sdm/assets/$(basename $cmdoptions)
+	else
+	    logtoboth "? Internal error: burn-change-passwords script '$fn' not found"
+	fi
+	exit 0
+	;;
+esac
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
 
@@ -115,7 +133,7 @@ logtoboth "*+Phase 1 sdm configuration"
 # on the first boot of the system.
 # Service will be enabled by creating run.firstboot when SD card is burned with sdm
 #
-logtoboth "> Configure and enable FirstBoot (sdm-firstboot) service"
+logtoboth "> Configure and enable sdm FirstBoot service (sdm-firstboot)"
 [ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
 cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
@@ -137,12 +155,6 @@ EOF
 systemctl enable sdm-firstboot > /dev/null 2>&1
 
 logtoboth "*+Phase 1 Network/WiFi/Bluetooth configuration"
-#
-# I'm pretty sure that wpa_supplicant isn't needed. Let's disable it and see what happens
-#
-logtoboth "> Disable wpa_supplicant.service, which is only used by Network Manager"
-logtoboth "  dhcpcd will start an interface-specific wpa_supplicant if needed"
-systemctl disable wpa_supplicant
 #
 # Set to disable bluetooth and/or wifi if requested
 #
@@ -179,17 +191,16 @@ fi
 if [ "$dhcpcdwait" == "1" ]
 then
     mkdir -p /etc/systemd/system/dhcpcd.service.d/
-    if [ -f /etc/systemd/system/dhcpcd.service.d/wait.conf ]
-    then
-	logtoboth "%dhcpcd 'wait for network connection' is already enabled"
-    else
-	logtoboth "> Enable dhcpcd 'wait for network connection'"
-	cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
+    # use the same /path/to/dhcpcd that the dhcpcd service is
+    dex=$(grep -E "ExecStart=.*/dhcpcd" /lib/systemd/system/dhcpcd.service| head -n 1 -)
+    dhcf=${dex##ExecStart=}  #Strip leading ExecStart=
+    dhcf=${dhcf%* *}         #Strip everything after the path (switches,etc)
+    logtoboth "> Enable dhcpcd 'wait for network connection'"
+    cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
 [Service]
 ExecStart=
-ExecStart=/usr/lib/dhcpcd5/dhcpcd -q -w
+ExecStart=$dhcf -q -w
 EOF
-    fi
 fi
 #
 # Set up ssh as requested
@@ -273,9 +284,96 @@ logtoboth "> Change user 'pi' password"
 changepwd pi "$samepwd"
 logtoboth "> Set /home/pi files ownership to 'pi.pi'"
 chown -R pi.pi /home/pi
-logtoboth "*+Phase 1 System congfiguration"
+logtoboth "*+Phase 1 System and Boot Configuration"
 #
 # Handle system settings that can be done in Phase 1
+#
+setbootset
+#
+# Set HDMI configuration if requested
+#
+if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
+then
+    logtoboth "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /boot/config.txt"
+    sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /boot/config.txt
+    sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /boot/config.txt
+fi
+if [ "$hdmiforcehotplug" == "1" ]
+then
+    logtoboth "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
+    sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /boot/config.txt
+fi
+if [ "$hdmiignoreedid" == "1" ]
+then
+    logtoboth "> Set 'hdmi_ignore_edid=0xa5000080' in /boot/config.txt"
+    sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /boot/config.txt
+fi
+#
+# Set other config.txt settings (if any)
+#
+if [ "$bootconfig" != "" ]
+then
+    logtoboth "> Update /boot/config.txt for bootconfig: $bootconfig"
+    readarray -d, citems <<< $bootconfig
+    for c in ${citems[@]}
+    do
+	IFS=":=" read key value <<< $c
+	value="${value%,}"
+	sed -i "s/\#$key=.*/$key=$value/" /boot/config.txt
+	logtoboth ">  $key=$value"
+    done
+fi
+if [ "$bootadd" != "" ]
+then
+    if ! grep -q 'Following items added by sdm --bootadd' /boot/config.txt
+    then
+	logtoboth "> Add new keys to /boot/config.txt"
+	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
+	echo "# Items added by sdm --bootadd" >> /boot/config.txt
+	readarray -d, citems <<< $bootadd
+	for c in ${citems[@]}
+	do
+	    IFS=":=" read key value <<< $c
+	    value="${value%,}"
+	    echo "$key=$value" >> /boot/config.txt
+	    logtoboth ">  $key=$value"
+	done
+	echo "# Above items added by sdm --bootadd" >> /boot/config.txt
+    else
+	logtoboth "> /boot/config.txt already updated for --bootadd; skipping"
+    fi
+fi
+#
+# Process --dtparm and --dtoverlay settings
+#
+dodt dtoverlay "$dtoverlay"
+dodt dtparam   "$dtparam"
+#
+# Add requested command(s) to /etc/rc.local
+# ?? Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
+#
+if [ "$rclocal" != "" ]
+then
+    logtoboth "> Add commands to /etc/rc.local"
+    grep -v 'exit 0' /etc/rc.local > /tmp/rc.local
+    sifs="$IFS"
+    IFS=""
+    readarray -d\| citems <<< "$rclocal"
+    for c in ${citems[@]}
+    do
+	c="${c%|}"
+	c="${c/$'\n'}"
+	logtoboth "   $c"
+	echo "$c" >> /tmp/rc.local
+    done
+    echo "exit 0" >> /tmp/rc.local
+    IFS="$sifs"
+    mv /etc/rc.local /etc/rc.local.sdm
+    mv /tmp/rc.local /etc
+    chmod 755 /etc/rc.local
+fi
+
+#
 # WiFi Country is done when the system first boots by sdm-firstboot
 #
 if [ "$locale" != "" ]
@@ -418,15 +516,6 @@ then
     systemctl disable triggerhappy.socket
     #Eliminate thd.socket errors from udev
     [ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
-fi
-#
-# Don't need raspberrypi-net-mods service if we processed the wpa supplicant file
-#
-if [ "$wpaconf" != "" ]
-then
-    logtoboth "> Disable check for /boot/wpa_supplicant (raspberrypi-net-mods service)"
-    logtoboth "  Not needed since wpa_supplicant.conf is already configured"
-    systemctl disable raspberrypi-net-mods.service > /dev/null 2>&1
 fi
 
 if ! [[ "$poptions" =~ "noupdate" ]]
@@ -751,7 +840,9 @@ then
     IFS=":" read efg ebg ecursor <<< $ecolors
     stermcolors "$efg" "$ebg" "$ecursor" x1
     bash -i
+    logtoboth "* Customization complete"
     resetcolors x1
 else
+    logtoboth "* Customization complete"
     logtoboth "* Batch Mode exit"
 fi
