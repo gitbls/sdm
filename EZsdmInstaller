@@ -61,7 +61,7 @@ myscript="$0 $@"
 
 $sudo mkdir -p $dir $dir/1piboot
 
-for f in sdm sdm-phase0 sdm-phase1 sdm-cparse \
+for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs \
 	     sdm-firstboot sdm-apt-cacher sdm-apt \
 	     sdm-customphase sdm-apps-example sdm-xapps-example \
 	     sdm-cportal sdm-hotspot sdm-logmsg \
@@ -89,6 +89,9 @@ then
     echo ""
     echo "% Invoke sdm with 'sudo $dir/sdm'"
     echo "  See the sdm documentation at https://github.com/gitbls/sdm"
+    echo ""
+    echo "Pro tip: Add to your .bashrc: alias sdm='sudo /usr/local/sdm/sdm' 
+    echo ""
 else
     echo ""
     echo "You can inspect sdm in $1..."
