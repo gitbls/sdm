@@ -6,10 +6,10 @@
 # Useful for maintaining one or more Pis. The general idea is to keep a "golden" image
 # fully configured to suit your needs. Then, whenever you need a new SSD or SD Card (testing, new Pi, etc),
 # start with the golden master. Also, when new RasPiOS releases come out, sdm can be used
-# to easily build a fresh image for the new release.
+# to easily build a customized fresh image for the new release.
 #
 # This script provides the infrastructure for your customization scripts to work
-# in a repeatable manner against an RPF-provided IMG file. 
+# in a repeatable manner against an official RasPiOS IMG file. 
 #
 # sdm [switches] image-name
 # sdm --help will provide help on all available switches
@@ -29,7 +29,7 @@
 
 function errexit() {
     echo -e "$1"
-    ismounted /mnt/sdm && docleanup
+    docleanup
     exit 1
 }
 
@@ -38,8 +38,9 @@ function exitiferr() {
 }
 
 function docleanup() {
-    umount -v /mnt/sdm/{boot,}
-    [ "$loop" != "" ] && losetup -d $loop
+    ismounted /mnt/sdm/boot && umount -v /mnt/sdm/boot
+    ismounted /mnt/sdm && umount -v /mnt/sdm
+    [ "$loopdev" != "" ] && losetup -d $loopdev
     sync
 }
 
@@ -52,6 +53,15 @@ function ismounted() {
     fi
 }
 
+function notmounted() {
+    if grep -qs $1 /proc/mounts
+    then
+	return 1
+    else
+	return 0
+    fi
+}
+
 function domount() {
     local p1="1" p2="2"
     local mimg=$1
@@ -60,19 +70,25 @@ function domount() {
     if [ $fdirtree -eq 1 ]
     then
 	mount --bind $dimg      /mnt/sdm
+	notmounted /mnt/sdm && errexit "? Error mounting --bind '$dimg'"
 	mount --bind $dimg/boot /mnt/sdm/boot
+	notmounted /mnt/sdm/boot && errexit "? Error mounting --bind '$dimg'"
     elif [ $dimgdev -eq 0 ]
     then
 	echo "* Mount IMG '$mimg'"
-	loop=$(losetup --show -P -f $mimg)
-	mount -v ${loop}p2 /mnt/sdm
-	mount -v ${loop}p1 /mnt/sdm/boot
+	loopdev=$(losetup --show -P -f $mimg)
+	mount -v ${loopdev}p2 /mnt/sdm
+	notmounted /mnt/sdm && errexit "? Error mounting IMG '$dimg'"
+	mount -v ${loopdev}p1 /mnt/sdm/boot
+	notmounted /mnt/sdm/boot && errexit "? Error mounting IMG '$dimg'"
     else
 	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	echo "* Mount device '$dimg'"
 	mount -v ${dimg}${p2} /mnt/sdm
+	notmounted /mnt/sdm && errexit "? Error mounting IMG '$dimg'"
 	mount -v ${dimg}${p1} /mnt/sdm/boot
-	loop=""
+	notmounted /mnt/sdm/boot && errexit "? Error mounting IMG '$dimg'"
+	loopdev=""
     fi
 }
 
@@ -113,14 +129,9 @@ function extendimage() {
 		dsiz="${dsiz%%\ }"   # Strip trailing spaces
 	    fi
 	fi
-    done < <(parted $ldimg <<EOF
-print
-EOF
-) # This closes the above parted command
-    echo "* Resize partition 2"
-    parted $ldimg <<EOF
-resizepart 2 $dsiz
-EOF
+    done < <(parted -s $ldimg print)
+    echo "* Resize partition 2 of '$ldimg"
+    parted $ldimg -s resizepart 2 $dsiz
 }
 
 function extendandresize() {
@@ -137,7 +148,7 @@ function extendandresize() {
     domount "$dimg"
     echo "* Resize the file system"
     echo "% (Ignore on-line resizing message)"
-    resize2fs ${loop}p2
+    resize2fs ${loopdev}p2
 }    
 
 function poptcheck() {
@@ -241,45 +252,6 @@ function readl10n() {
     [ "$wificountry" == "" -a -f /etc/wpa_supplicant/wpa_supplicant-wlan0.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf)
 }
 
-function setbootset() {
-    #
-    # Handle --bootset, --svcdisable and --svcenable for customize and burn commands
-    #
-    local citems=() c key value
-    if [ "$bootsetpairs" != "" ]
-    then
-	readarray -d, citems <<< $bootsetpairs
-	for c in ${citems[@]}
-	do
-	    IFS=":=" read key value <<< $c
-	    value="${value%,}"
-	    ! [[ "$vbootset" =~ "|$key|" ]] && errexit "? Unrecognized --bootset key '$key'"
-	    # Remove any old entry for this key and write the new one
-	    sed -i "/^$key=/d" /mnt/sdm/etc/sdm/auto-1piboot.conf
-	    echo "$key=$value" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	done
-    fi
-    if [ "$svcdisable" != "" ]
-    then
-	readarray -d, citems <<< $svcdisable
-	for c in ${citems[@]}
-	do
-	    sed -i "/^service-enable=${c%,}/d" /mnt/sdm/etc/sdm/auto-1piboot.conf
-	    echo "service-disable=${c%,}" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	done
-    fi
-    if [ "$svcenable" != "" ]
-    then
-	readarray -d, citems <<< $svcenable
-	for c in ${citems[@]}
-	do
-	    sed -i "/^service-disable=${c%,}/d" /mnt/sdm/etc/sdm/auto-1piboot.conf
-	    echo "service-enable=${c%,}" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	done
-    fi
-
-}
-
 function checkfilelist() {
     #
     # $1 has list of "|"-separated files
@@ -318,6 +290,7 @@ b2script:$b2script
 bootadd:$bootadd
 bootconfig:$bootconfig
 bootscripts:$bootscripts
+bootsetpairs:"$bootsetpairs"
 crond:$crond
 cronhourly:$cronhourly
 crondaily:$crondaily
@@ -389,6 +362,8 @@ showpwd:$showpwd
 src:$src
 ssh:$ssh
 swapsize:$swapsize
+svcdisable:"$svcdisable"
+svcenable:"$svcenable"
 sysctl:$sysctl
 timezone:$timezone
 udev:$udev
@@ -412,12 +387,16 @@ Usage:
    Customize an SD Card image or SSD/SD Card
  sudo $0 --explore sd-image-file
    Explore an SD Card image or SSD/SD Card
- sudo $0 --mount sd-image-file
-   Mount an SD Card image or SSD/SD Card
- sudo $0 --burn /dev/sdx --host target-hostname IMG-file
+ sudo $0 --burn /dev/sdx --host target-hostname sd-image-file
    Burn the SD Card image to the burn device
+ sudo $0 --shrink sd-image-file
+   Shrink sd-image-file to the smallest possible size
+ sudo $0 --mount sd-image-file
+   Mount an SD Card image or an SSD/SD Card
  sudo $0 --aptmaint aptfunction sd-image-file
    Do APT maintenance (update, upgrade) on an SD Card image or SSD/SD Card
+ sudo $0 --ppart sd-image-file
+   Print partition tables in sd-image-file
 
 Commands
  --burn devname      Copy the image to the storage device
@@ -426,6 +405,8 @@ Commands
  --explore           Explore (nspawn shell) into image
  --info what         Display list of Locales, Keymaps, WiFi Countries, or Timezones
  --mount             Mount IMG file partitions and drop into interactive bash shell
+ --ppart             Print partition tables in an IMG
+ --shrink            Shrink an IMG file 
 Command Switches for --customize and --burn or as noted
  --1piboot conf-file Use alternate 1piboot.conf
  --apps applist      List of app packages to install or @file with list
@@ -504,7 +485,9 @@ Command Switches for --customize and --burn or as noted
  --ssh none|socket|service  No ssh or ssh sockets [Default: ssh service]
  --swap n            Set swap space to nMB (overrides --disable swap)
  --svcdisable svc1,svc2,... Disable the named services
+ --svc-disable svc1,svc2,... Disable the named services
  --svcenable  svc1,svc2,... Enable  the named services
+ --svc-enable  svc1,svc2,... Enable  the named services
  --sysctl file       Copy the named file to /etc/sysctl.d (can be used multiple times)
  --systemd-config item:file,... Provide config files for systemd functions. See README for details
  --timezone tzname   Set the Timezone
@@ -512,6 +495,7 @@ Command Switches for --customize and --burn or as noted
  --uid uid           UID for non-root user [next free]
  --user username     Create non-root user
  --vnc name,res1,res2,...,resx Enable tightvnc or tigerVNC server and/or RealVNC with specified resolutions
+ --vncbase n         Set the base port for virtual VNC connections [5900]
  --wifi-country country Set WiFi Country for unblocking WiFi
  --wpa wpaconf       wpa_supplicant.conf file to use
  --nowpa             Do not do WPA config file processing
@@ -523,7 +507,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V4.20"
+version="V5.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -572,6 +556,8 @@ fextendonly=0               #1=Just extend and exit (this if no other command sp
 fgadgetmode=0               #1=Configure image for gadget mode
 fmouse=0                    #1=Set left-handed mouse if LXDE installed
 fnowpa=0                    #1=I really man no automatic no wpa config
+fppart=0                    #1=Print partition tables in an IMG
+fshrink=0                   #1=Shrink the IMG
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
 hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
@@ -590,6 +576,7 @@ loadl10n=0                  #1=Load Localization settings from running system
 loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
 locale=""                   #Locale
 logwidth=96                 #Split log lines longer than this
+loopdev=""                  #Name of mounted loop device
 lxdeconfig=""               #Arguments to --lxde-config
 lxdeconflist="libfm pcmanfm lxterminal" #These are the configs that we process
 lxterminalconf=""           #Config file for lxterminal
@@ -671,9 +658,10 @@ domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,os:,\
-password-pi:,password-root:,password-same:,password-user:,poptions:,rclocal:,reboot:,\
+password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
 redo-customize,regen-ssh-host-keys,restart,\
-rootpwd,showapt,showpwd,ssh:,svcdisable:,svcenable:,swap:,sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
+rootpwd,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
+sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
@@ -758,6 +746,7 @@ do
 	--password-same) samepwd=$2  ; shift 2 ;;
 	--password-user) passworduser=$2 ; shift 2 ;;
 	--poptions)    poptions="${2,,}" ; shift 2 ;;
+	--ppart)       fppart=1      ; shift 1 ;;
 	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}|$2" ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
@@ -767,9 +756,10 @@ do
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
 	--showpwd)     showpwd=1     ; shift 1 ;;
+	--shrink)      fshrink=1     ; shift 1 ;;
 	--ssh)         ssh="${2,,}"        ; shift 2 ;;
-	--svcdisable)  svcdisable=$2 ; shift 2 ;;
-	--svcenable)   svcenable=$2  ; shift 2 ;;
+	--svc*disable) svcdisable=$2 ; shift 2 ;;
+	--svc*enable)  svcenable=$2  ; shift 2 ;;
 	--swap)        swapsize=$2   ; shift 2 ;;
 	--sysctl)      [ "$sysctl" == "" ] && sysctl="$2" || sysctl="$sysctl|$2" ; shift 2 ;;
 	--systemd-config) systemdconfig=$2 ; shift 2 ;;
@@ -798,7 +788,7 @@ done
 dimg="$1"
 src=$(dirname $0)
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
-source /usr/local/sdm/sdm-cparse           # Get function defs
+source $src/sdm-cparse           # Get function defs
 
 #
 # Adjust settings based on switches and check for conflicting switches
@@ -851,21 +841,26 @@ cscript="$(fndotfullpath $cscript)"
 [ $burn -eq 1 -o $burnfile -eq 1 ] && burning=1 || burning=0
 [ $burning -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --mount"
 [ $burning -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --explore"
+[ $burning -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --shrink"
 [ $fdomount -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --mount and --explore"
+[ $fdomount -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --mount and --shrink"
 [ $reboot -eq 1 -a $noreboot -eq 1 ] && errexit "? Switch conflict: --restart and --norestart"
 [ $fcustomize -eq 1 -a $burning -eq 1 ] && errexit "? Switch conflict: --customize and --burn|--burnfile"
 [ $fcustomize -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --customize and --mount"
 [ $fcustomize -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --customize and --explore"
+[ $fcustomize -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --customize and --shrink"
 [ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
+[ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
+[ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
 if [ "$aptmaint" != "" ]
 then
-    [ $(($burning+$fcustomize+$fexplore+$fdomount)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
+    [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
     aptfunction=1
 fi
 #
 # Ensure action requested: burn, mount, explore, aptmaint, customize
 #
-if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount)) -eq 0 ]
+if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -eq 0 ]
 then
     # Handle --extend only 
     [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount)"
@@ -976,6 +971,20 @@ then
     done
 fi
 #
+# Check values for --bootset
+#
+if [ "$bootsetpairs" != "" ]
+then
+    readarray -d, citems <<< $bootsetpairs
+    for c in ${citems[@]}
+    do
+	IFS=":=" read key value <<< $c
+	key="${key%,}"
+	value="${value%,}"
+	! [[ "$vbootset" =~ "|$key|" ]] && errexit "? Unrecognized --bootset key '$key'"
+    done
+fi
+#
 # Set dtoverlay if gadget mode requested
 #
 if [ $fgadgetmode -eq 1 ]
@@ -1003,7 +1012,7 @@ if [ -f "$dimg" ]
 then
     if [ "${dimg%%.zip}" != "$dimg" -o "${dimg%%.ZIP}" != "$dimg" ]
     then
-	errexit "? File '$dimg' appears to be a ZIP file\n  Unzip it to operate on the .IMG contained within it"
+	errexit "? File '$dimg' appears to be a ZIP file\n  Unzip it to operate on the IMG contained within it"
     fi
 elif [ $fextend -eq 1 ]
 then
@@ -1082,220 +1091,30 @@ thishost="$(hostname)"
 #
 if [ $burning -eq 1 ]
 then
+    declare -x SDMNSPAWN="Burn0"
     [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
-    if [ $burn -eq 1 ]
-    then
-	#
-	# Burning to a device
-	#
-	[ "$burndev" == "" ] && errexit "? No storage device specified"
-	ismounted $burndev && errexit "? Device '$burndev' is mounted"
-	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
-	[ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written to $burndev"
-	# Stash burn messages in an array until log on SD Card is mounted and available 
-	declare -a burnmsg
-	burnmsg+=("$(thisdate) * Burn '$dimg' to SD Card '$burndev'")
-	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
-	echo "* Burn '$dimg' to '$burndev'..."
-	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
-	burnmsg+=("$(thisdate) > dd command: $ddcmd")
-	echo "$ddcmd"
-	$ddcmd
-	[ $? -ne 0 ] && errexit "? dd error"
-	burnmsg+=("$(thisdate) > dd Copy completed")
-	# Prevent mount errors
-	sync ; sync
-	sleep 1
-	[[ "$burndev" =~ "mmcblk" ]] && p2="p2" || p2="2"
-	mount -v ${burndev}${p2} /mnt/sdm
-	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
-    else
-	#
-	# Burning to a file
-	#
-	[ "$burnfilefile" == "" ] && errexit "? No Output Image file specified"
-	[ -f $burnfilefile ] && errexit "? Output Image file '$burnfilefile' exists"
-	[ "$hname" == "" ] && echo "% hostname not specified with --host; hostname will not be written the Output Image"
-	# Stash burn messages in an array until log on SD Card is mounted and available 
-	declare -a burnmsg
-	burnmsg+=("$(thisdate) * Burn '$dimg' to Output Image '$burnfilefile'")
-	burnmsg+=("$(thisdate) > Burn Image command line: $cmdline")
-	echo "* Burn '$dimg' to Output Image '$burnfilefile'..."
-	ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
-	burnmsg+=("$(thisdate) > dd command: $ddcmd")
-	echo "$ddcmd"
-	$ddcmd
-	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
-	burnmsg+=("$(thisdate) > Image copy completed")
-	domount "$burnfilefile"
-    fi
-    #
-    # Set hostname into the image
-    #
-    if [ "$hname" != "" -a -f /mnt/sdm/etc/hostname ]
-    then
-	[ $burn -eq 1 ] && burnmsg+=("$(thisdate) > Set hostname '$hname' onto the storage") || burnmsg+=("$(thisdate) > Set hostname '$hname' in Output Image")
-	echo $hname > /mnt/sdm/etc/hostname
-	sed -i "s/127.0.1.1.*raspberrypi/127.0.1.1\t$hname/g" /mnt/sdm/etc/hosts
-    fi
-    if [ -d /mnt/sdm/usr/local/sdm -a -d /mnt/sdm/etc/sdm ]
-    then
-	# Save settings made with the --burn command
-	bb1script=$b1script
-	bb2script=$b2script
-	bapip=$apip
-	bapssid=$apssid
-	bdhcpcd=$dhcpcd
-	bexports=$exports
-	bsysctl=$sysctl
-	breboot=$reboot
-	bnoreboot=$noreboot
-	brebootwait=$rebootwait
-	bscript=$bootscripts
-	bwificountry="$wificountry"
-	blocale="$locale"
-	bkeymap="$keymap"
-	brclocal="$rclocal"
-	btimezone="$timezone"
-	bwpaconf="$wpaconf"
-	bpasswordpi="$passwordpi"
-	bpasswordroot="$passwordroot"
-	bpassworduser="$passworduser"
-	readparams                    # Read settings from the SD card
-	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
-	[ "$bb2script" != "$b2script" ] && b2script=$bb2script
-        [ $breboot -eq 1 ] && reboot=$breboot
-	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
-        [ $bscript -eq 1 ] && bootscripts=$bscript  #If we weren't set to run scripts, use setting from IMG
-	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
-	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
-	[ "$bapssid" != "sdm" ] && apssid=$bapssid
-	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
-	if [[ "$loadllocal" =~ "|wifi|" ]]
-	then
-	    [ "$wificountry" == "" ] && echo "% No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
-	fi
-	[ "$bkeymap" != "" ] && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	[ "$btimezone" != "" ] && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	[ "$blocale" != "" ] && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
-	if [ "$b2script" != "" ]
-	then
-	    if [ -f $b2script ]
-	    then
-		if [ ! -f /mnt/sdm/etc/sdm/assets/$(basename $b2script) ]
-		then
-		    echo "> Copy '$b2script' to /etc/sdm/assets"
-		    burnmsg+=("$(thisdate) > Copy '$b2script' to /etc/sdm/assets")
-		    cp $b2script /mnt/sdm/etc/sdm/assets
-		    chmod 755 /mnt/sdm/etc/sdm/assets/$(basename $b2script)
-		fi
-	    else
-		if [ ! -f /mnt/sdm/etc/sdm/assets/$(basename $b2script) ]
-		then
-		   echo "? --b2script '$b2script' not found"
-		   burnmsg+=("$(thisdate) ? --b2script '$b2script' not found")
-		   b2script=""
-		fi
-	    fi
-	fi
-	if [ "$bdhcpcd" != "" ]
-	then
-	    cat $bdhcpcd >> /mnt/sdm/etc/dhcpcd.conf
-	    burnmsg+=("$(thisdate) > Append '$bdhcpcd' to /etc/dhcpcd.conf")
-	    echo "> Append '$bdhcpcd' to /etc/dhcpcd.conf"
-	fi
-	if [ "$bexports" != "" ]
-	then
-	    cp $bexports /mnt/sdm/etc/exports
-	    burnmsg+=("$(thisdate) > Copy '$bexports' to /etc/exports")
-	    echo "> Copy '$bexports' to /etc/exports"
-	fi
-	if [ "$bsysctl" != "" ]
-	then
-	    cp $bsysctl /mnt/sdm/etc/sysctl.d
-	    burnmsg+=("$(thisdate) > Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)")
-	    echo "> Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)"
-	fi
-	if [ "$bwpaconf" != "" ] # was --wpa specified on the burn command?
-	then
-	    [ ! -f $bwpaconf ] && echo "% --wpa config file '$bwpaconf' not found; Skipping"
-	    if [ $burn -eq 1 ]
-	    then
-		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'")
-		echo "> Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'"
-	    else
-		burnmsg+=("$(thisdate) > Copy WPA Supplicant configuration '$bwpaconf' to Image '$burnfilefile'")
-		echo "> Copy WPA Supplicant configuration '$bwpaconf' to '$burnfilefile'"
-	    fi
-	    [ -f $bwpaconf ] && cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
-	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
-	fi
-	if [ "$brclocal" != "" ]
-	then
-	    burnmsg+=("$(thisdate) > Add commands to /etc/rc.local per --rclocal")
-	    grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
-	    sifs="$IFS"
-	    IFS=""
-	    readarray -d\| citems <<< "$brclocal"
-	    for c in ${citems[@]}
-	    do
-		c="${c%|}"
-		c="${c/$'\n'}"
-		burnmsg+=("$(thisdate) >  $c")
-		echo "$c" >> /mnt/sdm/tmp/rc.local
-	    done
-	    echo "exit 0" >> /mnt/sdm/tmp/rc.local
-	    IFS="$sifs"
-	    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.sdm.burn
-	    mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
-	    [ "$rclocal" == "" ] && rclocal="$brclocal" || rclocal="${rclocal}|$brclocal"
-	fi
-	hostname="$hname"         # So it gets written to updated params on SD card
-	setbootset    # Handle --bootset settings
-  	writeconfig                  # Write updated params to the SD card
-	[ $rebootwait -ne $drebootwait ] && wmsg=" with a $rebootwait second wait" || wmsg=""
-	[ $bootscripts -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts enabled${wmsg}") || \
-		burnmsg+=("$(thisdate) > First System Boot Custom Boot Scripts disabled")
-	[ $reboot -eq 1 ] && burnmsg+=("$(thisdate) > First System Boot automatic restart enabled") || \
-		burnmsg+=("$(thisdate) > FirstBoot System Boot automatic restart disabled")
-	[ $burn -eq 1 ] && burnmsg+=("$(thisdate) * Burn Completed") || burnmsg+=("$(thisdate) * Image Completed")
-	[ $burn -eq 1 ] && echo "> Write burn log entry to storage '$burndev'" || echo "> Write burn log entry to Image '$burnfilefile'"
-	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
-	do
-	    echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
-	done
-	[ $bootscripts -eq 1 ] && echo "> First System Boot Custom Boot Scripts enabled" || echo "> First System Boot Custom Boot Scripts disabled"
-	[ $reboot -eq 1 ] && echo "> First System Boot automatic restart enabled${wmsg}" || echo "> First System Boot automatic restart disabled"
-	bcp=""
-	if [ "$bpasswordpi" != "" -o "$bpasswordroot" != "" -o "$bpassworduser" != "" ]
-	then
-	    bcp="/mnt/sdm/etc/sdm/assets/burn-change-passwords"
-	    echo "#!/bin/bash" > $bcp
-	    echo "source /usr/local/sdm/sdm-cparse ; readparams" >> $bcp
-	    [ "$bpasswordpi" != "" ] && echo "changepwd pi \"$bpasswordpi\"" >> $bcp
-	    [ "$bpasswordroot" != "" ] && echo "changepwd root \"$bpasswordroot\"" >> $bcp
-	    [ "$bpassworduser" != "" ] && echo "changepwd $myuser \"$bpassworduser\"" >> $bcp
-	    chmod 755 $bcp
-	fi
-	if [ "$b1script" != "" ]
-	then
-	    logtoboth "> Execute --b1script '$b1script'"
-	    $b1script
-	fi
-	if [ "$bcp" != "" ]
-	then
-	    systemd-nspawn -q --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 burn-change-passwords $(basename $bcp) < $(tty)
-	fi
-	if [ "$b2script" != "" ]
-	then
-	    echo "> Run --b2script '$b2script'"
-	    systemd-nspawn -q --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 b2script $b2script < $(tty)
-	fi
-    else
-	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
-    fi
+    source $src/sdm-cmdsubs
+    sdm_burndevfile
     [ $burn -eq 1 ] && ismounted ${burndev}${p2} && umount -v ${burndev}${p2} || docleanup
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
+    exit 0
+fi
+#
+# Process --shrink command
+#
+if [ $fshrink -eq 1 ]
+then
+    [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
+    source $src/sdm-cmdsubs
+    sdm_shrink
+    docleanup
+    exit 0
+fi
+if [ $fppart -eq 1 ]
+then
+    source $src/sdm-cmdsubs
+    sdm_ppart
+    docleanup
     exit 0
 fi
 #
@@ -1334,6 +1153,7 @@ then
 fi
 # Not --extend (only). Other steps need IMG mounted
 [ ! -d /mnt/sdm/boot ] && domount "$dimg"
+! ismounted /mnt/sdm && errexit "? Error mounting '$dimg'"
 #
 # Handle commands --aptmaint, --customize, and --explore
 #
@@ -1392,11 +1212,10 @@ else
     [ ! -d /mnt/sdm/etc/sdm ] && mkdir -p /mnt/sdm/etc/sdm/assets /mnt/sdm/etc/sdm/0piboot
     chmod 700 /mnt/sdm/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > /mnt/sdm/etc/sdm/auto-1piboot.conf
-    setbootset    # Handle --bootset settings
     [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir -p /mnt/sdm/usr/local/sdm/1piboot
     cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
     cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg} /mnt/sdm/usr/local/sdm
+    cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg,sdm-cmdsubs} /mnt/sdm/usr/local/sdm
     chmod 755 /mnt/sdm/usr/local/sdm/*
     [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
     [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
