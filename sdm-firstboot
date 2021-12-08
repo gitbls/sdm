@@ -7,6 +7,19 @@
 #                            if they are specified on the burn command line, so they will be processed as well
 #                          ...plus a bunch of other infrequently used device settings
 #
+function write_console() {
+    #
+    # $1 string to write
+    # Written to /dev/console as "\n$(thisdate) FirstBoot: $1"
+    echo -e "\n$(thisdate) FirstBoot: $1" > /dev/console
+}
+function write_console0() {
+    #
+    # $1 string to write
+    # Written to /dev/console as "$1"
+    echo -e "$1" > /dev/console
+}
+
 function waitusb() {
     #
     # Waits forever until a USB device found
@@ -38,17 +51,17 @@ function waitusb() {
 	#
 	if [ $((secs%10)) -eq 0 ]
 	then
-	    echo -e "\n$(thisdate) FirstBoot: Waiting for USB Device with Local Settings File '$wifile'" > /dev/console
-	    echo -e "USB Device must have the file '$wifile' in the root directory of the first partition" > /dev/console
-	    echo -e "with at least 3 lines of text:" > /dev/console
-	    echo -e "country=<2-Letter WiFi Country Abbreviation>" > /dev/console
-	    echo -e "ssid=<your WiFi SSID>" > /dev/console
-	    echo -e "password=<your WiFi Password>" > /dev/console
-	    echo -e "\n...And optionally..." > /dev/console
-	    echo -e "keymap=<Keymap name>" > /dev/console
-	    echo -e "locale=<Locale name>" > /dev/console
-	    echo -e "timezone=<Timezone>" > /dev/console
-	    echo -e "NOTE: Do NOT include the angle brackets" > /dev/console
+	    write_console "Waiting for USB Device with Local Settings File '$wifile'"
+	    write_console0 "USB Device must have the file '$wifile' in the root directory of the first partition"
+	    write_console0 "with at least 3 lines of text:"
+	    write_console0 "country=<2-Letter WiFi Country Abbreviation>"
+	    write_console0 "ssid=<your WiFi SSID>"
+	    write_console0 "password=<your WiFi Password>"
+	    write_console0 "\n...And optionally..."
+	    write_console0 "keymap=<Keymap name>"
+	    write_console0 "locale=<Locale name>"
+	    write_console0 "timezone=<Timezone>"
+	    write_console0 "NOTE: Do NOT include the angle brackets"
 	fi
 	[ $flashled -eq 1 ] && morseled "..- ..- ..-" #UUU
 	secs=$((secs+1))
@@ -56,8 +69,8 @@ function waitusb() {
     done
 }
 function updreinsmsg() {
-    echo "** Update the USB drive as needed and reinsert" > /dev/console
-    echo "** Waiting..." > /dev/console
+    write_console0 "** Update the USB drive as needed and reinsert"
+    write_console0 "** Waiting..." 
 }
 
 function readusbcreds() {
@@ -69,7 +82,7 @@ function readusbcreds() {
     if [ ! -f /mnt/$wifile ]
     then
 	logger "? FirstBoot: Local Settings File '$wifile' Not Found on USB $sdx"
-	echo -e "\n$(thisdate) FirstBoot: Local Settings File '$wifile' Not Found on USB device $sdx" > /dev/console
+	write_console "Local Settings File '$wifile' Not Found on USB device $sdx"
 	updreinsmsg
 	echo "0"
 	return
@@ -100,22 +113,22 @@ function readusbcreds() {
     done < $tmpf
     rm -f $tmpf
     rs=1          # Assume success
-    echo -e "\n$(thisdate) FirstBoot: Local Settings Read from USB ${sdx}:" > /dev/console
-    echo "country=$uwificountry" > /dev/console
-    echo "ssid=$ussid" > /dev/console
-    echo "psk=$upassword" > /dev/console
+    write_console "Local Settings Read from USB ${sdx}:"
+    write_console0 "country=$uwificountry"
+    write_console0 "ssid=$ussid"
+    write_console0 "psk=$upassword"
     bootlog "Found WiFi Country setting '$uwificountry' from USB Drive"
     bootlog "Found WiFi SSID setting '$ussid' from USB Drive"
     bootlog "Found WiFi Password setting '$upassword' from USB Drive"
-    [ "$ukeymap" != "" ] && echo "keymap=$ukeymap" > /dev/console && bootlog "Found Keymap '$ukeymap' from USB Drive"
-    [ "$ulocale" != "" ] && echo "locale=$ulocale" > /dev/console && bootlog "Found Locale '$ulocale' from USB Drive"
-    [ "$utimezone" != "" ] && echo "timezone=$utimezone" > /dev/console && bootlog "Found Timezone '$utimezone' from USB Drive"
-    [ "$udhcpwait" != "" ] && echo "dhcpwait=$udhcpwait" > /dev/console && bootlog "Found DHCPwait '$udhcpwait' from USB Drive"
-    [ "$ussid" == "" -o "$upassword" == "" ] && echo -e "\n ? Incomplete WiFi configuration settings: WiFi SSID or Password" > /dev/console && rs=0
-    ! (ckwificountry $uwificountry)  && echo -e "\n? Unrecognized WiFi Country '$uwificountry'" > /dev/console && bootlog "? Unrecognized WiFi Country '$uwificountry'" && rs=0
-    ! ckkeymap $ukeymap && echo -e "\n? Unrecognized keymap '$ukeymap'" > /dev/console && bootlog "? Unrecognized Keymap '$ukeymap'" && rs=0
-    ! cklocale $ulocale && echo -e "\n? Unrecognized locale '$ulocale'" > /dev/console && bootlog "? Unrecognized Locale '$ulocale'" && rs=0
-    ! cktimezone $utimezone && echo -e "\n? Unrecognized Timezone '$utimezone'" > /dev/console && bootlog "? Unrecognized Timezone '$utimezone'" && rs=0
+    [ "$ukeymap" != "" ] && write_console0 "keymap=$ukeymap" && bootlog "Found Keymap '$ukeymap' from USB Drive"
+    [ "$ulocale" != "" ] && write_console0 "locale=$ulocale" && bootlog "Found Locale '$ulocale' from USB Drive"
+    [ "$utimezone" != "" ] && write_console0 "timezone=$utimezone" && bootlog "Found Timezone '$utimezone' from USB Drive"
+    [ "$udhcpwait" != "" ] && write_console0 "dhcpwait=$udhcpwait" && bootlog "Found DHCPwait '$udhcpwait' from USB Drive"
+    [ "$ussid" == "" -o "$upassword" == "" ] && write_console0 "? Incomplete WiFi configuration settings: WiFi SSID or Password" && rs=0
+    ! (ckwificountry $uwificountry)  && write_console0 "\n? Unrecognized WiFi Country '$uwificountry'" && bootlog "? Unrecognized WiFi Country '$uwificountry'" && rs=0
+    ! ckkeymap $ukeymap && write_console0 "\n? Unrecognized keymap '$ukeymap'"&& bootlog "? Unrecognized Keymap '$ukeymap'" && rs=0
+    ! cklocale $ulocale && write_console0 "? Unrecognized locale '$ulocale'" && bootlog "? Unrecognized Locale '$ulocale'" && rs=0
+    ! cktimezone $utimezone && write_console0 "? Unrecognized Timezone '$utimezone'" && bootlog "? Unrecognized Timezone '$utimezone'" && rs=0
     if [ $rs -eq 1 ]
     then
 	[ "$ukeymap" != "" ]   && echo "keymap=$ukeymap" >> /etc/sdm/local-1piboot.conf
@@ -165,10 +178,10 @@ network={
         key_mgmt=WPA-PSK
 }
 EOF
-	echo -e "\n$(thisdate) FirstBoot: WiFi Credentials Set in $wpa" > /dev/console
+	write_console "WiFi Credentials Set in $wpa"
 	systemctl start dhcpcd > /dev/null 2>&1
 	bootlog "Wait up to $dhcpwait seconds for dhcpcd to get an IP Address"
-	echo -e "\n$(thisdate) FirstBoot: Wait up to $dhcpwait seconds for dhcpcd to get an IP Address" > /dev/console
+	write_console "Wait up to $dhcpwait seconds for dhcpcd to get an IP Address"
 	for (( secs=0 ; secs < $dhcpwait ; secs++ ))
 	do
 	    myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show | grep wlan0) | (IFS='/'; read a b; echo $a))
@@ -180,24 +193,24 @@ EOF
 	if [[ "$myipaddr" =~ "169.254." ]] || [ "$myipaddr" == "" ]
 	then
 	    bootlog "WiFi did not connect"
-	    echo -e "\n$(thisdate) FirstBoot: WiFi did not connect; Check WiFi settings and try again" > /dev/console
+	    write_console "WiFi did not connect; Check WiFi settings and try again"
 	    [ $flashled -eq 1 ] && morseled "-- -- -- --" #MMM
 	    sleep 5
 	else
 	    bootlog "WiFi connected; IP Address $myipaddr" 
-	    echo -e "\n$(thisdate) FirstBoot: WiFi connected; IP Address $myipaddr" > /dev/console
+	    write_console "WiFi connected; IP Address $myipaddr"
 	    [ $flashled -eq 1 ] && morseled "..... ..... ....." #Success for an internal address!
 	    if [ $ckinternet -eq 1 ]
 	    then
 		if iponline 1.1.1.1
 		then
 		    bootlog "Internet IS accessible"
-		    echo -e "\n$(thisdate) FirstBoot: Internet IS accessible" > /dev/console
+		    write_console "Internet IS accessible"
 		    [ $flashled -eq 1 ] && morseled ".-.-.- .-.-.- .-.-.- .-.-.-"
 		    break 2
 		else
 		    bootlog "Internet is NOT accessible"
-		    echo -e "\n$(thisdate) FirstBoot: Internet is NOT accessible" > /dev/console
+		    write_console "Internet is NOT accessible" 
 		    updreinsmsg
 		    [ $flashled -eq 1 ] && morseled "-.-.-. -.-.-. -.-.-. -.-.-."
 		fi
@@ -347,19 +360,19 @@ timesyncwait() {
 	[ "$(timedatectl status | grep synchronized | (IFS=' ' ; read a b c d ; echo $d))" == "yes" ] && break
 	if [ $secs -eq 60 ]
 	then
-	    echo "$(thisdate) FirstBoot: System time not synchronized after 60 second wait; Proceeding..." > /dev/console
+	    write_console "System time not synchronized after 60 second wait; Proceeding..."
 	    bootlog "System time not synchronized after 60 second wait; proceeding to regenerate SSH host keys"
 	    return
 	fi
 	if [ $((secs%10)) -eq 0 ]
 	then
-	    echo "$(thisdate) FirstBoot: Waiting $secs/60 seconds for system time synchronization" > /dev/console
-	    bootlog "Waiting $secs/60 seconds for system time synchronization\n" > /dev/console
+	    write_console "Waiting $secs/60 seconds for system time synchronization"
+	    bootlog "Waiting $secs/60 seconds for system time synchronization\n"
 	fi
 	sleep 1
     done
     bootlog "System time synchronization achieved"
-    echo "$(thisdate) FirstBoot: System time synchronization achieved" > /dev/console
+    write_console "System time synchronization achieved"
     return
 }
 
@@ -443,15 +456,15 @@ then
     while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
     do
 	[ $lc -eq 0 ] && bootlog "System will restart automatically after system startup has completed"
-	[ $lc -eq 0 ] && echo -e "\n$(thisdate) FirstBoot: System will restart automatically after system startup completes" > /dev/console && lc=1
+	[ $lc -eq 0 ] && write_console "System will restart automatically after system startup has completed" && lc=1
 	[ $flashled -eq 0 ] && morseled "-..- -..-"
 	sleep 1
     done
-    echo -e "\n$(thisdate) FirstBoot: System startup complete; Restarting the system in $rebootwait seconds\n" > /dev/console
+    write_console "System startup complete; Restarting the system in $rebootwait seconds\n"
     bootlog "Restarting the system in $rebootwait seconds"
     sleep $rebootwait
     systemctl daemon-reload
-    echo -e "\n$(thisdate) FirstBoot: Restarting the system now\n" > /dev/console
+    write_console "Restarting the system now\n" 
     bootlog "Restarting the system now"
     systemctl reboot
 fi
