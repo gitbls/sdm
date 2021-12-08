@@ -1,0 +1,333 @@
+#!/bin/bash
+#
+# This file is sourced by sdm for the burn and shrink commands
+# It is not (yet) callable by anything other than sdm
+# because it needs access to a bazillion variables defined
+# in sdm, so can only run in the context of sdm. 
+#
+function write_burnmsg() {
+    #
+    # $1 has the message to write
+    # It's written to the terminal and added to burnmsg
+    #
+    burnmsg+=("$(thisdate) $1")
+    echo "$1"
+    return 0
+}    
+function sdm_burndevfile() {
+
+    # Stash burn messages in an array until log on SD Card is mounted and available 
+    declare -a burnmsg
+    [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
+    if [ $burn -eq 1 ]
+    then
+	#
+	# Burning to a device
+	#
+	[ "$burndev" == "" ] && errexit "? No storage device specified"
+	ismounted $burndev && errexit "? Device '$burndev' is mounted"
+	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
+	write_burnmsg "* Burn '$dimg' to '$burndev'..."
+	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
+	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
+	burnmsg+=("$(thisdate) > dd command: $ddcmd")
+	echo "$ddcmd" ; $ddcmd
+	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	burnmsg+=("$(thisdate) > dd Copy completed")
+	# Prevent mount errors
+	sync ; sync
+	sleep 1
+	[[ "$burndev" =~ "mmcblk" ]] && p2="p2" || p2="2"
+	mount -v ${burndev}${p2} /mnt/sdm
+	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
+    else
+	#
+	# Burning to a file
+	#
+	[ "$burnfilefile" == "" ] && errexit "? No Output Image file specified"
+	[ -f $burnfilefile ] && errexit "? Output Image file '$burnfilefile' exists"
+	write_burnmsg "* Burn '$dimg' to Output Image '$burnfilefile'..."
+	burnmsg+=("$(thisdate) > Burn Image command line: $cmdline")
+	ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
+	burnmsg+=("$(thisdate) > dd command: $ddcmd")
+	echo "$ddcmd" ; $ddcmd
+	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	burnmsg+=("$(thisdate) > Image copy completed")
+	domount "$burnfilefile"
+    fi
+    #
+    # Write out the accumulated messages into mounted image
+    #
+    write_burnmsg "> Flush accumulated burn log messages"
+    for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
+    do
+	echo "${burnmsg[$i]}" >> /mnt/sdm/etc/sdm/history
+    done
+    #
+    # Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
+    # and to /etc/sdm/history in the mounted image or image file
+    #
+    #
+    # Set hostname into the image
+    #
+    if [ "$hname" != "" -a -f /mnt/sdm/etc/hostname ]
+    then
+	logtoboth "> Set hostname '$hname'"
+	echo $hname > /mnt/sdm/etc/hostname
+	sed -i "s/127.0.1.1.*raspberrypi/127.0.1.1\t$hname/g" /mnt/sdm/etc/hosts
+    fi
+    if [ -d /mnt/sdm/usr/local/sdm -a -d /mnt/sdm/etc/sdm ]
+    then
+	xsettings="apip apssid b1script b2script bootsetpairs bootscripts dhcpcd exports keymap locale noreboot"
+	xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait"
+	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
+	# Save settings made with the --burn command
+	# Define variable b<varname> for each <varname>
+	for e in $xsettings
+	do
+	    eval b$e=\${!e}
+	done
+	readparams                    # Read settings from the SD card
+	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
+	[ "$bb2script" != "$b2script" ] && b2script=$bb2script
+        [ $breboot -eq 1 ] && reboot=$breboot
+	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
+        [ $bbootscripts -eq 1 ] && bootscripts=$bbootscripts
+	[ "$bbootsetpairs" != "" ] && bootsetpairs="$bbootsetpairs"
+	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
+	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
+	[ "$bapssid" != "sdm" ] && apssid=$bapssid
+	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
+	if [[ "$loadllocal" =~ "|wifi|" ]]
+	then
+	    [ "$wificountry" == "" ] && logtoboth ">%No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
+	fi
+	[ "$bkeymap" != "" ] && keymap=$bkeymap && echo "keymap=$bkeymap" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	[ "$btimezone" != "" ] && timezone=$btimezone && echo "timezone=$btimezone" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	[ "$blocale" != "" ] && local=$blocale && echo "locale=$blocale" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+	if [ "$b2script" != "" ]
+	then
+	    if [ -f $b2script ]
+	    then
+		if [ ! -f /mnt/sdm/etc/sdm/assets/$(basename $b2script) ]
+		then
+		    logtoboth "> Copy '$b2script' to /etc/sdm/assets"
+		    cp $b2script /mnt/sdm/etc/sdm/assets
+		    chmod 755 /mnt/sdm/etc/sdm/assets/$(basename $b2script)
+		fi
+	    else
+		if [ ! -f /mnt/sdm/etc/sdm/assets/$(basename $b2script) ]
+		then
+		   logtoboth "? --b2script '$b2script' not found"
+		   b2script=""
+		fi
+	    fi
+	fi
+	if [ "$bdhcpcd" != "" ]
+	then
+	    cat $bdhcpcd >> /mnt/sdm/etc/dhcpcd.conf
+	    logtoboth "> Append '$bdhcpcd' to /etc/dhcpcd.conf"
+	    dhcpcd=$bdhcpcd
+	fi
+	if [ "$bexports" != "" ]
+	then
+	    cp $bexports /mnt/sdm/etc/exports
+	    logtoboth "> Copy '$bexports' to /etc/exports"
+	    exports=$bexports
+	fi
+	if [ "$bsysctl" != "" ]
+	then
+	    cp $bsysctl /mnt/sdm/etc/sysctl.d
+	    logtoboth "> Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)"
+	    sysctl=$bsysctl
+	fi
+	if [ "$bwpaconf" != "" ] # was --wpa specified on the burn command?
+	then
+	    [ ! -f $bwpaconf ] && echo "% --wpa config file '$bwpaconf' not found; Skipping"
+	    [ $burn -eq 1 ] && state="'$burndev'" || state="$'burnfilefile'"
+	    logtoboth "> Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'"
+	    [ -f $bwpaconf ] && cp $bwpaconf /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
+	fi
+	if [ "$brclocal" != "" ]
+	then
+	    logtoboth "> Add commands to /etc/rc.local per --rclocal"
+	    grep -v 'exit 0' /mnt/sdm/etc/rc.local > /mnt/sdm/tmp/rc.local
+	    sifs="$IFS"
+	    IFS=""
+	    readarray -d\| citems <<< "$brclocal"
+	    for c in ${citems[@]}
+	    do
+		c="${c%|}"
+		c="${c/$'\n'}"
+		logtoboth "   $c"
+		echo "$c" >> /mnt/sdm/tmp/rc.local
+	    done
+	    echo "exit 0" >> /mnt/sdm/tmp/rc.local
+	    IFS="$sifs"
+	    mv /mnt/sdm/etc/rc.local /mnt/sdm/etc/rc.local.sdm.burn
+	    mv /mnt/sdm/tmp/rc.local /mnt/sdm/etc
+	    chmod 755 /mnt/sdm/etc/rc.local
+	    [ "$rclocal" == "" ] && rclocal="$brclocal" || rclocal="${rclocal}|$brclocal"
+	fi
+	hostname="$hname"         # So it gets written to updated params on SD card
+	[ "$bbootsetpairs" != "" -o "$bsvcdisable" != "" -o "$bsvcenable" != "" ] &&  setbootset  # Process --bootset settings
+	[ $bootscripts -eq 1 ] && state="enabled" || state="disabled"
+	logtoboth "> First System Boot Custom Boot Scripts $state"
+	[ $rebootwait -ne $drebootwait ] && wmsg=" with a $rebootwait second wait" || wmsg=""
+	[ $reboot -eq 1 ] && state="enabled${wmsg}" || state="disabled"
+	logtoboth "> First System Boot automatic restart $state"
+	bcp=""
+	if [ "$bpasswordpi" != "" -o "$bpasswordroot" != "" -o "$bpassworduser" != "" ]
+	then
+	    bcp="/mnt/sdm/etc/sdm/assets/burn-change-passwords"
+	    echo "#!/bin/bash" > $bcp
+	    echo "source /usr/local/sdm/sdm-cparse ; readparams" >> $bcp
+	    [ "$bpasswordpi" != "" ] && echo "changepwd pi \"$bpasswordpi\"" >> $bcp && passwordpi=$bpasswordpi
+	    [ "$bpasswordroot" != "" ] && echo "changepwd root \"$bpasswordroot\"" >> $bcp && passwordroot=$bpasswordroot
+	    [ "$bpassworduser" != "" ] && echo "changepwd $myuser \"$bpassworduser\"" >> $bcp && passworduser=$bpassworduser
+	    chmod 755 $bcp
+	fi
+  	writeconfig               # Write updated params to the SD card
+	if [ "$b1script" != "" ]
+	then
+	    logtoboth "> Execute function 'do_b1script' in --b1script '$b1script'"
+	    source $b1script
+	    ftype=$(type -t do_b1script)
+	    [ "$ftype" != "function" ] && logtoboth ">%Function 'do_b1script' not found in '$b1script'; Skipping..."
+	    [ "$ftype" == "function" ] && do_b1script
+	fi
+	if [ "$bcp" != "" ]
+	then
+	    logtoboth "> Change passwords per --password-pi, --password-user, and/or --password-root"
+	    systemd-nspawn -q --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 burn-change-passwords $(basename $bcp) < $(tty)
+	fi
+	if [ "$b2script" != "" ]
+	then
+	    logtoboth "> Run --b2script '$b2script'"
+	    declare -x SDMNSPAWN="Burn1"
+	    systemd-nspawn -q --directory=/mnt/sdm /usr/local/sdm/sdm-phase1 b2script $b2script < $(tty)
+	fi
+	declare -x SDMNSPAWN="Burn0"
+	logtoboth "* Burn Completed"
+    else
+	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
+    fi
+}
+#
+# Shrink IMG file
+#
+
+errifrc() {
+    [ $1 -ne 0 ] && errexit "$2 $1"
+}
+
+sdm_ppart() {
+    echo "* Human-readable partition list"
+    parted -s $dimg unit B print
+    echo ""
+    echo "* Machine-readable partition list"
+    parted -ms $dimg unit B print
+}
+
+sdm_shrink() {
+    [ $dimgdev -eq 1 ] && errexit "? --shrink only operates on IMG files"
+    loopdev=""
+    fstype=""
+    fsize=""
+    bsize=$(stat --printf %s $dimg)
+    rc=0
+    echo "* Start shrink on IMG '$dimg'"
+    while read line
+    do
+	if [[ "$line" =~ "msdos" ]]
+	then
+	    fsize=$(IFS=":" read fs bytes file n1 n2 fs <<< $line ; echo $bytes)
+	    fsize=${fsize%B}
+	elif [[ "$line" =~ "ext4" ]]
+	then
+	    IFS=":;" read partnum partstart partend partsize fstype etc etc2 etc3 <<< $line
+	    partstart=${partstart%B}
+	    partend=${partend%B}
+	    partsize=${partsize%B}
+	fi
+    done < <(parted -ms $dimg unit B print)
+    #
+    #   https://alioth-lists.debian.net/pipermail/parted-devel/2006-December/000573.html
+    # $l1: BYT;  ** error if not BYT 
+    # $l2: filespec:bytesB:file:512:512:msdos::;
+    # $l3: partnum:startB:endB:sizeB:fstype:::;
+    # $l4: partnum:startB:endB:sizeB:fstype:::;
+    #
+    [ "$fstype" != "ext4" -o "$fsize" == "" ] && errexit "? IMG '$dimg' does not appear to be a RasPiOS IMG with two partitions"
+    if [ $fsize -ne $bsize ]
+    then
+	errexit "? Discrepancy between stat and parted on file size; parted size: $fsize  stat size: $bsize"
+    fi
+    # Get partition type information for the 2nd partition (ext4)
+    # ** Is this needed? it will fail miserably later which might be OK
+#    pline=$(parted -s $dimg unit B print | grep ext4)     # Slightly different than parted done above (no -m)
+#    if [[ "$pline" =~ "ext4" ]]
+#    then
+#	IFS=" " read p1 p2 p3 p4 parttype p6 <<< $pline
+#	[ "$parttype" != "primary" ] && errexit "Partition type '$parttype' not supported"
+#    else
+#	errexit "? No ext4 partition found"
+#    fi
+
+    # Create loop device to the partition
+    loopdev=$(losetup -f --show -o "$partstart" "$dimg")
+    # bx is a dummy due to leading ",". Other 2 can be in either order
+    IFS="," read bx b1 b2 <<< $(tune2fs -l $loopdev | while read aline ;\
+				do \
+				    # If one we want, strip the text and all spaces, then echo it for consumption outside this subshell
+				    [[ "$aline" =~ "Block count" ]] && (bc=${aline##Block count: } ; bc=${bc// } ; echo -n ",bc${bc}");\
+					[[ "$aline" =~ "Block size" ]] && (bs=${aline##Block size: } ; bs=${bs// } ; echo -n ",bs${bs}");\
+					done) ; rc=${PIPESTATUS[0]}
+    [ $rc -ne 0 ] && errexit "? tune2fs failed with status $rc"
+    # Set bc=block count, bs=blocksize. Handle both orderings: <nn>bc,<nn>bs or <nn>bs,<nn>bc
+    [ "${b1#bc}" != "$b1" ] && bc=${b1#bc}
+    [ "${b2#bs}" != "$b2" ] && bs=${b2#bs}
+    [ "${b1#bs}" != "$b1" ] && bc=${b1#bs}  #In case in other order
+    [ "${b2#bc}" != "$b2" ] && bs=${b2#bc}  #...
+    [ "$bc" == "" -o "$bs" == "" ] && errexit "? tune2fs failed to read the file system"
+
+    echo "> Check the file system"
+    e2fsck -pf $loopdev
+    rc=$?
+    [ $rc -ge 4 ] && errexit "? e2fsck reports that file system is corrupt $rc"
+
+    oresize=$(resize2fs -P $loopdev)
+    errifrc $? "? resize2fs problem"
+    newsize=${oresize##*Estimated minimum size of the filesystem: }
+
+    [ $bc -eq $newsize ] && errexit "? Image cannot be shrunk any further"
+
+    # Shrink the file system
+    echo "> Shrink the file system"
+    resize2fs -p $loopdev $newsize
+    errifrc $? "? resize2fs shrink exited with status"
+
+    # have not made resizepart work yet, so do a rm/mkpart on the partition
+    #parted -s $dimg resizepart 2 $partnewend
+    # Shrink the partition by removing and recreating it
+    echo "> Remove old partition"
+    parted -s -a minimal $dimg rm $partnum
+    errifrc $? "? parted rm partition failed with status"
+
+    echo "> Make new partition"
+    partnewsize=$((newsize*bs))
+    partnewend=$((partstart+partnewsize-1))
+    parttype="primary"
+    parted -s $dimg unit B mkpart $parttype $partstart $partnewend
+    errifrc $? "? parted mkpart failed with status"
+
+    # Shrink the IMG
+    endsize=$((partstart+partnewsize))
+    echo "> Shrink the image by truncating to $endsize"
+    truncate -s ${endsize%B} $dimg
+    errifrc $? "? Truncate failed with status "
+    echo "* Shrink complete"
+    echo "  IMG '$dimg' was $bsize now $(stat --printf %s $dimg)"
+    return
+}
