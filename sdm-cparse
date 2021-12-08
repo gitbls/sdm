@@ -7,7 +7,7 @@ function readparams() {
     # Restores the global variables from /etc/sdm/cparams
     #
     local sifs=$IFS rpifun value cf="/etc/sdm/cparams"
-    [ "$SDMNSPAWN" == "" ] && cf="/mnt/sdm/$cf"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && cf="/mnt/sdm/$cf"
     if [ -f $cf ]
     then
 	IFS=":"
@@ -39,7 +39,7 @@ function logit {
     # $1="message string"
     #
     local mnt=""
-    [ "$SDMNSPAWN" == "" ] && mnt="/mnt/sdm"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="/mnt/sdm"
     echo "$(thisdate) $1" >> $mnt/etc/sdm/history
 }
 
@@ -182,7 +182,7 @@ function logfreespace() {
     # Logs the current free space on $dimg
     #
     local dev="/" extramsg="$1"
-    [ "$SDMNSPAWN" == "" ] && dev="/mnt/sdm"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && dev="/mnt/sdm"
     logtoboth "> $dimgdevname '$dimg' has $(getfsdf $dev avail) 1K-blocks free $extramsg" nosplit
 }
 
@@ -203,6 +203,60 @@ function cklogfreespace() {
     fi
 }
     
+function setbootset() {
+    #
+    # Handle --bootset, --svcdisable and --svcenable for customize and burn commands
+    #
+    local mnt=""
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="/mnt/sdm"
+    local citems=() c key value
+    if [ "$bootsetpairs" != "" ]
+    then
+	readarray -d, citems <<< $bootsetpairs
+	for c in ${citems[@]}
+	do
+	    IFS=":=" read key value <<< $c
+	    key="${key%,}"      #In case they didn't specify :value or =value we'll default it to 0
+	    value="${value%,}"
+	    [ "$value" == "" ] && value=0
+	    # Remove any old entry for this key and write the new one
+	    if ! grep "$key=$value" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+	    then
+		logtoboth "> Set --bootset ${key} ${value}"
+		sed -i "/^$key=/d" $mnt/etc/sdm/auto-1piboot.conf
+		echo "$key=$value" >> $mnt/etc/sdm/auto-1piboot.conf
+	    fi
+	done
+    fi
+    if [ "$svcdisable" != "" ]
+    then
+	readarray -d, citems <<< $svcdisable
+	for c in ${citems[@]}
+	do
+	    sed -i "/^service-enable=${c%,}/d" $mnt/etc/sdm/auto-1piboot.conf   #Delete enables of this service
+	    if ! grep "service-disable=${c%,}" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+	    then
+		logtoboth "> Disable service '${c%,}'"
+		echo "service-disable=${c%,}" >> $mnt/etc/sdm/auto-1piboot.conf
+	    fi
+	done
+    fi
+    if [ "$svcenable" != "" ]
+    then
+	readarray -d, citems <<< $svcenable
+	for c in ${citems[@]}
+	do
+	    sed -i "/^service-disable=${c%,}/d" $mnt/etc/sdm/auto-1piboot.conf  #Delete disables of this service
+	    if ! grep "service-enable=${c%,}" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+	    then
+		logtoboth "> Enable service '${c%,}'"
+		echo "service-enable=${c%,}" >> $mnt/etc/sdm/auto-1piboot.conf
+	    fi
+	done
+    fi
+
+}
+
 function do_raspiconfig() {
     #
     # $1=command

@@ -4,7 +4,7 @@
 #
 function loadparams() {
     local cf="/usr/local/sdm/sdm-cparse"
-    [ "$SDMNSPAWN" == "" ] && cf="/mnt/sdm/$cf"
+    [ "$SDMNSPAWN" == "Phase0" ] && cf="/mnt/sdm/$cf"
     source $cf
     readparams
 }
