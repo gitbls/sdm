@@ -31,17 +31,29 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 
 **Throughout this document read "SD Card" as "SSD or SD Card".** They are treated equivalently by sdm.
 
-* **Install sdm:** `sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+## Install sdm
+`sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
-* **If needed, download the desired RasPiOS zipped IMG** from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org/). Pick the latest (Bullseye) image in the folder **raspios_full_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit Beta), or **raspios_lite_arm64** (64-bit Beta), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
+* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org/). Pick the latest (Bullseye) image in the folder **raspios_full_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit Beta), or **raspios_lite_arm64** (64-bit Beta), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
-* **Customize the image:** `sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart`
+## Customize the image with sdm
+`sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart`
 
-    sdm will copy your Localizaton settings (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running, and prompt for a new password for user 'pi'. No additional packages will be installed in this example, but 'apt update' and 'apt upgrade' will be done.
+sdm will make the following changes to your IMG file:
+* Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running
+* Copy the **wpa_supplicant.conf** you specified into the IMG file at /etc/wpa_supplicant/wpa_supplicant.conf
+* Configure the system in the IMG file to have **SSH enabled**
+* Prompt for a new **password for user pi**
+* Do an  `apt update` and `apt upgrade`
 
-* **Burn the image onto the SD Card:** `sudo /usr/local/sdm/sdm --burn /dev/sde --hostname mypi1 2020-08-20-raspios-buster-armhf-full.img`
+No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
-Now, load the SD card into a Pi and power it up. The system will come up as it always does:
+## Burn the image onto the SD Card
+`sudo /usr/local/sdm/sdm --burn /dev/sde --hostname mypi1 2020-08-20-raspios-buster-armhf-full.img`
+
+## Boot and Go
+
+Load the SD card into a Pi and power it up. The system will come up as it always does:
 
 * Resizes the root file system and restarts automatically
 * After the system restarts it goes through a complete system startup, just as it always does on a fresh SD Card
@@ -75,7 +87,7 @@ Here are a few examples:
 
 * **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm
 
-* **Other customizations** &mdash; Done through a simple batch script. sdm-customphase is a skeleton Custom Phase Script that you can copy, modify, and use.
+* **Other customizations** &mdash; Done through a simple batch script. `sdm-customphase` is a skeleton Custom Phase Script that you can copy, modify, and use.
 
 * **Burn SD Card Image for network distribution** &mdash; You can build a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
 
