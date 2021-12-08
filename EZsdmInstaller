@@ -90,7 +90,7 @@ then
     echo "% Invoke sdm with 'sudo $dir/sdm'"
     echo "  See the sdm documentation at https://github.com/gitbls/sdm"
     echo ""
-    echo "Pro tip: Add to your .bashrc: alias sdm='sudo /usr/local/sdm/sdm' 
+    echo "Pro tip: Add to your .bashrc: alias sdm='sudo /usr/local/sdm/sdm' "
     echo ""
 else
     echo ""
