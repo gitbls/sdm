@@ -1,5 +1,20 @@
 # Changelog
 
+## V5.0
+
+* Rearrange documentation into a Wiki
+* Add --shrink to shrink an IMG file
+* Add --ppart to display the partitions in an IMG file or SSD/SD Card
+* Add --svc-disable and --svc-enable for switch naming consistency
+* Enable --rclocal on burn command
+* Don't disable wpa_supplicant service and raspberrypi-net-mods. If you want them disabled, use either --svc-disable or a custom phase script
+* Correct dhcpcd wait logic to accommodate buster/bullseye image location difference
+* Move processing of several switches from Phase 0 to Phase 1, since they don't need access to local system storage: --bootadd, --bootconfig, --dtoverlay, --dtparam, --hdmi-force-hotplug, --hdmi-ignore-edid, --hdmigroup, --hdmimode, --rclocal
+
+## V4.20
+
+* Copy 1piboot.conf to /usr/local/sdm/1piboot on target in sdm as well as to /etc/sdm
+
 ## V4.19
 
 * Add --gadget-mode to configure the image for USB Gadget Mode
