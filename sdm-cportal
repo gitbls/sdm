@@ -417,7 +417,7 @@ if __name__ == "__main__":
     parser.add_argument('--logging', help="Script to do boot-time message logging")
     parser.add_argument('--debug', help="Print logged messages on console also", action='store_true')
     parser.add_argument('--facility', help="Facility name to use instead of 'sdm'")
-    parser.add_argument('--l10nhandler', help="Full path to script to handle Localization data")
+    parser.add_argument('--l10nhandler', help="Full path to script to handle Localization data", default='/dev/null')
     args = parser.parse_args()
     pd.apssid = args.apssid if args.apssid != None else "sdm"
     pd.ip = args.apip if args.apip != None else "10.1.1.1"
