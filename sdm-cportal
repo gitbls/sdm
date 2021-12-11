@@ -21,7 +21,7 @@ from urllib.parse import urlparse, parse_qs
 
 class htcontrol:
     def __init__(self):
-        self.stopflag = self.internet = self.connected = self.iconnected = False
+        self.sdm = self.stopflag = self.internet = self.connected = self.iconnected = False
         self.inprogress = self.dual = self.validate = self.debug = False
         self.wificountry = self.keymap = self.locale = self.timezone = self.allerrors = self.myip = ""
         self.apssid = self.ssid = self.password = self.wlan = self.logmsg = self.facname = ""
@@ -219,11 +219,12 @@ def writel10n(pd, keymap, locale, timezone):
     if locale != "": ostr = "{}\nlocale={}".format(ostr, locale)
     if timezone != "": ostr = "{}\ntimezone={}".format(ostr, timezone)
     if ostr != "":
-        if pd.l10nhandler != "":
-            tfcmd('{} "{}" "{}" "{}"'.format(pd.l10nhandler, keymap, locale, timezone))
-        else:
+        if pd.sdm:
             with open("/etc/{}/local-1piboot.conf".format(pd.facname), 'w') as f:
                 f.write("{}\n".format(ostr))
+        else:
+            if pd.l10nhandler != "":
+                tfcmd('{} "{}" "{}" "{}"'.format(pd.l10nhandler, keymap, locale, timezone))
 
 class sdmRequestHandler(BaseHTTPRequestHandler):
     def __init__(self, pd, *args, **kwargs):
@@ -418,6 +419,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug', help="Print logged messages on console also", action='store_true')
     parser.add_argument('--facility', help="Facility name to use instead of 'sdm'")
     parser.add_argument('--l10nhandler', help="Full path to script to handle Localization data")
+    parser.add_argument('--sdm', help="Invoked from sdm", action='store_true')
     args = parser.parse_args()
     pd.apssid = args.apssid if args.apssid != None else "sdm"
     pd.ip = args.apip if args.apip != None else "10.1.1.1"
@@ -425,6 +427,7 @@ if __name__ == "__main__":
     pd.debug = args.debug
     pd.facname = "sdm" if args.facility == None else args.facility
     pd.l10nhandler = "" if args.l10nhandler == None else args.l10nhandler
+    pd.sdm = args.sdm
     pd.wlan = 'wlan0'
     for s in gocmd("ip addr show").split("\n"):
         if 'wlan1' in s:

@@ -410,7 +410,7 @@ else
     then
 	[ "$wificountry" == "" ] && set_wifi_country US 
 	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
-	/usr/local/sdm/sdm-cportal --apip $apip --apssid $apssid --logging /usr/local/sdm/sdm-logmsg
+	/usr/local/sdm/sdm-cportal --sdm --apip $apip --apssid $apssid --logging /usr/local/sdm/sdm-logmsg
 	bootlog "Re-enable dhcpcd Service"
 	systemctl daemon-reload > /dev/null 2>&1
 	systemctl enable dhcpcd > /dev/null 2>&1
