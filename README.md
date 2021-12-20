@@ -32,7 +32,7 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 **Throughout this document read "SD Card" as "SSD or SD Card".** They are treated equivalently by sdm.
 
 ## Install sdm
-`sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+`curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
 * **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org/). Pick the latest (Bullseye) image in the folder **raspios_full_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit Beta), or **raspios_lite_arm64** (64-bit Beta), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
