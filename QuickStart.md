@@ -5,7 +5,7 @@
 It's assumed that there is a freshly downloaded copy of a RasPiOS IMG file (e.g., 2021-05-07-raspios-buster-armhf-full.img or 2021-05-07-raspios-buster-armhf-lite.img) in the current directory, and that there is an SD Card in /dev/sde.
 
 ### Install sdm and systemd-container
-`sudo curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+`curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
 ### Customize the image
 `sudo /usr/local/sdm/sdm --customize 2021-05-07-raspios-buster-armhf-full.img --wpa /path/to/working/wpa_supplicant.conf --L10n --restart `
