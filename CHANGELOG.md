@@ -1,5 +1,15 @@
 # Changelog
 
+## V5.1
+
+* sdm now creates, but doesn't use, /etc/sdm/local-assets in the IMG, for your use in Custom Phase Scripts
+* Don't try to flush the burn log if /etc/sdm doesn't exist in the burn target
+* Multiple copies of sdm can be simultaneously active on the same system, removing a prior restriction. sdm uses /mnt/sdm if it's available. If not, it uses /mnt/sdm.$BASHPID. NOTE: If you are using a Custom Phase script and want to use multiple active sdm instances, you must edit your Custom Phase script and change all instances of /mnt/sdm to $SDMPT. See the updated example Custom Phase script
+* Processing of svc-disable, svc-enable, and bootset switches are no longer deferred to FirstBoot, except in the case of using the switches on the --burn command. In this case they are processed during FirstBoot
+* Tidy up VNC handling. sdm can install RealVNC for graphically accelerated console VNC. RealVNC Virtual Desktops require an Enterprise License, so you can use one of TigerVNC or TightVNC for virtual desktops.
+* Fix cosmetic race condition on RasPiOS with Desktop where autologin was prematurely re-enabled by FirstBoot. 
+* General code cleanups
+
 ## V5.0
 
 * Rearrange documentation into a Wiki
