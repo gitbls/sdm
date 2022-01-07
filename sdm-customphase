@@ -4,7 +4,7 @@
 #
 function loadparams() {
     local cf="/usr/local/sdm/sdm-cparse"
-    [ "$SDMNSPAWN" == "Phase0" ] && cf="/mnt/sdm/$cf"
+    [ "$SDMNSPAWN" == "Phase0" ] && cf="$SDMPT/$cf"
     source $cf
     readparams
 }
@@ -20,7 +20,7 @@ pfx="$(basename $0)"     #For messages
 if [ $phase == "0" ]
 then
     #
-    # In Phase 0 all references to directories in the image must be preceded by /mnt/sdm
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     loadparams
     logtoboth "* $pfx Phase 0"

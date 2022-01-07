@@ -25,7 +25,7 @@ function copycufiles() {
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
 declare -x SDMNSPAWN="Phase0"
-source /mnt/sdm/usr/local/sdm/sdm-cparse ; readparams
+source $SDMPT/usr/local/sdm/sdm-cparse ; readparams
 
 logtoboth "* Start Phase 0 image customization"
 #
@@ -36,24 +36,24 @@ logtoboth "* Start Phase 0 image customization"
 logtoboth "*+Phase 0 sdm configuration"
 if [ "$b2script" != "" ]
 then
-    logtoboth "> Copy --b2script '$b2script' to /mnt/sdm/etc/sdm/assets"
-    cp $b2script /mnt/sdm/etc/sdm/assets
+    logtoboth "> Copy --b2script '$b2script' to $SDMPT/etc/sdm/assets"
+    cp $b2script $SDMPT/etc/sdm/assets
 fi
 #
 # copy hotspot configuration file into the image
 #
 if [ "$hotspot" != "" ]
 then
-    logtoboth "> Copy hotspot configuration file to /mnt/sdm/etc/sdm/assets"
-    cp $hotspot /mnt/sdm/etc/sdm/assets
+    logtoboth "> Copy hotspot configuration file to $SDMPT/etc/sdm/assets"
+    cp $hotspot $SDMPT/etc/sdm/assets
 fi
 
 logtoboth "*+Phase 0 Network configuration"
 if [ "$wpaconf" != "" ]    #First b/c it's most important
 then
-    logtoboth "> Copy wpa supplicant config from '$wpaconf' to /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf"
+    logtoboth "> Copy wpa supplicant config from '$wpaconf' to $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf"
     # Copy and strip carriage returns just in case
-    tr -d '\r' < $wpaconf > /mnt/sdm/etc/wpa_supplicant/wpa_supplicant.conf
+    tr -d '\r' < $wpaconf > $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
 else
     logtoboth ">%Skip wpa_supplicant configuration per --nowpa"
 fi
@@ -62,18 +62,18 @@ fi
 #
 if [ "$dhcpcd" != "" ]
 then
-    logtoboth "> Append dhcpcd.conf extension '$dhcpcd' to /mnt/sdm/etc/dhcpcd.conf"
-    cat $dhcpcd >> /mnt/sdm/etc/dhcpcd.conf
-# Don't need to do it this way, but keep for future just in case
-#    echo "dhcpcd=$(basename $dhcpcd)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+    logtoboth "> Append dhcpcd.conf extension '$dhcpcd' to $SDMPT/etc/dhcpcd.conf"
+    cat $dhcpcd >> $SDMPT/etc/dhcpcd.conf
+# Don't need to do it this way, but keep for future reference
+#    echo "dhcpcd=$(basename $dhcpcd)" >> $SDMPT/etc/sdm/auto-1piboot.conf
 fi
 #
 # Copy exports file into the image
 #
 if [ "$exports" != "" ]
 then
-    logtoboth "> Copy file '$exports' to /mnt/sdm/etc/exports"
-    cp $exports /mnt/sdm/etc/exports
+    logtoboth "> Append --exports file '$exports' to $SDMPT/etc/exports"
+    cat $exports >> $SDMPT/etc/exports
 fi
 
 logtoboth "*+Phase 0 User configuration"
@@ -86,8 +86,8 @@ do
     fmconf="${!cname}"
     if [ "$fmconf" != "" ]
     then
-	logtoboth "> Copy --lxde-config '$fm' config file '$fmconf' to /mnt/sdm/etc/sdm/assets"
-	cp $fmconf /mnt/sdm/etc/sdm/assets
+	logtoboth "> Copy --lxde-config '$fm' config file '$fmconf' to $SDMPT/etc/sdm/assets"
+	cp $fmconf $SDMPT/etc/sdm/assets
     fi
 done
 logtoboth "*+Phase 0 System configuration"
@@ -98,7 +98,7 @@ for c in d hourly daily weekly monthly
 do
     ct="cron$c"
     cf=${!ct}     #  (eval "cf=\$$ct" alternate way)
-    [ "$cf" != "" ] && copycufiles "$cf" "/mnt/sdm/etc/cron.$c"
+    [ "$cf" != "" ] && copycufiles "$cf" "$SDMPT/etc/cron.$c"
 done
 
 #
@@ -106,25 +106,25 @@ done
 #
 if [ "$fstab" != "" ]
 then
-    logtoboth "> Copy fstab extension '$fstab' to /mnt/sdm/etc/sdm/assets and enable for FirstBoot"
-    cp $fstab /mnt/sdm/etc/sdm/assets
-    echo "fstab=$(basename $fstab)" >> /mnt/sdm/etc/sdm/auto-1piboot.conf
+    logtoboth "> Copy fstab extension '$fstab' to $SDMPT/etc/sdm/assets and enable for FirstBoot"
+    cp $fstab $SDMPT/etc/sdm/assets
+    echo "fstab=$(basename $fstab)" >> $SDMPT/etc/sdm/auto-1piboot.conf
 fi
 
 #
 # Copy user-specified modprobe config files into the image
 #
-[ "$modprobe" != "" ] && copycufiles "$modprobe" "/mnt/sdm/etc/modprobe.d"
+[ "$modprobe" != "" ] && copycufiles "$modprobe" "$SDMPT/etc/modprobe.d"
 
 #
 # Copy user-specified motd file into the image
 #
-[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to /mnt/sdm/etc/motd" && mv /mnt/sdm/etc/motd /mnt/sdm/etc/motd.sdm && cp $motd /mnt/sdm/etc/motd
+[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to $SDMPT/etc/motd" && mv $SDMPT/etc/motd $SDMPT/etc/motd.sdm && cp $motd $SDMPT/etc/motd
 
 #
 # Copy user-specified sysctl config file into the image
 #
-[ "$sysctl" != "" ] && copycufiles "$sysctl" "/mnt/sdm/etc/sysctl.d"
+[ "$sysctl" != "" ] && copycufiles "$sysctl" "$SDMPT/etc/sysctl.d"
 
 #
 # Copy systemd config files into the image
@@ -135,14 +135,14 @@ do
     fn="${!nsdfn}"
     if [ "$fn" != "" ]
     then
-	logtoboth "> Copy systemd '$c' config file '$fn' to /mnt/sdm/etc/sdm/assets"
-	cp $fn /mnt/sdm/etc/sdm/assets
+	logtoboth "> Copy systemd '$c' config file '$fn' to $SDMPT/etc/sdm/assets"
+	cp $fn $SDMPT/etc/sdm/assets
     fi
 done
 #
 # Copy any specified udev files
 #
-[ "$udev" != "" ] && copycufiles "$udev" "/mnt/sdm/etc/udev/rules.d"
+[ "$udev" != "" ] && copycufiles "$udev" "$SDMPT/etc/udev/rules.d"
 
 logtoboth "*+Phase 0 Raspberry Pi-specific configuration"
 
@@ -152,12 +152,12 @@ then
     # Create user directory now, so that Custom Phase Script can copy into it if desired
     # Can't create the new user and fix directory ownership until sdm-phase1
     #
-    [ ! -d /mnt/sdm/home/$myuser ] && logtoboth "> Create user '$myuser' home directory /home/$myuser" && mkdir -p /mnt/sdm/home/$myuser
+    [ ! -d $SDMPT/home/$myuser ] && logtoboth "> Create user '$myuser' home directory /home/$myuser" && mkdir -p $SDMPT/home/$myuser
 fi
 
 if [ "$cscript" != "" ]
 then
-    csfn="/mnt/sdm/usr/local/sdm/$(basename $cscript)"
+    csfn="$SDMPT/usr/local/sdm/$(basename $cscript)"
     logtoboth "> Run Custom Phase Script '$csfn' Phase 0"
     $csfn 0
 fi

@@ -131,7 +131,6 @@ logtoboth "*+Phase 1 sdm configuration"
 #
 # Set up sdm-firstboot service. This service processes some settings that can only be done
 # on the first boot of the system.
-# Service will be enabled by creating run.firstboot when SD card is burned with sdm
 #
 logtoboth "> Configure and enable sdm FirstBoot service (sdm-firstboot)"
 [ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
@@ -194,8 +193,8 @@ then
     # use the same /path/to/dhcpcd that the dhcpcd service is
     dex=$(grep -E "ExecStart=.*/dhcpcd" /lib/systemd/system/dhcpcd.service| head -n 1 -)
     dhcf=${dex##ExecStart=}  #Strip leading ExecStart=
-    dhcf=${dhcf%* *}         #Strip everything after the path (switches,etc)
-    logtoboth "> Enable dhcpcd 'wait for network connection'"
+    dhcf=${dhcf%% *}         #Strip everything after the path (switches,etc)
+    logtoboth "> Enable dhcpcd [$dhcf] 'wait for network connection'"
     cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
 [Service]
 ExecStart=
@@ -575,13 +574,13 @@ logtoboth "* Phase 1 post-app/xapp installation/configuration"
 #
 if [ "$vnc" != "" ] && [[ ! "$poptions" =~ "novnc" ]]
 then
-    logtoboth "* Configure VNC per command switch --vnc $vnc"
+    logtoboth "* Configure VNC per command switch '--vnc $vnc'"
     if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
     then
 	! [[ "$vnc" =~ "real" ]] && vnc="real,$vnc"
     fi
     vbase="${vncbase-5900}" ; realvnc=""
-    vncp="tigervnc-standalone-server" ; vncserver="" ; citems=() ; sifs="$IFS" ; othervnc="tightvnc"
+    vncserver="" ; citems=() ; sifs="$IFS" 
     IFS=""
     readarray -d, citems <<< "$vnc,"
     n=1
@@ -593,12 +592,14 @@ then
 	then
 	    # NOTE that this won't work well if user provides any resolutions before vnc server name(s)
 	    [[ "$res" =~ "tight" ]] && vncserver="tightvnc" && vncp="tightvncserver" && othervnc="tigervnc" && continue
-	    [[ "$res" =~ "tiger" ]] && vncserver="tigervnc" && continue
+	    [[ "$res" =~ "tiger" ]] && vncserver="tigervnc" && vncp="tigervnc-standalone-server" && othervnc="tightvnc" && continue
 	    [[ "$res" =~ "real" ]]  && realvnc="realvnc-vnc-server" && continue
-	    [ "$vncserver" == "" ] && logtoboth "% --vnc did not specify 'tight' or 'tiger', assuming 'tiger'" && vncserver="tigervnc"
-	    port=$(($vbase+$n))
-	    logtoboth "> Create $vncserver Service xvnc$n Port $port Resolution $res"
-	    cat > /etc/systemd/system/xvnc$n.socket <<EOF
+	    #[ "$vncserver" == "" ] && logtoboth "% --vnc did not specify 'tight' or 'tiger', assuming 'tiger'" && vncserver="tigervnc" && vncp="tigervnc-standalone-server" 
+	    if [ "$vncserver" != "" ]
+	    then
+		port=$(($vbase+$n))
+		logtoboth "> Create $vncserver Service xvnc$n Port $port Resolution $res"
+		cat > /etc/systemd/system/xvnc$n.socket <<EOF
 [Unit]
 Description=XVNC Server $n
 
@@ -609,9 +610,9 @@ Accept=yes
 [Install]
 WantedBy=sockets.target
 EOF
-	    stype="-SecurityTypes None"
-	    [ "$vncserver" == "tightvnc" ] && stype="" # TightVNC appears not to support this
-	    cat > /etc/systemd/system/xvnc$n@.service <<EOF
+		stype="-SecurityTypes None"
+		[ "$vncserver" == "tightvnc" ] && stype="" # TightVNC appears not to support this
+		cat > /etc/systemd/system/xvnc$n@.service <<EOF
 [Unit]
 Description=XVNC Per-Connection Daemon $n
 
@@ -621,22 +622,59 @@ StandardInput=socket
 StandardOutput=socket
 StandardError=journal
 EOF
-	    systemctl enable xvnc$n.socket > /dev/null 2>&1
-	    n=$(($n+1))
+		systemctl enable xvnc$n.socket > /dev/null 2>&1
+		n=$(($n+1))
+	    fi
         fi
     done
+    IFS="$sifs"
     #
-    # Ensure VNC server is installed (install if not), and ensure one of lightdm or xdm is installed
+    # Install VNC server if not already done. Warn if none of lightdm/xdm/wdm is installed
     #
-    if ! ispkginstalled $vncp
-    then
-	[ -f /usr/bin/X${othervnc} ] && logtoboth "% '$othervnc' is installed as well as the requested '$vncserver'"
-	# This VV does not work here. Why? It's done outside of the 'if vnc' block where it works
-	#doapt "install --yes $vncp" "$showapt"
-    else
-	vncp="" 
+    if [ "$vncp" != "" ]
+    then 
+	if ! ispkginstalled $vncp
+	then
+	    [ -f /usr/bin/X${othervnc} ] && logtoboth "% '$othervnc' is installed as well as the requested '$vncserver'"
+	    logtoboth "> Install VNC server $vncp"
+	    logfreespace "at start of install VNC server $vncp"
+	    doapt "install --yes $vncp" "$showapt"
+	    logfreespace "at end of install VNC server $vncp"
+	else
+	    logtoboth "> VNC Server $vncp is already installed"
+	fi
     fi
 
+    if [ "$realvnc" != "" ]
+    then
+	if ! ispkginstalled $realvnc
+	then
+	    logtoboth "> Install RealVNC server '$realvnc'"
+	    logfreespace "at start of RealVNC Server install"
+	    doapt "install --yes $realvnc" "$showapt"
+	    logfreespace "at end of RealVNC Server install"
+	else
+	    logtoboth "> RealVNC server is already installed"
+	fi
+	systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
+	cat > /etc/sdm/0piboot/040-realvnc-server.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Enable RealVNC Server vncserver-x11-serviced"
+#
+# enable RealVNC server during FirstBoot service
+#
+systemctl enable vncserver-x11-serviced.service
+#
+# vncserver-virtuald requires an Enterprise license, so disabling it
+# If you have an enterprise license, you can enable the service.
+# There are no sdm-related issues to worry about.
+# vncserver-virtuald uses port 5999 so there is no confict with using
+# sdm-provided xvnc dynamic VNC desktops
+#
+systemctl disable vncserver-virtuald.service
+EOF
+	chmod 755 /etc/sdm/0piboot/040-realvnc-server.sh
+    fi
     [ ! -f /etc/lightdm/lightdm.conf -a ! -d /etc/X11/xdm -a ! -d /etc/X11/wdm ] && logtoboth "% No sdm-known Display Manager installed; VNC enable will not be done"
     if [ -d /etc/X11/xdm ]
     then
@@ -654,42 +692,6 @@ EOF
 	logtoboth "> Configure wdm for VNC"
 	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
     fi
-    IFS="$sifs"
-    # For some reason this VV works outside the 'if vnc' block, but not inside ;(
-    if [ "$vncp" != "" ]
-    then
-	logtoboth "> Install VNC server $vncp"
-	logfreespace "at start of install VNC server $vncp"
-	doapt "install --yes $vncp" "$showapt"
-	logfreespace "at end of install VNC server $vncp"
-    fi
-fi
-if [ "$realvnc" != "" ]
-then
-    if ! ispkginstalled $realvnc
-    then
-	logtoboth "> Install RealVNC server '$realvnc'"
-	logfreespace "at start of RealVNC Server install"
-	doapt "install --yes $realvnc" "$showapt"
-	logfreespace "at end of RealVNC Server install"
-    fi
-    systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
-    cat > /etc/sdm/0piboot/030-realvnc-server.sh <<EOF
-#!/bin/bash
-logger "FirstBoot: Enable RealVNC Server vncserver-x11-serviced"
-#
-# enable RealVNC server during FirstBoot service
-#
-systemctl enable vncserver-x11-serviced.service
-#
-# vncserver-virtuald apparently requires an Enterprise license, so disabling it
-# If you find it works for you, there are no sdm issues to worry about
-# vncserver-virtuald uses port 5999 so there is no confict with using
-# sdm-provided xvnc dynamic VNC desktops
-#
-systemctl disable vncserver-virtuald.service
-EOF
-    chmod 755 /etc/sdm/0piboot/030-realvnc-server.sh
 fi
 
 if [ "$hotspot" != "" ]
@@ -751,7 +753,7 @@ then
 	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
 	else
 	    logtoboth ">%Desktop Autologin will be re-enabled after First Boot"
-	    echo "boot_behaviour=B4" >> /etc/sdm/auto-1piboot.conf
+	    echo "delayed_boot_behavior=B4" >> /etc/sdm/auto-1piboot.conf
 	fi
     fi
     # Disable piwiz if requested
@@ -801,7 +803,7 @@ then
     then
 	logtoboth "> Disable xdm on console"
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
-	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/030-realvnc-server.sh /etc/sdm/0piboot/.030-realvnc-server.sh
+	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
     else
 	delaydmenable xdm $reboot
     fi
@@ -816,7 +818,7 @@ then
     then
 	logtoboth "> Disable wdm on console"
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
-	[ -f /etc/sdm/0piboot/030-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/030-realvnc-server.sh /etc/sdm/0piboot/.030-realvnc-server.sh
+	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
     else
 	delaydmenable wdm $reboot
     fi

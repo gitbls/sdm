@@ -28,7 +28,7 @@
 #
 
 function errexit() {
-    echo -e "$1"
+    echo -e "$1" > $(tty)
     docleanup
     exit 1
 }
@@ -38,14 +38,21 @@ function exitiferr() {
 }
 
 function docleanup() {
-    ismounted /mnt/sdm/boot && umount -v /mnt/sdm/boot
-    ismounted /mnt/sdm && umount -v /mnt/sdm
-    [ "$loopdev" != "" ] && losetup -d $loopdev
+    local mnt=$SDMPT
+    [ "$mnt" == "" ] && mnt=/mnt/sdm
+    ismounted $mnt/boot && umount -v $mnt/boot
+    ismounted $mnt && umount -v $mnt
+    [ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
+    unset SDMPT
+    [ "$loopdev" != "" ] && losetup -d $loopdev && loopdev=""
     sync
 }
 
 function ismounted() {
-    if grep -qs $1 /proc/mounts
+    #
+    # Trailing space to distinguish "/mnt/sdm" from "/mnt/sdm.44443"
+    #
+    if grep -qs "$1 " /proc/mounts
     then
 	return 0
     else
@@ -62,32 +69,55 @@ function notmounted() {
     fi
 }
 
+function getmtpt() {
+    if ! ismounted /mnt/sdm
+    then
+	echo "/mnt/sdm"
+    else
+	if ismounted /mnt/sdm.${BASHPID}
+	then
+	    errexit "? Alternate mount point /mnt/sdm.${BASHPID} in use"
+	fi
+	echo "/mnt/sdm.${BASHPID}"
+    fi
+}
+
+function makemtpt() {
+    local sdmpt=$(getmtpt)
+    [ -f $sdmpt ] && mkdir -p $sdmpt
+    echo $sdmpt
+}
+
 function domount() {
+    #
+    # Before calling domount:
+    #      declare -x SDMPT=$(makemtpt)
+    #
     local p1="1" p2="2"
     local mimg=$1
 
-    [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
+    [ ! -d $SDMPT ] && mkdir $SDMPT
     if [ $fdirtree -eq 1 ]
     then
-	mount --bind $dimg      /mnt/sdm
-	notmounted /mnt/sdm && errexit "? Error mounting --bind '$dimg'"
-	mount --bind $dimg/boot /mnt/sdm/boot
-	notmounted /mnt/sdm/boot && errexit "? Error mounting --bind '$dimg'"
+	mount --bind $dimg $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting --bind '$dimg'"
+	mount --bind $dimg/boot $SDMPT/boot
+	notmounted $SDMPT/boot && errexit "? Error mounting --bind '$dimg'"
     elif [ $dimgdev -eq 0 ]
     then
 	echo "* Mount IMG '$mimg'"
 	loopdev=$(losetup --show -P -f $mimg)
-	mount -v ${loopdev}p2 /mnt/sdm
-	notmounted /mnt/sdm && errexit "? Error mounting IMG '$dimg'"
-	mount -v ${loopdev}p1 /mnt/sdm/boot
-	notmounted /mnt/sdm/boot && errexit "? Error mounting IMG '$dimg'"
+	mount -v ${loopdev}p2 $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
+	mount -v ${loopdev}p1 $SDMPT/boot
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dimg'"
     else
 	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	echo "* Mount device '$dimg'"
-	mount -v ${dimg}${p2} /mnt/sdm
-	notmounted /mnt/sdm && errexit "? Error mounting IMG '$dimg'"
-	mount -v ${dimg}${p1} /mnt/sdm/boot
-	notmounted /mnt/sdm/boot && errexit "? Error mounting IMG '$dimg'"
+	mount -v ${dimg}${p2} $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
+	mount -v ${dimg}${p1} $SDMPT/boot
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dimg'"
 	loopdev=""
     fi
 }
@@ -145,6 +175,7 @@ function extendandresize() {
     # Mount the image file into a loop device and resize the file system
     #
     echo "* Remount $dimgdevname to resize the file system"
+    declare -x SDMPT=$(makemtpt)
     domount "$dimg"
     echo "* Resize the file system"
     echo "% (Ignore on-line resizing message)"
@@ -272,6 +303,7 @@ function writeconfig() {
     #
     # Write config parameters into the image
     #
+    local paramfile="$SDMPT/etc/sdm/cparams"
     [ -f $paramfile ] && rm -f $paramfile
     cat > $paramfile <<EOF
 #Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
@@ -507,7 +539,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V5.0"
+version="V5.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -637,11 +669,6 @@ custom1=""                  #For custom use
 custom2=""                  #For custom use
 custom3=""                  #For custom use
 custom4=""                  #For custom use
-#
-# custom.ized is created in the image so that the Phase 0 customization only done once automatically
-#
-sdmdone="/mnt/sdm/etc/sdm/custom.ized"
-paramfile="/mnt/sdm/etc/sdm/cparams"
 
 [[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 [ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && errexit "? Please 'sudo apt install systemd-container' first"
@@ -866,7 +893,7 @@ then
     [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount)"
     fextendonly=1
 fi
-[ "$src" != "" -a ! -d "$src" ] && errexit "? Source directory '$src' not found"
+[ "$src" != "" -a ! -d "$src" ] && errexit "? sdm source directory '$src' not found"
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
 [ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase Script '$cscript' not executable"
@@ -1062,7 +1089,12 @@ then
 fi
 if [ "$vnc" != "" ]
 then
-    ! [[ "$vnc" =~ "tiger" ]] && ! [[ "$vnc" =~ "tight" ]] && errexit "? --vnc argument must contain 'tiger' or 'tight'"
+    if ! [[ "$vnc" =~ "tiger" ]] && ! [[ "$vnc" =~ "tight" ]] && ! [[ "$vnc" =~ "real" ]]
+    then
+	echo "% --vnc argument value does not include at least one of 'tiger', 'tight', or 'real'"
+	echo "%   Defaulting to 'tiger'"
+	vnc="tiger,$vnc"
+    fi
 fi
 #
 # parse and set ecolors
@@ -1091,12 +1123,11 @@ thishost="$(hostname)"
 #
 if [ $burning -eq 1 ]
 then
-    declare -x SDMNSPAWN="Burn0"
-    [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
     source $src/sdm-cmdsubs
     sdm_burndevfile
-    [ $burn -eq 1 ] && ismounted ${burndev}${p2} && umount -v ${burndev}${p2} || docleanup
+    [ $burn -eq 1 ] && ismounted ${burndev}${p2} && umount -v ${burndev}${p2} 
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
+    docleanup
     exit 0
 fi
 #
@@ -1104,7 +1135,7 @@ fi
 #
 if [ $fshrink -eq 1 ]
 then
-    [ ! -d /mnt/sdm ] && mkdir /mnt/sdm
+    declare -x SDMPT=$(makemtpt)
     source $src/sdm-cmdsubs
     sdm_shrink
     docleanup
@@ -1122,17 +1153,18 @@ fi
 #
 if [ $fdomount -eq 1 ]
 then
+    declare -x SDMPT=$(makemtpt)
     domount "$dimg"
-    echo "* $dimgdevname '$dimg' mounted on /mnt/sdm"
+    echo "* $dimgdevname '$dimg' mounted on $SDMPT"
     echo $"** BE VERY CAREFUL!! **
-** Precede all path references by '/mnt/sdm' or you will modify your running system **
+** Precede all path references by '$SDMPT' or you WILL modify your running system **
 ** Use 'exit' to Exit the bash shell and unmount the $dimgdevname"
     IFS=":" read mfg mbg mcursor <<< $mcolors
     [ "$mfg" == "" ] && mfg="black"
     [ "$mbg" == "" ] && mbg="LightSalmon1"
     [ "$mcursor" == "" ] && mcursor="blue"
     stermcolors "$mfg" "$mbg" "$mcursor" xt
-    cd /mnt/sdm
+    cd $SDMPT
     bash < $(tty)
     cd - > /dev/null
     docleanup
@@ -1147,16 +1179,17 @@ then
     if [ $fextend -eq 1 ] # Only on if file-based (e.g., can be extended)
     then
 	extendandresize
-	docleanup # --extend (only). Cleanup and exit
+	docleanup # --extend (only)
     fi
     exit 0
 fi
 # Not --extend (only). Other steps need IMG mounted
-[ ! -d /mnt/sdm/boot ] && domount "$dimg"
-! ismounted /mnt/sdm && errexit "? Error mounting '$dimg'"
+declare -x SDMPT=$(makemtpt)
+domount "$dimg"
 #
 # Handle commands --aptmaint, --customize, and --explore
 #
+sdmdone="$SDMPT/etc/sdm/custom.ized"
 icolors=0    # Don't set colors around systemd-nspawn
 if [ $fcustomize -eq 0 ]
 then
@@ -1164,7 +1197,7 @@ then
     then
 	fbatch=1
 	spawncmd="/usr/local/sdm/sdm-phase1 apt $aptmaint"
-	if [ ! -f /mnt/sdm/usr/local/sdm/sdm-phase1 ]
+	if [ ! -f $SDMPT/usr/local/sdm/sdm-phase1 ]
 	then
 	    echo "? sdm has not customized $dimgdevname '$dimg'"
 	    docleanup
@@ -1201,34 +1234,36 @@ else
     if [ $fextend -eq 1 ]
     then
 	echo "* Unmount $dimgdevname for --extend"
+	savesdmpt=$SDMPT
 	docleanup
 	extendandresize   # Remounts IMG afterward
+	declare -x SDMPT=$savesdmpt           # Redefine SDMPT, as docleanup unsets it
     fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="/usr/local/sdm/sdm-phase1"
     #
     # Create and populate /usr/local/sdm tree
     #
-    [ ! -d /mnt/sdm/etc/sdm ] && mkdir -p /mnt/sdm/etc/sdm/assets /mnt/sdm/etc/sdm/0piboot
-    chmod 700 /mnt/sdm/etc/sdm
-    echo "# sdm added these settings from the command line (see /etc/sdm/history)" > /mnt/sdm/etc/sdm/auto-1piboot.conf
-    [ ! -d /mnt/sdm/usr/local/sdm ] && mkdir -p /mnt/sdm/usr/local/sdm/1piboot
-    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} /mnt/sdm/usr/local/sdm
-    cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg,sdm-cmdsubs} /mnt/sdm/usr/local/sdm
-    chmod 755 /mnt/sdm/usr/local/sdm/*
-    [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  /mnt/sdm/usr/local/sdm
-    [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} /mnt/sdm/usr/local/sdm
+    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/assets $SDMPT/etc/sdm/0piboot $SDMPT/etc/sdm/local-assets
+    chmod 700 $SDMPT/etc/sdm
+    echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
+    [ ! -d $SDMPT/usr/local/sdm ] && mkdir -p $SDMPT/usr/local/sdm/1piboot
+    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} $SDMPT/usr/local/sdm
+    cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} $SDMPT/usr/local/sdm
+    cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg,sdm-cmdsubs} $SDMPT/usr/local/sdm
+    chmod 755 $SDMPT/usr/local/sdm/*
+    [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  $SDMPT/usr/local/sdm
+    [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} $SDMPT/usr/local/sdm
     logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
-	cp -f $src/1piboot/*.sh /mnt/sdm/usr/local/sdm/1piboot
+	cp -f $src/1piboot/*.sh $SDMPT/usr/local/sdm/1piboot
 	if [ $bootscripts -eq 1 ]
 	then
-	    [ -f /mnt/sdm/usr/local/sdm/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports --triggerhappy; suggest removing /usr/local/sdm/1piboot/010-disable-triggerhappy.sh"
-	    [ -f /mnt/sdm/usr/local/sdm/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing /usr/local/sdm/1piboot/030-disable-rsyslog.sh"
+	    [ -f $SDMPT/usr/local/sdm/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports '--disable triggerhappy'; suggest removing /usr/local/sdm/1piboot/010-disable-triggerhappy.sh"
+	    [ -f $SDMPT/usr/local/sdm/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing /usr/local/sdm/1piboot/030-disable-rsyslog.sh"
 	fi
-	chmod 755 /mnt/sdm/usr/local/sdm/1piboot/*.sh
+	chmod 755 $SDMPT/usr/local/sdm/1piboot/*.sh
     fi
     logtoboth "> Command Line: $cmdline"
     logfreespace
@@ -1245,22 +1280,22 @@ else
     if [ "$pi1bootconf" != "" ]
     then
 	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"
-	cp $pi1bootconf /mnt/sdm/etc/sdm/1piboot.conf
-	cp $pi1bootconf /mnt/sdm/usr/local/sdm/1piboot                                         #Drop a copy in /usr/local/sdm in the IMG
+	cp $pi1bootconf $SDMPT/etc/sdm/1piboot.conf
+	cp $pi1bootconf $SDMPT/usr/local/sdm/1piboot                                         #Drop a copy in /usr/local/sdm in the IMG
     else
-	cp $src/1piboot/1piboot.conf /mnt/sdm/etc/sdm/
-	cp $src/1piboot/1piboot.conf /mnt/sdm/usr/local/sdm/1piboot
+	cp $src/1piboot/1piboot.conf $SDMPT/etc/sdm/
+	cp $src/1piboot/1piboot.conf $SDMPT/usr/local/sdm/1piboot
     fi
-    chmod 644 /mnt/sdm/etc/sdm/1piboot.conf
+    chmod 644 $SDMPT/etc/sdm/1piboot.conf
     if [ "$cscript" != "" ]
     then
 	logtoboth "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the $dimgdevname"
-	cp $cscript /mnt/sdm/usr/local/sdm
+	cp $cscript $SDMPT/usr/local/sdm
     fi
-    chmod 755 /mnt/sdm/usr/local/sdm/*
+    chmod 755 $SDMPT/usr/local/sdm/*
     # If --apps and/or --xapps are files copy them also. If not, clear the variables for writeconfig
-    [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  /mnt/sdm/usr/local/sdm || appfile=""
-    [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} /mnt/sdm/usr/local/sdm || xappfile=""
+    [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  $SDMPT/usr/local/sdm || appfile=""
+    [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} $SDMPT/usr/local/sdm || xappfile=""
     #
     # Write the config settings into the IMG
     #
@@ -1268,14 +1303,14 @@ else
     #
     # Perform Phase 0 on the image
     #
-    /mnt/sdm/usr/local/sdm/sdm-phase0
+    $SDMPT/usr/local/sdm/sdm-phase0
     touch $sdmdone
     
     echo "* nspawn into image '$dimg' for Phase 1"
 fi
 
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
-systemd-nspawn -q --directory=/mnt/sdm $nspawnsw $spawncmd < $(tty)
+systemd-nspawn -q --directory=$SDMPT $nspawnsw $spawncmd < $(tty)
 docleanup
 [ $icolors -eq 1 ] && resetcolors xt
 
