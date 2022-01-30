@@ -14,6 +14,52 @@ function write_burnmsg() {
     echo "$1"
     return 0
 }    
+
+function expandpartition() {
+    # $1: devicename (/dev/sdX)
+    local fulldevname=$1
+    local dev=${fulldevname##/dev/}
+    local part="${dev}2"           # RasPiOS Ext 4 partition is always partition 2
+    local gb=$((1024*1024*1024)) gib=$((1000*1000*1000))
+
+    while read line
+    do
+        if [[ "$line" =~ "msdos" ]]
+        then
+            fsize=$(IFS=":" read fs bytes file n1 n2 fs <<< $line ; echo $bytes)
+            fsize=${fsize%B}     #Fsize is file system size in bytes
+        elif [[ "$line" =~ "ext4" ]]
+        then
+            IFS=":;" read partnum partstart partend partsize fstype etc etc2 etc3 <<< $line
+            partstart=${partstart%B}
+            partend=${partend%B}
+            partsize=${partsize%B}
+        fi
+    done < <(parted -ms /dev/$dev unit B print)
+    #
+    #   https://alioth-lists.debian.net/pipermail/parted-devel/2006-December/000573.html
+    # $l1: BYT;  ** error if not BYT 
+    # $l2: filespec:bytesB:file:512:512:msdos::;
+    # $l3: partnum:startB:endB:sizeB:fstype:::;
+    # $l4: partnum:startB:endB:sizeB:fstype:::;
+
+    devsize=$(cat /sys/block/$dev/size)   # 512byte blocks
+    newsize=$((devsize - 1 ))             # 512byte blocks
+    partsize=$(cat /sys/block/$dev/$part/size)  # 512byte blocks
+
+    # Print both GB and GiB
+    #rndup=$(((5*gb)/100))      #round up the hundredth digit
+    pbytes=$((partsize*512))
+    nbytes=$(((devsize*512)-$partend+$pbytes))
+    pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($pbytes/$gb, 2)))")
+    pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($pbytes/$gib, 2)))")
+    ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
+    ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
+    write_burnmsg "> Expand Root: Expand partition from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
+    parted -m /dev/$dev u s resizepart 2 $newsize
+    errifrc $? "? parted resizepart failed with status"
+}
+
 function sdm_burndevfile() {
 
     # Stash burn messages in an array until log on SD Card is mounted and available 
@@ -39,9 +85,14 @@ function sdm_burndevfile() {
 	# Prevent mount errors
 	sync ; sync
 	sleep 1
+	olddiskid=$(fdisk -l $burndev | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
+	if [ $expandroot -eq 1 ]
+	then
+	    expandpartition $burndev
+	fi
 	[[ "$burndev" =~ "mmcblk" ]] && p2="p2" || p2="2"
 	declare -x SDMPT=$(makemtpt)
-	mount -v ${burndev}${p2} $SDMPT
+ 	mount -v ${burndev}${p2} $SDMPT
 	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
     else
 	#
@@ -78,7 +129,7 @@ function sdm_burndevfile() {
     #
     # Set hostname into the image
     #
-    xsettings="apip apssid b1script b2script bootsetpairs bootscripts dhcpcd domain exports keymap locale noreboot"
+    xsettings="apip apssid b1script b2script bootsetpairs bootscripts dhcpcd domain exports expandroot keymap locale noreboot"
     xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait"
     xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
     # Save settings made with the --burn command
@@ -99,6 +150,29 @@ function sdm_burndevfile() {
     [ "$bapip" != "10.1.1.1" ] && apip=$bapip
     [ "$bapssid" != "sdm" ] && apssid=$bapssid
     [ "$bwificountry" != "" ] && wificountry="$bwificountry"
+    expandroot=$bexpandroot    #Don't honor expandroot from cparams if it wasn't given on burn command
+    if [ $expandroot -eq 1 ]
+    then
+	[[ "$burndev" =~ "mmcblk" ]] && p1="p1" || p1="1"
+	mount -v ${burndev}${p1} $SDMPT/boot
+	logtoboth "> Expand Root: Remove resize from /boot/cmdline.txt"
+	sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
+	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
+	! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
+	newdiskid="$(tr -dc 'a-f0-9' < /dev/hwrng | dd bs=1 count=8 2>/dev/null)"
+	logtoboth "> Expand Root: Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
+	fdisk "$burndev" > /dev/null <<EOF
+x
+i
+0x$newdiskid
+r
+w
+EOF
+	errifrc $? "? fdisk error "
+	sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
+	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
+	umount -v ${burndev}${p1}
+    fi
     if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
     then
 	[ "$domain" != "" ] && hnd="${hname}.${domain}" || hnd=$hname
@@ -222,7 +296,8 @@ function sdm_burndevfile() {
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"
     else
-	echo "% IMG '$dimg' is not sdm-enhanced; Burn data will not be written"
+	echo $"% IMG '$dimg' is not sdm-enhanced
+  Logs and configuration updates will not be written"
     fi
 }
 #

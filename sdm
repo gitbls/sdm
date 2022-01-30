@@ -343,6 +343,7 @@ dtoverlay:$dtoverlay
 dtparam:$dtparam
 ecolors:$ecolors
 eeprom:$eeprom
+expandroot:$expandroot
 exports:$exports
 fdirtree:$fdirtree
 fgadgetmode:$fgadgetmode
@@ -475,6 +476,7 @@ Command Switches for --customize and --burn or as noted
  --dtparam           Add dtparam=string setting to /boot/config.txt (can be used multiple times)
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
  --eeprom str        Set the Pi eeprom directory
+ --expand-root       Expand the root partition after burning it to a device
  --exports file      Copy named file to /etc/exports
  --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
  --fstab file        Append file to /etc/fstab
@@ -539,7 +541,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V5.1"
+version="V5.2"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -577,6 +579,7 @@ dtoverlay=""                #Collected --dtoverlay settings
 dtparam=""                  #Collected --dtparam settings
 ecolors="blue:gray:red"     #fg:bg:cursor
 eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
+expandroot=0                #1=Expand root after burning it to a device
 exports=""                  #If set, copy file to /etc/exports
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
@@ -681,7 +684,7 @@ b1script:,b2script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
-domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,exports:,extend,\
+domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,os:,\
@@ -738,6 +741,7 @@ do
 	--dtparam)     [ "$dtparam" == "" ]   && dtparam="$2"   || dtparam="$dtparam|$2" ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
+	--expand-root) expandroot=1  ; shift 1 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
 	--exports)     exports=$2    ; shift 2 ;;
 	--extend)      fextend=1     ; shift 1 ;;
@@ -878,6 +882,7 @@ cscript="$(fndotfullpath $cscript)"
 [ $fcustomize -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --customize and --shrink"
 [ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
 [ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
+[ $expandroot -eq 1 -a $burn -eq 0 ] && errexit "? Switch conflict: --expand-root only valid with --burn"
 [ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
 if [ "$aptmaint" != "" ]
 then
@@ -1245,6 +1250,7 @@ else
     # Create and populate /usr/local/sdm tree
     #
     [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/assets $SDMPT/etc/sdm/0piboot $SDMPT/etc/sdm/local-assets
+    touch $SDMPT/etc/sdm/history
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
     [ ! -d $SDMPT/usr/local/sdm ] && mkdir -p $SDMPT/usr/local/sdm/1piboot
