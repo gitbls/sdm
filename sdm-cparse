@@ -40,7 +40,7 @@ function logit {
     #
     local mnt=""
     [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
-    echo "$(thisdate) $1" >> $mnt/etc/sdm/history
+    [ -f $mnt/etc/sdm/history ] && echo "$(thisdate) $1" >> $mnt/etc/sdm/history
 }
 
 function logtoboth {
