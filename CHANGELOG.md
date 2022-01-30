@@ -1,5 +1,9 @@
 # Changelog
 
+## V5.2
+
+* Add --expand-root. When used with --burn, expands the root partition on the SSD/SD Card after burning. This eliminates the need for the resize/reboot when first booting the system, which, by the way, is automatically disabled when you use --expand-root.
+
 ## V5.1
 
 * sdm now creates, but doesn't use, /etc/sdm/local-assets in the IMG, for your use in Custom Phase Scripts
