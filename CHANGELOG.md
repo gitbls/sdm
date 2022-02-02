@@ -1,5 +1,11 @@
 # Changelog
 
+## V5.3
+
+* Improve status message readability at --shrink completion
+* When burning, don't set hostname to an fqdn if --domain specified, leaving that to the user. However, fqdn IS added to /etc/hosts entry 127.0.0.1
+* Fix edge case in --shrink that threw an incorrect message
+
 ## V5.2
 
 * Add --expand-root. When used with --burn, expands the root partition on the SSD/SD Card after burning. This eliminates the need for the resize/reboot when first booting the system, which, by the way, is automatically disabled when you use --expand-root.
