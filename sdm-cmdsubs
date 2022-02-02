@@ -47,8 +47,6 @@ function expandpartition() {
     newsize=$((devsize - 1 ))             # 512byte blocks
     partsize=$(cat /sys/block/$dev/$part/size)  # 512byte blocks
 
-    # Print both GB and GiB
-    #rndup=$(((5*gb)/100))      #round up the hundredth digit
     pbytes=$((partsize*512))
     nbytes=$(((devsize*512)-$partend+$pbytes))
     pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($pbytes/$gb, 2)))")
@@ -175,8 +173,11 @@ EOF
     fi
     if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
     then
-	[ "$domain" != "" ] && hnd="${hname}.${domain}" || hnd=$hname
-	[ "$domain" != "" ] && shn=$hnd || shn=""
+	# don't include domain name. Leave that to user
+	# [ "$domain" != "" ] && hnd="${hname}.${domain}" || hnd=$hname
+	# [ "$domain" != "" ] && shn=$hnd || shn=""
+	hnd=$hname
+	[ "$domain" != "" ] && shn="${hname}.${domain}" || shn=""
 	logtoboth "> Set hostname '$hnd'"
 	echo $hnd > $SDMPT/etc/hostname
 	sed -i "s/127.0.1.1.*raspberrypi/127.0.1.1\t$hname $shn/g" $SDMPT/etc/hosts
@@ -320,6 +321,8 @@ sdm_ppart() {
 }
 
 sdm_shrink() {
+    local gb=$((1024*1024*1024)) gib=$((1000*1000*1000))
+
     [ $dimgdev -eq 1 ] && errexit "? --shrink only operates on IMG files"
     loopdev=""
     fstype=""
@@ -394,15 +397,18 @@ sdm_shrink() {
     errifrc $? "? resize2fs problem"
     # Strip everything before ": " leaving only the new partition size, then up it a bit
     newsize=${oresize##*: }
-    newsize=$((newsize+1024))
+    newsize=$((newsize+8))
 
     # uncomment for debug
     #echo "> Shrink data"
     #echo "  Partition Start: $partstart"
     #echo "  Partition End:   $partend"
     #echo "  Partition Size:  $partsize"
+    #echo "  New size: $newsize"
+    #echo "  bc: $bc"
+    #echo "  bs: $bs"
 
-    [ $bc -eq $newsize ] && errexit "? Image cannot be shrunk any further"
+    [ $bc -le $newsize ] && errexit "% Image cannot be shrunk any further"
 
     # Shrink the file system
     #logger "Shrink the file system"
@@ -434,8 +440,11 @@ sdm_shrink() {
     truncate -s ${endsize%B} $dimg
     errifrc $? "? Truncate failed with status "
     echo "* Shrink complete"
-    mb=$((1024*1024))
     asize=$(stat --printf %s $dimg)
-    echo "  IMG '$dimg' was $((bsize/mb))MB [$bsize bytes] now $((asize/mb))MB [$asize bytes]"
+    pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gb, 2)))")
+    pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gib, 2)))")
+    ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($asize/$gb, 2)))")
+    ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($asize/$gib, 2)))")
+    echo "  IMG '$dimg' was ${pgbytes}GB (${pgibytes}GiB) now ${ngbytes}GB (${ngibytes}GiB)"
     return
 }
