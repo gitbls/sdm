@@ -1,5 +1,9 @@
 # Changelog
 
+## V5.3a
+
+* Buglet fix: Incorrect check for /mnt/sdm existence
+
 ## V5.3
 
 * Improve status message readability at --shrink completion
