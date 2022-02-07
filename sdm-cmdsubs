@@ -127,7 +127,7 @@ function sdm_burndevfile() {
     #
     # Set hostname into the image
     #
-    xsettings="apip apssid b1script b2script bootsetpairs bootscripts dhcpcd domain exports expandroot keymap locale noreboot"
+    xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain exports expandroot keymap locale noreboot"
     xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait"
     xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
     # Save settings made with the --burn command
@@ -137,8 +137,8 @@ function sdm_burndevfile() {
 	eval b$e=\${!e}
     done
     readparams                    # Read settings from the SD card
+    [ "$bb0script" != "$b0script" ] && b0script=$bb0script
     [ "$bb1script" != "$b1script" ] && b1script=$bb1script
-    [ "$bb2script" != "$b2script" ] && b2script=$bb2script
     [ "$bdomain" != "" ] && domain=$bdomain
     [ $breboot -eq 1 ] && reboot=$breboot
     [ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
@@ -191,21 +191,21 @@ EOF
 	[ "$bkeymap" != "" ] && keymap=$bkeymap && echo "keymap=$bkeymap" >> $SDMPT/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && timezone=$btimezone && echo "timezone=$btimezone" >> $SDMPT/etc/sdm/auto-1piboot.conf
 	[ "$blocale" != "" ] && local=$blocale && echo "locale=$blocale" >> $SDMPT/etc/sdm/auto-1piboot.conf
-	if [ "$b2script" != "" ]
+	if [ "$b1script" != "" ]
 	then
-	    if [ -f $b2script ]
+	    if [ -f $b1script ]
 	    then
-		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b2script) ]
+		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b1script) ]
 		then
-		    logtoboth "> Copy '$b2script' to /etc/sdm/assets"
-		    cp $b2script $SDMPT/etc/sdm/assets
-		    chmod 755 $SDMPT/etc/sdm/assets/$(basename $b2script)
+		    logtoboth "> Copy '$b1script' to /etc/sdm/assets"
+		    cp $b1script $SDMPT/etc/sdm/assets
+		    chmod 755 $SDMPT/etc/sdm/assets/$(basename $b1script)
 		fi
 	    else
-		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b2script) ]
+		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b1script) ]
 		then
-		   logtoboth "? --b2script '$b2script' not found"
-		   b2script=""
+		   logtoboth "? --b1script '$b1script' not found"
+		   b1script=""
 		fi
 	    fi
 	fi
@@ -275,24 +275,24 @@ EOF
 	    chmod 755 $bcp
 	fi
   	writeconfig               # Write updated params to the SD card
-	if [ "$b1script" != "" ]
+	if [ "$b0script" != "" ]
 	then
-	    logtoboth "> Execute function 'do_b1script' in --b1script '$b1script'"
-	    source $b1script
-	    ftype=$(type -t do_b1script)
-	    [ "$ftype" != "function" ] && logtoboth ">%Function 'do_b1script' not found in '$b1script'; Skipping..."
-	    [ "$ftype" == "function" ] && do_b1script
+	    logtoboth "> Execute function 'do_b0script' in --b0script '$b0script'"
+	    source $b0script
+	    ftype=$(type -t do_b0script)
+	    [ "$ftype" != "function" ] && logtoboth ">%Function 'do_b0script' not found in '$b0script'; Skipping..."
+	    [ "$ftype" == "function" ] && do_b0script
 	fi
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords per --password-pi, --password-user, and/or --password-root"
 	    systemd-nspawn -q --directory=$SDMPT /usr/local/sdm/sdm-phase1 burn-change-passwords $(basename $bcp) < $(tty)
 	fi
-	if [ "$b2script" != "" ]
+	if [ "$b1script" != "" ]
 	then
-	    logtoboth "> Run --b2script '$b2script'"
+	    logtoboth "> Run --b1script '$b1script'"
 	    declare -x SDMNSPAWN="Burn1"
-	    systemd-nspawn -q --directory=$SDMPT /usr/local/sdm/sdm-phase1 b2script $b2script < $(tty)
+	    systemd-nspawn -q --directory=$SDMPT /usr/local/sdm/sdm-phase1 b1script $b1script < $(tty)
 	fi
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"

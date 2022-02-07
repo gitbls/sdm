@@ -317,8 +317,8 @@ apssid:$apssid
 aptcache:$aptcache
 aptdistupgrade:$aptdistupgrade
 batch:$fbatch
+b0script:$b0script
 b1script:$b1script
-b2script:$b2script
 bootadd:$bootadd
 bootconfig:$bootconfig
 bootscripts:$bootscripts
@@ -450,8 +450,8 @@ Command Switches for --customize and --burn or as noted
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
  --batch             Perform customize operation and exit
- --b1script script   Script to run after burn has completed
- --b2script script   Like --b1script, but done in nspawn (can do both b1script and b2script)
+ --b0script script   Script to run after burn has completed
+ --b1script script   Like --b0script, but done in nspawn (can do both b0script and b1script)
  --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt
  --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
  --bootset key:value,key:value,.. Set boot-time device settings (see README)
@@ -541,7 +541,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V5.3a"
+version="V5.4"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -550,8 +550,8 @@ aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
 aptfunction=0               #1=Some apt batch function specified
-b1script=""                 #Customization script to run after burn
-b2script=""                 #Like b1script but done in nspawn
+b0script=""                 #Customization script to run after burn
+b1script=""                 #Like b0script but done in nspawn
 bootadd=""                  #Items to add to /boot/config.txt
 bootconfig=""               #/boot/config.txt items to set
 bootscripts=0               #Run FirstBoot custom boot scripts
@@ -680,7 +680,7 @@ custom4=""                  #For custom use
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:,\
-b1script:,b2script:,\
+b0script:,b1script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
@@ -710,8 +710,8 @@ do
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
+	--b0script)    b0script=$2   ; shift 2 ;;
 	--b1script)    b1script=$2   ; shift 2 ;;
-	--b2script)    b2script=$2   ; shift 2 ;;
 	--batch)       fbatch=1      ; shift 1 ;;
 	--bootadd)     bootadd=$2    ; shift 2 ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
@@ -1084,13 +1084,13 @@ then
     [ ! -f $hotspot ] && errexit "? --hotspot file '$hotspot' not found"
     reboot=1
 fi
+if [ "$b0script" != "" ]
+then
+    [ ! -f $b0script ] && errexit "? --b0script file '$b0script' not found"
+fi
 if [ "$b1script" != "" ]
 then
     [ ! -f $b1script ] && errexit "? --b1script file '$b1script' not found"
-fi
-if [ "$b2script" != "" ]
-then
-    [ ! -f $b2script ] && errexit "? --b2script file '$b2script' not found"
 fi
 if [ "$vnc" != "" ]
 then

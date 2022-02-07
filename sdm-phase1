@@ -101,14 +101,14 @@ case "$cmd" in
 	logtoboth "* apt maintenance Completed"
 	exit 0
 	;;
-    b2script)   # Burn time run script 
+    b1script)   # Burn time run script 
 	fn="/etc/sdm/assets/$(basename $cmdoptions)"
 	if [ -f $fn ]
 	then
-	    logtoboth "> Execute --b2script '$cmdoptions' [$fn] in nspawn"
+	    logtoboth "> Execute --b1script '$cmdoptions' [$fn] in nspawn"
 	    /etc/sdm/assets/$(basename $cmdoptions)
 	else
-	    logtoboth "? Internal error: --b2script file '$fn' not found"
+	    logtoboth "? Internal error: --b1script file '$fn' not found"
 	fi
 	exit 0
 	;;
@@ -515,6 +515,7 @@ then
     systemctl disable triggerhappy.socket
     #Eliminate thd.socket errors from udev
     [ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
+    [ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/thd.sdm
 fi
 
 if ! [[ "$poptions" =~ "noupdate" ]]

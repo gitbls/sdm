@@ -34,10 +34,10 @@ logtoboth "* Start Phase 0 image customization"
 #
 
 logtoboth "*+Phase 0 sdm configuration"
-if [ "$b2script" != "" ]
+if [ "$b1script" != "" ]
 then
-    logtoboth "> Copy --b2script '$b2script' to $SDMPT/etc/sdm/assets"
-    cp $b2script $SDMPT/etc/sdm/assets
+    logtoboth "> Copy --b1script '$b1script' to $SDMPT/etc/sdm/assets"
+    cp $b1script $SDMPT/etc/sdm/assets
 fi
 #
 # copy hotspot configuration file into the image
