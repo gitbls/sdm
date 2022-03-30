@@ -1,8 +1,13 @@
 # Changelog
 
+## V5.5
+
+* Correct check for any partitions on the burn target device being mounted and provide a useful message if so.
+
 ## V5.4
 
 * WARNING: In order to bring consistency between the burn phase and the customization phase, switch `--b1script` has been renamed to `--b0script` and `--b2script` has been renamed to `--b1script`. Apologies for any inconvenience this causes. See https://github.com/gitbls/sdm/wiki/Burn-Scripts for details.
+
 ## V5.3a
 
 * Buglet fix: Incorrect check for /mnt/sdm existence
