@@ -70,6 +70,13 @@ function sdm_burndevfile() {
 	# Burning to a device
 	#
 	[ "$burndev" == "" ] && errexit "? No storage device specified"
+	perr=0
+	for p in 1 2 3 4
+	do
+	    pdev="${burndev}${p}"
+	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
+	done
+	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to dismount each listed partition, then redo the burn command"
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
 	write_burnmsg "* Burn '$dimg' to '$burndev'..."
