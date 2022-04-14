@@ -49,13 +49,13 @@ sdm will make the following changes to your IMG file:
 No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
 ## Burn the image onto the SD Card
-`sudo /usr/local/sdm/sdm --burn /dev/sde --hostname mypi1 2020-08-20-raspios-buster-armhf-full.img`
+`sudo /usr/local/sdm/sdm --burn /dev/sde --hostname mypi1 --expand-root 2020-08-20-raspios-buster-armhf-full.img`
 
 ## Boot and Go
 
 Load the SD card into a Pi and power it up. The system will come up as it always does:
 
-* Resizes the root file system and restarts automatically
+* **WILL NOT:** Resize the root file system and restarts automatically, thanks to the use of `--expand-root`, which expands the root file system on the SD Card after the burn completes
 * After the system restarts it goes through a complete system startup, just as it always does on a fresh SD Card
 * Toward the end of the boot process an sdm systemd service script runs once and sets the WiFi country, unblocking WiFi. It will also take other actions as needed to fulfill the switch settings.
 * When the system boot is fully complete (it can take a while on a large SD card!), the system automatically restarts again
