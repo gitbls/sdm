@@ -1,0 +1,34 @@
+#!/bin/bash
+#
+# This file is sourced by other sdm scripts
+#
+function readparams() {
+    #
+    # Restores the global variables from /etc/sdm/cparams
+    #
+    local sifs=$IFS rpifun value mpt="" cf="/etc/sdm/cparams"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mpt="$SDMPT" && cf="$SDMPT/$cf"
+    if [ -f $cf ]
+    then
+	IFS=":"
+	while read rpifun value
+	do
+	    if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
+            then
+		value="${value%%\#*}"    # Del EOL comments
+		value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+		value="${value%\"}"     # Del opening double-quotes 
+		value="${value#\"}"     # Del closing double-quotes 
+		value="${value%\'}"     # Del opening single-quotes 
+		value="${value#\'}"     # Del closing single-quotes 
+		printf -v "$rpifun" "%s" "$value"     #eval "${rpifun}=\"$value\""
+
+	    fi
+	done < $cf
+	IFS=$sifs
+    fi
+    [ -f $mpt/$sdmdir/sdm-cparse ] && source $mpt/$sdmdir/sdm-cparse || echo "? Internal error: File '$mpt/$sdmdir/sdm-cparse' not found in readparams"
+    return
+}
+# Call the function after we've been sourced
+readparams
