@@ -1,5 +1,18 @@
 # Changelog
 
+## V6.0
+
+* Test and verify that sdm works correctly with RasPiOS 2022-04-07. See https://github.com/gitbls/sdm/wiki/Hint:-Using-sdm-on-2022-04-04-and-later-RasPiOS-images for details.
+  * If using sdm on pre-2022-04-04 images, the user 'pi' password is changed by default (password of your choice, of course!)
+  * If using sdm on 2022-04-04 or later images, the user 'pi' password is only changed if you specify `--user pi` on the command line
+* `--user` is now **required** on customizations. For pre-2022-04-04 you can specify `--user pi` if you don't want a new user created. For 2022-04-04 or later images, use this to create your favorite username, or use `--user pi` if desired
+* Remove requirement than sdm must reside in /usr/local/sdm. It can now be anywhere in the file system
+  * To install sdm into a directory other than /usr/local/sdm on your running system, provide the directory name as the first argument to `EZsdmInstaller`. You must download and run EZsdmInstaller locally with `sudo /path/to/EZsdmInstaller` */path/to/install-sdm* to use this capability
+  * Use `--sdmdir` */path/to/dir* when customizing to change where sdm places itself in the customized image
+  * **IMPORTANT: This creates a (slightly) incompatible change in Custom Phase scripts.** See the 'loadparams' function in sdm-customphase and update your Custom Phase script accordingly
+* Improved error checking in EZsdmInstaller
+* Enable command line switch `--L10N` and `--L10n` in addition to `--l10n`
+
 ## V5.5
 
 * Correct check for any partitions on the burn target device being mounted and provide a useful message if so.
