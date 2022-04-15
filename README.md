@@ -34,10 +34,10 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 ## Install sdm
 `curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
-* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org/). Pick the latest (Bullseye) image in the folder **raspios_full_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit Beta), or **raspios_lite_arm64** (64-bit Beta), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
+* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D). Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
 ## Customize the image with sdm
-`sudo /usr/local/sdm/sdm 2020-08-20-raspios-buster-armhf-full.img --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart`
+`sudo /usr/local/sdm/sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --user myuser --password-user mypassword 2022-04-04-raspios-bullseye-armhf.img `
 
 sdm will make the following changes to your IMG file:
 * Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running
@@ -49,13 +49,13 @@ sdm will make the following changes to your IMG file:
 No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
 ## Burn the image onto the SD Card
-`sudo /usr/local/sdm/sdm --burn /dev/sde --hostname mypi1 --expand-root 2020-08-20-raspios-buster-armhf-full.img`
+`sudo /usr/local/sdm/sdm --burn /dev/sde --hostname mypi1 --expand-root 2022-04-04-raspios-buster-armhf.img`
 
 ## Boot and Go
 
 Load the SD card into a Pi and power it up. The system will come up as it always does:
 
-* **WILL NOT:** Resize the root file system and restarts automatically, thanks to the use of `--expand-root`, which expands the root file system on the SD Card after the burn completes
+* **WILL NOT:** Resize the root file system and restarts automatically, thanks to the use of `--expand-root`, which expands the root file system on the SD Card after the burn completes.
 * After the system restarts it goes through a complete system startup, just as it always does on a fresh SD Card
 * Toward the end of the boot process an sdm systemd service script runs once and sets the WiFi country, unblocking WiFi. It will also take other actions as needed to fulfill the switch settings.
 * When the system boot is fully complete (it can take a while on a large SD card!), the system automatically restarts again
@@ -63,7 +63,7 @@ Load the SD card into a Pi and power it up. The system will come up as it always
 When the system comes back up your Pi is all happy, ready to go, and configured with:
 
 * **The latest RasPiOS updates installed** for all installed packages
-* **Password set** for user 'pi'
+* **User created** and password set for username and password of your choice
 * **Hostname** set to *mypi1*, or whatever you choose to use as the hostname
 * **Keymap**, **Locale**, and **Timezone** configured the same as the system on which you are running sdm (easily changeable, of course)
 * **Wifi** configured and operational
