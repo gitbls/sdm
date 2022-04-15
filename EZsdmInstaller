@@ -1,11 +1,14 @@
 #!/bin/bash
 #
+# V6.0
+#
 # EZ Installer. Run from the bash command line:
 #
 #    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 #
 # Installs into /usr/local/sdm by default
-# If you specify a different directory (first argument), it assumes that sudo is not required
+# You can specify a different directory as the first argument to the script. To use this
+# you must download the script to your computer and start it from the command line.
 #
 # At the moment requires apt-based package installs. Easy to fix, of course. It's only code...
 #
@@ -57,11 +60,19 @@ myscript="$0 $@"
 [ "$SDMLAN" != "" ] && src=$SDMLAN || src="https://raw.githubusercontent.com/gitbls/sdm/master"
 [ "$SDMLAN" != "" ] && curl="scp" || curl="curl"
 
-[ "$dir" == "/usr/local/sdm" ] && sudo="sudo" || sudo=""
+if [ -d $dir ]
+then
+    [ ! -w $dir ] && sudo="sudo"      # Directory exists; do we have write access?
+else
+    [ ! -w ${dir%/*} ] && sudo="sudo" # Directory does not exist; do we have write access to where it will be created?
+fi
+
+echo "* Make directory '$dir' and download sdm files to it"
 
 $sudo mkdir -p $dir $dir/1piboot
 
-for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs \
+dlerrors=0
+for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
 	     sdm-firstboot sdm-apt-cacher sdm-apt \
 	     sdm-customphase sdm-apps-example sdm-xapps-example \
 	     sdm-cportal sdm-hotspot sdm-logmsg \
@@ -70,31 +81,38 @@ do
     echo "Downloading '$f' to '$dir/$f'"
     if [ "$SDMLAN" == "" ]
     then
-	$sudo curl --silent --show-error -L $src/$f -o $dir/$f
+	$sudo curl --fail --silent --show-error -L $src/$f -o $dir/$f
+	sts=$?
     else
 	scp $SDMLAN/$f $dir/$f
+	sts=$?
+    fi
+    if [ ! -f $dir/$f -o $sts -ne 0 ]
+    then
+	echo "? Error downloading '$src/$f' to $dir"
+	dlerrors=$((dlerrors+1))
     fi
 done
 
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
+echo ""
+echo "* Ensure required packages are installed: systemd-container qemu-user-static binfmt-support"
+[[ $EUID -ne 0 ]] && sudo="sudo"
+$sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static binfmt-support
 
-#
-# If installed into the system (/usr/local/sdm) make sure that prerequisites installed
-#
-if [ "$dir" == "/usr/local/sdm" ]
+echo $"
+* Invoke sdm with 'sudo $dir/sdm'
+  See the sdm documentation at https://github.com/gitbls/sdm
+
+* Pro tip: Add to your .bashrc: alias sdm='sudo $dir/sdm' 
+"
+
+if [ $dlerrors -ne 0 ]
 then
-    echo "* Ensure required packages are installed: systemd-container qemu-user-static binfmt-support"
-    $sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static binfmt-support
-    echo ""
-    echo "% Invoke sdm with 'sudo $dir/sdm'"
-    echo "  See the sdm documentation at https://github.com/gitbls/sdm"
-    echo ""
-    echo "Pro tip: Add to your .bashrc: alias sdm='sudo /usr/local/sdm/sdm' "
-    echo ""
-else
-    echo ""
-    echo "You can inspect sdm in $1..."
-    echo "To use sdm:"
-    echo "  Rerun this script ($myscript) and install into /usr/local/sdm"
+    echo $"%% The sdm download was not complete
+$dlerrors file(s) not downloaded
+This must be corrected before you can use sdm
+If you need help, open an issue at https://github.com/gitbls/sdm
+"
 fi
