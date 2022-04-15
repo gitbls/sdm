@@ -309,14 +309,14 @@ timesyncwait() {
 #
 if [ "$1" == "" ]
 then
-    /usr/local/sdm/sdm-firstboot "fork" &  # Fork and restart myself so forking service is started
+    $0 "fork" &         # Fork and restart myself so forking service is started
     exit
 fi
 #
 # Now running in the fork
 #
 declare -x SDMNSPAWN="FirstBoot"
-source /usr/local/sdm/sdm-cparse ; readparams
+source /etc/sdm/sdm-readparams
 
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
 #
@@ -338,7 +338,7 @@ else
     then
 	[ "$wificountry" == "" ] && set_wifi_country US 
 	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
-	/usr/local/sdm/sdm-cportal --sdm --apip $apip --apssid $apssid --logging /usr/local/sdm/sdm-logmsg
+	$sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid --logging $sdmdir/sdm-logmsg
 	bootlog "Re-enable dhcpcd Service"
 	systemctl daemon-reload > /dev/null 2>&1
 	systemctl enable dhcpcd > /dev/null 2>&1
@@ -359,7 +359,7 @@ doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated FirstBoot"
 #
 # Final FirstBoot time processing: custom scripts and reboot
 #
-[ "$bootscripts" == "1" ] && doscripts "/usr/local/sdm/1piboot/0*-*.sh" "Custom FirstBoot" || bootlog "Skip Custom FirstBoot Scripts"
+[ "$bootscripts" == "1" ] && doscripts "$sdmdir/1piboot/0*-*.sh" "Custom FirstBoot" || bootlog "Skip Custom FirstBoot Scripts"
 
 logit "> FirstBoot Disable sdm-firstboot service"
 systemctl disable sdm-firstboot > /dev/null 2>&1

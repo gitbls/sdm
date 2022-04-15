@@ -13,7 +13,7 @@
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
-source /usr/local/sdm/sdm-cparse ; readparams
+source /etc/sdm/sdm-readparams
 
 logtoboth "* Start manual apt operation"
 logtoboth "> apt command: $2 $3 $4 $5 $6 $7 $8"

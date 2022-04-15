@@ -390,6 +390,7 @@ sdfnresolve:$sdfnresolve
 sdfnsystem:$sdfnsystem
 sdfntimesync:$sdfntimesync
 sdfnuser:$sdfnuser
+sdmdir:$sdmdir
 showapt:$showapt
 showpwd:$showpwd
 src:$src
@@ -514,6 +515,7 @@ Command Switches for --customize and --burn or as noted
  --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot
  --restart           Restart the first boot of the system after 20 seconds
  --rootpwd           Set a root password into the image
+ --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
  --showapt           Display apt output as well as logging it
  --showpwd           Log password in /etc/sdm/history
  --ssh none|socket|service  No ssh or ssh sockets [Default: ssh service]
@@ -541,7 +543,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V5.5"
+version="V6.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -642,8 +644,9 @@ sdfnlogin=""                #File to augment /etc/systemd/logind.conf
 sdfnnetwork=""              #File to augment /etc/systemd/networkd.conf
 sdfnresolve=""              #File to augment /etc/systemd/resolved.conf
 sdfnsystem=""               #File to augment /etc/systemd/system.conf
-sdfntimesync=""             #file to augment /etc/systemd/timesyncd.conf
+sdfntimesync=""             #File to augment /etc/systemd/timesyncd.conf
 sdfnuser=""                 #File to augment /etc/ysstemd/user.conf
+sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
 showpwd=0                   #1=Log password into /etc/sdm/history
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
@@ -686,11 +689,11 @@ cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
-hotspot:,info,journal:,keymap:,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
+hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,os:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
 redo-customize,regen-ssh-host-keys,restart,\
-rootpwd,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
+rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
 sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
 vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
@@ -785,6 +788,7 @@ do
 	--regen-ssh-host-keys) regensshkeys=1  ; shift 1 ;;
 	--restart)      reboot=1     ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
+	--sdmdir)      sdmdir=$2     ; shift 2 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
 	--showpwd)     showpwd=1     ; shift 1 ;;
 	--shrink)      fshrink=1     ; shift 1 ;;
@@ -888,6 +892,10 @@ if [ "$aptmaint" != "" ]
 then
     [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
     aptfunction=1
+fi
+if [ $fcustomize -eq 1 ]
+then
+    [ "$myuser" == "" ] && errexit "? A username must be specified using the --user switch"
 fi
 #
 # Ensure action requested: burn, mount, explore, aptmaint, customize
@@ -1201,8 +1209,8 @@ then
     if [ "$aptmaint" != "" ]
     then
 	fbatch=1
-	spawncmd="/usr/local/sdm/sdm-phase1 apt $aptmaint"
-	if [ ! -f $SDMPT/usr/local/sdm/sdm-phase1 ]
+	spawncmd="$sdmdir/sdm-phase1 apt $aptmaint"
+	if [ ! -f $SDMPT/$sdmdir/sdm-phase1 ]
 	then
 	    echo "? sdm has not customized $dimgdevname '$dimg'"
 	    docleanup
@@ -1219,7 +1227,7 @@ then
 else
     #
     # Doing a customization
-    # Create and populate /usr/local/sdm and /etc/sdm in the IMG
+    # Create and populate $sdmdir and /etc/sdm in the IMG
     #
     if [ -f $sdmdone -a $redocustomize -eq 0 ]
     then
@@ -1245,35 +1253,37 @@ else
 	declare -x SDMPT=$savesdmpt           # Redefine SDMPT, as docleanup unsets it
     fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
-    spawncmd="/usr/local/sdm/sdm-phase1"
+    spawncmd="$sdmdir/sdm-phase1"
     #
-    # Create and populate /usr/local/sdm tree
+    # Create and populate $sdmdir tree
     #
     [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/assets $SDMPT/etc/sdm/0piboot $SDMPT/etc/sdm/local-assets
     touch $SDMPT/etc/sdm/history
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
-    [ ! -d $SDMPT/usr/local/sdm ] && mkdir -p $SDMPT/usr/local/sdm/1piboot
-    cp $src/{sdm,sdm-phase0,sdm-phase1,sdm-cparse} $SDMPT/usr/local/sdm
-    cp $src/{sdm-apt,sdm-apt-cacher,sdm-firstboot} $SDMPT/usr/local/sdm
-    cp $src/{sdm-hotspot,sdm-cportal,sdm-logmsg,sdm-cmdsubs} $SDMPT/usr/local/sdm
-    chmod 755 $SDMPT/usr/local/sdm/*
-    [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  $SDMPT/usr/local/sdm
-    [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} $SDMPT/usr/local/sdm
+    mkdir -p $SDMPT/$sdmdir/1piboot
+    for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg
+    do
+	cp $src/$f $SDMPT/$sdmdir
+    done
+    cp $src/sdm-readparams $SDMPT/etc/sdm
+    chmod 755 $SDMPT/$sdmdir/*
+    [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  $SDMPT/$sdmdir
+    [ "${xappfile:0:1}" == "@" ] && cp -f ${xappfile:1:999} $SDMPT/$sdmdir
     logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
-	cp -f $src/1piboot/*.sh $SDMPT/usr/local/sdm/1piboot
+	cp -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
 	if [ $bootscripts -eq 1 ]
 	then
-	    [ -f $SDMPT/usr/local/sdm/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports '--disable triggerhappy'; suggest removing /usr/local/sdm/1piboot/010-disable-triggerhappy.sh"
-	    [ -f $SDMPT/usr/local/sdm/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing /usr/local/sdm/1piboot/030-disable-rsyslog.sh"
+	    [ -f $SDMPT/$sdmdir/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports '--disable triggerhappy'; suggest removing $sdmdir/1piboot/010-disable-triggerhappy.sh"
+	    [ -f $SDMPT/$sdmdir/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing $sdmdir/1piboot/030-disable-rsyslog.sh"
 	fi
-	chmod 755 $SDMPT/usr/local/sdm/1piboot/*.sh
+	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
     logtoboth "> Command Line: $cmdline"
     logfreespace
-    logtoboth "> Copy sdm to /usr/local/sdm in the $dimgdevname"   # Yes, already done above ;)
+    logtoboth "> Copy sdm to $sdmdir in the $dimgdevname"   # Yes, already done above ;)
     if [ $loadl10n -eq 1 ]
     then
 	readl10n
@@ -1287,21 +1297,24 @@ else
     then
 	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"
 	cp $pi1bootconf $SDMPT/etc/sdm/1piboot.conf
-	cp $pi1bootconf $SDMPT/usr/local/sdm/1piboot                                         #Drop a copy in /usr/local/sdm in the IMG
+	cp $pi1bootconf $SDMPT/$sdmdir/1piboot                                         #Drop a copy in $sdmdir in the IMG
     else
-	cp $src/1piboot/1piboot.conf $SDMPT/etc/sdm/
-	cp $src/1piboot/1piboot.conf $SDMPT/usr/local/sdm/1piboot
+	if [ -d $src/1piboot -a -f $src/1piboot/1piboot.conf ]
+	then
+	    cp $src/1piboot/1piboot.conf $SDMPT/etc/sdm/
+	    cp $src/1piboot/1piboot.conf $SDMPT/$sdmdir/1piboot
+	fi
     fi
-    chmod 644 $SDMPT/etc/sdm/1piboot.conf
+    [ -f $SDMPT/etc/sdm/1piboot.conf ] && chmod 644 $SDMPT/etc/sdm/1piboot.conf
     if [ "$cscript" != "" ]
     then
-	logtoboth "> Copy Custom Phase Script '$cscript' to /usr/local/sdm in the $dimgdevname"
-	cp $cscript $SDMPT/usr/local/sdm
+	logtoboth "> Copy Custom Phase Script '$cscript' to $sdmdir in the $dimgdevname"
+	cp $cscript $SDMPT/$sdmdir
     fi
-    chmod 755 $SDMPT/usr/local/sdm/*
+    chmod 755 $SDMPT/$sdmdir/*
     # If --apps and/or --xapps are files copy them also. If not, clear the variables for writeconfig
-    [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  $SDMPT/usr/local/sdm || appfile=""
-    [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} $SDMPT/usr/local/sdm || xappfile=""
+    [ "${appfile:0:1}" == "@" ]  && cp ${appfile:1:999}  $SDMPT/$sdmdir || appfile=""
+    [ "${xappfile:0:1}" == "@" ] && cp ${xappfile:1:999} $SDMPT/$sdmdir || xappfile=""
     #
     # Write the config settings into the IMG
     #
@@ -1309,7 +1322,7 @@ else
     #
     # Perform Phase 0 on the image
     #
-    $SDMPT/usr/local/sdm/sdm-phase0
+    $SDMPT/$sdmdir/sdm-phase0
     touch $sdmdone
     
     echo "* nspawn into image '$dimg' for Phase 1"

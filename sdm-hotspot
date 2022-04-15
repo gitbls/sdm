@@ -49,7 +49,7 @@ function doapt() {
 # $SDMNSPAWN != "" if called from within sdm
 if [ "$SDMNSPAWN" != "" ]
 then
-    source /usr/local/sdm/sdm-cparse ; readparams
+    source /etc/sdm/sdm-readparams
     # sdm copies the hotspot config file into the image in sdm-phase0
     fhotspot="/etc/sdm/assets/$(basename $hotspot)"
 else
@@ -302,7 +302,7 @@ then
 	logtoboth "> Set hostapd and dnsmasq to enable during FirstBoot"
 	cat > /etc/sdm/0piboot/040-hostapd-enable.sh <<EOF
 #!/bin/bash
-#source /usr/local/sdm/sdm-cparse ; readparams
+#source /etc/sdm/sdm-readparams  #Not needed at the moment
 logger "FirstBoot: Enable hostapd and dnsmasq"
 systemctl enable hostapd
 rfkill unblock wlan

@@ -25,7 +25,7 @@ function copycufiles() {
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
 declare -x SDMNSPAWN="Phase0"
-source $SDMPT/usr/local/sdm/sdm-cparse ; readparams
+source $SDMPT/etc/sdm/sdm-readparams
 
 logtoboth "* Start Phase 0 image customization"
 #
@@ -157,7 +157,7 @@ fi
 
 if [ "$cscript" != "" ]
 then
-    csfn="$SDMPT/usr/local/sdm/$(basename $cscript)"
+    csfn="$SDMPT/$sdmdir/$(basename $cscript)"
     logtoboth "> Run Custom Phase Script '$csfn' Phase 0"
     $csfn 0
 fi

@@ -3,12 +3,10 @@
 # Sample sdm Custom Phase script
 #
 function loadparams() {
-    local cf="/usr/local/sdm/sdm-cparse"
-    [ "$SDMNSPAWN" == "Phase0" ] && cf="$SDMPT/$cf"
-    source $cf
-    readparams
+    local mpt=""
+    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
+    source $mpt/etc/sdm/sdm-readparams
 }
-
 # $1 is the phase: "0", "1", or "post-install"
 
 #

@@ -83,7 +83,8 @@ function dodt() {
 # Read configuration information from sdm
 #
 declare -x SDMNSPAWN="Phase1"
-source /usr/local/sdm/sdm-cparse ; readparams
+source /etc/sdm/sdm-readparams
+
 #
 # If --apt just do those and exit
 #
@@ -142,7 +143,7 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/local/sdm/sdm-firstboot
+ExecStart=$sdmdir/sdm-firstboot
 TimeoutSec=0
 RemainAfterExit=yes
 GuessMainPID=no
@@ -228,23 +229,33 @@ fi
 
 logtoboth "*+Phase 1 User configuration"
 samepwd=""
-puser="'pi'"
+puser="'$myuser'"
 susers="user"
-if [ $rootpwd -eq 1 -o "$myuser" != "" ]
+pipw="$((grep -E "^pi:" /etc/shadow) | (IFS=":" read un pw tr ; echo "$pw"))"
+[ ${#pipw} -lt 2 ] && oldpios=0 || oldpios=1 #pipw="" #pwd lt 2 on Bullseye 2022-04-04 or later. Will be a full password on earlier releases
+[ $oldpios -eq 1  -a "$myuser" == "pi" ] && myusert="" || myusert=$myuser
+# Determine if more than one password needs to be set
+[ $rootpwd -eq 1 -a "$myusert" != "" ] && muser=1 || muser=0
+[ $rootpwd -eq 1 -a $oldpios -eq 1 ] && muser=1
+[ $oldpios -eq 1 -a "$myusert" != "" ] && muser=1
+if [ $muser -eq 1 ]
 then
-    [ "$myuser" != "" ] && puser="${puser} and '$myuser'" && susers="users"
+    [ $oldpios -eq 1 -a "$myuser" != "pi" ] && puser="${puser} and 'pi'" && susers="users"        # Only ask about pi on older systems
     [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
     usesamepwd=$passwordsame
-    if [ $usesamepwd -eq 0 ]
+    if [ $usesamepwd -eq 0 -a "$susers" == "users" ]
     then
 	askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
 	echo ""
     elif [ $usesamepwd -eq 1 ]
     then
 	logtoboth "> Using same password for $susers $puser"
-	[ "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
 	[ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
 	[ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
+	if [ $oldpios -eq 1 ]
+	then
+	    [ "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
+	fi
     fi
     if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
     then
@@ -252,37 +263,48 @@ then
 	samepwd=$(getpwd)
 	echo ""
     fi
-    if [ $rootpwd -eq 1 ]
+fi
+if [ "$myusert" != "" ]
+then
+    [ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
+    # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
+    if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
     then
-	logtoboth "> Set root password"
-	[ $usesamepwd -eq 1 ] && rpwd="$samepwd" || rpwd="$passwordroot"
-	changepwd root "$rpwd"
-    else
-	logtoboth "> root password not set"
-    fi
-    if [ "$myuser" != "" ]
-    then
-	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
-	logtoboth "> Add user '$myuser' and set password"
-	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
+	logtoboth "> Add user '$myuser'"
 	useradd -M -d /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
 	usermod --groups $groups $myuser
-	[ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
-	changepwd $myuser "$upwd"
-	[ ! -d /home/$myuser ] && mkdir /home/$myuser
-	logtoboth "> Set /home/$myuser files ownership to '${myuser}:users'"
-	chown -R $myuser.users /home/$myuser
+    fi
+    [ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
+    logtoboth "> Set password for '$myuser'"
+    changepwd $myuser "$upwd"
+    [ ! -d /home/$myuser ] && mkdir /home/$myuser
+    [ "$myuser" != "pi" ] && gr="users" || gr="pi"
+    logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
+    chown -R ${myuser}.${gr} /home/$myuser
+    if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
+    then
 	logtoboth "> Add user '$myuser' to sudoers.d"
 	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
 	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
     fi
 fi
-logtoboth "> Change user 'pi' password"
-[ "$samepwd" == "" ] && samepwd="$passwordpi"
-changepwd pi "$samepwd"
-logtoboth "> Set /home/pi files ownership to 'pi.pi'"
-chown -R pi.pi /home/pi
+if [ $oldpios -eq 1 ]
+then
+    logtoboth "> Change user 'pi' password"
+    [ "$samepwd" == "" ] && samepwd="$passwordpi"
+    changepwd pi "$samepwd"
+    logtoboth "> Set /home/pi files ownership to 'pi.pi'"
+    chown -R pi.pi /home/pi
+fi
+if [ $rootpwd -eq 1 ]
+then
+    logtoboth "> Set root password"
+    [ $usesamepwd -eq 1 ] && rpwd="$samepwd" || rpwd="$passwordroot"
+    changepwd root "$rpwd"
+else
+    logtoboth "> root password not set"
+fi
 logtoboth "*+Phase 1 System and Boot Configuration"
 #
 # Handle system settings that can be done in Phase 1
@@ -411,7 +433,7 @@ fi
 #
 if [ "$aptcache" != "" ]
 then
-    /usr/local/sdm/sdm-apt-cacher client $aptcache
+    $sdmdir/sdm-apt-cacher client $aptcache
     logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
 fi
 #
@@ -530,7 +552,7 @@ fi
 
 if [ "$cscript" != "" ]
 then
-    csfn="/usr/local/sdm/$(basename $cscript)"
+    csfn="$sdmdir/$(basename $cscript)"
     logtoboth "> Run Custom Phase Script '$csfn' Phase 1" 
     $csfn 1
 else
@@ -697,7 +719,7 @@ fi
 
 if [ "$hotspot" != "" ]
 then
-    /usr/local/sdm/sdm-hotspot
+    $sdmdir/sdm-hotspot
 fi
 
 if [[ "$poptions" =~ "samba" ]]

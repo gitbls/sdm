@@ -4,5 +4,5 @@
 #
 # $1: Message to write
 #
-source /usr/local/sdm/sdm-cparse ; readparams ""
+source /etc/sdm/sdm-readparams
 bootlog "$1"
