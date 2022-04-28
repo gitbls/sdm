@@ -320,6 +320,7 @@ function setbootset() {
 		fi
 	    else
 		logtoboth "> Disable service '${c%,}'"
+		systemctl mask ${c%,} > /dev/null 2>&1
 		systemctl disable ${c%,} > /dev/null 2>&1
 	    fi
 	done
@@ -339,6 +340,7 @@ function setbootset() {
 		fi
 	    else
 		logtoboth "> Enable service '${c%,}'"
+		systemctl unmask ${c%,} > /dev/null 2>&1
 		systemctl enable ${c%,} > /dev/null 2>&1
 	    fi
 	done
