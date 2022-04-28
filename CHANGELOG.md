@@ -1,5 +1,9 @@
 # Changelog
 
+## V6.1
+
+* Mask or unmask services when enabling/disabling them via --svc-enable/--svc-disable, as appropiate. Hat tip to RonR.
+
 ## V6.0
 
 * Test and verify that sdm works correctly with RasPiOS 2022-04-07. See https://github.com/gitbls/sdm/wiki/Hint:-Using-sdm-on-2022-04-04-and-later-RasPiOS-images for details.
