@@ -1,5 +1,10 @@
 # Changelog
 
+## V6.2
+
+* Add sdm-gburn script, which burns a group of per-recipient customized SD Cards from a single IMG. Useful for classrooms or commercial distribution, for instance.
+* Correct comments for in quote-stripping code
+
 ## V6.1
 
 * Mask or unmask services when enabling/disabling them via --svc-enable/--svc-disable, as appropiate. Hat tip to RonR.
