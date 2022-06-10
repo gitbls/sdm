@@ -82,10 +82,10 @@ do
     then
 	value="${value%%\#*}"    # Del EOL comments
 	value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-	value="${value%\"}"     # Del opening double-quotes 
-	value="${value#\"}"     # Del closing double-quotes 
-	value="${value%\'}"     # Del opening single-quotes 
-	value="${value#\'}"     # Del closing single-quotes 
+	value="${value#\"}"     # Del opening double-quotes 
+	value="${value%\"}"     # Del closing double-quotes 
+	value="${value#\'}"     # Del opening single-quotes 
+	value="${value%\'}"     # Del closing single-quotes 
 	case "${rpifun,,}" in
 	    # * do_resolution still needs to be sorted out
 	    channel)
