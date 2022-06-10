@@ -1,0 +1,266 @@
+#!/bin/bash
+# TODO:
+version="1.0"
+
+function errexit() {
+    echo -e "$1" > $(tty)
+    exit 1
+}
+
+function askyn() {
+    local ans
+    echo -n "$1" '[Y/n]? ' ; read $2 ans
+    [ "$ans" == "" ] && ans="y"
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function ismounted() {
+    grep -qs "$1" /proc/mounts
+    return $?
+}
+
+function waitdev() { 
+    while [ 1 ]
+    do
+	[ -b $burndev ] && return
+	echo -n "% Ready device '$burndev' and press Enter: " read ans
+    done
+}   
+
+function b0write() {
+    # $1: string to write
+    echo "$1" >> $b0script
+}
+
+function b1write() {
+    # $1: string to write
+    echo "$1" >> $b1script
+}
+
+function makeb0script() {
+    #
+    # Modify this as appropriate for your use
+    # Use it to copy files from your running system into the image
+    #
+    # sdm sources the b0script file and calls the function do_b0script
+    # This function has access to both the running system AND the SD Card (precede by $SDMPT)
+    #
+    b0write "function do_b0script() {"
+    # Announce that b0script starting
+    b0write "    logtoboth \"*+b0script: Start b0script\""
+    # Print $SDMPT on console and in /etc/sdm/history as debugging aid
+    b0write "    logtoboth \"> b0script: SDMPT: \$SDMPT\""
+    # Sample commands
+    b0write "    logtoboth \"> b0script: Touching b0script marker \$SDMPT/etc/sdm/b0script.mark\""
+    b0write "    touch \$SDMPT/etc/sdm/b0script.mark"
+    # Put the lines in here that you want to execute in the b0script file
+    b0write "}"
+}
+
+function makeb1intro() {
+    b1write "function b1intro() {"
+    b1write "    logtoboth \"*+b1script: Start b1script\""
+    b1write "}"
+    b1write "b1intro"
+}
+
+function makeb1adduser() {
+    b1write "function b1adduser() {"
+    b1write "    logtoboth \"> b1script: Add user $username\""
+    b1write "    # Add user and set home directory"
+    b1write "    useradd -m -d /home/$username $username"
+    b1write "    # Set initial login group"
+    b1write "    usermod --gid users $username"
+    b1write "    # Add other groups to which user should belong"
+    b1write "    usermod --groups $groups $username"
+    b1write "    # Change user's password"
+    b1write "    chpasswd <<EOF"
+    b1write "$username:$password"
+    b1write "EOF"
+    if [ "$sudo" == "yes" ]
+    then
+	b1write "    # Enable sudo for user"
+	b1write "    cat > /etc/sudoers.d/010_$username-nopasswd <<EOF"
+	b1write "$username ALL=(ALL) NOPASSWD: ALL"
+	b1write "EOF"
+	b1write "chmod 440 /etc/sudoers.d/010_$username-nopasswd"
+    fi
+    b1write "}"
+    b1write "b1adduser"
+}
+
+function makeb1wpa() {
+    b1write "function b1wpa() {"
+    if [ "$wifissid" != "" ]
+    then
+	b1write "    logtoboth \"> b1script: Create /etc/wpa_supplicant/wpa_supplicant.conf\""
+	b1write "    cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOF"
+	b1write "country=$wificountry"
+	b1write "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"
+	b1write "network={"
+	b1write "    priority=10"
+	b1write "    ssid=\"$wifissid\""
+	b1write "    psk=\"$wifipassword\""
+	b1write "    }"
+	b1write "EOF"
+    fi
+    b1write "}"
+    b1write "b1wpa"
+}
+
+function makeb1L10n() {
+    b1write "function b1L10n() {"
+    [ "$keymap" != "" ] && b1write "echo 'keymap=$keymap' >> /etc/sdm/local-1piboot.conf"
+    [ "$locale" != "" ] && b1write "echo 'locale=$locale' >> /etc/sdm/local-1piboot.conf"
+    [ "$timezone" != "" ] && b1write "echo 'timezone=$timezone' >> /etc/sdm/local-1piboot.conf"
+    b1write "}"
+    b1write "b1L10n"
+}
+
+#
+# Main code
+#
+# Read lines from input file
+#    Each line is complete for one user. Supported options:
+#    username password=userpwd,wifissid=wifissidforuser,wifipassword=wifipasswordforuser,hostname=userhostname,
+#            wificountry=wc, keymap=km, locale=lc, timezone=tz
+#
+# See sdm --info for the lists of supported timezones, locales, keymaps, and wifi countries
+# username and password are required
+#
+# If no hostname, username will be applied as the hostname
+# If no WiFi SSID specified, wpa_supplicant.conf will not be set
+# If no WiFi country specified, the default is US
+# keymap, locale, and timezone default to whatever is already set in the image
+# Optional sudo=no prevents enabling user for sudo (default is to enable)
+#
+# For each line
+#  write the per-user b0script and b1script as described by the data line in the input file
+#  The b0script is just a demo. Modify (carefully) as required
+#  The b1script will add the specified user, set the password, and create the wpa_supplicant.conf file
+# Then
+#  Burn the user's SD Card using the custom scripts
+#
+# $1:  IMG
+# $2:  data file
+# $3:  Burn device (/dev/sdX)
+
+img=$1
+[ "$img" == "" ] && errexit "Usage: $0 IMGname datafile burndev"
+df=$2
+[ "$df" == "" ] && errexit "? Data file required"
+burndev=$3
+[ "$burndev" == "" ] && errexit "? Burn device required"
+# Groups added for new users
+perr=0
+for p in 1 2 3 4
+do
+    pdev="${burndev}${p}"
+    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
+done
+[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to dismount each listed partition, then rerun $0"
+ismounted $burndev && errexit "? Device '$burndev' is mounted"
+
+groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio"
+#
+# Use readarray rather than reading a line at a time
+# Line at a time changes stdin and breaks prompting inside the loop
+#
+readarray -t lines < $df
+for line in "${lines[@]}"
+do
+    username=${line%% *}  # Line starts with "username "
+    args=${line#* }      # Get rest of args (everything after the space)
+    wificountry="US"
+    keymap=""
+    locale=""
+    timezone=""
+    sudo="yes"
+    echo "Configuration for user '$username'"
+    readarray -d, citems <<< "$args"
+    for c in "${citems[@]}"
+    do
+        IFS=":=" read key value <<< $c
+        value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	value="${value%\,}"     # Del trailing comma
+        value="${value#\"}"     # Del opening double-quotes 
+        value="${value%\"}"     # Del closing double-quotes 
+        value="${value#\'}"     # Del opening single-quotes 
+        value="${value%\'}"     # Del closing single-quotes 
+        echo ">  $key=$value"
+	eval "${key}=\"$value\""
+    done
+
+    if [ "$username" != "" -a "$password" != "" ]
+    then
+	[ "$hostname" == "" ] && hostname="$username"
+	b0script="/tmp/b0script-$username"
+	b1script="/tmp/b1script-$username"
+	rm -f $b0script $b1script
+	printf "#!/bin/bash\n" > $b0script
+	printf "#!/bin/bash\n" > $b1script
+	printf "source /etc/sdm/sdm-readparams\n" >>$b1script
+	makeb0script
+	makeb1intro
+	makeb1adduser
+	makeb1wpa
+	makeb1L10n
+	# NEWFunctions: Insert any new function calls here
+	chmod 755 $b0script $b1script
+	while [ 1 ]
+	do
+	    echo -n "Ready to burn '$burndev' for user '$username'[Yes/no/skip/quit] " ;  read ans
+	    [ "$ans" == "" ] && ans="y" || ans="${ans,,}"
+	    sfdisk -l $burndev > /dev/null 2>&1
+	    sts=$?
+	    if [[ "qnsy" =~ "$ans" ]] 
+	    then
+		[[ $sts -eq 0 ]] && break
+		[[ "qns" =~ "$ans" ]] && break
+	    fi
+	    if [ "$ans" == "l" ]
+	    then
+		printf "\n*** $b0script b0script for $username ***"
+		cat $b0script
+		printf "\n*** $b1script b1script for $username ***"
+		cat $b1script
+	    else
+		echo "% Insert disk '$burndev'"
+	    fi
+	done
+	case "${ans:0:1}" in
+	    n|s)
+		echo "% Skipping user '$username'"
+		;;
+	    q)
+		echo "% Quit"
+		rm -f $b0script $b1script
+		exit 0
+		;;
+	    y|*)
+		echo "/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root --b1script $b1script $img"
+		/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root --b0script $b0script --b1script $b1script $img
+		rm -f $b0script $b1script
+		;;
+	esac
+    else
+	if [ "$username" != "" -a "$password" == "" ]
+	then
+	    echo "% Skipping user '$username'; no password provided"
+	fi
+    fi
+done
+exit 0
+#
+# OUTLINE: How to add an additional per-user item (example: foobar)
+#
+# 1) Create makeb1foobar function that does whatever the function should do
+# 2) Add a call to makefoobar after the NEWFunctions comment above
+# 3) Test and fix bugs
+# 4) Repeat 3) until it works
+#
+# If you're not sure what code to put in the new function, raise a github issue at https://github.com/gitbls/sdm
+#
