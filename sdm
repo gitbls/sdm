@@ -543,7 +543,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.2"
+version="V6.3"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1031,6 +1031,7 @@ if [ $fgadgetmode -eq 1 ]
 then
     [ "$dtoverlay" == "" ] && dtoverlay="dwc2" || dtoverlay="$dtoverlay|dwc2"
 fi
+[ $fextend -eq 1 -a "$(which parted)" == "" ] && errexit "? Please 'sudo apt install parted'"
 #
 # Check sanity of the disk image argument
 #
