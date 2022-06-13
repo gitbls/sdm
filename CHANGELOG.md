@@ -1,5 +1,9 @@
 # Changelog
 
+## V6.3
+
+* Check for parted installed if `--extend`
+
 ## V6.2
 
 * Add sdm-gburn script, which burns a group of per-recipient customized SD Cards from a single IMG. Useful for classrooms or commercial distribution, for instance.
