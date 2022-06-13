@@ -97,9 +97,9 @@ done
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 echo ""
-echo "* Ensure required packages are installed: systemd-container qemu-user-static binfmt-support"
+echo "* Ensure required packages are installed: systemd-container qemu-user-static binfmt-support parted"
 [[ $EUID -ne 0 ]] && sudo="sudo"
-$sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static binfmt-support
+$sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static binfmt-support parted
 
 echo $"
 * Invoke sdm with 'sudo $dir/sdm'
