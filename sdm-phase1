@@ -757,6 +757,15 @@ then
 	logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
     fi
 fi
+#
+# If userconfig service is disabled, we need to enable getty@tty1. /usr/lib/userconf-pi/userconf calls /usr/bin/cancel-rename
+# which enables getty@tty1. Seems weird, but whatever
+#
+if [[ "$svcdisable" =~ "userconfig" ]]
+then
+    logtoboth "> Enable getty@tty1 because userconfig service is disabled"
+    systemctl enable getty@tty1 > /dev/null 2>&1
+fi
 
 #
 # If RasPiOS Full switch to console no login for first boot
