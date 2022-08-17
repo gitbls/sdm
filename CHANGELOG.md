@@ -1,5 +1,9 @@
 # Changelog
 
+## V6.5
+
+* Improve --expand-root processing, and enable it for non-customized images. Use sfdisk to extend the root partition and set the disk ID. Thanks @rpdom.
+
 ## V6.4
 
 * Enable getty@tty1 if using `--svc-disable userconfig`. Since sdm can do effectively what the userconfig service does (add a new user with a password) it needs to complete the system configuration that the userconfig service does. /usr/lib/userconf-pi/userconf calls /usr/bin/cancel-rename, which enables getty@tty1. 
