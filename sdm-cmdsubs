@@ -54,8 +54,8 @@ function expandpartition() {
     ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
     ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
     write_burnmsg "> Expand Root: Expand partition from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
-    parted -m /dev/$dev u s resizepart 2 $newsize
-    errifrc $? "? parted resizepart failed with status"
+    echo ",+" | sfdisk -N 2 $fulldevname
+    errifrc $? "? sfdisk expand last partition failed with status"
 }
 
 function sdm_burndevfile() {
@@ -63,6 +63,7 @@ function sdm_burndevfile() {
     # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
+    declare -x SDMPT=$(makemtpt)
     [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
@@ -88,17 +89,31 @@ function sdm_burndevfile() {
 	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
 	burnmsg+=("$(thisdate) > dd Copy completed")
 	# Prevent mount errors
-	sync ; sync
-	sleep 1
-	olddiskid=$(fdisk -l $burndev | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
+	sync ; sync ; sleep 1
+	p1="1" ; p2="2"
+	[[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	if [ $expandroot -eq 1 ]
 	then
 	    expandpartition $burndev
+	    olddiskid=$(fdisk -l $burndev | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
+	    newdiskid="$(tr -dc 'a-f0-9' < /dev/hwrng | dd bs=1 count=8 2>/dev/null)"
+	    write_burnmsg "> Expand Root: Set new disk ID '$newdiskid' on '$burndev'"
+	    sfdisk --disk-id $burndev 0x${newdiskid}
+	    errifrc $? "? sfdisk error setting diskid"
+	    sync ; sync ; sleep 1
 	fi
-	[[ "$burndev" =~ "mmcblk" ]] && p2="p2" || p2="2"
-	declare -x SDMPT=$(makemtpt)
  	mount -v ${burndev}${p2} $SDMPT
+	mount -v ${burndev}${p1} $SDMPT/boot
 	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
+	if [ $expandroot -eq 1 ]
+	then
+	    write_burnmsg "> Expand Root: Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
+	    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
+	    sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
+	    sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
+	    ! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
+	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
+	fi
     else
 	#
 	# Burning to a file
@@ -117,7 +132,7 @@ function sdm_burndevfile() {
 	domount "$burnfilefile"
     fi
     #
-    # Write out the accumulated messages into mounted image
+    # Write out the accumulated messages into mounted image if image has been customized
     #
     if [ -d $SDMPT/etc/sdm ]
     then
@@ -133,7 +148,7 @@ function sdm_burndevfile() {
 	#
 	# Set hostname into the image
 	#
-	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain exports expandroot keymap locale noreboot"
+	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain exports keymap locale noreboot"
 	xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
@@ -154,29 +169,6 @@ function sdm_burndevfile() {
 	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
 	[ "$bapssid" != "sdm" ] && apssid=$bapssid
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
-	expandroot=$bexpandroot    #Don't honor expandroot from cparams if it wasn't given on burn command
-	if [ $expandroot -eq 1 ]
-	then
-	    [[ "$burndev" =~ "mmcblk" ]] && p1="p1" || p1="1"
-	    mount -v ${burndev}${p1} $SDMPT/boot
-	    logtoboth "> Expand Root: Remove resize from /boot/cmdline.txt"
-	    sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
-	    sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
-	    ! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
-	    newdiskid="$(tr -dc 'a-f0-9' < /dev/hwrng | dd bs=1 count=8 2>/dev/null)"
-	    logtoboth "> Expand Root: Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
-	    fdisk "$burndev" > /dev/null <<EOF
-x
-i
-0x$newdiskid
-r
-w
-EOF
-	    errifrc $? "? fdisk error "
-	    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
-	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
-	    umount -v ${burndev}${p1}
-	fi
 	if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
 	then
 	    # don't include domain name. Leave that to user
