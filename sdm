@@ -543,7 +543,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.4"
+version="V6.5"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1139,7 +1139,6 @@ if [ $burning -eq 1 ]
 then
     source $src/sdm-cmdsubs
     sdm_burndevfile
-    [ $burn -eq 1 ] && ismounted ${burndev}${p2} && umount -v ${burndev}${p2} 
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
     docleanup
     exit 0
