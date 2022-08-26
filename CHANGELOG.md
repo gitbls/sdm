@@ -1,5 +1,15 @@
 # Changelog
 
+## V6.6
+
+* Vast improvements to sdm-gburn. See https://github.com/gitbls/sdm/wiki/Batch-burn-SSD-SDs-with-sdm-gburn
+* Reimagined and reimplemented autologin and firstboot autoreboot handling; it's MUCH better
+* Add `--nouser` to disable user creation enforcement; Useful with sdm-gburn to burn a large number of SSD/SDs at one sitting
+* Add `--autologin` to explicitly enable autologin, on Lite and with Desktop
+* Change `--disable piwiz` to properly disable piwiz on Desktop version and userconfig service on both Desktop and Lite
+* Set hostname on burn even if IMG is not sdm-enhanced
+* Code cleanups
+
 ## V6.5
 
 * Improve --expand-root processing, and enable it for non-customized images. Use sfdisk to extend the root partition and set the disk ID. Thanks @rpdom.
