@@ -1,10 +1,15 @@
 #!/bin/bash
 # TODO:
-version="1.0"
+version="2.0"
 
 function errexit() {
     echo -e "$1" > $(tty)
     exit 1
+}
+
+function cleanup() {
+    rm -f $ugb0script
+    rm -f $ugb1script
 }
 
 function askyn() {
@@ -17,9 +22,66 @@ function askyn() {
     esac
 }
 
+function getmtpt() {
+    if ! ismounted /mnt/sdm
+    then
+	echo "/mnt/sdm"
+    else
+	if ismounted /mnt/sdm.${BASHPID}
+	then
+	    errexit "? Alternate mount point /mnt/sdm.${BASHPID} in use"
+	fi
+	echo "/mnt/sdm.${BASHPID}"
+    fi
+}
+
 function ismounted() {
     grep -qs "$1" /proc/mounts
     return $?
+}
+
+function notmounted() {
+    if grep -qs $1 /proc/mounts
+    then
+	return 1
+    else
+	return 0
+    fi
+}
+
+function makemtpt() {
+    local sdmpt=$(getmtpt)
+    [ ! -d $sdmpt ] && mkdir -p $sdmpt
+    echo $sdmpt
+}
+
+function domount() {
+    #
+    # Before calling domount:
+    #      declare -x SDMPT=$(makemtpt)
+    #
+    local p1="1" p2="2"
+    local mimg=$1
+
+    [ ! -d $SDMPT ] && mkdir $SDMPT
+    echo "> mount IMG '$mimg'"
+    loopdev=$(losetup --show -P -f $mimg)
+    mount -v ${loopdev}p2 $SDMPT
+    notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
+    mount -v ${loopdev}p1 $SDMPT/boot
+    notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dimg'"
+}
+
+function doumount() {
+    local mnt=$SDMPT
+    echo "> umount IMG '$img'"
+    [ "$mnt" == "" ] && mnt=/mnt/sdm
+    ismounted $mnt/boot && umount -v $mnt/boot
+    ismounted $mnt && umount -v $mnt
+    [ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
+    unset SDMPT
+    [ "$loopdev" != "" ] && losetup -d $loopdev && loopdev=""
+    sync
 }
 
 function waitdev() { 
@@ -32,21 +94,31 @@ function waitdev() {
 
 function b0write() {
     # $1: string to write
-    echo "$1" >> $b0script
+    echo "$1" >> $ugb0script
 }
 
 function b1write() {
     # $1: string to write
-    echo "$1" >> $b1script
+    echo "$1" >> $ugb1script
 }
 
 function makeb0script() {
     #
-    # Modify this as appropriate for your use
-    # Use it to copy files from your running system into the image
+    # You can modify this as appropriate for your use
+    # Use it ONLY to copy files from your running system into the SSD/SD
     #
     # sdm sources the b0script file and calls the function do_b0script
     # This function has access to both the running system AND the SD Card (precede by $SDMPT)
+    #
+    # See https://github.com/gitbls/sdm/wiki/Example:-Burn-Scripts
+    #
+    # For instance:
+    # * To copy a file from the running system into the image:
+    #     cp /home/$USER/itstuff/my-special-file.txt $SDMPT/usr/local/bin
+    #
+    #   Environment
+    #   * all references from / are to the running system
+    #   * Reference the mounted SSD/SD preceded by $SDMPT or you'll modify the running system
     #
     b0write "function do_b0script() {"
     # Announce that b0script starting
@@ -56,7 +128,20 @@ function makeb0script() {
     # Sample commands
     b0write "    logtoboth \"> b0script: Touching b0script marker \$SDMPT/etc/sdm/b0script.mark\""
     b0write "    touch \$SDMPT/etc/sdm/b0script.mark"
-    # Put the lines in here that you want to execute in the b0script file
+    if [ "$b0script" != "" ]
+    then
+	# Read the script file and write to our b0script file
+	while read line
+	do
+	    b0write "    $line"
+	done < $b0script
+    fi
+    if [ "$b1script" != "" ]
+    then
+	# Copy the b1script into the IMG
+	b0write "    cp $b1script \$SDMPT/etc/sdm/assets"
+	b0write "    chmod 755 \$SDMPT/etc/sdm/assets/$(basename $b1script)"
+    fi
     b0write "}"
 }
 
@@ -65,6 +150,7 @@ function makeb1intro() {
     b1write "    logtoboth \"*+b1script: Start b1script\""
     b1write "}"
     b1write "b1intro"
+    b1write ""
 }
 
 function makeb1adduser() {
@@ -86,16 +172,17 @@ function makeb1adduser() {
 	b1write "    cat > /etc/sudoers.d/010_$username-nopasswd <<EOF"
 	b1write "$username ALL=(ALL) NOPASSWD: ALL"
 	b1write "EOF"
-	b1write "chmod 440 /etc/sudoers.d/010_$username-nopasswd"
+	b1write "    chmod 440 /etc/sudoers.d/010_$username-nopasswd"
     fi
     b1write "}"
     b1write "b1adduser"
+    b1write ""
 }
 
 function makeb1wpa() {
-    b1write "function b1wpa() {"
     if [ "$wifissid" != "" ]
     then
+	b1write "function b1wpa() {"
 	b1write "    logtoboth \"> b1script: Create /etc/wpa_supplicant/wpa_supplicant.conf\""
 	b1write "    cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOF"
 	b1write "country=$wificountry"
@@ -106,27 +193,172 @@ function makeb1wpa() {
 	b1write "    psk=\"$wifipassword\""
 	b1write "    }"
 	b1write "EOF"
+	b1write "}"
+	b1write "b1wpa"
+	b1write ""
     fi
-    b1write "}"
-    b1write "b1wpa"
 }
 
 function makeb1L10n() {
-    b1write "function b1L10n() {"
-    [ "$keymap" != "" ] && b1write "echo 'keymap=$keymap' >> /etc/sdm/local-1piboot.conf"
-    [ "$locale" != "" ] && b1write "echo 'locale=$locale' >> /etc/sdm/local-1piboot.conf"
-    [ "$timezone" != "" ] && b1write "echo 'timezone=$timezone' >> /etc/sdm/local-1piboot.conf"
+    if [ "$keymap" != "" -o "$locale" != "" -o "$timezone" != "" ]
+    then
+	b1write "function b1L10n() {"
+	[ "$keymap" != "" ] && b1write "echo 'keymap=$keymap' >> /etc/sdm/local-1piboot.conf"
+	[ "$locale" != "" ] && b1write "echo 'locale=$locale' >> /etc/sdm/local-1piboot.conf"
+	[ "$timezone" != "" ] && b1write "echo 'timezone=$timezone' >> /etc/sdm/local-1piboot.conf"
+	b1write "}"
+	b1write "b1L10n"
+	b1write ""
+    fi
+}
+
+function makeb1adjusts() {
+    #
+    # Runs b1script inside the image, so we can muck directly. We will disable the userconfig service
+    # since we're setting up a user on the SSD/SD
+    #
+    # modify cparams directly via sed
+    #  and change username to this $username
+    # then
+    #   lxde: do what do_boot_behaviour does to change usernames and fix piwiz
+    #   non-lxde: either getty@tty1 or nothing (depending on re-researching this)
+    b1write $"function b1adjusts() {
+"
+
+    b1write $"    logtoboth \"> b1script: Set username $username in /etc/sdm/cparams\"
+    sed -i \"s/myuser:.*/myuser:$username/\" /etc/sdm/cparams
+    sed -i '/delayed_boot_behavior/d' /etc/sdm/auto-1piboot.conf"
+#    b1write "    # sdm-gburn configured First Boot reboot settings"
+    if [ "$reboot" == "0" ]
+    then
+        b1write $"
+    logtoboth \"> b1script: Disable First Boot reboot\""
+	b1write $"    sed -i \"s/reboot:.*/reboot:0/\" /etc/sdm/cparams"
+	b1write $"    sed -i \"s/noreboot:.*/noreboot:1/\" /etc/sdm/cparams"
+    else
+        b1write $"
+    logtoboth \"> b1script: Enable First Boot reboot with a $reboot second delay\"
+    sed -i \"s/reboot:.*/reboot:1/\" /etc/sdm/cparams
+    sed -i \"s/noreboot:.*/noreboot:0/\" /etc/sdm/cparams
+    sed -i \"s/rebootwait:.*/rebootwait:$reboot/\" /etc/sdm/cparams"
+    fi
+    if [ "$piwiz" == "no" ]
+    then
+	b1write $"
+    logtoboth \"> b1script: Disable piwiz\""
+	b1write $"    userdel -r rpi-first-boot-wizard > /dev/null 2&>1
+    rm -f /etc/sudoers.d/010_wiz-nopasswd
+    rm -f /etc/xdg/autostart/deluser.desktop
+    [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
+    systemctl disable userconfig > /dev/null 2&>1
+"
+    else
+	b1write $"
+    # sdm-gburn configured system to run piwiz
+"
+    fi
+    if [ "$autologin" == "yes" ]
+    then
+	b1write $"    
+    [ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ] && rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
+    systemctl set-default multi-user.target > /dev/null 2&>1
+    # sdm-gburn configured system to Autologin
+    if [ -f /usr/bin/startlxde-pi ]
+    then
+        logtoboth \"> b1script: Set delayed boot behavior to B4 (Desktop Autologin)\"
+        echo 'delayed_boot_behavior=B4' >> /etc/sdm/auto-1piboot.conf
+        systemctl disable lightdm > /dev/null 2&>1
+    else
+        logtoboth \"> b1script: Set delayed boot behavior to B2 (Console Autologin)\"
+        echo 'delayed_boot_behavior=B2' >> /etc/sdm/auto-1piboot.conf
+    fi
+"
+    else
+	b1write $"    # sdm-gburn configured system to Not Autologin
+    if [ -f /usr/bin/startlxde-pi ]
+    then
+        logtoboth \"> b1script: Set delayed boot behavior to B3 (Desktop, no Autologin)\"
+        echo 'delayed_boot_behavior=B3' >> /etc/sdm/auto-1piboot.conf
+        systemctl disable lightdm > /dev/null 2&>1
+    else
+        logtoboth \"> b1script: Set delayed boot behavior to B1 (Console, no Autologin)\"
+        echo 'delayed_boot_behavior=B1' >> /etc/sdm/auto-1piboot.conf
+    fi
+"
+    fi
+    if [ "$mouse" == "left" ]
+    then
+	b1write $"    # sdm-gburn set left-handed mouse
+    if [ -f /usr/bin/startlxde-pi ]
+    then
+        logtoboth \"> b1script: Set left-handed mouse\"
+        dirx=\"/home/$username/.config/lxsession/LXDE-pi\"
+        mkdir -p \$dirx
+        chmod -R 700 /home/$username/.config
+        cp /etc/xdg/lxsession/LXDE-pi/desktop.conf \$dirx
+        sed  \"s/LeftHanded=0/LeftHanded=1/\" /etc/xdg/lxsession/LXDE-pi/desktop.conf > \$dirx/desktop.conf
+        chmod 600 \$dirx/desktop.conf
+        chown -R $username:users /home/$username/.config
+    fi
+"
+    fi
+    if [ "$b1script" != "" ]
+    then
+	b1write "    /etc/sdm/assets/$(basename $b1script)"
+    fi
     b1write "}"
-    b1write "b1L10n"
+    b1write "b1adjusts"
+    return
+}
+
+function do1dhcpcd() {
+    # $1 = "dhcpcd" or "dhcpcd1"
+    local dhcpcd="$1"
+    dhcpcd=${dhcpcd#\[}
+    dhcpcd=${dhcpcd%\]*}
+    # Get ipaddress, router, dns
+    readarray -d\; c2 <<< "$dhcpcd"
+    for s2 in ${c2[@]}
+    do
+        IFS=":" read key value <<< "$s2"
+        value=${value%\;}
+	eval "${key}=\"$value\""
+    done
+    if [ "$dev" != "" ]
+    then
+	b1write "function b1dhcpcd${dev}() {"
+	b1write "    logtoboth \"> b1script: Set network device '$dev' dhcpcd static configuration\""
+	b1write "    cat >> /etc/dhcpcd.conf <<EOF"
+	b1write ""
+	[ "$dhcpmsg" != "" ] && b1write "$dhcpmsg" && dhcpmsg=""
+	b1write "interface $dev"
+	[ "$ipaddress" != "" ] && b1write "    static ip_address=$ipaddress"    || echo "% dhcpcd ipaddress is null ($1)"
+	[ "$router" != "" ]    && b1write "    static routers=$router"          || echo "% dhcpcd router is null ($1)"
+	[ "$dns" != "" ]       && b1write "    static domain_name_servers=$dns" || echo "% dhcpcd dns is null ($1)"
+	b1write "EOF"
+	b1write "}"
+	b1write "b1dhcpcd${dev}"
+	b1write ""
+    fi
+}
+
+function makeb1dhcpcd() {
+    local key value
+    [ "$dhcpcd" != "" ] && do1dhcpcd "$dhcpcd"
+    [ "$dhcpcd1" != "" ] && do1dhcpcd "$dhcpcd1"
 }
 
 #
 # Main code
 #
 # Read lines from input file
-#    Each line is complete for one user. Supported options:
+#    Each line is complete for one user. Supported options (all on a single line in the input file, separated by commas,  no spaces)
 #    username password=userpwd,wifissid=wifissidforuser,wifipassword=wifipasswordforuser,hostname=userhostname,
-#            wificountry=wc, keymap=km, locale=lc, timezone=tz
+#            wificountry=wc,keymap=km,locale=lc,timezone=tz,sudo=no,
+#            dhcpcd=[dev:name;ipaddress:ipv4ip;router:routerip;dns:dnsip]  # There can be up to two of these, for 2 different devices,
+#            piwiz=yes,autologin=yes,reboot=20,mouse=left
+#
+# Use reboot=0 to disable the autoreboot at the end of the First Boot process
 #
 # See sdm --info for the lists of supported timezones, locales, keymaps, and wifi countries
 # username and password are required
@@ -140,7 +372,8 @@ function makeb1L10n() {
 # For each line
 #  write the per-user b0script and b1script as described by the data line in the input file
 #  The b0script is just a demo. Modify (carefully) as required
-#  The b1script will add the specified user, set the password, and create the wpa_supplicant.conf file
+#  The b1script will run steps to complete the requested configuration: add the specified user,
+#    set the password, create the wpa_supplicant.conf file, and append dhcpcd per-device configuration
 # Then
 #  Burn the user's SD Card using the custom scripts
 #
@@ -150,11 +383,11 @@ function makeb1L10n() {
 
 img=$1
 [ "$img" == "" ] && errexit "Usage: $0 IMGname datafile burndev"
+[ ! -f "$img" ] && errexit "? IMG file '$img' not found"
 df=$2
 [ "$df" == "" ] && errexit "? Data file required"
 burndev=$3
 [ "$burndev" == "" ] && errexit "? Burn device required"
-# Groups added for new users
 perr=0
 for p in 1 2 3 4
 do
@@ -164,11 +397,24 @@ done
 [ $perr -eq 1 ] && errexit "? Use 'sudo umount' to dismount each listed partition, then rerun $0"
 ismounted $burndev && errexit "? Device '$burndev' is mounted"
 
+#
+# Check that IMG has been sdm-enhanced
+#
+echo "* Check whether IMG '$img' is sdm-enhanced"
+declare -x SDMPT=$(makemtpt)
+domount "$img"
+#echo "> IMG '$img' mounted on $SDMPT"
+[ -d $SDMPT/etc/sdm ] && fenh=1 || fenh=0
+doumount
+[ $fenh -eq 1 ] && echo "* IMG '$img' is sdm-enhanced" || echo "% IMG '$img' is not sdm-enhanced; some functions disabled"
+
+# Groups added for new users
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio"
 #
-# Use readarray rather than reading a line at a time
-# Line at a time changes stdin and breaks prompting inside the loop
+# Use readarray rather than reading a line at a time. Line at a time changes stdin
+# and breaks prompting inside the loop
 #
+printf "\n* Begin processing data file '$df'\n"
 readarray -t lines < $df
 for line in "${lines[@]}"
 do
@@ -179,40 +425,70 @@ do
     locale=""
     timezone=""
     sudo="yes"
-    echo "Configuration for user '$username'"
+    dhcpmsg="# sdm-gburn configuration updates"
+    piwiz="no"
+    autologin="no"
+    reboot="20"
+    mouse="right"
+    ugb0script=""
+    ugb1script=""
+    b0script=""
+    b1script=""
+    echo "* User '$username' configuration"
     readarray -d, citems <<< "$args"
     for c in "${citems[@]}"
     do
         IFS=":=" read key value <<< $c
+	key="${key##*\ }"
         value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
 	value="${value%\,}"     # Del trailing comma
         value="${value#\"}"     # Del opening double-quotes 
         value="${value%\"}"     # Del closing double-quotes 
         value="${value#\'}"     # Del opening single-quotes 
-        value="${value%\'}"     # Del closing single-quotes 
+        value="${value%\'}"     # Del closing single-quotes
         echo ">  $key=$value"
+	[ "$key" == "dhcpcd" -a "$dhcpcd" != "" ] && key="dhcpcd1"
 	eval "${key}=\"$value\""
     done
 
+    if [ "$b0script" != "" ]
+    then
+	[ ! -f $b0script ] && echo "% b0script '$b0script' not found; ignoring" && b0script=""
+    fi
+    if [ "$b1script" != "" ]
+    then
+	[ ! -f $b1script ] && echo "% b1script '$b1script' not found; ignoring" && b1script=""
+	[ ! -x $b1script ] && echo "% b1script '$b1script' is not executable; ignoring" && b1script=""
+    fi
+    if [ $fenh -ne 1 ]
+    then
+	[ "$b0script" != "" ] && echo "% Skipping b0script '$b0script'" && b0script=""
+	[ "$b1script" != "" ] && echo "% Skipping b1script '$b1script'" && b1script="" 
+    fi
     if [ "$username" != "" -a "$password" != "" ]
     then
 	[ "$hostname" == "" ] && hostname="$username"
-	b0script="/tmp/b0script-$username"
-	b1script="/tmp/b1script-$username"
-	rm -f $b0script $b1script
-	printf "#!/bin/bash\n" > $b0script
-	printf "#!/bin/bash\n" > $b1script
-	printf "source /etc/sdm/sdm-readparams\n" >>$b1script
+	ugb1script="/tmp/ugb1script-$username"
+	ugb0script="/tmp/ugb0script-$username"
+	rm -f $ugb0script
+	printf "#!/bin/bash\n" > $ugb0script
 	makeb0script
+
+	rm -f $ugb1script
+	printf "#!/bin/bash\n" > $ugb1script
+	printf "source /etc/sdm/sdm-readparams\n" >>$ugb1script
 	makeb1intro
+
 	makeb1adduser
 	makeb1wpa
 	makeb1L10n
+	makeb1dhcpcd
+	makeb1adjusts
 	# NEWFunctions: Insert any new function calls here
-	chmod 755 $b0script $b1script
+	chmod 755 $ugb0script $ugb1script
 	while [ 1 ]
 	do
-	    echo -n "Ready to burn '$burndev' for user '$username'[Yes/no/skip/quit] " ;  read ans
+	    echo -n "Ready to burn '$burndev' for user '$username'? [Yes/no/skip/quit/list/help] " ;  read ans
 	    [ "$ans" == "" ] && ans="y" || ans="${ans,,}"
 	    sfdisk -l $burndev > /dev/null 2>&1
 	    sts=$?
@@ -223,27 +499,42 @@ do
 	    fi
 	    if [ "$ans" == "l" ]
 	    then
-		printf "\n*** $b0script b0script for $username ***"
-		cat $b0script
-		printf "\n*** $b1script b1script for $username ***"
-		cat $b1script
+		printf "\n*** $ugb0script generated b0script for $username ***\n"
+		cat $ugb0script
+		printf "\n*** $ugb1script generated b1script for $username ***\n"
+		cat $ugb1script
 	    else
-		echo "% Insert disk '$burndev'"
+		if [ "$ans" == "h" ]
+		then
+		    echo "Valid [case-insensitive] responses:"
+		    echo " Y - Burn the disk for user '$username' (or press ENTER)"
+		    echo " N or S - Skip burning disk for user '$username'"
+		    echo " Q - Do not burn the disk for user '$username' and exit"
+		    echo " L - Display the generated b0script/b1script for user '$username'"
+		    echo " H - Print this help"
+		else
+		    e=1
+		    [[ ! "qnsyl" =~ "$ans" ]] && e=0 && echo "% Unrecognized response '$ans'; Responses are: Yes/no/skip/quit/list"
+		    [ $sts -ne 0 -a $e -eq 1 ] && echo "% Insert disk '$burndev'"
+		fi
 	    fi
 	done
 	case "${ans:0:1}" in
 	    n|s)
 		echo "% Skipping user '$username'"
+		cleanup
 		;;
 	    q)
 		echo "% Quit"
-		rm -f $b0script $b1script
+		cleanup
 		exit 0
 		;;
 	    y|*)
-		echo "/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root --b1script $b1script $img"
-		/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root --b0script $b0script --b1script $b1script $img
-		rm -f $b0script $b1script
+		[ "$reboot" != "0" ] && rb="--reboot $reboot" || rb=""
+		echo "/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root $rb --b0script $ugb0script --b1script $ugb1script $img"
+		/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root $rb --b0script $ugb0script --b1script $ugb1script $img --restart
+		cleanup
+		echo "* Disk for user '$username' completed"
 		;;
 	esac
     else
@@ -257,10 +548,10 @@ exit 0
 #
 # OUTLINE: How to add an additional per-user item (example: foobar)
 #
-# 1) Create makeb1foobar function that does whatever the function should do
-# 2) Add a call to makefoobar after the NEWFunctions comment above
+# 1) Create makeb1foobar function that does whatever the function should do. Look at existing code for insights
+# 2) Add a call to makeb1foobar after the NEWFunctions comment above
 # 3) Test and fix bugs
-# 4) Repeat 3) until it works
+# 4) Repeat 3) until it works as desired
 #
 # If you're not sure what code to put in the new function, raise a github issue at https://github.com/gitbls/sdm
 #
