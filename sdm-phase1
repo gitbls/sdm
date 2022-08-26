@@ -758,15 +758,17 @@ then
     fi
 fi
 #
-# If userconfig service is disabled, we need to enable getty@tty1. /usr/lib/userconf-pi/userconf calls /usr/bin/cancel-rename
-# which enables getty@tty1. Seems weird, but whatever
+# Honor --disable piwiz
 #
-if [[ "$svcdisable" =~ "userconfig" ]]
+if [[ "$disables" =~ "piwiz" ]]
 then
-    logtoboth "> Enable getty@tty1 because userconfig service is disabled"
-    systemctl enable getty@tty1 > /dev/null 2>&1
+    logtoboth "> Disable running piwiz and userconfig on first boot per --disable piwiz"
+    [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
+    systemctl disable userconfig.service > /dev/null 2&>1
+    userdel -r rpi-first-boot-wizard > /dev/null 2&>1
+    rm -f /etc/sudoers.d/010_wiz-nopasswd
+    rm -f /etc/xdg/autostart/deluser.desktop
 fi
-
 #
 # If RasPiOS Full switch to console no login for first boot
 #  and set to switch back to graphical autologin after first boot unless 1piboot has an uncommented boot_behav* 
@@ -778,21 +780,17 @@ then
     if [ $reboot -eq 1 ]
     then
 	logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-	#SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-	do_raspiconfig do_boot_behaviour B1
+	# raspi-config spews on this command b/c no systemd running, but does the right thing
+	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	#do_raspiconfig do_boot_behaviour B1
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
 	else
-	    logtoboth ">%Desktop Autologin will be re-enabled after First Boot"
-	    echo "delayed_boot_behavior=B4" >> /etc/sdm/auto-1piboot.conf
+	    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
+	    logtoboth ">%Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
+	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
 	fi
-    fi
-    # Disable piwiz if requested
-    if [[ "$disables" =~ "piwiz" ]]
-    then
-        logtoboth "> Disable running piwiz on first boot"
-	mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/piwiz.desktop.sdm
     fi
     # Set left-handed mouse if requested
     if [ $fmouse -eq 1 ]
@@ -823,6 +821,24 @@ then
 	chown -R $userx:$gx /home/$userx/.config
 	chmod -R 700 /home/$userx/.config
     fi
+else
+    # Lite with no Desktop
+    if [ $reboot -eq 1 ]
+    then
+	logtoboth "> Set RasPiOS to 'console no login' for First Boot"
+	# raspi-config spews on this command b/c no systemd running, but does the right thing
+	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	#do_raspiconfig do_boot_behaviour B1
+	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+	then
+	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
+	else
+	    [ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
+	    logtoboth ">%Console Autologin setting '$bbh' will be re-enabled after First Boot"
+	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+	fi
+    fi
+    
 fi
 #
 # If xdm installed, disable it on console if requested
@@ -843,7 +859,7 @@ fi
 #
 # Ditto for lightdm and/or wdm
 #
-[ -d /etc/lightdm ] && delaydmenable lightdm  $reboot # Always disable lightdm/re-enable in FirstBoot
+[ -d /etc/lightdm ] && delaydmenable lightdm $reboot # Always disable lightdm/re-enable in FirstBoot
 if [ -d /etc/X11/wdm ]
 then
     if [[ "$poptions" =~ "nodmconsole" ]]

@@ -299,121 +299,6 @@ function checkfilelist() {
     IFS="$sifs"
 }
 
-function writeconfig() {
-    #
-    # Write config parameters into the image
-    #
-    local paramfile="$SDMPT/etc/sdm/cparams"
-    [ -f $paramfile ] && rm -f $paramfile
-    cat > $paramfile <<EOF
-#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
-version:$version
-apps:"$apps"
-xapps:"$xapps"
-appfile:$appfile
-xappfile:$xappfile
-apip:$apip
-apssid:$apssid
-aptcache:$aptcache
-aptdistupgrade:$aptdistupgrade
-batch:$fbatch
-b0script:$b0script
-b1script:$b1script
-bootadd:$bootadd
-bootconfig:$bootconfig
-bootscripts:$bootscripts
-bootsetpairs:"$bootsetpairs"
-crond:$crond
-cronhourly:$cronhourly
-crondaily:$crondaily
-cronweekly:$cronweekly
-cronmonthly:$cronmonthly
-cronsystemd:$cronsystemd
-cscript:$cscript
-csrc:$csrc
-datefmt:$datefmt
-dhcpcd:$dhcpcd
-dhcpcdwait:$dhcpcdwait
-dimg:$dimg
-dimgdev:$dimgdev
-dimgdevname:$dimgdevname
-disables:$disables
-domain:$domain
-dtoverlay:$dtoverlay
-dtparam:$dtparam
-ecolors:$ecolors
-eeprom:$eeprom
-expandroot:$expandroot
-exports:$exports
-fdirtree:$fdirtree
-fgadgetmode:$fgadgetmode
-fmouse:$fmouse
-fstab:$fstab
-hdmiforcehotplug:$hdmiforcehotplug
-hdmiignoreedid:$hdmiignoreedid
-hdmigroup:$hdmigroup
-hdmimode:$hdmimode
-hostname:$hostname
-hotspot:$hotspot
-journal:$journal
-keymap:$keymap
-libfmconf:$libfmconf
-loadlocal:$loadlocal
-locale:$locale
-logwidth:$logwidth
-lxdeconflist:"$lxdeconflist"
-lxterminalconf:$lxterminalconf
-modprobe:$modprobe
-motd:$motd
-groups:$groups
-myuid:$myuid
-myuser:$myuser
-nopiwiz:$nopiwiz
-os:$os
-passwordpi:$passwordpi
-passwordroot:$passwordroot
-passwordsame:$passwordsame
-passworduser:$passworduser
-pcmanfmconf:$pcmanfmconf
-pi1bootconf:$pi1bootconf
-poptions:$poptions
-rclocal:$rclocal
-reboot:$reboot
-regensshkeys:$regensshkeys
-noreboot:$noreboot
-rebootwait:$rebootwait
-redocustomize:$redocustomize
-rootpwd:$rootpwd
-sdfnlogin:$sdfnlogin
-sdfnnetwork:$sdfnnetwork
-sdfnresolve:$sdfnresolve
-sdfnsystem:$sdfnsystem
-sdfntimesync:$sdfntimesync
-sdfnuser:$sdfnuser
-sdmdir:$sdmdir
-showapt:$showapt
-showpwd:$showpwd
-src:$src
-ssh:$ssh
-swapsize:$swapsize
-svcdisable:"$svcdisable"
-svcenable:"$svcenable"
-sysctl:$sysctl
-timezone:$timezone
-udev:$udev
-vnc:$vnc
-vncbase:$vncbase
-wificountry:$wificountry
-wpaconf:$wpaconf
-fnowpa:$fnowpa
-custom1:$custom1
-custom2:$custom2
-custom3:$custom3
-custom4:$custom4
-thishost:$thishost
-EOF
-}
-
 function printhelp() {
     echo $"sdm $version
 Usage:
@@ -450,6 +335,7 @@ Command Switches for --customize and --burn or as noted
  --apt-dist-upgrade  Use apt-get dist-upgrade instead of upgrade 
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
+ --autologin         Auto-login to the console (Lite) or graphical desktop session
  --batch             Perform customize operation and exit
  --b0script script   Script to run after burn has completed
  --b1script script   Like --b0script, but done in nspawn (can do both b0script and b1script)
@@ -501,6 +387,7 @@ Command Switches for --customize and --burn or as noted
  --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
  --mouse left        Enable left-handed mouse if LXDE installed
+ --nouser            Do not add a new user
  --nspawnsw str      Additional switches for nspawn command
  --password-pi pwd   Set password for Pi user (will prompt if not provided)
  --password-user pwd Set password for the --user user (will prompt if not provided)
@@ -543,7 +430,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.5"
+version="V6.6"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -552,6 +439,7 @@ aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
 aptfunction=0               #1=Some apt batch function specified
+autologin=0                 #1=auto-login to console or desktop
 b0script=""                 #Customization script to run after burn
 b1script=""                 #Like b0script but done in nspawn
 bootadd=""                  #Items to add to /boot/config.txt
@@ -622,8 +510,8 @@ modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
-nopiwiz=0                   #1=Disable piwiz 
 noreboot=0                  #1=Do not restart system after first boot
+nouser=0                    #1=Do not require a user to be specified
 os="raspios"                #Default OS for images
 nspawnsw=""                 #Switches for nspawn
 passwordpi=""               #Values for --password-xxx
@@ -683,14 +571,14 @@ custom4=""                  #For custom use
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:,\
-b0script:,b1script:,\
+autologin,b0script:,b1script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,nopiwiz,norestart,noreboot,nspawnsw:,os:,\
+mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nspawnsw:,os:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
 redo-customize,regen-ssh-host-keys,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
@@ -713,6 +601,7 @@ do
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
+	--autologin)   autologin=1   ; shift 1 ;;
 	--b0script)    b0script=$2   ; shift 2 ;;
 	--b1script)    b1script=$2   ; shift 2 ;;
 	--batch)       fbatch=1      ; shift 1 ;;
@@ -770,8 +659,8 @@ do
 	--motd)        motd=$2       ; shift 2 ;;
 	--mouse)       fmouse=1      ; shift 2 ;;  #switch value required but ignored for now
 	--mount)       fdomount=1    ; shift 1 ;;
-	--nopiwiz)     nopiwiz=1     ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
+	--nouser) nouser=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--os)          os="${2,,}"   ; shift 2 ;;
@@ -895,7 +784,8 @@ then
 fi
 if [ $fcustomize -eq 1 ]
 then
-    [ "$myuser" == "" ] && errexit "? A username must be specified using the --user switch"
+    [ $nouser -eq 0 -a "$myuser" == "" ] && errexit "? A username must be specified using the --user switch"
+    [ $nouser -eq 1 ] && myuser=""
 fi
 #
 # Ensure action requested: burn, mount, explore, aptmaint, customize

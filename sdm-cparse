@@ -272,6 +272,121 @@ function doconfigitem() {
 
 }
 
+function writeconfig() {
+    #
+    # Write config parameters into the image
+    #
+    local paramfile="$SDMPT/etc/sdm/cparams"
+    [ -f $paramfile ] && rm -f $paramfile
+    cat > $paramfile <<EOF
+#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
+version:$version
+apps:"$apps"
+xapps:"$xapps"
+appfile:$appfile
+xappfile:$xappfile
+apip:$apip
+apssid:$apssid
+aptcache:$aptcache
+aptdistupgrade:$aptdistupgrade
+autologin:$autologin
+batch:$fbatch
+b0script:$b0script
+b1script:$b1script
+bootadd:$bootadd
+bootconfig:$bootconfig
+bootscripts:$bootscripts
+bootsetpairs:"$bootsetpairs"
+crond:$crond
+cronhourly:$cronhourly
+crondaily:$crondaily
+cronweekly:$cronweekly
+cronmonthly:$cronmonthly
+cronsystemd:$cronsystemd
+cscript:$cscript
+csrc:$csrc
+datefmt:$datefmt
+dhcpcd:$dhcpcd
+dhcpcdwait:$dhcpcdwait
+dimg:$dimg
+dimgdev:$dimgdev
+dimgdevname:$dimgdevname
+disables:$disables
+domain:$domain
+dtoverlay:$dtoverlay
+dtparam:$dtparam
+ecolors:$ecolors
+eeprom:$eeprom
+expandroot:$expandroot
+exports:$exports
+fdirtree:$fdirtree
+fgadgetmode:$fgadgetmode
+fmouse:$fmouse
+fstab:$fstab
+hdmiforcehotplug:$hdmiforcehotplug
+hdmiignoreedid:$hdmiignoreedid
+hdmigroup:$hdmigroup
+hdmimode:$hdmimode
+hostname:$hostname
+hotspot:$hotspot
+journal:$journal
+keymap:$keymap
+libfmconf:$libfmconf
+loadlocal:$loadlocal
+locale:$locale
+logwidth:$logwidth
+lxdeconflist:"$lxdeconflist"
+lxterminalconf:$lxterminalconf
+modprobe:$modprobe
+motd:$motd
+groups:$groups
+myuid:$myuid
+myuser:$myuser
+nouser:$nouser
+os:$os
+passwordpi:$passwordpi
+passwordroot:$passwordroot
+passwordsame:$passwordsame
+passworduser:$passworduser
+pcmanfmconf:$pcmanfmconf
+pi1bootconf:$pi1bootconf
+poptions:$poptions
+rclocal:$rclocal
+reboot:$reboot
+regensshkeys:$regensshkeys
+noreboot:$noreboot
+rebootwait:$rebootwait
+redocustomize:$redocustomize
+rootpwd:$rootpwd
+sdfnlogin:$sdfnlogin
+sdfnnetwork:$sdfnnetwork
+sdfnresolve:$sdfnresolve
+sdfnsystem:$sdfnsystem
+sdfntimesync:$sdfntimesync
+sdfnuser:$sdfnuser
+sdmdir:$sdmdir
+showapt:$showapt
+showpwd:$showpwd
+src:$src
+ssh:$ssh
+swapsize:$swapsize
+svcdisable:"$svcdisable"
+svcenable:"$svcenable"
+sysctl:$sysctl
+timezone:$timezone
+udev:$udev
+vnc:$vnc
+vncbase:$vncbase
+wificountry:$wificountry
+wpaconf:$wpaconf
+fnowpa:$fnowpa
+custom1:$custom1
+custom2:$custom2
+custom3:$custom3
+custom4:$custom4
+thishost:$thishost
+EOF
+}
 
 function setbootset() {
     #
@@ -355,7 +470,7 @@ function do_raspiconfig() {
     local cmd=$1 value=$2
     if type -P raspi-config > /dev/null
     then
-	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint
+	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2&>1
     else
 	logtoboth ">!Unable to find raspi-config for function '$cmd' with value '$value'"
     fi

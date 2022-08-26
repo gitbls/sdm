@@ -304,6 +304,42 @@ timesyncwait() {
     return
 }
 
+function wait_startup_complete {
+    # $1 is the message to write
+    local lc=0 msg=$1
+    # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
+    # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
+    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    do
+	if [ $lc -eq 0 ]
+	then
+	   bootlog "$msg"
+	   write_console "$msg"
+	   lc=1
+	fi
+	[ $flashled -eq 0 ] && morseled "-..- -..-"
+	sleep 1
+    done
+}
+
+function do_delayed_boot_behavior {
+    #
+    # $1 = 'reboot' if system will be rebooted
+    local now=""
+    [ "$1" != "reboot" ] && now="--now"
+    if grep 'delayed_boot_behavior' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+    then
+	IFS="=" read key value <<< $(grep delayed_boot_behavior /etc/sdm/auto-1piboot.conf)
+	configitemlog "set boot behaviour to $value" bootlog
+	do_raspiconfig do_boot_behaviour $value
+	# Enable lightdm because we disabled it during customization
+	[ "$1" != "reboot" ] && systemctl daemon-reload
+	[[ "B3B4" =~ "$value" ]] && bootlog "Re-enable lightdm" && systemctl enable $now lightdm && sleep 3
+	# Always enable this. RasPiOS does this in cancel-rename which runs after userconfig service
+	systemctl enable $now --no-block getty@tty1
+    fi
+}
+
 #
 # Mainline
 #
@@ -378,25 +414,8 @@ fi
 
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
-    # Can't use this test VV because boot_behaviour might change it, so need to check both graphical.target and multi-user.target
-    # while [ "$(systemctl show -p ActiveState $(systemctl get-default) --value)" != "active" ]
-    lc=0
-    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
-    do
-	[ $lc -eq 0 ] && bootlog "System will restart automatically after system startup has completed"
-	[ $lc -eq 0 ] && write_console "System will restart automatically after system startup has completed" && lc=1
-	[ $flashled -eq 0 ] && morseled "-..- -..-"
-	sleep 1
-    done
-    #
-    # Do this last so that we don't accidentally autolog in b/c this ran before getty@tty1
-    #
-    if grep 'delayed_boot_behavior=B4' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1
-    then
-	configitemlog "set boot behaviour to B4" bootlog
-	do_raspiconfig do_boot_behaviour B4
-    fi
-
+    wait_startup_complete "System will restart automatically after system startup has completed"
+    do_delayed_boot_behavior reboot
     write_console "System startup complete; Restarting the system in $rebootwait seconds\n"
     bootlog "Restarting the system in $rebootwait seconds"
     sleep $rebootwait
@@ -404,4 +423,11 @@ then
     write_console "Restarting the system now\n" 
     bootlog "Restarting the system now"
     systemctl reboot
+else
+    wait_startup_complete "System will continue without restarting after system startup has completed"
+    do_delayed_boot_behavior noreboot
+    write_console "System startup complete"
+    bootlog "System startup complete"
 fi
+exit 0
+
