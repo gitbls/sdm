@@ -75,7 +75,7 @@ dlerrors=0
 for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
 	     sdm-firstboot sdm-apt-cacher sdm-apt \
 	     sdm-customphase sdm-apps-example sdm-xapps-example \
-	     sdm-cportal sdm-hotspot sdm-logmsg \
+	     sdm-cportal sdm-hotspot sdm-logmsg sdm-gburn \
 	     1piboot/1piboot.conf
 do
     echo "Downloading '$f' to '$dir/$f'"
