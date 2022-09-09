@@ -470,7 +470,7 @@ function do_raspiconfig() {
     local cmd=$1 value=$2
     if type -P raspi-config > /dev/null
     then
-	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2&>1
+	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
     else
 	logtoboth ">!Unable to find raspi-config for function '$cmd' with value '$value'"
     fi
