@@ -146,56 +146,58 @@ function makeb0script() {
 }
 
 function makeb1intro() {
-    b1write "function b1intro() {"
-    b1write "    logtoboth \"*+b1script: Start b1script\""
-    b1write "}"
-    b1write "b1intro"
-    b1write ""
+    b1write $"function b1intro() {
+    logtoboth \"*+b1script: Start b1script\"
+}
+b1intro
+"
 }
 
 function makeb1adduser() {
-    b1write "function b1adduser() {"
-    b1write "    logtoboth \"> b1script: Add user $username\""
-    b1write "    # Add user and set home directory"
-    b1write "    useradd -m -d /home/$username $username"
-    b1write "    # Set initial login group"
-    b1write "    usermod --gid users $username"
-    b1write "    # Add other groups to which user should belong"
-    b1write "    usermod --groups $groups $username"
-    b1write "    # Change user's password"
-    b1write "    chpasswd <<EOF"
-    b1write "$username:$password"
-    b1write "EOF"
+    b1write $"function b1adduser() {
+    logtoboth \"> b1script: Add user $username\"
+    # Add user and set home directory
+    useradd -m -d /home/$username $username
+    # Set initial login group
+    usermod --gid users $username
+    # Add other groups to which user should belong
+    usermod --groups $groups $username
+    # Change user's password
+    chpasswd <<EOF
+$username:$password
+EOF
+"
     if [ "$sudo" == "yes" ]
     then
-	b1write "    # Enable sudo for user"
-	b1write "    cat > /etc/sudoers.d/010_$username-nopasswd <<EOF"
-	b1write "$username ALL=(ALL) NOPASSWD: ALL"
-	b1write "EOF"
-	b1write "    chmod 440 /etc/sudoers.d/010_$username-nopasswd"
+	b1write $"    # Enable sudo for user
+    cat > /etc/sudoers.d/010_$username-nopasswd <<EOF
+$username ALL=(ALL) NOPASSWD: ALL
+EOF
+    chmod 440 /etc/sudoers.d/010_$username-nopasswd
+"
     fi
-    b1write "}"
-    b1write "b1adduser"
-    b1write ""
+    b1write $"}
+b1adduser
+"
 }
 
 function makeb1wpa() {
     if [ "$wifissid" != "" ]
     then
-	b1write "function b1wpa() {"
-	b1write "    logtoboth \"> b1script: Create /etc/wpa_supplicant/wpa_supplicant.conf\""
-	b1write "    cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOF"
-	b1write "country=$wificountry"
-	b1write "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"
-	b1write "network={"
-	b1write "    priority=10"
-	b1write "    ssid=\"$wifissid\""
-	b1write "    psk=\"$wifipassword\""
-	b1write "    }"
-	b1write "EOF"
-	b1write "}"
-	b1write "b1wpa"
-	b1write ""
+	b1write $"function b1wpa() {
+    logtoboth \"> b1script: Create /etc/wpa_supplicant/wpa_supplicant.conf\"
+    cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOF
+country=$wificountry
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+network={
+    priority=10
+    ssid=\"$wifissid\"
+    psk=\"$wifipassword\"
+    }
+EOF
+}
+b1wpa
+"
     fi
 }
 
@@ -246,11 +248,11 @@ function makeb1adjusts() {
     then
 	b1write $"
     logtoboth \"> b1script: Disable piwiz\""
-	b1write $"    userdel -r rpi-first-boot-wizard > /dev/null 2&>1
+	b1write $"    [ \"$(getent passwd rpi-first-boot-wizard)\" != \"\" ] && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
     rm -f /etc/sudoers.d/010_wiz-nopasswd
     rm -f /etc/xdg/autostart/deluser.desktop
     [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
-    systemctl disable userconfig > /dev/null 2&>1
+    systemctl disable userconfig > /dev/null 2>&1
 "
     else
 	b1write $"
@@ -261,13 +263,13 @@ function makeb1adjusts() {
     then
 	b1write $"    
     [ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ] && rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
-    systemctl set-default multi-user.target > /dev/null 2&>1
+    systemctl set-default multi-user.target > /dev/null 2>&1
     # sdm-gburn configured system to Autologin
     if [ -f /usr/bin/startlxde-pi ]
     then
         logtoboth \"> b1script: Set delayed boot behavior to B4 (Desktop Autologin)\"
         echo 'delayed_boot_behavior=B4' >> /etc/sdm/auto-1piboot.conf
-        systemctl disable lightdm > /dev/null 2&>1
+        systemctl disable lightdm > /dev/null 2>&1
     else
         logtoboth \"> b1script: Set delayed boot behavior to B2 (Console Autologin)\"
         echo 'delayed_boot_behavior=B2' >> /etc/sdm/auto-1piboot.conf
@@ -279,7 +281,7 @@ function makeb1adjusts() {
     then
         logtoboth \"> b1script: Set delayed boot behavior to B3 (Desktop, no Autologin)\"
         echo 'delayed_boot_behavior=B3' >> /etc/sdm/auto-1piboot.conf
-        systemctl disable lightdm > /dev/null 2&>1
+        systemctl disable lightdm > /dev/null 2>&1
     else
         logtoboth \"> b1script: Set delayed boot behavior to B1 (Console, no Autologin)\"
         echo 'delayed_boot_behavior=B1' >> /etc/sdm/auto-1piboot.conf
