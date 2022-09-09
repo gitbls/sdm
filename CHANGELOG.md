@@ -1,5 +1,10 @@
 # Changelog
 
+## V6.7
+
+* Correct re-enabling display manager after first boot
+* Correct a couple of backwards stderr redirects
+
 ## V6.6
 
 * Vast improvements to sdm-gburn. See https://github.com/gitbls/sdm/wiki/Batch-burn-SSD-SDs-with-sdm-gburn
