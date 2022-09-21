@@ -416,7 +416,7 @@ function setbootset() {
 		    echo "$key=$value" >> $mnt/etc/sdm/auto-1piboot.conf
 		fi
 	    else
-		doconfigitem logtoboth $key $value
+		doconfigitem $key $value logtoboth
 	    fi
 	done
     fi
