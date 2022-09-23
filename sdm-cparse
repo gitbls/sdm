@@ -388,6 +388,41 @@ thishost:$thishost
 EOF
 }
 
+function getconfbool() {
+    #
+    # Grab one entry (name in $1) from cparams safely
+    #
+    local mnt="" pname="$1"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    paramfile="/etc/sdm/cparams"
+    if [ -f $paramfile ]
+    then
+        pval=$((grep ${pname}: $paramfile) | (IFS=":" read kn kv ; echo $kv))
+    else
+        pval=0
+    fi
+    cmval=${!pname}
+    rval=$((pval|cmval))
+    echo "$rval"
+}
+function getconfstr() {
+    #
+    # Grab one entry string (name in $1) from cparams safely
+    #
+    local mnt="" pname="$1"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    paramfile="/etc/sdm/cparams"
+    if [ -f $paramfile ]
+    then
+        pval=$((grep ${pname}: $paramfile) | (IFS=":" read kn kv ; echo $kv))
+    else
+        pval=0
+    fi
+    cmval=${!pname}
+    [ "$cmval" != "" ] && rval=$cmval || rval=$pval
+    echo "$rval"
+}
+
 function setbootset() {
     #
     # Handle --bootset, --svcdisable and --svcenable for customize and burn commands
@@ -416,7 +451,7 @@ function setbootset() {
 		    echo "$key=$value" >> $mnt/etc/sdm/auto-1piboot.conf
 		fi
 	    else
-		doconfigitem logtoboth $key $value
+		doconfigitem $key $value logtoboth
 	    fi
 	done
     fi
