@@ -33,6 +33,12 @@ function errexit() {
     exit 1
 }
 
+function ferrexit() {
+    [ "$1" != "" ] && printf "$1" > $(tty)
+    docleanup
+    exit 1
+}
+
 function exitiferr() {
     [ "${1:0:1}" == "?" ] && errexit "$1"
 }
@@ -46,6 +52,25 @@ function docleanup() {
     unset SDMPT
     [ "$loopdev" != "" ] && losetup -d $loopdev && loopdev=""
     sync
+}
+
+function ctrlcexit() {
+    [ "$icolors" == "1" ] && resetcolors xt
+    printf "\n%% Caught CTRL/C during Extend. Cleaning up...\n"
+    if [ "$ddpid" != "" ]
+    then
+	kill -HUP $ddpid > /dev/null 2>&1
+	wait $ddpid > /dev/null 2>&1
+	exit 1
+    else
+	ferrexit "%% Exiting...\n"
+    fi
+}
+
+function doexit() {
+    [ "$icolors" == "1" ] && resetcolors xt
+    docleanup
+    exit
 }
 
 function ismounted() {
@@ -145,8 +170,12 @@ function fndotfullpath() {
 function extendimage() {
     local ldimg=$1 limgext=$2
     local line dsiz
-    dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg
-
+    trap "ctrlcexit" SIGINT
+    dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg &
+    ddpid=$!
+    wait $ddpid > /dev/null 2>&1
+    [ $? -ne 0 ] && errexit "? Exiting due to dd error"
+    trap SIGINT
     # Get the actual size of the image file from parted
     while read line ; do
 	if [[ "$line" =~ "Disk" ]] 
@@ -430,7 +459,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.7"
+version="V6.8"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -459,6 +488,7 @@ cronsystemd=0               #1=disable cron service and enable systemd cron time
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
+ddpid=""                    #Holds pid of dd during IMG Extend
 ddsw="bs=16M iflag=direct"  #Switches for dd
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
 disables=""                 #Complex services to disable
@@ -775,7 +805,7 @@ cscript="$(fndotfullpath $cscript)"
 [ $fcustomize -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --customize and --shrink"
 [ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
 [ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
-[ $expandroot -eq 1 -a $burn -eq 0 ] && errexit "? Switch conflict: --expand-root only valid with --burn"
+[ $expandroot -eq 1 -a $burn -eq 0 -a $burnfile -eq 0 ] && errexit "? Switch conflict: --expand-root only valid with --burn and --burnfile"
 [ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
 if [ "$aptmaint" != "" ]
 then
@@ -1021,6 +1051,7 @@ xapps=$(getapplist "$xappfile")
 #
 # Process the command. Actions are burn, custommize, mount, and standalone --extend
 #
+trap "doexit" EXIT
 thishost="$(hostname)"
 #
 # Process --burn command
@@ -1219,8 +1250,9 @@ else
 fi
 
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
+trap "ctrlcexit" SIGINT
 systemd-nspawn -q --directory=$SDMPT $nspawnsw $spawncmd < $(tty)
-docleanup
 [ $icolors -eq 1 ] && resetcolors xt
+docleanup
 
 exit 0
