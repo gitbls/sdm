@@ -81,6 +81,13 @@ function dodt() {
     IFS="$sifs"
 }
 
+function doctrlcp1() {
+    if [ "$(systemd-detect-virt -c)" == "systemd-nspawn" ]
+    then
+	echo "% Got CTRL-C. Exiting systemd-nspawn abruptly..."
+	exit 1     #Can't use poweroff since no job control
+    fi
+}
 #
 # Read configuration information from sdm
 #
@@ -93,6 +100,7 @@ source /etc/sdm/sdm-readparams
 cmd="$1"
 cmdoptions="$2"
 # case stmt falls through if not processed within
+trap "doctrlcp1" SIGINT
 case "$cmd" in
     apt)
 	logtoboth "* Start apt maintenance"
@@ -767,6 +775,7 @@ then
     logtoboth "> Disable running piwiz and userconfig on first boot per --disable piwiz"
     [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
     systemctl disable userconfig.service > /dev/null 2>&1
+    systemctl mask    userconfig.service > /dev/null 2>&1
     [ "$(getent passwd rpi-first-boot-wizard)" != "" ] && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
     rm -f /etc/sudoers.d/010_wiz-nopasswd
     rm -f /etc/xdg/autostart/deluser.desktop
@@ -906,3 +915,4 @@ else
     logtoboth "* Customization complete"
     logtoboth "* Batch Mode exit"
 fi
+exit 0
