@@ -15,6 +15,17 @@ function write_burnmsg() {
     return 0
 }    
 
+function ddctrlc() {
+    printf "\n%% Caught CTRL/C during burn. Cleaning up...\n"
+    if [ "$ddpid" != "" ]
+    then
+	#echo "killing $ddpid"
+	kill -HUP $ddpid > /dev/null 2>&1
+	wait $ddpid > /dev/null 2>&1
+	exit 1
+    fi
+}
+
 function expandpartition() {
     # $1: devicename (/dev/sdX)
     local fulldevname=$1
@@ -64,6 +75,7 @@ function sdm_burndevfile() {
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
     declare -x SDMPT=$(makemtpt)
+    newdiskid="$(tr -dc 'a-f0-9' < /dev/hwrng | dd bs=1 count=8 2>/dev/null)"
     [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
@@ -85,8 +97,13 @@ function sdm_burndevfile() {
 	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
 	# Burn the IMG to the device
-	echo "$ddcmd" ; $ddcmd
+	echo "$ddcmd"
+	trap "ddctrlc" SIGINT
+	$ddcmd &
+	ddpid=$!
+	wait $ddpid > /dev/null 2>&1
 	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	trap SIGINT
 	burnmsg+=("$(thisdate) > dd Copy completed")
 	# Prevent mount errors
 	sync ; sync ; sleep 1
@@ -95,41 +112,56 @@ function sdm_burndevfile() {
 	if [ $expandroot -eq 1 ]
 	then
 	    expandpartition $burndev
-	    olddiskid=$(fdisk -l $burndev | sed -n 's/Disk identifier: 0x\([^ ]*\)/\1/p')
-	    newdiskid="$(tr -dc 'a-f0-9' < /dev/hwrng | dd bs=1 count=8 2>/dev/null)"
-	    write_burnmsg "> Expand Root: Set new disk ID '$newdiskid' on '$burndev'"
-	    sfdisk --disk-id $burndev 0x${newdiskid}
-	    errifrc $? "? sfdisk error setting diskid"
-	    sync ; sync ; sleep 1
 	fi
- 	mount -v ${burndev}${p2} $SDMPT
+	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
+	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
+	sfdisk --disk-id $burndev 0x${newdiskid}
+	errifrc $? "? sfdisk error setting diskid"
+	sync ; sync ; sleep 1
+	mount -v ${burndev}${p2} $SDMPT
 	mount -v ${burndev}${p1} $SDMPT/boot
 	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
-	if [ $expandroot -eq 1 ]
-	then
-	    write_burnmsg "> Expand Root: Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
-	    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
-	    sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
-	    sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
-	    ! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
-	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
-	fi
     else
 	#
 	# Burning to a file
 	#
-	[ "$burnfilefile" == "" ] && errexit "? No Output Image file specified"
-	[ -f $burnfilefile ] && errexit "? Output Image file '$burnfilefile' exists"
-	write_burnmsg "* Burn '$dimg' to Output Image '$burnfilefile'..."
-	burnmsg+=("$(thisdate) > Burn Image command line: $cmdline")
+	[ "$burnfilefile" == "" ] && errexit "? No Output IMG file specified"
+	[ -f $burnfilefile ] && errexit "? Output IMG file '$burnfilefile' exists"
+	write_burnmsg "* Burn '$dimg' to Output IMG '$burnfilefile'..."
+	burnmsg+=("$(thisdate) > Burn IMG command line: $cmdline")
 	ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
 	# Burn the IMG to the file
-	echo "$ddcmd" ; $ddcmd
+	echo "$ddcmd"
+	trap "ddctrlc" SIGINT
+	$ddcmd &
+	ddpid=$!
+	wait $ddpid > /dev/null 2>&1
 	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	trap SIGINT
 	burnmsg+=("$(thisdate) > Image copy completed")
-	declare -x SDMPT=$(makemtpt)
+	olddiskid="$((blkid -o value $burnfilefile) | (read id ; echo $id))"
+	loopdev=$(losetup --show -P -f $burnfilefile)
+	sfdisk --disk-id $loopdev 0x${newdiskid}
+	sfsts=$?
+	losetup -d $loopdev
+	errifrc $sfsts "? sfdisk error setting diskid"
 	domount "$burnfilefile"
+	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
+    fi
+    write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
+    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
+    # init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
+    sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
+    sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
+    ! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
+    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
+    if [ "$(getconfbool expandroot)" == "1" -a "$(getconfbool regensshkeys)" == "1" ]
+    then
+	write_burnmsg "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-keys set"
+	sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
+    else
+	write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-keys not set"
     fi
     #
     # Write out the accumulated messages into mounted image if image has been customized
@@ -148,8 +180,8 @@ function sdm_burndevfile() {
 	#
 	# Set hostname into the image
 	#
-	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain exports keymap locale noreboot"
-	xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait"
+	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale noreboot"
+	xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -158,6 +190,7 @@ function sdm_burndevfile() {
 	    eval b$e=\${!e}
 	done
 	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
+	# Update settings with settings from cmd line as appropriate
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
 	[ "$bdomain" != "" ] && domain=$bdomain
@@ -169,6 +202,8 @@ function sdm_burndevfile() {
 	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
 	[ "$bapssid" != "sdm" ] && apssid=$bapssid
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
+	expandroot=$((bexpandroot|expandroot))
+	regensshkeys=$((bregensshkeys|regensshkeys))
 	if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
 	then
 	    # don't include domain name. Leave that to user
@@ -277,8 +312,7 @@ function sdm_burndevfile() {
 	    logtoboth "> Execute function 'do_b0script' in --b0script '$b0script'"
 	    source $b0script
 	    ftype=$(type -t do_b0script)
-	    [ "$ftype" != "function" ] && logtoboth ">%Function 'do_b0script' not found in '$b0script'; Skipping..."
-	    [ "$ftype" == "function" ] && do_b0script
+	    [ "$ftype" == "function" ] && do_b0script || logtoboth ">%Function 'do_b0script' not found in '$b0script'; Skipping..."
 	fi
 	if [ "$bcp" != "" ]
 	then
