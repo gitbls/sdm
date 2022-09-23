@@ -7,9 +7,32 @@ function errexit() {
     exit 1
 }
 
+function ferrexit() {
+    [ "$1" != "" ] && printf "$1" > $(tty)
+    doumount
+    cleanup
+    exit 1
+}
+
 function cleanup() {
     rm -f $ugb0script
     rm -f $ugb1script
+}
+
+function doctrlc() {
+    if [ "$burnpid" != "" ]
+    then
+	printf "\n%% Caught CTRL/C during disk copy; Cleaning up...\n" 
+	ddpid=$(ps T | grep 'dd if=' | (IFS=" " read pid rest ; echo $pid))
+	kill -HUP $ddpid $burnpid > /dev/null 2>&1
+	wait $burnpid > /dev/null 2>&1
+    fi
+    printf "%% Final cleanup. Please wait (can take a while)\n"
+    ferrexit ""
+}
+
+function doexit() {
+    ferrexit "Exit\n"
 }
 
 function askyn() {
@@ -74,7 +97,6 @@ function domount() {
 
 function doumount() {
     local mnt=$SDMPT
-    echo "> umount IMG '$img'"
     [ "$mnt" == "" ] && mnt=/mnt/sdm
     ismounted $mnt/boot && umount -v $mnt/boot
     ismounted $mnt && umount -v $mnt
@@ -154,7 +176,9 @@ b1intro
 }
 
 function makeb1adduser() {
-    b1write $"function b1adduser() {
+    if [ "$makeuser" == "yes" ]
+    then
+        b1write $"function b1adduser() {
     logtoboth \"> b1script: Add user $username\"
     # Add user and set home directory
     useradd -m -d /home/$username $username
@@ -167,18 +191,19 @@ function makeb1adduser() {
 $username:$password
 EOF
 "
-    if [ "$sudo" == "yes" ]
-    then
-	b1write $"    # Enable sudo for user
+	if [ "$sudo" == "yes" ]
+	then
+	    b1write $"    # Enable sudo for user
     cat > /etc/sudoers.d/010_$username-nopasswd <<EOF
 $username ALL=(ALL) NOPASSWD: ALL
 EOF
     chmod 440 /etc/sudoers.d/010_$username-nopasswd
 "
-    fi
-    b1write $"}
+	fi
+	b1write $"}
 b1adduser
 "
+    fi
 }
 
 function makeb1wpa() {
@@ -227,9 +252,12 @@ function makeb1adjusts() {
     b1write $"function b1adjusts() {
 "
 
-    b1write $"    logtoboth \"> b1script: Set username $username in /etc/sdm/cparams\"
-    sed -i \"s/myuser:.*/myuser:$username/\" /etc/sdm/cparams
-    sed -i '/delayed_boot_behavior/d' /etc/sdm/auto-1piboot.conf"
+    if [ "$makeuser" == "yes" ]
+    then
+	b1write $"    logtoboth \"> b1script: Set username $username in /etc/sdm/cparams\""
+	b1write $"    sed -i \"s/myuser:.*/myuser:$username/\" /etc/sdm/cparams"
+    fi
+    b1write $"    sed -i '/delayed_boot_behavior/d' /etc/sdm/auto-1piboot.conf"
 #    b1write "    # sdm-gburn configured First Boot reboot settings"
     if [ "$reboot" == "0" ]
     then
@@ -244,6 +272,10 @@ function makeb1adjusts() {
     sed -i \"s/noreboot:.*/noreboot:0/\" /etc/sdm/cparams
     sed -i \"s/rebootwait:.*/rebootwait:$reboot/\" /etc/sdm/cparams"
     fi
+    if [ "$wificountry" != "" ]
+    then
+	b1write $"    sed -i \"s/wificountry:.*/wificountry:$wificountry/\" /etc/sdm/cparams"
+    fi
     if [ "$piwiz" == "no" ]
     then
 	b1write $"
@@ -253,6 +285,7 @@ function makeb1adjusts() {
     rm -f /etc/xdg/autostart/deluser.desktop
     [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
     systemctl disable userconfig > /dev/null 2>&1
+    systemctl mask    userconfig > /dev/null 2>&1
 "
     else
 	b1write $"
@@ -356,7 +389,7 @@ function makeb1dhcpcd() {
 # Read lines from input file
 #    Each line is complete for one user. Supported options (all on a single line in the input file, separated by commas,  no spaces)
 #    username password=userpwd,wifissid=wifissidforuser,wifipassword=wifipasswordforuser,hostname=userhostname,
-#            wificountry=wc,keymap=km,locale=lc,timezone=tz,sudo=no,
+#            wificountry=wc,keymap=km,locale=lc,timezone=tz,sudo=no,makeuser=no
 #            dhcpcd=[dev:name;ipaddress:ipv4ip;router:routerip;dns:dnsip]  # There can be up to two of these, for 2 different devices,
 #            piwiz=yes,autologin=yes,reboot=20,mouse=left
 #
@@ -383,6 +416,7 @@ function makeb1dhcpcd() {
 # $2:  data file
 # $3:  Burn device (/dev/sdX)
 
+trap "doexit" EXIT
 img=$1
 [ "$img" == "" ] && errexit "Usage: $0 IMGname datafile burndev"
 [ ! -f "$img" ] && errexit "? IMG file '$img' not found"
@@ -404,10 +438,14 @@ ismounted $burndev && errexit "? Device '$burndev' is mounted"
 #
 echo "* Check whether IMG '$img' is sdm-enhanced"
 declare -x SDMPT=$(makemtpt)
+burnpid=""
+set -m  # Enable job control
+trap "doctrlc" SIGINT
 domount "$img"
 #echo "> IMG '$img' mounted on $SDMPT"
 [ -d $SDMPT/etc/sdm ] && fenh=1 || fenh=0
 doumount
+trap SIGINT
 [ $fenh -eq 1 ] && echo "* IMG '$img' is sdm-enhanced" || echo "% IMG '$img' is not sdm-enhanced; some functions disabled"
 
 # Groups added for new users
@@ -426,6 +464,7 @@ do
     keymap=""
     locale=""
     timezone=""
+    makeuser="yes"
     sudo="yes"
     dhcpmsg="# sdm-gburn configuration updates"
     piwiz="no"
@@ -436,7 +475,7 @@ do
     ugb1script=""
     b0script=""
     b1script=""
-    echo "* User '$username' configuration"
+    echo "* Configuration for '$username'"
     readarray -d, citems <<< "$args"
     for c in "${citems[@]}"
     do
@@ -452,6 +491,8 @@ do
 	[ "$key" == "dhcpcd" -a "$dhcpcd" != "" ] && key="dhcpcd1"
 	eval "${key}=\"$value\""
     done
+
+    [ "$makeuser" != "yes" ] && sudo="no" && autologin="no" #Disable adding sudo if not creating user
 
     if [ "$b0script" != "" ]
     then
@@ -490,7 +531,7 @@ do
 	chmod 755 $ugb0script $ugb1script
 	while [ 1 ]
 	do
-	    echo -n "Ready to burn '$burndev' for user '$username'? [Yes/no/skip/quit/list/help] " ;  read ans
+	    echo -n "Ready to burn '$burndev' for '$username'? [Yes/no/skip/quit/list/help] " ;  read ans
 	    [ "$ans" == "" ] && ans="y" || ans="${ans,,}"
 	    sfdisk -l $burndev > /dev/null 2>&1
 	    sts=$?
@@ -501,18 +542,18 @@ do
 	    fi
 	    if [ "$ans" == "l" ]
 	    then
-		printf "\n*** $ugb0script generated b0script for $username ***\n"
+		printf "\n*** $ugb0script generated b0script for '$username' ***\n"
 		cat $ugb0script
-		printf "\n*** $ugb1script generated b1script for $username ***\n"
+		printf "\n*** $ugb1script generated b1script for '$username' ***\n"
 		cat $ugb1script
 	    else
 		if [ "$ans" == "h" ]
 		then
 		    echo "Valid [case-insensitive] responses:"
-		    echo " Y - Burn the disk for user '$username' (or press ENTER)"
-		    echo " N or S - Skip burning disk for user '$username'"
-		    echo " Q - Do not burn the disk for user '$username' and exit"
-		    echo " L - Display the generated b0script/b1script for user '$username'"
+		    echo " Y - Burn the disk for '$username' (or press ENTER)"
+		    echo " N or S - Skip burning disk for '$username'"
+		    echo " Q - Do not burn the disk for '$username' and exit"
+		    echo " L - Display the generated b0script/b1script for '$username'"
 		    echo " H - Print this help"
 		else
 		    e=1
@@ -523,7 +564,7 @@ do
 	done
 	case "${ans:0:1}" in
 	    n|s)
-		echo "% Skipping user '$username'"
+		echo "% Skipping '$username'"
 		cleanup
 		;;
 	    q)
@@ -533,16 +574,20 @@ do
 		;;
 	    y|*)
 		[ "$reboot" != "0" ] && rb="--reboot $reboot" || rb=""
-		echo "/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root $rb --b0script $ugb0script --b1script $ugb1script $img"
-		/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root $rb --b0script $ugb0script --b1script $ugb1script $img --restart
+		trap "doctrlc" SIGINT
+		echo "/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root  --regen-ssh-host-keys $rb --b0script $ugb0script --b1script $ugb1script $img"
+		/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root --regen-ssh-host-keys $rb --b0script $ugb0script --b1script $ugb1script --restart $img &
+		burnpid=$!
+		wait $burnpid > /dev/null 2>&1
+		trap SIGINT
 		cleanup
-		echo "* Disk for user '$username' completed"
+		echo "* Disk for '$username' completed"
 		;;
 	esac
     else
-	if [ "$username" != "" -a "$password" == "" ]
+	if [ "$username" != "" -a "$password" == "" -a "$makeuser" == "yes" ]
 	then
-	    echo "% Skipping user '$username'; no password provided"
+	    echo "% Skipping user '$username'; password required"
 	fi
     fi
 done
