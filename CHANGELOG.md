@@ -1,5 +1,15 @@
 # Changelog
 
+## V6.8
+
+* Properly cleanup/exit when CTRL/C caught. This can obviously leave IMG/SSD/SD in indeterminate state, but mounts and loop devices cleaned up
+* If both --expand-root (on burn command) and --regen-ssh-host-keys (on --burn or --customize command) are enabled, disable the unneeded RasPiOS firstboot script when burning
+* Burn to (IMG) file improvements
+* Always change Disk ID when burning
+* Correct wrong parameter order bug identified by @StefanTischler
+* Enable sdm-gburn to not add a user if needed for use case (e.g., users created in --customize)
+* In addition to disabling userconfig service, also mask it, just in case.
+
 ## V6.7
 
 * Correct re-enabling display manager after first boot
@@ -21,7 +31,7 @@
 
 ## V6.4
 
-* Enable getty@tty1 if using `--svc-disable userconfig`. Since sdm can do effectively what the userconfig service does (add a new user with a password) it needs to complete the system configuration that the userconfig service does. /usr/lib/userconf-pi/userconf calls /usr/bin/cancel-rename, which enables getty@tty1. 
+* Enable getty@tty1 if using `--svc-disable userconfig`. Since sdm can do effectively what the userconfig service does (add a new user with a password) it needs to complete the system configuration that the userconfig service does. /usr/lib/userconf-pi/userconf calls /usr/bin/cancel-rename, which enables getty@tty1.
 
 ## V6.3
 
