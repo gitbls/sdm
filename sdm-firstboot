@@ -402,9 +402,8 @@ systemctl disable sdm-firstboot > /dev/null 2>&1
 
 if [ $regensshkeys -eq 1 ]
 then
-    bootlog "Start Regenerate SSH Host Keys Process"
+    bootlog "Regenerate SSH Host Keys"
     timesyncwait
-    bootlog "Restart regenerate_ssh_host_keys to run again (once)..."
     systemctl start regenerate_ssh_host_keys
     while [ "$(systemctl show -p ActiveState regenerate_ssh_host_keys --value)" == "active" ]
     do
