@@ -342,6 +342,7 @@ motd:$motd
 groups:$groups
 myuid:$myuid
 myuser:$myuser
+netman:$netman
 nouser:$nouser
 os:$os
 passwordpi:$passwordpi
