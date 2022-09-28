@@ -1,5 +1,10 @@
 # Changelog
 
+## V6.9
+
+* Basic network manager configuration via `--network-manager dhcpcd|nm` switch. Preliminary and may change.
+* Implement non-interactive sdm usage (--explore, --customize, --mount)
+
 ## V6.8
 
 * Properly cleanup/exit when CTRL/C caught. This can obviously leave IMG/SSD/SD in indeterminate state, but mounts and loop devices cleaned up
