@@ -317,13 +317,13 @@ function sdm_burndevfile() {
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords per --password-pi, --password-user, and/or --password-root"
-	    systemd-nspawn -q --directory=$SDMPT $sdmdir/sdm-phase1 burn-change-passwords $(basename $bcp) < $(tty)
+	    systemd-nspawn -q --directory=$SDMPT $sdmdir/sdm-phase1 burn-change-passwords $(basename $bcp)
 	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
 	    declare -x SDMNSPAWN="Burn1"
-	    systemd-nspawn -q --directory=$SDMPT $sdmdir/sdm-phase1 b1script $b1script < $(tty)
+	    systemd-nspawn -q --directory=$SDMPT $sdmdir/sdm-phase1 b1script $b1script
 	fi
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"
