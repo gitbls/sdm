@@ -3,12 +3,12 @@
 version="2.0"
 
 function errexit() {
-    echo -e "$1" > $(tty)
+    echo -e "$1"
     exit 1
 }
 
 function ferrexit() {
-    [ "$1" != "" ] && printf "$1" > $(tty)
+    [ "$1" != "" ] && printf "$1"
     doumount
     cleanup
     exit 1
