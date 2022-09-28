@@ -2,7 +2,7 @@
 
 ## V6.9
 
-* Basic network manager configuration via `--network-manager dhcpcd|nm` switch. Preliminary and may change.
+* Basic network manager configuration via `--netman dhcpcd|nm` switch. Preliminary and may change.
 * Implement non-interactive sdm usage (--explore, --customize, --mount)
 
 ## V6.8
