@@ -475,7 +475,6 @@ RefuseManualStop=yes
 [Timer]
 OnCalendar=%I
 Persistent=yes
-
 [Install]
 WantedBy=timers.target
 EOF
@@ -602,6 +601,21 @@ fi
 # Post-install Configuration
 #
 logtoboth "* Phase 1 post-app/xapp installation/configuration"
+#
+# Network manager configuration
+#
+case "${netman,,}" in
+    dhcpcd)
+	logtoboth "> Set network manager dhcpcd"
+	doapt "install --no-install-recommends -y dhcpcd" $showapt
+	do_raspiconfig do_netconf 1
+	;;
+    nm|network-manager)
+	logtoboth "> Set network manager NetworkManager"
+	doapt "install --no-install-recommends -y network-manager" $showapt
+	do_raspiconfig do_netconf 2
+	;;
+esac
 #
 # Configure VNC if requested
 #
@@ -905,12 +919,18 @@ cklogfreespace "at end of Customization"
 
 if [ $batch -eq 0 ]
 then
-    logtoboth "* Enter Shell Command Prompt"
-    IFS=":" read efg ebg ecursor <<< $ecolors
-    stermcolors "$efg" "$ebg" "$ecursor" x1
-    bash -i
-    logtoboth "* Customization complete"
-    resetcolors x1
+    if [ -t 0 ]
+    then
+	logtoboth "* Enter Shell Command Prompt"
+	IFS=":" read efg ebg ecursor <<< $ecolors
+	stermcolors "$efg" "$ebg" "$ecursor" x1
+	bash -i
+	logtoboth "* Customization complete"
+	resetcolors x1
+    else
+	logtoboth "* Run bash on non-terminal standard input"
+	bash
+    fi
 else
     logtoboth "* Customization complete"
     logtoboth "* Batch Mode exit"
