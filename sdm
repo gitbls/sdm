@@ -28,13 +28,13 @@
 #
 
 function errexit() {
-    echo -e "$1" > $(tty)
+    echo -e "$1"
     docleanup
     exit 1
 }
 
 function ferrexit() {
-    [ "$1" != "" ] && printf "$1" > $(tty)
+    [ "$1" != "" ] && printf "$1"
     docleanup
     exit 1
 }
@@ -416,6 +416,7 @@ Command Switches for --customize and --burn or as noted
  --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
  --mouse left        Enable left-handed mouse if LXDE installed
+ --netman            Specify network manager to use (dhcpcd, nm, network-manager)
  --nouser            Do not add a new user
  --nspawnsw str      Additional switches for nspawn command
  --password-pi pwd   Set password for Pi user (will prompt if not provided)
@@ -459,7 +460,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.8"
+version="V6.9"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -540,6 +541,7 @@ modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
+netman="dhcpcd"             #--netman
 noreboot=0                  #1=Do not restart system after first boot
 nouser=0                    #1=Do not require a user to be specified
 os="raspios"                #Default OS for images
@@ -608,7 +610,7 @@ cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nspawnsw:,os:,\
+mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nspawnsw:,netman:,os:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
 redo-customize,regen-ssh-host-keys,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
@@ -689,6 +691,7 @@ do
 	--motd)        motd=$2       ; shift 2 ;;
 	--mouse)       fmouse=1      ; shift 2 ;;  #switch value required but ignored for now
 	--mount)       fdomount=1    ; shift 1 ;;
+	--netman)      netman=$2     ; shift 2 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nouser) nouser=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
@@ -894,7 +897,16 @@ then
     done
     [ "$emsg" != "" ] && errexit "? --systemd-config file(s) not found: $emsg"
 fi
-
+#
+# --netman
+#
+if [ "$netman" != "" ]
+then
+    if ! [[ "|nm|dhcpcd|network-manager|" =~ "|$netman|" ]]
+    then
+	errexit "? Unknown --netman value: $netman"
+    fi
+fi
 #
 # Password-related switches
 #
@@ -1090,19 +1102,22 @@ then
     declare -x SDMPT=$(makemtpt)
     domount "$dimg"
     echo "* $dimgdevname '$dimg' mounted on $SDMPT"
-    echo $"** BE VERY CAREFUL!! **
+    if [ -t 0 ]
+    then
+	echo $"** BE VERY CAREFUL!! **
 ** Precede all path references by '$SDMPT' or you WILL modify your running system **
 ** Use 'exit' to Exit the bash shell and unmount the $dimgdevname"
-    IFS=":" read mfg mbg mcursor <<< $mcolors
-    [ "$mfg" == "" ] && mfg="black"
-    [ "$mbg" == "" ] && mbg="LightSalmon1"
-    [ "$mcursor" == "" ] && mcursor="blue"
-    stermcolors "$mfg" "$mbg" "$mcursor" xt
+	IFS=":" read mfg mbg mcursor <<< $mcolors
+	[ "$mfg" == "" ] && mfg="black"
+	[ "$mbg" == "" ] && mbg="LightSalmon1"
+	[ "$mcursor" == "" ] && mcursor="blue"
+	stermcolors "$mfg" "$mbg" "$mcursor" xt
+    fi
     cd $SDMPT
-    bash < $(tty)
+    bash
     cd - > /dev/null
     docleanup
-    resetcolors xt
+    [ -t 0 ] && resetcolors xt
     exit 0
 fi
 #
@@ -1249,10 +1264,16 @@ else
     echo "* nspawn into image '$dimg' for Phase 1"
 fi
 
-[ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
+if [ -t 0 ]
+then
+    cmode="--console interactive"
+    [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
+else
+    cmode="--console pipe"
+fi
 trap "ctrlcexit" SIGINT
-systemd-nspawn -q --directory=$SDMPT $nspawnsw $spawncmd < $(tty)
-[ $icolors -eq 1 ] && resetcolors xt
+systemd-nspawn -q --directory=$SDMPT $nspawnsw $cmode $spawncmd 
+[ $icolors -eq 1 -a -t 0 ] && resetcolors xt
 docleanup
 
 exit 0
