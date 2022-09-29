@@ -460,7 +460,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.9"
+version="V6.10"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1264,6 +1264,7 @@ else
     echo "* nspawn into image '$dimg' for Phase 1"
 fi
 
+
 if [ -t 0 ]
 then
     cmode="--console interactive"
@@ -1271,6 +1272,12 @@ then
 else
     cmode="--console pipe"
 fi
+#
+# systemd got --console switch with 242, so don't try it if earlier version
+#
+read s vers junk <<< $(systemd --version)
+[[ "$newsd" -lt "242" ]] && cmode=""
+
 trap "ctrlcexit" SIGINT
 systemd-nspawn -q --directory=$SDMPT $nspawnsw $cmode $spawncmd 
 [ $icolors -eq 1 -a -t 0 ] && resetcolors xt
