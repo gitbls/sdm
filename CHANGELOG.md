@@ -1,5 +1,9 @@
 # Changelog
 
+## V6.10
+
+* systemd didn't get '--console` switch until V242, so don't use it on earlier versions
+
 ## V6.9
 
 * Basic network manager configuration via `--netman dhcpcd|nm` switch. Preliminary and may change.
