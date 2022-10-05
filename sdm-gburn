@@ -1,6 +1,6 @@
 #!/bin/bash
-# TODO:
-version="2.0"
+
+version="2.1"
 
 function errexit() {
     echo -e "$1"
@@ -83,7 +83,6 @@ function domount() {
     # Before calling domount:
     #      declare -x SDMPT=$(makemtpt)
     #
-    local p1="1" p2="2"
     local mimg=$1
 
     [ ! -d $SDMPT ] && mkdir $SDMPT
@@ -126,9 +125,6 @@ function b1write() {
 
 function makeb0script() {
     #
-    # You can modify this as appropriate for your use
-    # Use it ONLY to copy files from your running system into the SSD/SD
-    #
     # sdm sources the b0script file and calls the function do_b0script
     # This function has access to both the running system AND the SD Card (precede by $SDMPT)
     #
@@ -163,6 +159,19 @@ function makeb0script() {
 	# Copy the b1script into the IMG
 	b0write "    cp $b1script \$SDMPT/etc/sdm/assets"
 	b0write "    chmod 755 \$SDMPT/etc/sdm/assets/$(basename $b1script)"
+    fi
+    if [ "$wpa" != "" ]
+    then
+	# Copy the wpa config file into the IMG
+	b0write "    echo \"Copy wpa_supplicant file $wpa to \$SDMPT/etc/wpa_supplicant/wpa_supplicant.conf\""
+	if [ "$wificountry" == "" ]
+	then
+	    b0write "    cp $wpa \$SDMPT/etc/wpa_supplicant/wpa_supplicant.conf"
+	else
+	    # There was no wificountry in the provided wpa config so use our default
+	    b0write "    echo \"country=$wificountry\" > \$SDMPT/etc/wpa_supplicant/wpa_supplicant.conf"
+	    b0write "    cat $wpa >> \$SDMPT/etc/wpa_supplicant/wpa_supplicant.conf"
+	fi
     fi
     b0write "}"
 }
@@ -251,12 +260,12 @@ function makeb1adjusts() {
     #   non-lxde: either getty@tty1 or nothing (depending on re-researching this)
     b1write $"function b1adjusts() {
 "
-
     if [ "$makeuser" == "yes" ]
     then
 	b1write $"    logtoboth \"> b1script: Set username $username in /etc/sdm/cparams\""
 	b1write $"    sed -i \"s/myuser:.*/myuser:$username/\" /etc/sdm/cparams"
     fi
+    # delayed_boot_behavior configured below
     b1write $"    sed -i '/delayed_boot_behavior/d' /etc/sdm/auto-1piboot.conf"
 #    b1write "    # sdm-gburn configured First Boot reboot settings"
     if [ "$reboot" == "0" ]
@@ -292,13 +301,18 @@ function makeb1adjusts() {
     # sdm-gburn configured system to run piwiz
 "
     fi
+    b1write $"    # Set first boot to Console no autologin
+    logtoboth \"> b1script: Set FirstBoot boot behavior to B1 (Console, no Autologin)\"
+    raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+"
+
     if [ "$autologin" == "yes" ]
     then
 	b1write $"    
     [ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ] && rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
     systemctl set-default multi-user.target > /dev/null 2>&1
     # sdm-gburn configured system to Autologin
-    if [ -f /usr/bin/startlxde-pi ]
+    if [ -f /usr/bin/startlxde-pi -o -d /etc/X11/xdm -o -d /etc/X11/wdm ]
     then
         logtoboth \"> b1script: Set delayed boot behavior to B4 (Desktop Autologin)\"
         echo 'delayed_boot_behavior=B4' >> /etc/sdm/auto-1piboot.conf
@@ -310,7 +324,7 @@ function makeb1adjusts() {
 "
     else
 	b1write $"    # sdm-gburn configured system to Not Autologin
-    if [ -f /usr/bin/startlxde-pi ]
+    if [ -f /usr/bin/startlxde-pi -o -d /etc/X11/xdm -o -d /etc/X11/wdm ]
     then
         logtoboth \"> b1script: Set delayed boot behavior to B3 (Desktop, no Autologin)\"
         echo 'delayed_boot_behavior=B3' >> /etc/sdm/auto-1piboot.conf
@@ -389,7 +403,7 @@ function makeb1dhcpcd() {
 # Read lines from input file
 #    Each line is complete for one user. Supported options (all on a single line in the input file, separated by commas,  no spaces)
 #    username password=userpwd,wifissid=wifissidforuser,wifipassword=wifipasswordforuser,hostname=userhostname,
-#            wificountry=wc,keymap=km,locale=lc,timezone=tz,sudo=no,makeuser=no
+#            wificountry=wc,keymap=km,locale=lc,timezone=tz,sudo=no,makeuser=no,wpa=/path/to/wpa_supplicant.conf
 #            dhcpcd=[dev:name;ipaddress:ipv4ip;router:routerip;dns:dnsip]  # There can be up to two of these, for 2 different devices,
 #            piwiz=yes,autologin=yes,reboot=20,mouse=left
 #
@@ -399,8 +413,8 @@ function makeb1dhcpcd() {
 # username and password are required
 #
 # If no hostname, username will be applied as the hostname
-# If no WiFi SSID specified, wpa_supplicant.conf will not be set
-# If no WiFi country specified, the default is US
+# If no WiFi SSID specified, wpa_supplicant.conf will not be set unless wpa= provides a wpa_supplicant.conf file
+# If no WiFi country specified, the default is US, unless wpa= provides a wpa_supplicant.conf file
 # keymap, locale, and timezone default to whatever is already set in the image
 # Optional sudo=no prevents enabling user for sudo (default is to enable)
 #
@@ -408,7 +422,7 @@ function makeb1dhcpcd() {
 #  write the per-user b0script and b1script as described by the data line in the input file
 #  The b0script is just a demo. Modify (carefully) as required
 #  The b1script will run steps to complete the requested configuration: add the specified user,
-#    set the password, create the wpa_supplicant.conf file, and append dhcpcd per-device configuration
+#    set the password, create the wpa_supplicant.conf file if needed, and append dhcpcd per-device configuration
 # Then
 #  Burn the user's SD Card using the custom scripts
 #
@@ -432,7 +446,6 @@ do
 done
 [ $perr -eq 1 ] && errexit "? Use 'sudo umount' to dismount each listed partition, then rerun $0"
 ismounted $burndev && errexit "? Device '$burndev' is mounted"
-
 #
 # Check that IMG has been sdm-enhanced
 #
@@ -458,136 +471,177 @@ printf "\n* Begin processing data file '$df'\n"
 readarray -t lines < $df
 for line in "${lines[@]}"
 do
-    username=${line%% *}  # Line starts with "username "
-    args=${line#* }      # Get rest of args (everything after the space)
-    wificountry="US"
-    keymap=""
-    locale=""
-    timezone=""
-    makeuser="yes"
-    sudo="yes"
-    dhcpmsg="# sdm-gburn configuration updates"
-    piwiz="no"
-    autologin="no"
-    reboot="20"
-    mouse="right"
-    ugb0script=""
-    ugb1script=""
-    b0script=""
-    b1script=""
-    echo "* Configuration for '$username'"
-    readarray -d, citems <<< "$args"
-    for c in "${citems[@]}"
-    do
-        IFS=":=" read key value <<< $c
-	key="${key##*\ }"
-        value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-	value="${value%\,}"     # Del trailing comma
-        value="${value#\"}"     # Del opening double-quotes 
-        value="${value%\"}"     # Del closing double-quotes 
-        value="${value#\'}"     # Del opening single-quotes 
-        value="${value%\'}"     # Del closing single-quotes
-        echo ">  $key=$value"
-	[ "$key" == "dhcpcd" -a "$dhcpcd" != "" ] && key="dhcpcd1"
-	eval "${key}=\"$value\""
-    done
-
-    [ "$makeuser" != "yes" ] && sudo="no" && autologin="no" #Disable adding sudo if not creating user
-
-    if [ "$b0script" != "" ]
+    #
+    # Comment lines start with a '#' in column 1
+    #
+    if ! [[ "$line" =~ ^#.* ]] && ! [[ "$line" == "" ]]
     then
-	[ ! -f $b0script ] && echo "% b0script '$b0script' not found; ignoring" && b0script=""
-    fi
-    if [ "$b1script" != "" ]
-    then
-	[ ! -f $b1script ] && echo "% b1script '$b1script' not found; ignoring" && b1script=""
-	[ ! -x $b1script ] && echo "% b1script '$b1script' is not executable; ignoring" && b1script=""
-    fi
-    if [ $fenh -ne 1 ]
-    then
-	[ "$b0script" != "" ] && echo "% Skipping b0script '$b0script'" && b0script=""
-	[ "$b1script" != "" ] && echo "% Skipping b1script '$b1script'" && b1script="" 
-    fi
-    if [ "$username" != "" -a "$password" != "" ]
-    then
-	[ "$hostname" == "" ] && hostname="$username"
-	ugb1script="/tmp/ugb1script-$username"
-	ugb0script="/tmp/ugb0script-$username"
-	rm -f $ugb0script
-	printf "#!/bin/bash\n" > $ugb0script
-	makeb0script
-
-	rm -f $ugb1script
-	printf "#!/bin/bash\n" > $ugb1script
-	printf "source /etc/sdm/sdm-readparams\n" >>$ugb1script
-	makeb1intro
-
-	makeb1adduser
-	makeb1wpa
-	makeb1L10n
-	makeb1dhcpcd
-	makeb1adjusts
-	# NEWFunctions: Insert any new function calls here
-	chmod 755 $ugb0script $ugb1script
-	while [ 1 ]
+	username=${line%% *}  # Line starts with "username "
+	args=${line#* }      # Get rest of args (everything after the space)
+	wifissid=""
+	wifipassword=""
+	wificountry=""
+	wpa=""
+	keymap=""
+	locale=""
+	timezone=""
+	makeuser="yes"
+	sudo="yes"
+	dhcpmsg="# sdm-gburn configuration updates"
+	piwiz="no"
+	autologin="no"
+	reboot="20"
+	mouse="right"
+	ugb0script=""
+	ugb1script=""
+	b0script=""
+	b1script=""
+	dhcpcd=""
+	dhcpcd1=""
+	echo "* Configuration for '$username'"
+	readarray -d, citems <<< "$args"
+	for c in "${citems[@]}"
 	do
-	    echo -n "Ready to burn '$burndev' for '$username'? [Yes/no/skip/quit/list/help] " ;  read ans
-	    [ "$ans" == "" ] && ans="y" || ans="${ans,,}"
-	    sfdisk -l $burndev > /dev/null 2>&1
-	    sts=$?
-	    if [[ "qnsy" =~ "$ans" ]] 
-	    then
-		[[ $sts -eq 0 ]] && break
-		[[ "qns" =~ "$ans" ]] && break
-	    fi
-	    if [ "$ans" == "l" ]
-	    then
-		printf "\n*** $ugb0script generated b0script for '$username' ***\n"
-		cat $ugb0script
-		printf "\n*** $ugb1script generated b1script for '$username' ***\n"
-		cat $ugb1script
-	    else
-		if [ "$ans" == "h" ]
-		then
-		    echo "Valid [case-insensitive] responses:"
-		    echo " Y - Burn the disk for '$username' (or press ENTER)"
-		    echo " N or S - Skip burning disk for '$username'"
-		    echo " Q - Do not burn the disk for '$username' and exit"
-		    echo " L - Display the generated b0script/b1script for '$username'"
-		    echo " H - Print this help"
-		else
-		    e=1
-		    [[ ! "qnsyl" =~ "$ans" ]] && e=0 && echo "% Unrecognized response '$ans'; Responses are: Yes/no/skip/quit/list"
-		    [ $sts -ne 0 -a $e -eq 1 ] && echo "% Insert disk '$burndev'"
-		fi
-	    fi
+            IFS=":=" read key value <<< $c
+	    key="${key##*\ }"
+            value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	    value="${value%\,}"     # Del trailing comma
+            value="${value#\"}"     # Del opening double-quotes
+            value="${value%\"}"     # Del closing double-quotes
+            value="${value#\'}"     # Del opening single-quotes
+            value="${value%\'}"     # Del closing single-quotes
+            echo ">  $key=$value"
+	    [ "$key" == "dhcpcd" -a "$dhcpcd" != "" ] && key="dhcpcd1"
+	    eval "${key}=\"$value\""
 	done
-	case "${ans:0:1}" in
-	    n|s)
-		echo "% Skipping '$username'"
-		cleanup
-		;;
-	    q)
-		echo "% Quit"
-		cleanup
-		exit 0
-		;;
-	    y|*)
-		[ "$reboot" != "0" ] && rb="--reboot $reboot" || rb=""
-		trap "doctrlc" SIGINT
-		echo "/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root  --regen-ssh-host-keys $rb --b0script $ugb0script --b1script $ugb1script $img"
-		/usr/local/sdm/sdm --burn $burndev --hostname $hostname --expand-root --regen-ssh-host-keys $rb --b0script $ugb0script --b1script $ugb1script --restart $img &
-		burnpid=$!
-		wait $burnpid > /dev/null 2>&1
-		trap SIGINT
-		cleanup
-		echo "* Disk for '$username' completed"
-		;;
-	esac
-    else
-	if [ "$username" != "" -a "$password" == "" -a "$makeuser" == "yes" ]
+
+	[ "$makeuser" != "yes" ] && sudo="no" && autologin="no" #Disable adding sudo if not creating user
+
+	if [ "$b0script" != "" ]
 	then
-	    echo "% Skipping user '$username'; password required"
+	    [ ! -f $b0script ] && echo "% b0script '$b0script' not found; ignoring" && b0script=""
+	fi
+	if [ "$b1script" != "" ]
+	then
+	    [ ! -f $b1script ] && echo "% b1script '$b1script' not found; ignoring" && b1script=""
+	    [ ! -x $b1script ] && echo "% b1script '$b1script' is not executable; ignoring" && b1script=""
+	fi
+	if [ $fenh -ne 1 ]
+	then
+	    [ "$b0script" != "" ] && echo "% Skipping b0script '$b0script'" && b0script=""
+	    [ "$b1script" != "" ] && echo "% Skipping b1script '$b1script'" && b1script=""
+	fi
+	if [ "$wpa" != "" ]
+	then
+	    if [ "$wifipassword" != "" -o "$wifissid" != "" -o "$wificountry" != "" ]
+	    then
+		echo "% wpa=$wpa overrrides settings for wifipassword= and wifissid="
+		wifissid=""
+		wifipassword=""
+		wificountry=""
+	    fi
+	    if [ ! -f $wpa ]
+	    then
+		echo "% File '$wpa' for wpa= setting not found; ignoring"
+		wpa=""
+	    fi
+	    IFS="=" read a wificountry <<<$(grep 'country=' $wpa)
+	    if [ "$wificountry" == "" ]
+	    then
+		echo "% No 'country=' statement found in $wpa; Using US"
+		wificountry="US"  # Prepend this default when we copy into the IMG
+	    else
+		wificountry=""    # Use the one in the provided file
+	    fi
+	fi
+	if [ "$wpa" == "" -a "$wifipassword" != "" -a "$wifissid" != "" ]
+	then
+	    if [ "$wificountry" == "" ]
+	    then
+		echo "% No WiFi country specified with wificountry=; Using US"
+		wificountry="US"
+	    fi
+	fi
+	if [[ "$username" != "" && "$password" != "" ]] || [[ "$makeuser" == "no" ]]
+	then
+	    [ "$hostname" == "" ] && hostname="$username"
+	    ugb1script="/tmp/ugb1script-$username"
+	    ugb0script="/tmp/ugb0script-$username"
+	    rm -f $ugb0script
+	    printf "#!/bin/bash\n" > $ugb0script
+	    makeb0script
+
+	    rm -f $ugb1script
+	    printf "#!/bin/bash\n" > $ugb1script
+	    printf "source /etc/sdm/sdm-readparams\n" >>$ugb1script
+	    makeb1intro
+
+	    makeb1adduser
+	    makeb1wpa
+	    makeb1L10n
+	    makeb1dhcpcd
+	    makeb1adjusts
+	    chmod 755 $ugb0script $ugb1script
+	    while [ 1 ]
+	    do
+		echo -n "Ready to burn '$burndev' for '$username'? [Yes/no/skip/quit/list/help] " ;  read ans
+		[ "$ans" == "" ] && ans="y" || ans="${ans,,}"
+		ans1="${ans:0:1}"
+		sfdisk -l $burndev > /dev/null 2>&1
+		sts=$?
+		if [[ "qnsy" =~ "$ans1" ]]
+		then
+		    [[ $sts -eq 0 ]] && break
+		    [[ "qns" =~ "$ans1" ]] && break
+		fi
+		if [ "$ans1" == "l" ]
+		then
+		    printf "\n*** $ugb0script generated b0script for '$username' ***\n"
+		    cat $ugb0script
+		    printf "\n*** $ugb1script generated b1script for '$username' ***\n"
+		    cat $ugb1script
+		else
+		    if [ "$ans1" == "h" ]
+		    then
+			echo "Valid [case-insensitive] responses:"
+			echo " Y - Burn the disk for '$username' (or press ENTER)"
+			echo " N or S - Skip burning disk for '$username'"
+			echo " Q - Do not burn the disk for '$username' and exit"
+			echo " L - Display the generated b0script/b1script for '$username'"
+			echo " H - Print this help"
+		    else
+			e=1
+			[[ ! "qnsyl" =~ "$ans1" ]] && e=0 && echo "% Unrecognized response '$ans'; Responses are: Yes/no/skip/quit/list"
+			[[ $e -eq 1 ]] && echo "% Insert disk '$burndev'"
+		    fi
+		fi
+	    done
+	    case "$ans1" in
+		n|s)
+		    echo "% Skipping '$username'"
+		    cleanup
+		    ;;
+		q)
+		    echo "% Quit"
+		    cleanup
+		    exit 0
+		    ;;
+		y|*)
+		    [ "$reboot" != "0" ] && rb="--reboot $reboot" || rb=""
+		    trap "doctrlc" SIGINT
+		    SDMDIR="/usr/local/sdm"  #Changed by EZsdmInstaller if needed
+		    echo "$SDMDIR/sdm --burn $burndev --hostname $hostname --expand-root  --regen-ssh-host-keys $rb --b0script $ugb0script --b1script $ugb1script $img"
+		    $SDMDIR/sdm --burn $burndev --hostname $hostname --expand-root --regen-ssh-host-keys $rb --b0script $ugb0script --b1script $ugb1script $img
+		    trap SIGINT
+		    cleanup
+		    echo "* Disk for '$username' completed"
+		    ;;
+	    esac
+	else
+	    if [ "$username" != "" -a "$password" == "" -a "$makeuser" == "yes" ]
+	    then
+		echo "% Skipping user '$username'; password required"
+	    fi
 	fi
     fi
 done
