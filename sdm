@@ -460,7 +460,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.10"
+version="V6.11"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1198,10 +1198,12 @@ else
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
     mkdir -p $SDMPT/$sdmdir/1piboot
-    for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg
+    for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg sdm-gburn
     do
 	cp $src/$f $SDMPT/$sdmdir
     done
+    # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
+    sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp $src/sdm-readparams $SDMPT/etc/sdm
     chmod 755 $SDMPT/$sdmdir/*
     [ "${appfile:0:1}" == "@" ]  && cp -f ${appfile:1:999}  $SDMPT/$sdmdir
