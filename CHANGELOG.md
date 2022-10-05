@@ -1,5 +1,10 @@
 # Changelog
 
+## V6.11
+
+* Per-system wpa config option in sdm-gburn and allow comment lines and blank lines
+* Improve delayed display manager handling for both Lite and Desktop editions
+
 ## V6.10
 
 * systemd didn't get '--console` switch until V242, so don't use it on earlier versions
