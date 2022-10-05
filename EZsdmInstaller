@@ -93,6 +93,10 @@ do
 	dlerrors=$((dlerrors+1))
     fi
 done
+#
+# modify sdm-gburn to point to whereever sdm is installed
+#
+$sudo sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$dir\"#" $dir/sdm-gburn
 
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
