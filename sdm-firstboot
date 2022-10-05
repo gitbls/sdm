@@ -295,7 +295,7 @@ timesyncwait() {
 	if [ $((secs%10)) -eq 0 ]
 	then
 	    write_console "Waiting $secs/60 seconds for system time synchronization"
-	    bootlog "Waiting $secs/60 seconds for system time synchronization\n"
+	    bootlog "Waiting $secs/60 seconds for system time synchronization"
 	fi
 	sleep 1
     done
@@ -325,19 +325,27 @@ function wait_startup_complete {
 function do_delayed_boot_behavior {
     #
     # $1 = 'reboot' if system will be rebooted
-    local now=""
-    [ "$1" != "reboot" ] && now="--now"
+    local now="" nowb=""
+    [ "$1" != "reboot" ] && now="--now" && nowb="--no-block"
     if grep 'delayed_boot_behavior' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1
     then
 	IFS="=" read key value <<< $(grep delayed_boot_behavior /etc/sdm/auto-1piboot.conf)
 	configitemlog "set boot behaviour to $value" bootlog
 	do_raspiconfig do_boot_behaviour $value
-	# Enable lightdm because we disabled it during customization
 	[ "$1" != "reboot" ] && systemctl daemon-reload
-	[[ "B3B4" =~ "$value" ]] && bootlog "Re-enable lightdm" && systemctl enable $now lightdm && sleep 3
-	# Always enable this. RasPiOS does this in cancel-rename which runs after userconfig service
-	systemctl enable $now --no-block getty@tty1
+	if [[ "B3B4" =~ "$value" ]]
+	then
+	    # Re-enable display manager that we disabled in phase 1
+	    [ -f /etc/lightdm/lightdm.conf ] && bootlog "Re-enable lightdm" && systemctl enable $now lightdm && sleep 3
+	    [ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
+	    [ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
+	    bootlog "Set systemd default to graphical.target"
+	    systemctl set-default graphical.target
+	fi
     fi
+    # Always enable this. RasPiOS does this in cancel-rename which runs after userconfig service
+    bootlog "Re-enable getty@tty1"
+    systemctl enable $now $nowb getty@tty1 > /dev/null 2>&1
 }
 
 #
