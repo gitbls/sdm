@@ -39,22 +39,17 @@ rm -f /etc/apt/apt.conf.d/02sdm-myconf
 function delaydmenable {
     #
     # Disable the display manager in $1 and set for re-enable during First Boot
+    # $2=delayed target (either B3 or B4)
     #
-    [ $2 -eq "0" ] && return
-    dm="$1"
+    local dm="$1" bbh="$2"
     logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
-    logtoboth "  The sdm FirstBoot process will re-enable it"
-#    [ -L /etc/systemd/system/display-manager.service ] && rm -f /etc/systemd/system/display-manager.service
+    logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
+    # raspi-config spews on this command b/c no systemd running, but does the right thing
+    SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+    #do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
-    cat > /etc/sdm/0piboot/020-$dm-console.sh <<EOF
-#!/bin/bash
-logger "FirstBoot: Re-Enable Display Manager '$dm'"
-#ln -s /lib/systemd/system/$dm.service /etc/systemd/system/display-manager.service
-systemctl enable $dm.service
-systemctl enable --no-block getty@tty1
-systemctl set-default graphical.target
-EOF
-    chmod 755 /etc/sdm/0piboot/020-$dm-console.sh
+    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    return
 }
 
 function dodt() {
@@ -239,6 +234,7 @@ fi
 
 logtoboth "*+Phase 1 User configuration"
 samepwd=""
+usesamepwd=0
 puser="'$myuser'"
 susers="user"
 pipw="$((grep -E "^pi:" /etc/shadow) | (IFS=":" read un pw tr ; echo "$pw"))"
@@ -862,13 +858,25 @@ then
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
 	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
     else
-	delaydmenable xdm $reboot
+	delaydmenable xdm B3
     fi
+    # xdm.service is missing the [Install] section. systemctl complains about it but it works
+    # Keeping this code in case systemctl decides to fail the service b/c of this
+#    if ! grep '\[Install\]' /lib/systemd/system/xdm.service > /dev/null 2>&1
+#    then
+#	logtoboth ">!Correcting broken /lib/systemd/system/xdm.service into /etc/systemd/system/xdm.service"
+#	cp /lib/systemd/system/xdm.service /etc/systemd/system
+#	cat >> /etc/systemd/system/xdm.service <<EOF
+#
+#[Install]
+#WantedBy=graphical.target
+#EOF
+#    fi
 fi
 #
-# Ditto for lightdm and/or wdm
+# Ditto for wdm
 #
-[ -d /etc/lightdm ] && bbhandled=1 && delaydmenable lightdm $reboot # Always disable lightdm/re-enable in FirstBoot
+
 if [ -d /etc/X11/wdm ]
 then
     bbhandled=1
@@ -876,9 +884,10 @@ then
     then
 	logtoboth "> Disable wdm on console"
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
+	# RealVNC server operation with wdm unknown, so disable RealVNC 
 	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
     else
-	delaydmenable wdm $reboot
+	delaydmenable wdm B3
     fi
 fi
 #
