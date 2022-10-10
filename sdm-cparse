@@ -344,6 +344,7 @@ myuid:$myuid
 myuser:$myuser
 netman:$netman
 nouser:$nouser
+nowaittimesync:$nowaittimesync
 os:$os
 passwordpi:$passwordpi
 passwordroot:$passwordroot
@@ -389,6 +390,90 @@ thishost:$thishost
 EOF
 }
 
+
+function iswsl() {
+    uname=$(uname -a)
+    [[ "${uname,,}" =~ "microsoft" ]] && return 0 || return 1
+}
+
+function wslcheck() {
+    #
+    # Disk must be mounted
+    #
+    [ "$chroot" != "" ] && return
+    if iswsl
+    then
+	if [ "$chroot" == "" ]
+	then
+	    # wtf -> what's the file :)
+	    wtf=$(file $SDMPT/bin/ls)
+	    if [[ "$wtf" =~ "ARM" ]]
+	    then
+		[[ "wtf" =~ "32-bit" ]] && chroot="arm" || chroot="aarch64"
+		[ ! -f /usr/bin/qemu-${chroot}-static ] && errexit "? qemu-${chroot}-static missing for chroot; try 'sudo apt install qemu-user-static binfmt-support'"
+		if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${chroot} ]
+		then
+		    [ ! -f /usr/sbin/update-binfmts ] && errexit "? Cannot find /usr/sbin/update-binfmts; try 'sudo apt install binfmt-support'"
+		    echo "% Runing 'update-binfmts --enable' for you to enable chroot"
+		    /usr/sbin/update-binfmts --enable
+		    [ ! -f /proc/sys/fs/binfmt_misc/qemu-${chroot} ] && errexit "? Cannot find binfmt for architecture '${chroot}'"
+		fi
+	    else
+		errexit "? Unrecognized cpu architecture '${wtf%version*}'"
+	    fi
+	fi
+	return 0
+    else
+	chroot="nspawn"
+	return 1
+    fi
+}
+
+function wslmcheck() {
+    if iswsl
+    then
+	domount $dimg
+	wslcheck
+	docleanup keep
+    fi
+}
+function ctrlchroot() {
+    echo "% Caught CTRL/C in chroot; Cleaning up..."
+    rm -f $SDMPT/usr/bin/$qemu
+    umount $SDMPT/{dev/pts,dev,proc,sys}
+    exit 1
+}
+
+function sdm_spawn() {
+    #
+    # $1 - command
+    # $2 - nspawn switches
+    # Already mounted on $SDMPT
+    #
+    local cmd="$1" nspawnsw="$2"
+    wslcheck
+    if [ $chroot == "nspawn" ]
+    then
+	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
+	read s vers junk <<< $(systemd --version)
+	[[ "$newsd" -lt "242" ]] && cmode=""
+	systemd-nspawn -q --directory=$SDMPT $nspawnsw $cmode $cmd
+    else
+	#
+	# Copy appropriate qemu-${chroot}-static into the IMG
+	#
+	qemu="qemu-${chroot}-static"
+	cp /usr/bin/$qemu $SDMPT/usr/bin
+	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
+	trap "ctrlchroot" SIGINT
+	chroot $SDMPT /usr/bin/$qemu /bin/bash $spawncmd
+	trap SIGINT
+	rm -f $SDMPT/usr/bin/$qemu
+	umount $SDMPT/{dev/pts,dev,proc,sys}
+    fi
+    return
+}
+
 function getconfbool() {
     #
     # Grab one entry (name in $1) from cparams safely
@@ -406,6 +491,7 @@ function getconfbool() {
     rval=$((pval|cmval))
     echo "$rval"
 }
+
 function getconfstr() {
     #
     # Grab one entry string (name in $1) from cparams safely
