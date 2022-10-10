@@ -1,5 +1,11 @@
 # Changelog
 
+## V6.12
+
+* sdm works in Windows WSL! Well, for everything but burning to SSDs/SD Cards. See https://github.com/gitbls/sdm/wiki/Using-sdm-on-Windows-WSL for details.
+* Add --nowait-timesync which skips waiting for date/time synchronization in sdm-firstboot. Useful if no network
+* Remove /etc/ssh/sshd_config.d/rename_user.conf at the end of first boot; part of /usr/bin/cancel-rename
+
 ## V6.11
 
 * Per-system wpa config option in sdm-gburn and allow comment lines and blank lines
