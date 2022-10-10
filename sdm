@@ -44,27 +44,24 @@ function exitiferr() {
 }
 
 function docleanup() {
+    #
+    # $1: if 'keep' (don't unset SDMPT)
     local mnt=$SDMPT
     [ "$mnt" == "" ] && mnt=/mnt/sdm
     ismounted $mnt/boot && umount -v $mnt/boot
     ismounted $mnt && umount -v $mnt
-    [ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
-    unset SDMPT
+    if [ "$1" != "keep" ]
+    then
+	[ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
+	unset SDMPT
+    fi
     [ "$loopdev" != "" ] && losetup -d $loopdev && loopdev=""
     sync
 }
 
 function ctrlcexit() {
     [ "$icolors" == "1" ] && resetcolors xt
-    printf "\n%% Caught CTRL/C during Extend. Cleaning up...\n"
-    if [ "$ddpid" != "" ]
-    then
-	kill -HUP $ddpid > /dev/null 2>&1
-	wait $ddpid > /dev/null 2>&1
-	exit 1
-    else
-	ferrexit "%% Exiting...\n"
-    fi
+    ferrexit "%% Exiting...\n"
 }
 
 function doexit() {
@@ -171,11 +168,10 @@ function extendimage() {
     local ldimg=$1 limgext=$2
     local line dsiz
     trap "ctrlcexit" SIGINT
-    dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg &
-    ddpid=$!
-    wait $ddpid > /dev/null 2>&1
-    [ $? -ne 0 ] && errexit "? Exiting due to dd error"
+    dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg 
+    ddsts=$?
     trap SIGINT
+    [ $ddsts -ne 0 ] && errexit "? Exiting due to dd error"
     # Get the actual size of the image file from parted
     while read line ; do
 	if [[ "$line" =~ "Disk" ]] 
@@ -204,7 +200,7 @@ function extendandresize() {
     # Mount the image file into a loop device and resize the file system
     #
     echo "* Remount $dimgdevname to resize the file system"
-    declare -x SDMPT=$(makemtpt)
+    [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
     domount "$dimg"
     echo "* Resize the file system"
     echo "% (Ignore on-line resizing message)"
@@ -300,7 +296,13 @@ function readl10n() {
     #
     local tz=$(realpath /etc/localtime)
     # Keyboard
-    source /etc/default/keyboard
+    if [ -f /etc/default/keyboard ]
+    then
+	source /etc/default/keyboard
+    else
+	logtoboth ">%/etc/default/keyboard missing; Keyboard set to 'us'"
+	XKBLAYOUT="us"
+    fi
     keymap="$XKBLAYOUT"
     # Locale
     source /etc/default/locale
@@ -418,6 +420,7 @@ Command Switches for --customize and --burn or as noted
  --mouse left        Enable left-handed mouse if LXDE installed
  --netman            Specify network manager to use (dhcpcd, nm, network-manager)
  --nouser            Do not add a new user
+ --nowait-timesync   Don't wait for time to sync in sdm-firstboot
  --nspawnsw str      Additional switches for nspawn command
  --password-pi pwd   Set password for Pi user (will prompt if not provided)
  --password-user pwd Set password for the --user user (will prompt if not provided)
@@ -460,7 +463,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.11"
+version="V6.12"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -480,6 +483,7 @@ burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
 burnfile=0                  #1=Burn image to a file
 burnfilefile=""             #Filename for --burnfile
+chroot=""                   #Set by sdm to chroot type (nspawn, arm, or aarch64)
 crond=""                    #List of cron files to copy to /etc/cron.{d,hourly,daily,weekly,monthly}
 cronhourly=""
 crondaily=""
@@ -544,6 +548,7 @@ myuid=""                    #UID for non-root user if created
 netman="dhcpcd"             #--netman
 noreboot=0                  #1=Do not restart system after first boot
 nouser=0                    #1=Do not require a user to be specified
+nowaittimesync=0            #1=Don't wait for time to sync in sdm-firstboot
 os="raspios"                #Default OS for images
 nspawnsw=""                 #Switches for nspawn
 passwordpi=""               #Values for --password-xxx
@@ -597,7 +602,14 @@ custom3=""                  #For custom use
 custom4=""                  #For custom use
 
 [[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
-[ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && errexit "? Please 'sudo apt install systemd-container' first"
+src=$(dirname $0)
+source $src/sdm-cparse           # Get function defs
+if iswsl
+then
+    [ "$(which file)" == "" ] && echo "? Cannot find 'file' command" && errexit "? Please 'sudo apt install file' first"
+else
+    [ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && errexit "? Please 'sudo apt install systemd-container' first"
+fi
 #
 # Parse the command line
 #
@@ -610,7 +622,7 @@ cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nspawnsw:,netman:,os:,\
+mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,os:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
 redo-customize,regen-ssh-host-keys,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
@@ -694,6 +706,7 @@ do
 	--netman)      netman=$2     ; shift 2 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nouser) nouser=1 ; shift 1 ;;
+	--nowait-timesync) nowaittimesync=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--os)          os="${2,,}"   ; shift 2 ;;
@@ -743,9 +756,9 @@ do
 done
 
 dimg="$1"
-src=$(dirname $0)
+#src=$(dirname $0)
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
-source $src/sdm-cparse           # Get function defs
+#source $src/sdm-cparse           # Get function defs
 
 #
 # Adjust settings based on switches and check for conflicting switches
@@ -1070,6 +1083,10 @@ thishost="$(hostname)"
 #
 if [ $burning -eq 1 ]
 then
+    if iswsl
+    then
+	 [ $burnfile -eq 0 ] && errexit "? sdm burn not supported on Windows WSL"
+    fi
     source $src/sdm-cmdsubs
     sdm_burndevfile
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
@@ -1102,6 +1119,7 @@ then
     declare -x SDMPT=$(makemtpt)
     domount "$dimg"
     echo "* $dimgdevname '$dimg' mounted on $SDMPT"
+    wslcheck
     if [ -t 0 ]
     then
 	echo $"** BE VERY CAREFUL!! **
@@ -1132,9 +1150,13 @@ then
     fi
     exit 0
 fi
+#
+# $chroot not detected before this point
+#
 # Not --extend (only). Other steps need IMG mounted
 declare -x SDMPT=$(makemtpt)
 domount "$dimg"
+wslcheck
 #
 # Handle commands --aptmaint, --customize, and --explore
 #
@@ -1156,7 +1178,7 @@ then
 	#
 	# Doing --explore
 	#
-	echo "* nspawn into $dimgdevname '$dimg'"
+	echo "* Enter $dimgdevname '$dimg'"
 	spawncmd=""
 	icolors=1
     fi
@@ -1170,7 +1192,7 @@ else
 	if ! askyn "** $dimgdevname '$dimg' has already been customized. Redo?" "-n 1"
 	then
 	    echo ""
-	    echo "** You can explore the image with '$0 --explore $dimg'"
+	    echo "** Explore the image with '$0 --explore $dimg'"
 	    docleanup
 	    exit 0
 	else
@@ -1184,9 +1206,8 @@ else
     then
 	echo "* Unmount $dimgdevname for --extend"
 	savesdmpt=$SDMPT
-	docleanup
+	docleanup keep
 	extendandresize   # Remounts IMG afterward
-	declare -x SDMPT=$savesdmpt           # Redefine SDMPT, as docleanup unsets it
     fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="$sdmdir/sdm-phase1"
@@ -1220,6 +1241,9 @@ else
 	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
     logtoboth "> Command Line: $cmdline"
+    [ "$chroot" != "nspawn" ] && logtoboth "> sdm detected Windows WSL"
+    logtoboth "> IMG date: $(grep -s -m1 -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\}' $SDMPT/etc/rpi-issue)"
+
     logfreespace
     logtoboth "> Copy sdm to $sdmdir in the $dimgdevname"   # Yes, already done above ;)
     if [ $loadl10n -eq 1 ]
@@ -1263,7 +1287,7 @@ else
     $SDMPT/$sdmdir/sdm-phase0
     touch $sdmdone
     
-    echo "* nspawn into image '$dimg' for Phase 1"
+    echo "* Enter image '$dimg' for Phase 1"
 fi
 
 
@@ -1280,8 +1304,7 @@ fi
 read s vers junk <<< $(systemd --version)
 [[ "$newsd" -lt "242" ]] && cmode=""
 
-trap "ctrlcexit" SIGINT
-systemd-nspawn -q --directory=$SDMPT $nspawnsw $cmode $spawncmd 
+sdm_spawn "$spawncmd" "$nspawnsw"
 [ $icolors -eq 1 -a -t 0 ] && resetcolors xt
 docleanup
 
