@@ -283,6 +283,15 @@ timesyncwait() {
     #
     # Waits for time to be synced or 60 seconds
     #
+    # Skip if --nowait-timesync
+    #
+    if [ $nowaittimesync -eq 1 ]
+    then
+	write_console "Skip wait for time synchronization per --nowait-timesync"
+	bootlog "Skip wait for time synchronization per --nowait-timesync"
+	return
+    fi
+
     for (( secs=1 ; secs<=60 ; secs++))
     do
 	[ "$(timedatectl status | grep synchronized | (IFS=' ' ; read a b c d ; echo $d))" == "yes" ] && break
@@ -343,9 +352,10 @@ function do_delayed_boot_behavior {
 	    systemctl set-default graphical.target
 	fi
     fi
-    # Always enable this. RasPiOS does this in cancel-rename which runs after userconfig service
+    # Perform cleanup steps done by /usr/bin/cancel_rename
     bootlog "Re-enable getty@tty1"
     systemctl enable $now $nowb getty@tty1 > /dev/null 2>&1
+    rm -f /etc/ssh/sshd_config.d/rename_user.conf
 }
 
 #
