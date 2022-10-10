@@ -65,6 +65,9 @@ function expandpartition() {
     ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
     ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
     write_burnmsg "> Expand Root: Expand partition from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
+
+    #parted -m /dev/$dev u s resizepart 2 $newsize
+    #errifrc $? "? parted resizepart failed with status"
     echo ",+" | sfdisk -N 2 $fulldevname
     errifrc $? "? sfdisk expand last partition failed with status"
 }
@@ -75,7 +78,7 @@ function sdm_burndevfile() {
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
     declare -x SDMPT=$(makemtpt)
-    newdiskid="$(tr -dc 'a-f0-9' < /dev/hwrng | dd bs=1 count=8 2>/dev/null)"
+    newdiskid="$(tr -dc 'a-f0-9' < /dev/random | dd bs=1 count=8 2>/dev/null)"
     [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
@@ -158,10 +161,10 @@ function sdm_burndevfile() {
     sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
     if [ "$(getconfbool expandroot)" == "1" -a "$(getconfbool regensshkeys)" == "1" ]
     then
-	write_burnmsg "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-keys set"
+	write_burnmsg "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
 	sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
     else
-	write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-keys not set"
+	write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
     fi
     #
     # Write out the accumulated messages into mounted image if image has been customized
@@ -181,7 +184,7 @@ function sdm_burndevfile() {
 	# Set hostname into the image
 	#
 	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale noreboot"
-	xsettings="$xsettings passwordpi passwordroot passworduser rclocal reboot rebootwait regensshkeys"
+	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -204,6 +207,7 @@ function sdm_burndevfile() {
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
 	expandroot=$((bexpandroot|expandroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
+	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
 	then
 	    # don't include domain name. Leave that to user
@@ -317,13 +321,13 @@ function sdm_burndevfile() {
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords per --password-pi, --password-user, and/or --password-root"
-	    systemd-nspawn -q --directory=$SDMPT $sdmdir/sdm-phase1 burn-change-passwords $(basename $bcp)
+	    sdm_spawn "$sdmdir/sdm-phase1 burn-change-passwords $(basename $bcp)" "-q --directory=$SDMPT"
 	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
 	    declare -x SDMNSPAWN="Burn1"
-	    systemd-nspawn -q --directory=$SDMPT $sdmdir/sdm-phase1 b1script $b1script
+	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script" "-q --directory=$SDMPT"
 	fi
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"
