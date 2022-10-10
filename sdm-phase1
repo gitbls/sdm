@@ -77,11 +77,8 @@ function dodt() {
 }
 
 function doctrlcp1() {
-    if [ "$(systemd-detect-virt -c)" == "systemd-nspawn" ]
-    then
-	echo "% Got CTRL-C. Exiting systemd-nspawn abruptly..."
-	exit 1     #Can't use poweroff since no job control
-    fi
+    echo "% Caught CTRL/C. Exiting Phase 1..."
+    exit 1     #Can't use poweroff since no job control in either nspawn or chroot
 }
 #
 # Read configuration information from sdm
@@ -412,7 +409,7 @@ fi
 if [ "$keymap" != "" ]
 then
     logtoboth "> Set Keymap to '$keymap'"
-    logtoboth ">!Ignore invoke-rc.d messages"
+    iswsl && logtoboth ">!Ignore 'Running in chroot, ignoring request' message" || logtoboth ">!Ignore invoke-rc.d and 'Read-only file system' messages" 
     #raspi-config do_configure_keyboard "$keymap" nonint
     do_raspiconfig  do_configure_keyboard "$keymap" 
 fi
@@ -804,6 +801,7 @@ then
 	# raspi-config spews on this command b/c no systemd running, but does the right thing
 	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
 	#do_raspiconfig do_boot_behaviour B1
+	systemctl set-default multi-user.target
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
@@ -857,6 +855,7 @@ then
 	logtoboth "> Disable xdm on console"
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
 	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
+	systemctl set-default multi-user.target
     else
 	delaydmenable xdm B3
     fi
@@ -886,6 +885,7 @@ then
 	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
 	# RealVNC server operation with wdm unknown, so disable RealVNC 
 	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
+	systemctl set-default multi-user.target
     else
 	delaydmenable wdm B3
     fi
