@@ -277,119 +277,24 @@ function writeconfig() {
     # Write config parameters into the image
     #
     local paramfile="$SDMPT/etc/sdm/cparams"
-    [ -f $paramfile ] && rm -f $paramfile
-    cat > $paramfile <<EOF
-#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')
-version:$version
-apps:"$apps"
-xapps:"$xapps"
-appfile:$appfile
-xappfile:$xappfile
-apip:$apip
-apssid:$apssid
-aptcache:$aptcache
-aptdistupgrade:$aptdistupgrade
-autologin:$autologin
-batch:$fbatch
-b0script:$b0script
-b1script:$b1script
-bootadd:$bootadd
-bootconfig:$bootconfig
-bootscripts:$bootscripts
-bootsetpairs:"$bootsetpairs"
-crond:$crond
-cronhourly:$cronhourly
-crondaily:$crondaily
-cronweekly:$cronweekly
-cronmonthly:$cronmonthly
-cronsystemd:$cronsystemd
-cscript:$cscript
-csrc:$csrc
-datefmt:$datefmt
-dhcpcd:$dhcpcd
-dhcpcdwait:$dhcpcdwait
-dimg:$dimg
-dimgdev:$dimgdev
-dimgdevname:$dimgdevname
-disables:$disables
-domain:$domain
-dtoverlay:$dtoverlay
-dtparam:$dtparam
-ecolors:$ecolors
-eeprom:$eeprom
-expandroot:$expandroot
-exports:$exports
-fdirtree:$fdirtree
-fgadgetmode:$fgadgetmode
-fmouse:$fmouse
-fstab:$fstab
-hdmiforcehotplug:$hdmiforcehotplug
-hdmiignoreedid:$hdmiignoreedid
-hdmigroup:$hdmigroup
-hdmimode:$hdmimode
-hostname:$hostname
-hotspot:$hotspot
-journal:$journal
-keymap:$keymap
-libfmconf:$libfmconf
-loadlocal:$loadlocal
-locale:$locale
-logwidth:$logwidth
-lxdeconflist:"$lxdeconflist"
-lxterminalconf:$lxterminalconf
-modprobe:$modprobe
-motd:$motd
-groups:$groups
-myuid:$myuid
-myuser:$myuser
-netman:$netman
-nouser:$nouser
-nowaittimesync:$nowaittimesync
-os:$os
-passwordpi:$passwordpi
-passwordroot:$passwordroot
-passwordsame:$passwordsame
-passworduser:$passworduser
-pcmanfmconf:$pcmanfmconf
-pi1bootconf:$pi1bootconf
-poptions:$poptions
-rclocal:$rclocal
-reboot:$reboot
-regensshkeys:$regensshkeys
-noreboot:$noreboot
-rebootwait:$rebootwait
-redocustomize:$redocustomize
-rootpwd:$rootpwd
-sdfnlogin:$sdfnlogin
-sdfnnetwork:$sdfnnetwork
-sdfnresolve:$sdfnresolve
-sdfnsystem:$sdfnsystem
-sdfntimesync:$sdfntimesync
-sdfnuser:$sdfnuser
-sdmdir:$sdmdir
-showapt:$showapt
-showpwd:$showpwd
-src:$src
-ssh:$ssh
-swapsize:$swapsize
-svcdisable:"$svcdisable"
-svcenable:"$svcenable"
-sysctl:$sysctl
-timezone:$timezone
-udev:$udev
-vnc:$vnc
-vncbase:$vncbase
-wificountry:$wificountry
-wpaconf:$wpaconf
-fnowpa:$fnowpa
-custom1:$custom1
-custom2:$custom2
-custom3:$custom3
-custom4:$custom4
-thishost:$thishost
-EOF
+    rm -f $paramfile
+    echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
+    for e in version apps xapps appfile xappfile apip apssid aptcache aptdistupgrade autologin \
+		     fbatch b0script b1script bootadd bootconfig bootscripts bootsetpairs crond cronhourly \
+		     crondaily cronweekly cronmonthly cronsystemd cscript csrc datefmt debugs dhcpcd \
+		     dhcpcdwait dimg dimgdev dimgdevname disables domain dtoverlay dtparam ecolors eeprom \
+		     expandroot exports fdirtree fgadgetmode fmouse fstab hdmiforcehotplug hdmiignoreedid \
+		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
+		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
+		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf poptions \
+		     rclocal reboot regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
+		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
+		     svcenable sysctl timezone udev vnc vncbase wificountry wpaconf fnowpa custom1 custom2 \
+		     custom3 custom4 thishost
+    do
+	echo "$e:\"${!e}\"" >> $paramfile
+    done
 }
-
 
 function iswsl() {
     uname=$(uname -a)
