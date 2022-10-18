@@ -11,7 +11,18 @@ function doinstalls() {
     then
 	logtoboth "* Start $2"
 	logtoboth "> ${2}: $1"
-	doapt "install --no-install-recommends -y $1" $showapt
+	if [[ "$debugs" =~ "apt" ]]
+	then
+	    logtoboth "> Install apt packages singly per '--debug apt'"
+	    readarray alist <<< $1
+	    for a in ${alist[@]}
+	    do
+		logtoboth "> -- $a"
+		doapt "install --no-install-recommends -y $a" $showapt
+	    done
+	else
+	    doapt "install --no-install-recommends -y $1" $showapt
+	fi
 	logtoboth "* $2 Completed"
     else
 	logtoboth "> Skip $2 per empty package list"
@@ -600,7 +611,7 @@ logtoboth "* Phase 1 post-app/xapp installation/configuration"
 case "${netman,,}" in
     dhcpcd)
 	logtoboth "> Set network manager dhcpcd"
-	doapt "install --no-install-recommends -y dhcpcd" $showapt
+	doapt "install --no-install-recommends -y dhcpcd5" $showapt
 	do_raspiconfig do_netconf 1
 	;;
     nm|network-manager)
@@ -926,7 +937,7 @@ fi
 #
 cklogfreespace "at end of Customization"
 
-if [ $batch -eq 0 ]
+if [ $fbatch -eq 0 ]
 then
     if [ -t 0 ]
     then
