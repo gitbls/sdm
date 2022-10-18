@@ -26,6 +26,26 @@ function ddctrlc() {
     fi
 }
 
+function setdiskid() {
+    local dev="$1" diskid="$2"
+    sfdisk --disk-id $dev 0x${diskid}
+    if [ $? -ne 0 ]    # Assume it's an older version of sfdisk without --disk-id if it fails
+    then
+	write_burnmsg ">%sfdisk failed; Trying fdisk to set Disk ID"
+        fdisk "$dev" > /dev/null <<EOF
+x
+i
+0x$diskid
+r
+w
+EOF
+        errifrc $? "? fdisk error "
+	write_burnmsg "> Disk ID $diskid set successfully with fdisk"
+    else
+	write_burnmsg "> Disk ID $diskid set successfully with sfdisk"
+    fi
+}
+
 function expandpartition() {
     # $1: devicename (/dev/sdX)
     local fulldevname=$1
@@ -65,7 +85,6 @@ function expandpartition() {
     ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
     ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
     write_burnmsg "> Expand Root: Expand partition from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
-
     #parted -m /dev/$dev u s resizepart 2 $newsize
     #errifrc $? "? parted resizepart failed with status"
     echo ",+" | sfdisk -N 2 $fulldevname
@@ -78,7 +97,7 @@ function sdm_burndevfile() {
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
     declare -x SDMPT=$(makemtpt)
-    newdiskid="$(tr -dc 'a-f0-9' < /dev/random | dd bs=1 count=8 2>/dev/null)"
+    newdiskid="$(printf  "%x" "$((RANDOM*RANDOM*RANDOM*RANDOM&0xFFFFFFFF))")"
     [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
@@ -118,8 +137,7 @@ function sdm_burndevfile() {
 	fi
 	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
 	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
-	sfdisk --disk-id $burndev 0x${newdiskid}
-	errifrc $? "? sfdisk error setting diskid"
+	setdiskid $burndev $newdiskid
 	sync ; sync ; sleep 1
 	mount -v ${burndev}${p2} $SDMPT
 	mount -v ${burndev}${p1} $SDMPT/boot
@@ -145,10 +163,7 @@ function sdm_burndevfile() {
 	burnmsg+=("$(thisdate) > Image copy completed")
 	olddiskid="$((blkid -o value $burnfilefile) | (read id ; echo $id))"
 	loopdev=$(losetup --show -P -f $burnfilefile)
-	sfdisk --disk-id $loopdev 0x${newdiskid}
-	sfsts=$?
-	losetup -d $loopdev
-	errifrc $sfsts "? sfdisk error setting diskid"
+	setdiskid $loopdev $newdiskid
 	domount "$burnfilefile"
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
