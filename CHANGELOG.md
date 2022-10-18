@@ -1,5 +1,12 @@
 # Changelog
 
+## V6.13
+
+* Add `--debug apt` which installs packges from apps and xapps one at a time instead of all at once. This is useful, for instance, in tracking down which specific package has install problems.
+* Streamline exit handling
+* Handle down-rev sfdisk that does not have the --disk-id switch by falling back to fdisk
+* Redo new disk ID generation for efficiency and simplicity 
+
 ## V6.12
 
 * sdm works in Windows WSL! Well, for everything but burning to SSDs/SD Cards. See https://github.com/gitbls/sdm/wiki/Using-sdm-on-Windows-WSL for details.
