@@ -29,13 +29,11 @@
 
 function errexit() {
     echo -e "$1"
-    docleanup
     exit 1
 }
 
 function ferrexit() {
     [ "$1" != "" ] && printf "$1"
-    docleanup
     exit 1
 }
 
@@ -385,6 +383,7 @@ Command Switches for --customize and --burn or as noted
  --custom[1-4] str   Can be used in Custom cscripts
  --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
  --ddsw str          Switches for dd command [bs=16M iflag=direct]
+ --debug apt         Enable debug features. apt=do single apt install for each package in apps,xapps
  --disable arg,arg   Disables specific complex services (bluetooth,piwiz,swap,triggerhappy,wifi)
  --directory         sd-image-file is a directory tree rather than an IMG
  --dhcpcd file       Append file to /etc/dhcpcd.conf
@@ -463,7 +462,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.12"
+version="V6.13"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -495,6 +494,7 @@ cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddpid=""                    #Holds pid of dd during IMG Extend
 ddsw="bs=16M iflag=direct"  #Switches for dd
+debugs=""                   #Debug settings
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
 disables=""                 #Complex services to disable
 dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
@@ -583,6 +583,7 @@ timezone=""                 #Timezone setting
 udev=""                     #Copy named udev files to /etc/udev/rules.d
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
+vdebug="|apt|"              #Valid --debug settings
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|novnc|samba|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
 vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
@@ -618,7 +619,7 @@ longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:
 autologin,b0script:,b1script:,\
 batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
-cscript:,csrc:,customize,datefmt:,ddsw:,dhcpcd:,dhcpcdwait,directory,disable:,\
+cscript:,csrc:,customize,datefmt:,ddsw:,debug:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
@@ -668,6 +669,7 @@ do
 	--customize)   fcustomize=1  ; shift 1 ;;
 	--datefmt)     datefmt=$2    ; shift 2 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
+	--debug)       debugs=$2     ; shift 2 ;;
 	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
 	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
@@ -865,6 +867,8 @@ fi
 ! cklocale $locale && errexit "? Unknown Locale '$locale'"
 ! ckkeymap $keymap && errexit "? Unknown Keymap '$keymap'"
 
+debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
+exitiferr "$debugs"
 disables=$(poptcheck "$disables" "$vdisableopts" "--disable")
 exitiferr "$disables"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--poption")
@@ -1090,7 +1094,6 @@ then
     source $src/sdm-cmdsubs
     sdm_burndevfile
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
-    docleanup
     exit 0
 fi
 #
@@ -1101,14 +1104,12 @@ then
     declare -x SDMPT=$(makemtpt)
     source $src/sdm-cmdsubs
     sdm_shrink
-    docleanup
     exit 0
 fi
 if [ $fppart -eq 1 ]
 then
     source $src/sdm-cmdsubs
     sdm_ppart
-    docleanup
     exit 0
 fi
 #
@@ -1134,7 +1135,6 @@ then
     cd $SDMPT
     bash
     cd - > /dev/null
-    docleanup
     [ -t 0 ] && resetcolors xt
     exit 0
 fi
@@ -1146,7 +1146,6 @@ then
     if [ $fextend -eq 1 ] # Only on if file-based (e.g., can be extended)
     then
 	extendandresize
-	docleanup # --extend (only)
     fi
     exit 0
 fi
@@ -1171,7 +1170,6 @@ then
 	if [ ! -f $SDMPT/$sdmdir/sdm-phase1 ]
 	then
 	    echo "? sdm has not customized $dimgdevname '$dimg'"
-	    docleanup
 	    exit 1
 	fi
     else
@@ -1193,7 +1191,6 @@ else
 	then
 	    echo ""
 	    echo "** Explore the image with '$0 --explore $dimg'"
-	    docleanup
 	    exit 0
 	else
 	    echo ""
@@ -1306,6 +1303,5 @@ read s vers junk <<< $(systemd --version)
 
 sdm_spawn "$spawncmd" "$nspawnsw"
 [ $icolors -eq 1 -a -t 0 ] && resetcolors xt
-docleanup
 
 exit 0
