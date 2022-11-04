@@ -17,7 +17,7 @@ function logit {
     [ -f $mnt/etc/sdm/history ] && echo "$(thisdate) $1" >> $mnt/etc/sdm/history
 }
 
-function logtoboth {
+function logtoboth() {
     #
     # Writes the message to the terminal and also to /etc/sdm/history
     #
@@ -286,14 +286,135 @@ function writeconfig() {
 		     expandroot exports fdirtree fgadgetmode fmouse fstab hdmiforcehotplug hdmiignoreedid \
 		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
-		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf poptions \
+		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
 		     rclocal reboot regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
-		     svcenable sysctl timezone udev vnc vncbase wificountry wpaconf fnowpa custom1 custom2 \
+		     svcenable sysctl timezone udev vncbase wificountry wpaconf fnowpa custom1 custom2 \
 		     custom3 custom4 thishost
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
+}
+
+function runoneplugin() {
+    #
+    # Run the plugin $1 for the phase specified in $2 with args in $3
+    #
+    local mnt="" p=$1 phase=$2 pargs="$3"
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
+    if [ -f $mnt/$sdmdir/local-plugins/$p ]
+    then
+	logtoboth "> Run Local Plugin '$p' Phase $phase $argstr"
+	$mnt/$sdmdir/local-plugins/$p "$phase" "$pargs"
+    elif [ -f $mnt/$sdmdir/plugins/$p ]
+    then
+	logtoboth "> Run Plugin '$p' Phase $phase $argstr"
+	$mnt/$sdmdir/plugins/$p "$phase" "$pargs"
+    else
+	logtoboth "!!Diagnostic: $SDMNSPAWN|$SDMPT|$mnt|$sdmdir|$(ls $mnt/$sdmdir/$plugins)"
+	logtoboth "? Unable to find Plugin '$p'; Confounded..."
+    fi
+}
+
+function runonepluginx() {
+    #
+    # $1: Plugin name and args (in $plugin format: plugin:key=value:key=value)
+    # $2 phase
+    #
+    local p="$1" pin="${p%:*}" pargs="${p#*:}" phase=$2
+    [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
+    runoneplugin $pin $phase "$pargs"
+}
+
+function runplugins() {
+    #
+    # Run the plugins for the phase specified in $1
+    #
+    local mnt="" phase=$1
+    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    if [ "$plugins" != "" ]
+    then
+	logtoboth "> Run Plugins Phase '$1'"
+	IFS="~" read -a plugs <<< "$plugins"
+	for p in "${plugs[@]}"
+	do
+	    runonepluginx "$p" $phase
+	done
+    else
+	logtoboth "> No Plugins specified with --plugin"
+    fi
+}
+
+function plugin_getargs() {
+    #
+    # Handles input data in the form: arg1=val1|arg2=val2|arg3=val3| ...
+    # $1: Plugin name
+    # $2: Argument list
+    # $3: [optional] list of valid keys. Validity not checked if ""
+    # $4: [optional] list of required keys. Required keys not checked if ""
+    #
+    # In addition to creating a key/value symbol for each found key/value,
+    # also creates symbol foundkeys="|key1|key2|...|"
+    #
+    local arglist=() pfx=$1 args="$2" validkeys="$3" rqkeys="$4" keysfound=""
+    IFS="|:" read -a arglist <<< "$args"
+    for c in "${arglist[@]}"
+    do
+	# Peel off the args and put them into variables
+	while [ "$c" != "" ]
+	do
+	    IFS="=|:" read key value remain <<< "$c"
+	    c="$remain"
+	    if [ "$validkeys" != "" ]
+	    then
+		if ! [[ "$validkeys" =~ "|$key|" ]]
+		then
+		    logtoboth "%%Plugin $pfx: Unrecognized key '$key' in argument list '$args'"
+		fi
+	    fi
+	    [ "$key" != "" ] && eval "${key}=\"$value\""
+	    keysfound="${keysfound}|$key"
+	done
+    done
+    #
+    # Check required keys
+    #
+    if [ "$rqkeys" != "" ]
+    then
+	# Strip leading "|" from rqkeys to avoid checking for a null first arg
+	IFS="|:" read -a arglist <<< "${rqkeys#|}"
+	for c in "${arglist[@]}"
+	do
+	    if ! [[ "${keysfound}|" =~ "|$c|" ]]
+	    then
+		logtoboth "%%Plugin $pfx: Required key '$c' missing from argument list '$args'"
+	    fi
+	done
+    fi
+    # Strip leading "|" to avoid null string on subsequent splitting, but put one on the end
+    [ "$keysfound" == "" ] && eval "foundkeys=\"\"" || eval "foundkeys=\"${keysfound#|}|\""
+}
+
+function plugin_printkeys() {
+    #
+    # Print the keys found. plugin_getargs returns the list of found keys in $foundkeys
+    # Assumes $pfx:plugin name, $foundkeys:list of keys found, keys set up from plugin_getargs
+    #
+    if [ "$foundkeys" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Keys/values found:"
+	IFS="|" read -a fargs <<< "$foundkeys"
+	for c in "${fargs[@]}"
+	do
+	    # The construct ${!c} gets the value of the variable 'pointed to' by contents of $c
+	    logtoboth "   ${c}: ${!c}"
+	done
+    fi
+}
+
+function plugin_dbgprint() {
+    [ $plugindebug -eq 1 ] && logtoboth "D!Plugin $pfx: $1"
 }
 
 function iswsl() {
@@ -426,12 +547,10 @@ function setbootset() {
     local citems=() c key value
     if [ "$bootsetpairs" != "" ]
     then
-	readarray -d, citems <<< $bootsetpairs
-	for c in ${citems[@]}
+	IFS="," read -a citems <<< "$bootsetpairs"
+	for c in "${citems[@]}"
 	do
-	    IFS=":=" read key value <<< $c
-	    key="${key%,}"      #In case they didn't specify :value or =value we'll default it to 0
-	    value="${value%,}"
+	    IFS=":=" read key value <<< "$c"
 	    [ "$value" == "" ] && value=0
 	    if [[ "$SDMNSPAWN" =~ "Burn" ]]
 	    then
@@ -449,41 +568,41 @@ function setbootset() {
     fi
     if [ "$svcdisable" != "" ]
     then
-	readarray -d, citems <<< $svcdisable
-	for c in ${citems[@]}
+	IFS="," read -a citems <<< "$svcdisable"
+	for c in "${citems[@]}"
 	do
 	    if [[ "$SDMNSPAWN" =~ "Burn" ]]
 	    then
-		sed -i "/^service-enable=${c%,}/d" $mnt/etc/sdm/auto-1piboot.conf   #Delete enables of this service
-		if ! grep "service-disable=${c%,}" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+		sed -i "/^service-enable=$c/d" $mnt/etc/sdm/auto-1piboot.conf   #Delete enables of this service
+		if ! grep "service-disable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 		then
-		    logtoboth "> Disable service '${c%,}'"
-		    echo "service-disable=${c%,}" >> $mnt/etc/sdm/auto-1piboot.conf
+		    logtoboth "> Disable service '$c'"
+		    echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
 		fi
 	    else
-		logtoboth "> Disable service '${c%,}'"
-		systemctl disable ${c%,} > /dev/null 2>&1
-		systemctl mask ${c%,} > /dev/null 2>&1
+		logtoboth "> Disable service '$c'"
+		systemctl disable $c > /dev/null 2>&1
+		systemctl mask $c > /dev/null 2>&1
 	    fi
 	done
     fi
     if [ "$svcenable" != "" ]
     then
-	readarray -d, citems <<< $svcenable
-	for c in ${citems[@]}
+	IFS="," read -a citems <<< "$svcenable"
+	for c in "${citems[@]}"
 	do
 	    if [[ "$SDMNSPAWN" =~ "Burn" ]]
 	    then
-		sed -i "/^service-disable=${c%,}/d" $mnt/etc/sdm/auto-1piboot.conf  #Delete disables of this service
-		if ! grep "service-enable=${c%,}" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+		sed -i "/^service-disable=$c/d" $mnt/etc/sdm/auto-1piboot.conf  #Delete disables of this service
+		if ! grep "service-enable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 		then
-		    logtoboth "> Enable service '${c%,}'"
-		    echo "service-enable=${c%,}" >> $mnt/etc/sdm/auto-1piboot.conf
+		    logtoboth "> Enable service '$c'"
+		    echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
 		fi
 	    else
-		logtoboth "> Enable service '${c%,}'"
-		systemctl unmask ${c%,} > /dev/null 2>&1
-		systemctl enable ${c%,} > /dev/null 2>&1
+		logtoboth "> Enable service '$c'"
+		systemctl unmask $c > /dev/null 2>&1
+		systemctl enable $c > /dev/null 2>&1
 	    fi
 	done
     fi
