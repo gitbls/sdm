@@ -74,9 +74,7 @@ hotdomain="wlan.net"
 hotenable="true"
 hotinclude=""
 
-sifs=$IFS
-IFS=":="
-while read rpifun value
+while IFS=":=" read rpifun value
 do
     if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
     then
@@ -133,7 +131,6 @@ do
 	esac
     fi
 done < $fhotspot
-IFS=$sifs
 
 #
 # Validity checks
