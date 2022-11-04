@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: rxapp
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    local mpt=""
+    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
+    source $mpt/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 0"
+
+    logtoboth "> Plugin $pfx: download rxapp from GitHub to /usr/local/bin/rxapp and set protection"
+    curl -L https://raw.githubusercontent.com/gitbls/rxapp/master/rxapp -o $SDMPT/usr/local/bin/rxapp
+    chmod 755 $SDMPT/usr/local/bin/rxapp
+
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 1"
+
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

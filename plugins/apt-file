@@ -1,0 +1,64 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: apt-file
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    local mpt=""
+    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
+    source $mpt/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1:arg2=val2:arg3=val3: ...
+
+#
+# Main code for the script
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 0"
+
+# INSERT Plugin Phase 0 code here
+    
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    # INSERT your Plugin Phase 1 customization stuff here
+    # In Phase 1 all references to directories in the image can be direct
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+    logtoboth "> Plugin $pfx: Install apt-file"
+    doapt "install --no-install-recommends -y apt-file"
+    logtoboth "> Plugin $pfx: Generate apt-file database"
+    apt-file update >> /etc/sdm/apt.log 2>&1
+    #
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

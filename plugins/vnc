@@ -1,0 +1,267 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: vnc
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    local mpt=""
+    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
+    source $mpt/etc/sdm/sdm-readparams
+}
+
+function decodeargs() {
+    #
+    # Decode argument list: realvnc=res:tigervnc=res1,res2,res3:tightvnc=res1,res2,res3
+    # Only one of tigervnc/tightvnc may be used at a time. Default is tigervnc
+    #
+    local arglist=() realvnclist="" tigerlist=() tightlist=() validkeys="$2" keysfound=""
+    IFS="|" read -a arglist <<< "$1"
+    for c in "${arglist[@]}"
+    do
+	# Peel off the args and put them into variables
+	IFS=":,=" read key value remain <<< "$c"
+	if [ "$validkeys" != "" ]
+	then
+	    if ! [[ "$validkeys" =~ "$key" ]]
+	    then
+		logtoboth "Plugin $pfx: %%Unrecognized key '$key'"
+	    fi
+	fi
+	keysfound="${keysfound}|$key"
+	eval "${key}=\"$value\""
+	[ "$key" == "tigervnc" ] && tigerlist+=("$value")
+	[ "$key" == "tightvnc" ] && tightlist+=("$value")
+	if [ "$key" == "realvnc" ]
+	then
+	    [ "$value" == "" ] && realvnclist="default" || realvnclist="$value"  #Not really a list at the moment
+	fi
+	if [[ "$remain" != "" ]] && [[ "tigervnc|tightvnc" =~ "$key" ]]
+	then
+	    while [ "$remain" != "" ]
+	    do
+		IFS="," read res remain <<< "$remain"
+		#res=${res%|}
+		if [ "$res" != "" ]
+		then
+		    [ "$key" == "tigervnc" ] && tigerlist+=("$res")
+		    [ "$key" == "tightvnc" ] && tightlist+=("$res")
+		    #[ "$key" == "realvnc" ] && realvnclist+=("$res")
+		fi
+	    done
+	fi
+    done
+    [ "$keysfound" == "" ] && eval "foundkeys=\"\"" || eval "foundkeys=\"${keysfound#|}|\"" 
+    if [ ${#tigerlist} -ne 0 ]
+    then
+	for (( i=0 ; i < ${#tigerlist[@]} ; i++ ))
+	do
+	    [ "${tigerlist[$i]}" != "" ] && eval "tigervnc${i}=\"${tigerlist[$i]}\""
+	done
+    fi
+    if [ ${#tightlist} -ne 0 ]
+    then
+	for (( i=0 ; i < ${#tightlist[@]} ; i++ ))
+	do
+	    [ "${tightlist[$i]}" != "" ] && eval "tightvnc${i}=\"${tightlist[$i]}\""
+	done
+    fi
+    [ "$realvnclist" != "" ] && eval "realvnc=\"$realvnclist\""
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1:arg2=val2:arg3=val3: ...
+
+#
+# Main code for the script
+#
+phase=$1
+allargs="$2"
+pfx="$(basename $0)"     #For messages
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 0"
+
+# INSERT Plugin Phase 0 code here
+    
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    # INSERT your Plugin Phase 1 customization stuff here
+    # In Phase 1 all references to directories in the image can be direct
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
+    if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
+    then
+	[ "$realvnc" == "" ] && realvnc="default"
+    fi
+    vbase=${vncbase-5900}
+    vncserver=""
+    [ "$realvnc" != "" ] && realvncserver="realvnc-vnc-server" || realvncserver=""
+
+    # Process the lists
+    [ "$tigervnc0" != "" -a "$tightvnc0" != "" ] && logtoboth "% Plugin $pfx: Both tigervnc and tightvnc configured. Using tigervnc" && tightvnc0=""
+    if [ "$tigervnc0" != "" ]
+    then
+	vncserver="tigervnc" ; vncp="tigervnc-standalone-server" ; othervnc="tigervnc"
+    elif [ "$tightvnc0" != "" ]
+    then
+	vncserver="tightvnc" ; vncp="tightvncserver" ; othervnc="tightvnc"
+    fi
+
+    if [ "$vncserver" != "" ]
+    then
+	for (( n=0 ; n < 10 ; n++ ))
+	do
+	    v=$((n+1))
+	    s="${vncserver}${n}"
+	    [ "${!s}" == "" ] && break
+	    port=$((vbase+v))
+	    res="${!s}"
+	    logtoboth "> Plugin $pfx: Create $vncserver Service xvnc$v Port $port Resolution $res"
+	    cat > /etc/systemd/system/xvnc$v.socket <<EOF
+[Unit]
+Description=XVNC Server $v
+
+[Socket]
+ListenStream=$port
+Accept=yes
+
+[Install]
+WantedBy=sockets.target
+EOF
+	    stype="-SecurityTypes None"
+	    [ "$vncserver" == "tightvnc" ] && stype="" # TightVNC appears not to support this
+	    cat > /etc/systemd/system/xvnc$v@.service <<EOF
+[Unit]
+Description=XVNC Per-Connection Daemon $v
+
+[Service]
+ExecStart=-/usr/bin/X${vncserver} -inetd -query 127.0.0.1 -geometry $res -pn -once $stype
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+EOF
+	    systemctl enable xvnc$v.socket > /dev/null 2>&1
+	done
+    fi
+    #
+    # Install VNC server if not already done
+    #
+    if [ "$vncp" != "" ]
+    then 
+	if ! ispkginstalled $vncp
+	then
+	    [ -f /usr/bin/X${othervnc} ] && logtoboth "% Plugin $pfx: '$othervnc' is installed as well as the requested '$vncserver' ; '$othervnc' not configured"
+	    logtoboth "> Plugin $pfx: Install VNC server $vncp"
+	    logfreespace "at start of install VNC server $vncp"
+	    doapt "install --no-install-recommends -y $vncp" $showapt
+	    logfreespace "at end of install VNC server $vncp"
+	else
+	    logtoboth "> Plugin $pfx: VNC Server $vncp is already installed"
+	fi
+    fi
+
+    if [ "$realvncserver" != "" ]
+    then
+	if ! ispkginstalled $realvncserver
+	then
+	    logtoboth "> Plugin $pfx: Install RealVNC server '$realvncserver'"
+	    logfreespace "at start of RealVNC Server install"
+	    doapt "install --no-install-recommends --yes $realvncserver" $showapt
+	    logfreespace "at end of RealVNC Server install"
+	else
+	    logtoboth "> Plugin $pfx: RealVNC server is already installed"
+	fi
+	systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
+	cat > /etc/sdm/0piboot/040-realvnc-server.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Enable RealVNC Server vncserver-x11-serviced"
+#
+# enable RealVNC server during FirstBoot service
+#
+systemctl enable vncserver-x11-serviced.service
+#
+# vncserver-virtuald requires an Enterprise license, so disabling it
+# If you have an enterprise license, you can enable the service.
+# There are no sdm-related issues to worry about.
+# vncserver-virtuald uses port 5999 so there is no confict with using
+# sdm-provided xvnc dynamic VNC desktops
+#
+systemctl disable vncserver-virtuald.service
+EOF
+	chmod 755 /etc/sdm/0piboot/040-realvnc-server.sh
+	if [ "$realvnc" != "default" ]
+	then
+	    if ! ispkginstalled x11-xserver-utils
+	    then
+		doapt "install --yes x11-xserver-utils" $showapt
+	    fi
+	    vres="|640x480|720x480|800x600|1024x768|1280x720|1280x1024|1600x1200|1920x1080|"
+	    if [[ "$vres" =~ "$realvnc" ]]
+	    then
+		if [ -d /etc/xdg/autostart ]
+		then
+		    logtoboth "> Plugin $pfx: Create autostart /etc/xdg/autostart/vnc_xrandr.desktop to set desktop resolution '$realvnc'"
+		    cat > /etc/xdg/autostart/vnc_xrandr.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=vnc_xrandr
+Comment=Set resolution for VNC
+NoDisplay=true
+Exec=sh -c "if ! (xrandr | grep -q -w connected) ; then /usr/bin/xrandr --fb $realvnc ; fi"
+EOF
+		else
+		    logtoboth "%%Plugin $pfx: Directory /etc/xdg/autostart does not exist for xrandr; is LXDE installed?"
+		fi
+	    else
+		logtoboth "%%Plugin $pfx: RealVNC resolution $realvnc is not in supported list: '$vres'"
+	    fi
+	fi
+    fi
+    #
+    # Configure display manager for vnc. Warn if none of lightdm/xdm/wdm is installed
+    #
+    [ ! -f /etc/lightdm/lightdm.conf -a ! -d /etc/X11/xdm -a ! -d /etc/X11/wdm ] && logtoboth "% Plugin $pfx: No sdm-known Display Manager installed; VNC not enabled"
+    if [ -d /etc/X11/xdm ]
+    then
+	logtoboth "> Plugin $pfx: Configure xdm for VNC"
+	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/xdm/xdm-config
+	sed -i "s/\#\*					#any host can get a login window/\*					#any host can get a login window/"  /etc/X11/xdm/Xaccess
+    fi
+    if [ -f /etc/lightdm/lightdm.conf ]
+    then
+	logtoboth "> Plugin $pfx: Configure lightdm for VNC"
+	sed -i "s/\[XDMCPServer\]/\[XDMCPServer\]\nenabled=true\nport=177/" /etc/lightdm/lightdm.conf
+    fi
+    if [ -d /etc/X11/wdm ]
+    then
+	logtoboth "> Plugin $pfx: Configure wdm for VNC"
+	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
+    fi
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
