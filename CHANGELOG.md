@@ -1,5 +1,13 @@
 # Changelog
 
+## V7.0
+
+* Plugins are here! Like Custom Phase Scripts, Plugins enable sdm functionality to be extended in a modular way. Plugins can be used during `--customize` and `--burn`. See ???? for details.
+* Initial plugin set: apt-cacher-ng, apt-file, postfix, rxapp, samba, vnc. See above link for complete details.
+* As a result of the new plugins, the following sdm switches have been removed: `--vnc` and `--poptions samba`, which are now available as plugins.
+* If sdm installed into /usr/local/sdm, add a link to it in /usr/local/bin, eliminating the need for an alias. Thanks @arpj-rebola for the `realpath` hint
+* Code cleanups. Replace most use of `readarray` with `read -a` and fix potential IFS breakage. Cleaner code, less cruft, less oopsie opportunity.
+
 ## V6.13
 
 * Add `--debug apt` which installs packges from apps and xapps one at a time instead of all at once. This is useful, for instance, in tracking down which specific package has install problems.
