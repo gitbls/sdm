@@ -213,11 +213,9 @@ function poptcheck() {
     local popt="$1" vopt="$2" switchname="$3" badopt="" nopt="" xopt=() o os badopt
     if [ "$popt" != "" ]
     then
-	readarray -d, xopt <<< $popt
-	for o in ${xopt[@]}
+	IFS="," read -a xopt <<< "$popt"
+	for os in "${xopt[@]}"
 	do
-	    os="${o%,}"
-	    os="${os# }"
 	    if ! [[ "$vopt" =~ "|$os|" ]]
 	    then
 		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
@@ -316,16 +314,12 @@ function checkfilelist() {
     #
     # $1 has list of "|"-separated files
     # $2 has name of switch (--switchname)
-    local sifs="$IFS" citems=() fl
-    IFS=""
-    readarray -d\| citems <<< "$1"
-    for fl in ${citems[@]}
+    local citems=() fl
+    IFS="|" read -a citems <<< "$1"
+    for fl in "${citems[@]}"
     do
-	fl="${fl%|}"
-	fl="${fl/$'\n'}"
 	[ ! -f $fl ] && errexit "? $2 file '$fl' not found"
     done
-    IFS="$sifs"
 }
 
 function printhelp() {
@@ -449,7 +443,6 @@ Command Switches for --customize and --burn or as noted
  --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
  --uid uid           UID for non-root user [next free]
  --user username     Create non-root user
- --vnc name,res1,res2,...,resx Enable tightvnc or tigerVNC server and/or RealVNC with specified resolutions
  --vncbase n         Set the base port for virtual VNC connections [5900]
  --wifi-country country Set WiFi Country for unblocking WiFi
  --wpa wpaconf       wpa_supplicant.conf file to use
@@ -462,7 +455,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V6.13"
+version="V7.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -557,6 +550,8 @@ passwordsame=0              #1=same password for all, -1=--password-same n, 0=no
 samepwd=""                  #For command parsing only. Set to value of --password-same if specified
 passworduser=""
 pcmanfmconf=""              #Config file for pcmanfm
+plugindebug=0               #1=Enable debugging output
+plugins=""                  #List of plugins to include
 poptions=""                 #Phase options
 pvers=0                     #Print version number
 rclocal=""                  #Command(s) to add to /etc/rc.local
@@ -584,13 +579,12 @@ udev=""                     #Copy named udev files to /etc/udev/rules.d
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 vdebug="|apt|"              #Valid --debug settings
-vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|novnc|samba|xwindows|xapps|none|" #Valid --poptions
+vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
 vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
 vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
-vnc=""                      #--vnc arguments
 vncbase="5900"              # Base port for VNC socket services
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
@@ -603,7 +597,7 @@ custom3=""                  #For custom use
 custom4=""                  #For custom use
 
 [[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
-src=$(dirname $0)
+src=$(dirname "$(realpath "$0")")
 source $src/sdm-cparse           # Get function defs
 if iswsl
 then
@@ -622,13 +616,13 @@ cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,debug:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
-hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
+hotspot:,plugin-debug,plugin:,plugins:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,os:,\
 password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
 redo-customize,regen-ssh-host-keys,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
 sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
-vnc:,vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
+vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
 OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
@@ -716,9 +710,11 @@ do
 	--password-root) passwordroot=$2 ; shift 2 ;;
 	--password-same) samepwd=$2  ; shift 2 ;;
 	--password-user) passworduser=$2 ; shift 2 ;;
+	--plugin-debug) plugindebug=1 ; shift 1 ;;
+	--plugin|--plugins) [ "$plugins" == "" ] && plugins="$2" || plugins="${plugins}~$2" ; shift 2 ;;
 	--poptions)    poptions="${2,,}" ; shift 2 ;;
 	--ppart)       fppart=1      ; shift 1 ;;
-	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}|$2" ; shift 2 ;;
+	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}~$2" ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
 	--redo-customize) redocustomize=1 ; shift 1 ;;
@@ -740,7 +736,6 @@ do
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
-	--vnc)         vnc="$2"      ; shift 2 ;;
 	--vncbase)     vncbase="$2"  ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
@@ -885,18 +880,28 @@ exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
 [ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
 [ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
+if [ "$plugins" != "" ]
+then
+    IFS="~" read -a plugs <<< $plugins
+    for p in "${plugs[@]}"
+    do
+	p="${p%:*}"
+	[ -f $src/local-plugins/$p ] && continue
+	[ -f $src/plugins/$p ] && continue
+	errexit "? Unrecognized plugin '$p'"
+    done
+fi
 #
 # --systemd-config
 #
 if [ "$systemdconfig" != "" ]
 then
     emsg=""
-    readarray -d, itemlist <<< $systemdconfig
-    for o in ${itemlist[@]}
+    IFS="," read -a itemlist <<< "$systemdconfig"
+    for o in "${itemlist[@]}"
     do
-	IFS=":" read olname fname <<< $o
+	IFS=":" read olname fname <<< "$o"
 	lname=${olname,,} ; lname=${lname%d}    #Copy name and strip trailing 'd' if present (easy typo)
-	fname=${fname%,}    #Strip trailing comma
 	case "$lname" in
 	    login|network|resolve|system|timesync|user)
 		if [ -f $fname ]
@@ -944,11 +949,10 @@ fi
 #
 if [ "$lxdeconfig" != "" ]
 then
-    readarray -d, citems <<< $lxdeconfig
-    for c in ${citems[@]}
+    IFS="," read -a citems <<< "$lxdeconfig"
+    for c in "${citems[@]}"
     do
-        IFS=":=" read key value <<< $c
-	value="${value%,}"
+        IFS=":=" read key value <<< "$c"
 	case "${key,,}" in
 	    libfm|pcmanfm|lxterminal)
 		cf="${key}conf"
@@ -964,12 +968,10 @@ fi
 #
 if [ "$bootsetpairs" != "" ]
 then
-    readarray -d, citems <<< $bootsetpairs
-    for c in ${citems[@]}
+    IFS="," read -a citems <<< "$bootsetpairs"
+    for c in "${citems[@]}"
     do
-	IFS=":=" read key value <<< $c
-	key="${key%,}"
-	value="${value%,}"
+	IFS=":=" read key value <<< "$c"
 	! [[ "$vbootset" =~ "|$key|" ]] && errexit "? Unrecognized --bootset key '$key'"
     done
 fi
@@ -1036,7 +1038,6 @@ done
 [ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
 [ "$motd" != "" -a "$motd" != "/dev/null" ] && checkfilelist "$motd" "--motd"
 [ "$udev" != "" ] && checkfilelist "$udev" "--udev"
-
 if [ "$hotspot" != "" ]
 then
     [ ! -f $hotspot ] && errexit "? --hotspot file '$hotspot' not found"
@@ -1049,15 +1050,6 @@ fi
 if [ "$b1script" != "" ]
 then
     [ ! -f $b1script ] && errexit "? --b1script file '$b1script' not found"
-fi
-if [ "$vnc" != "" ]
-then
-    if ! [[ "$vnc" =~ "tiger" ]] && ! [[ "$vnc" =~ "tight" ]] && ! [[ "$vnc" =~ "real" ]]
-    then
-	echo "% --vnc argument value does not include at least one of 'tiger', 'tight', or 'real'"
-	echo "%   Defaulting to 'tiger'"
-	vnc="tiger,$vnc"
-    fi
 fi
 #
 # parse and set ecolors
@@ -1220,6 +1212,10 @@ else
     do
 	cp $src/$f $SDMPT/$sdmdir
     done
+    ln -s $sdmdir/sdm $SDMPT/usr/local/bin
+    mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
+    cp $src/plugins/* $SDMPT/$sdmdir/plugins
+    [ "$(ls $src/local-plugins 2>/dev/null)" != "" ] && cp $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
     # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp $src/sdm-readparams $SDMPT/etc/sdm
