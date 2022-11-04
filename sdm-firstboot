@@ -89,8 +89,7 @@ function readusbcreds() {
     fi
     uwificountry="" ; ussid="" ; upassword="" ; ukeymap="" ; ulocale="" ; utimezone="" ; udhcpwait=""
     tr -d '\r' < /mnt/$wifile > $tmpf # Eliminate Windows line endings if present
-    IFS=":="
-    while read key value
+    while IFS=":=" read key value
     do
 	if [[ ! $key =~ ^\ *# && -n $key ]] # skip comment and malformed lines
 	then
@@ -262,8 +261,7 @@ function doconfig() {
     cfgfile="$1"
     [ ! -f $cfgfile ] && bootlog "? Config file $cfgfile not found...skipping" && exit
     bootlog "Start Configuration with configuration file '$cfgfile'"
-    IFS=":="
-    while read rpifun value
+    while IFS=":=" read rpifun value
     do
 	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
 	then
