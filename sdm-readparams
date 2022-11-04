@@ -6,12 +6,11 @@ function readparams() {
     #
     # Restores the global variables from /etc/sdm/cparams
     #
-    local sifs=$IFS rpifun value mpt="" cf="/etc/sdm/cparams"
+    local rpifun value mpt="" cf="/etc/sdm/cparams"
     [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mpt="$SDMPT" && cf="$SDMPT/$cf"
     if [ -f $cf ]
     then
-	IFS=":"
-	while read rpifun value
+	while IFS=":" read rpifun value
 	do
 	    if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
             then
@@ -25,7 +24,6 @@ function readparams() {
 
 	    fi
 	done < $cf
-	IFS=$sifs
     fi
     [ -f $mpt/$sdmdir/sdm-cparse ] && source $mpt/$sdmdir/sdm-cparse || echo "? Internal error: File '$mpt/$sdmdir/sdm-cparse' not found in readparams"
     return
