@@ -199,7 +199,7 @@ function sdm_burndevfile() {
 	# Set hostname into the image
 	#
 	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale noreboot"
-	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser rclocal reboot rebootwait regensshkeys"
+	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -220,9 +220,11 @@ function sdm_burndevfile() {
 	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
 	[ "$bapssid" != "sdm" ] && apssid=$bapssid
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
+	[ "$bplugins" != "" ] && plugins="$bplugins" || plugins=""
 	expandroot=$((bexpandroot|expandroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
+	plugindebug=$((bplugindebug|plugindebug))
 	if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
 	then
 	    # don't include domain name. Leave that to user
@@ -290,18 +292,13 @@ function sdm_burndevfile() {
 	then
 	    logtoboth "> Add commands to /etc/rc.local per --rclocal"
 	    grep -v 'exit 0' $SDMPT/etc/rc.local > $SDMPT/tmp/rc.local
-	    sifs="$IFS"
-	    IFS=""
-	    readarray -d\| citems <<< "$brclocal"
-	    for c in ${citems[@]}
+	    IFS="~" read -a citems <<< "$brclocal"
+	    for c in "${citems[@]}"
 	    do
-		c="${c%|}"
-		c="${c/$'\n'}"
 		logtoboth "   $c"
 		echo "$c" >> $SDMPT/tmp/rc.local
 	    done
 	    echo "exit 0" >> $SDMPT/tmp/rc.local
-	    IFS="$sifs"
 	    mv $SDMPT/etc/rc.local $SDMPT/etc/rc.local.sdm.burn
 	    mv $SDMPT/tmp/rc.local $SDMPT/etc
 	    chmod 755 $SDMPT/etc/rc.local
@@ -325,13 +322,17 @@ function sdm_burndevfile() {
 	    [ "$bpassworduser" != "" ] && echo "changepwd $myuser \"$bpassworduser\"" >> $bcp && passworduser=$bpassworduser
 	    chmod 755 $bcp
 	fi
-  	writeconfig               # Write updated params to the SD card
+	writeconfig               # Write updated params to the SD card so they are available in the following
 	if [ "$b0script" != "" ]
 	then
 	    logtoboth "> Execute function 'do_b0script' in --b0script '$b0script'"
 	    source $b0script
 	    ftype=$(type -t do_b0script)
 	    [ "$ftype" == "function" ] && do_b0script || logtoboth ">%Function 'do_b0script' not found in '$b0script'; Skipping..."
+	fi
+	if [ "$plugins" != "" ]
+	then
+	    runplugins 0
 	fi
 	if [ "$bcp" != "" ]
 	then
@@ -343,6 +344,12 @@ function sdm_burndevfile() {
 	    logtoboth "> Run --b1script '$b1script'"
 	    declare -x SDMNSPAWN="Burn1"
 	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script" "-q --directory=$SDMPT"
+	fi
+	if [ "$plugins" != "" ]
+	then
+	    declare -x SDMNSPAWN="Burn1"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "-q --directory=$SDMPT"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "-q --directory=$SDMPT"
 	fi
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"
