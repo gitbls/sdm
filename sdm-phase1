@@ -1,7 +1,6 @@
 #!/bin/bash
 # This script runs in the nspawn image
 #
-
 function doinstalls() {
     #
     # $1 - app list
@@ -14,14 +13,14 @@ function doinstalls() {
 	if [[ "$debugs" =~ "apt" ]]
 	then
 	    logtoboth "> Install apt packages singly per '--debug apt'"
-	    readarray alist <<< $1
-	    for a in ${alist[@]}
+	    IFS=" " read -a alist <<< "$1"
+	    for a in "${alist[@]}"
 	    do
 		logtoboth "> -- $a"
-		doapt "install --no-install-recommends -y $a" $showapt
+		doapt "install --no-install-recommends --yes $a" $showapt
 	    done
 	else
-	    doapt "install --no-install-recommends -y $1" $showapt
+	    doapt "install --no-install-recommends --yes $1" $showapt
 	fi
 	logtoboth "* $2 Completed"
     else
@@ -41,6 +40,7 @@ cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
     Dpkg::Options {
    "--force-confdef";
    "--force-confold";
+}
 EOF
 [ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
 doapt "$1 $upg" "$2"
@@ -68,23 +68,19 @@ function dodt() {
     # $1 = name (either "dtoverlay" or "dtparam"
     # $2 = value(s)
     #
-    local dtname="$1" dtvalues="$2" sifs="$IFS" citems=() c
-    IFS=""
+    local dtname="$1" dtvalues="$2" citems=() c
     if [ "$dtvalues" != "" ]
     then
 	logtoboth "> Add new $dtname settings to /boot/config.txt"
 	echo "" >> /boot/config.txt
 	echo "# $dtname items added by sdm --$dtname" >> /boot/config.txt
-	readarray -d\| citems <<< $dtvalues
-	for c in ${citems[@]}
+	IFS="|" read -a citems <<< "$dtvalues"
+	for c in "${citems[@]}"
 	do
-	    c="${c%|}"
-	    c="${c/$'\n'}"
 	    logtoboth ">  $dtname $c"
 	    echo "$dtname=$c" >> /boot/config.txt
 	done
     fi
-    IFS="$sifs"
 }
 
 function doctrlcp1() {
@@ -137,6 +133,18 @@ case "$cmd" in
 	fi
 	exit 0
 	;;
+    run-all-plugins)  # Run Plugin phase 1 or post-install
+	phase="$2"
+	runplugins $phase
+	exit 0
+        ;;
+    run-one-plugin)  # Run Plugin phase 1 or post-install
+	# $2: plugin name and args $3: Phase
+	p="$2"
+	phase=$3
+	runonepluginx "$p" $phase
+	exit 0
+        ;;
 esac
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
@@ -349,11 +357,11 @@ fi
 if [ "$bootconfig" != "" ]
 then
     logtoboth "> Update /boot/config.txt for bootconfig: $bootconfig"
-    readarray -d, citems <<< $bootconfig
-    for c in ${citems[@]}
+    IFS="," read -a citems <<< "$bootconfig"
+    for c in "${citems[@]}"
     do
-	IFS=":=" read key value <<< $c
-	value="${value%,}"
+	IFS=":=" read key value <<< "$c"
+	sed -i "s/\^$key=.*/$key=$value/" /boot/config.txt
 	sed -i "s/\#$key=.*/$key=$value/" /boot/config.txt
 	logtoboth ">  $key=$value"
     done
@@ -365,11 +373,10 @@ then
 	logtoboth "> Add new keys to /boot/config.txt"
 	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
 	echo "# Items added by sdm --bootadd" >> /boot/config.txt
-	readarray -d, citems <<< $bootadd
-	for c in ${citems[@]}
+	IFS="," read -a citems <<< "$bootadd"
+	for c in "${citems[@]}"
 	do
-	    IFS=":=" read key value <<< $c
-	    value="${value%,}"
+	    IFS=":=" read key value <<< "$c"
 	    echo "$key=$value" >> /boot/config.txt
 	    logtoboth ">  $key=$value"
 	done
@@ -385,24 +392,18 @@ dodt dtoverlay "$dtoverlay"
 dodt dtparam   "$dtparam"
 #
 # Add requested command(s) to /etc/rc.local
-# ?? Need different character than |. Must be single character for readarray. Candidates: # ! * + ` ~ or an extended character?
 #
 if [ "$rclocal" != "" ]
 then
     logtoboth "> Add commands to /etc/rc.local"
     grep -v 'exit 0' /etc/rc.local > /tmp/rc.local
-    sifs="$IFS"
-    IFS=""
-    readarray -d\| citems <<< "$rclocal"
-    for c in ${citems[@]}
+    IFS="~" read -a citems <<< "$rclocal"
+    for c in "${citems[@]}"
     do
-	c="${c%|}"
-	c="${c/$'\n'}"
 	logtoboth "   $c"
 	echo "$c" >> /tmp/rc.local
     done
     echo "exit 0" >> /tmp/rc.local
-    IFS="$sifs"
     mv /etc/rc.local /etc/rc.local.sdm
     mv /tmp/rc.local /etc
     chmod 755 /etc/rc.local
@@ -571,6 +572,13 @@ then
 else
     csfn=""
 fi
+#
+# Run requsted plugins Phase 1
+#
+if [ "$plugins" != "" ]
+then
+    runplugins 1
+fi
 
 #
 # If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
@@ -611,155 +619,19 @@ logtoboth "* Phase 1 post-app/xapp installation/configuration"
 case "${netman,,}" in
     dhcpcd)
 	logtoboth "> Set network manager dhcpcd"
-	doapt "install --no-install-recommends -y dhcpcd5" $showapt
+	doapt "install --no-install-recommends --yes dhcpcd5" $showapt
 	do_raspiconfig do_netconf 1
 	;;
     nm|network-manager)
 	logtoboth "> Set network manager NetworkManager"
-	doapt "install --no-install-recommends -y network-manager" $showapt
+	doapt "install --no-install-recommends --yes network-manager" $showapt
 	do_raspiconfig do_netconf 2
 	;;
 esac
-#
-# Configure VNC if requested
-#
-if [ "$vnc" != "" ] && [[ ! "$poptions" =~ "novnc" ]]
-then
-    logtoboth "* Configure VNC per command switch '--vnc $vnc'"
-    if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
-    then
-	! [[ "$vnc" =~ "real" ]] && vnc="real,$vnc"
-    fi
-    vbase="${vncbase-5900}" ; realvnc=""
-    vncserver="" ; citems=() ; sifs="$IFS" 
-    IFS=""
-    readarray -d, citems <<< "$vnc,"
-    n=1
-    for res in ${citems[@]}
-    do
-	res="${res%,}"
-	res="${res/$'\n'}"
-	if [ "$res" != "" ]
-	then
-	    # NOTE that this won't work well if user provides any resolutions before vnc server name(s)
-	    [[ "$res" =~ "tight" ]] && vncserver="tightvnc" && vncp="tightvncserver" && othervnc="tigervnc" && continue
-	    [[ "$res" =~ "tiger" ]] && vncserver="tigervnc" && vncp="tigervnc-standalone-server" && othervnc="tightvnc" && continue
-	    [[ "$res" =~ "real" ]]  && realvnc="realvnc-vnc-server" && continue
-	    #[ "$vncserver" == "" ] && logtoboth "% --vnc did not specify 'tight' or 'tiger', assuming 'tiger'" && vncserver="tigervnc" && vncp="tigervnc-standalone-server" 
-	    if [ "$vncserver" != "" ]
-	    then
-		port=$(($vbase+$n))
-		logtoboth "> Create $vncserver Service xvnc$n Port $port Resolution $res"
-		cat > /etc/systemd/system/xvnc$n.socket <<EOF
-[Unit]
-Description=XVNC Server $n
-
-[Socket]
-ListenStream=$port
-Accept=yes
-
-[Install]
-WantedBy=sockets.target
-EOF
-		stype="-SecurityTypes None"
-		[ "$vncserver" == "tightvnc" ] && stype="" # TightVNC appears not to support this
-		cat > /etc/systemd/system/xvnc$n@.service <<EOF
-[Unit]
-Description=XVNC Per-Connection Daemon $n
-
-[Service]
-ExecStart=-/usr/bin/X${vncserver} -inetd -query 127.0.0.1 -geometry $res -pn -once $stype
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-EOF
-		systemctl enable xvnc$n.socket > /dev/null 2>&1
-		n=$(($n+1))
-	    fi
-        fi
-    done
-    IFS="$sifs"
-    #
-    # Install VNC server if not already done. Warn if none of lightdm/xdm/wdm is installed
-    #
-    if [ "$vncp" != "" ]
-    then 
-	if ! ispkginstalled $vncp
-	then
-	    [ -f /usr/bin/X${othervnc} ] && logtoboth "% '$othervnc' is installed as well as the requested '$vncserver'"
-	    logtoboth "> Install VNC server $vncp"
-	    logfreespace "at start of install VNC server $vncp"
-	    doapt "install --yes $vncp" "$showapt"
-	    logfreespace "at end of install VNC server $vncp"
-	else
-	    logtoboth "> VNC Server $vncp is already installed"
-	fi
-    fi
-
-    if [ "$realvnc" != "" ]
-    then
-	if ! ispkginstalled $realvnc
-	then
-	    logtoboth "> Install RealVNC server '$realvnc'"
-	    logfreespace "at start of RealVNC Server install"
-	    doapt "install --yes $realvnc" "$showapt"
-	    logfreespace "at end of RealVNC Server install"
-	else
-	    logtoboth "> RealVNC server is already installed"
-	fi
-	systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
-	cat > /etc/sdm/0piboot/040-realvnc-server.sh <<EOF
-#!/bin/bash
-logger "FirstBoot: Enable RealVNC Server vncserver-x11-serviced"
-#
-# enable RealVNC server during FirstBoot service
-#
-systemctl enable vncserver-x11-serviced.service
-#
-# vncserver-virtuald requires an Enterprise license, so disabling it
-# If you have an enterprise license, you can enable the service.
-# There are no sdm-related issues to worry about.
-# vncserver-virtuald uses port 5999 so there is no confict with using
-# sdm-provided xvnc dynamic VNC desktops
-#
-systemctl disable vncserver-virtuald.service
-EOF
-	chmod 755 /etc/sdm/0piboot/040-realvnc-server.sh
-    fi
-    [ ! -f /etc/lightdm/lightdm.conf -a ! -d /etc/X11/xdm -a ! -d /etc/X11/wdm ] && logtoboth "% No sdm-known Display Manager installed; VNC enable will not be done"
-    if [ -d /etc/X11/xdm ]
-    then
-	logtoboth "> Configure xdm for VNC"
-	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/xdm/xdm-config
-	sed -i "s/\#\*					#any host can get a login window/\*					#any host can get a login window/"  /etc/X11/xdm/Xaccess
-    fi
-    if [ -f /etc/lightdm/lightdm.conf ]
-    then
-	logtoboth "> Configure lightdm for VNC"
-	sed -i "s/\[XDMCPServer\]/\[XDMCPServer\]\nenabled=true\nport=177/" /etc/lightdm/lightdm.conf
-    fi
-    if [ -d /etc/X11/wdm ]
-    then
-	logtoboth "> Configure wdm for VNC"
-	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
-    fi
-fi
 
 if [ "$hotspot" != "" ]
 then
     $sdmdir/sdm-hotspot
-fi
-
-if [[ "$poptions" =~ "samba" ]]
-then
-    logtoboth "> Install Samba silently"
-    hostname $thishost  # For some reason, debconf needs a valid hostname (on the network?) V strange
-    echo "samba-common samba-common/workgroup string  WORKGROUP" | debconf-set-selections
-    echo "samba-common samba-common/dhcp boolean false" | debconf-set-selections
-    echo "samba-common samba-common/do_debconf boolean true" | debconf-set-selections
-    doapt "install samba --yes" $showapt
-    hostname sdm
-    didapt=1
 fi
 
 if ! [[ "$poptions" =~ "noupgrade" ]]
@@ -931,6 +803,13 @@ if [ "$csfn" != "" ]
 then
     logtoboth "> Run Custom Phase Script '$csfn' post-install"
     $csfn post-install
+fi
+#
+# Run requested plugins
+#
+if [ "$plugins" != "" ]
+then
+    runplugins post-install
 fi
 #
 # Check for device out of space and warn if so
