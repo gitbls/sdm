@@ -8,17 +8,13 @@ function copycufiles() {
     # $1 has list of "|"-separated files to copy
     # $2 has destination directory
     #
-    local citems=() fl sifs="$IFS"
-    IFS=""
-    readarray -d\| citems <<< "$1"
-    for fl in ${citems[@]}
+    local citems=() fl
+    IFS="|" read -a citems <<< "$1"
+    for fl in "${citems[@]}"
     do
-	fl="${fl%|}"
-	fl="${fl/$'\n'}"
 	logtoboth "> Copy file '$fl' to $2"
 	cp $fl $2
     done
-    IFS="$sifs"
 }
 
 #
@@ -160,6 +156,11 @@ then
     csfn="$SDMPT/$sdmdir/$(basename $cscript)"
     logtoboth "> Run Custom Phase Script '$csfn' Phase 0"
     $csfn 0
+fi
+
+if [ "$plugins" != "" ]
+then
+    runplugins 0
 fi
 
 logtoboth "* Phase 0 Completed"
