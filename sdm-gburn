@@ -366,11 +366,10 @@ function do1dhcpcd() {
     dhcpcd=${dhcpcd#\[}
     dhcpcd=${dhcpcd%\]*}
     # Get ipaddress, router, dns
-    readarray -d\; c2 <<< "$dhcpcd"
-    for s2 in ${c2[@]}
+    IFS=";" read -a c2 <<< "$dhcpcd"
+    for s2 in "${c2[@]}"
     do
         IFS=":" read key value <<< "$s2"
-        value=${value%\;}
 	eval "${key}=\"$value\""
     done
     if [ "$dev" != "" ]
@@ -499,10 +498,10 @@ do
 	dhcpcd=""
 	dhcpcd1=""
 	echo "* Configuration for '$username'"
-	readarray -d, citems <<< "$args"
+	IFS="," read -a citems <<< "$args"
 	for c in "${citems[@]}"
 	do
-            IFS=":=" read key value <<< $c
+            IFS=":=" read key value <<< "$c"
 	    key="${key##*\ }"
             value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
 	    value="${value%\,}"     # Del trailing comma
