@@ -2,7 +2,7 @@
 
 ## V7.0
 
-* Plugins are here! Like Custom Phase Scripts, Plugins enable sdm functionality to be extended in a modular way. Plugins can be used during `--customize` and `--burn`. See ???? for details.
+* Plugins are here! Like Custom Phase Scripts, Plugins enable sdm functionality to be extended in a modular way. Plugins can be used during `--customize` and `--burn`. See https://github.com/gitbls/sdm/wiki/sdm-Plugins for details.
 * Initial plugin set: apt-cacher-ng, apt-file, postfix, rxapp, samba, vnc. See above link for complete details.
 * As a result of the new plugins, the following sdm switches have been removed: `--vnc` and `--poptions samba`, which are now available as plugins.
 * If sdm installed into /usr/local/sdm, add a link to it in /usr/local/bin, eliminating the need for an alias. Thanks @arpj-rebola for the `realpath` hint
