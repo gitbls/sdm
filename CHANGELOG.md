@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.1
+
+* Plugins should do installs in Phase 1 so that Custom Phase Script post-installs can count on them being there. All provided plugins corrected.
+
 ## V7.0
 
 * Plugins are here! Like Custom Phase Scripts, Plugins enable sdm functionality to be extended in a modular way. Plugins can be used during `--customize` and `--burn`. See https://github.com/gitbls/sdm/wiki/sdm-Plugins for details.
