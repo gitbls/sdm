@@ -42,9 +42,36 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
-    # INSERT your Plugin Phase 1 customization stuff here
-    # In Phase 1 all references to directories in the image can be direct
-    #
+    plugin_getargs $pfx "$args" "|gentargetmode|bindaddress|cachedir|port|tunnelenable|proxy|"
+    plugin_printkeys
+
+    #  Possible choices FOR gentargetmode: Set up once, Set up now and update later, No automated setup
+    #  Other settings: "keep" keeps the value from the default install
+
+    [ "$gentargetmode" == "" ] && gentargetmode="No automated setup"
+    [ "$bindaddress" == "" ] && bindaddress="keep"
+    [ "$cachedir" == "" ] && cachedir="keep"
+    [ "$port" == "" ] && port="keep"
+    [ "$tunnelenable" == "" ] && tunnelenable="false"
+    [ "$proxy" == "" ] && proxy="keep"
+
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/gentargetmode string $gentargetmode"
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/bindaddress string bindaddress"
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/cachedir string $cachedir"
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/port string $port"
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/tunnelenable string $tunnelenable"
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/proxy string $proxy"
+
+    logtoboth "> Plugin $pfx: Install apt-cacher-ng server"
+    logtoboth "> Plugin $pfx:   With arguments:"
+    logtoboth "> Plugin $pfx:                gentargetmode: $gentargetmode"
+    logtoboth "> Plugin $pfx:                bindaddress:   $bindaddress"
+    logtoboth "> Plugin $pfx:                cachedir:      $cachedir"
+    logtoboth "> Plugin $pfx:                port:          $port"
+    logtoboth "> Plugin $pfx:                tunnelenable:  $tunnelenable"
+    logtoboth "> Plugin $pfx:                proxy:         $proxy"
+    doapt "install --no-install-recommends -y apt-cacher-ng" $showapt
+
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
@@ -67,24 +94,8 @@ else
     [ "$port" == "" ] && port="keep"
     [ "$tunnelenable" == "" ] && tunnelenable="false"
     [ "$proxy" == "" ] && proxy="keep"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/gentargetmode string $gentargetmode"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/bindaddress string bindaddress"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/cachedir string $cachedir"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/port string $port"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/tunnelenable string $tunnelenable"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/proxy string $proxy"
 
-    logtoboth "> Plugin $pfx: Install apt-cacher-ng server and set caching server to 127.0.0.1"
-    logtoboth "> Plugin $pfx:   With arguments:"
-    logtoboth "> Plugin $pfx:                gentargetmode: $gentargetmode"
-    logtoboth "> Plugin $pfx:                bindaddress:   $bindaddress"
-    logtoboth "> Plugin $pfx:                cachedir:      $cachedir"
-    logtoboth "> Plugin $pfx:                port:          $port"
-    logtoboth "> Plugin $pfx:                tunnelenable:  $tunnelenable"
-    logtoboth "> Plugin $pfx:                proxy:         $proxy"
-    doapt "install --no-install-recommends -y apt-cacher-ng" $showapt
-
-    logtoboth "> Plugin $pfx: Set apt-cacher-ng to enable after First Boot"
+    logtoboth "> Plugin $pfx: Set apt-cacher-ng to enable and enable apt to use it (127.0.0.1) after First Boot"
     acs01="/etc/sdm/0piboot/099-enable-apt-cacher-ng.sh"
     cat > $acs01 <<EOF
 #!/bin/bash

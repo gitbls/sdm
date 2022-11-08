@@ -37,14 +37,7 @@ then
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
-    logtoboth "* Plugin $pfx: Complete Phase 1"
-else
-    #
-    # Plugin Post-install edits
-    #
-    loadparams
-    logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "|interval|"
+    plugin_getargs $pfx "$args" "$vargs"
     plugin_printkeys
 
     logtoboth "* Plugin $pfx: Install clockfake"
@@ -80,8 +73,15 @@ RestartSec=60s
 WantedBy=multi-user.target
 
 EOF
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
     systemctl enable clockfake > /dev/null 2>&1
-    logtoboth "Plugin $pfx: Disable fake-hwclock hourly update"
+    logtoboth "Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
     mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi

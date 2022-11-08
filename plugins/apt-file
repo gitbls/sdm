@@ -41,8 +41,8 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
-    # INSERT your Plugin Phase 1 customization stuff here
-    # In Phase 1 all references to directories in the image can be direct
+    logtoboth "> Plugin $pfx: Install apt-file"
+    doapt "install --no-install-recommends -y apt-file"
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -54,8 +54,6 @@ else
     logtoboth "* Plugin $pfx: Start Phase post-install"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    logtoboth "> Plugin $pfx: Install apt-file"
-    doapt "install --no-install-recommends -y apt-file"
     logtoboth "> Plugin $pfx: Generate apt-file database"
     apt-file update >> /etc/sdm/apt.log 2>&1
     #

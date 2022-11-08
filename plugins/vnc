@@ -100,27 +100,11 @@ then
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
-    #
-    # INSERT your Plugin Phase 1 customization stuff here
-    # In Phase 1 all references to directories in the image can be direct
-    #
-    #logfreespace "at end of $pfx Phase 1"
-    logtoboth "* Plugin $pfx: Complete Phase 1"
-else
-    #
-    # Plugin Post-install edits
-    #
-    loadparams
-    logtoboth "* Plugin $pfx: Start Phase post-install"
-    #logfreespace "at start of Plugin $pfx Phase post-install"
+
     decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
-    if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
-    then
-	[ "$realvnc" == "" ] && realvnc="default"
-    fi
+
     vbase=${vncbase-5900}
     vncserver=""
-    [ "$realvnc" != "" ] && realvncserver="realvnc-vnc-server" || realvncserver=""
 
     # Process the lists
     [ "$tigervnc0" != "" -a "$tightvnc0" != "" ] && logtoboth "% Plugin $pfx: Both tigervnc and tightvnc configured. Using tigervnc" && tightvnc0=""
@@ -169,7 +153,7 @@ EOF
 	done
     fi
     #
-    # Install VNC server if not already done
+    # Install tiger/tight VNC server if not already done
     #
     if [ "$vncp" != "" ]
     then 
@@ -185,6 +169,28 @@ EOF
 	fi
     fi
 
+    [ "$realvnc" != "" ] && logtoboth "> Plugin $pfx: RealVNC will be installed in the post-install phase"
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
+    if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
+    then
+	[ "$realvnc" == "" ] && realvnc="default"
+    fi
+    vbase=${vncbase-5900}
+
+    [ "$realvnc" != "" ] && realvncserver="realvnc-vnc-server" || realvncserver=""
+
+    #
+    # Install RealVNC in post-install after xapps have been installed
+    #
     if [ "$realvncserver" != "" ]
     then
 	if ! ispkginstalled $realvncserver

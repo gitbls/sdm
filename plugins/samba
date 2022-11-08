@@ -65,16 +65,6 @@ then
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
-    #logfreespace "at end of $pfx Phase 1"
-    logtoboth "* Plugin $pfx: Complete Phase 1"
-else
-    #
-    # Plugin Post-install edits
-    #
-    loadparams
-    logtoboth "* Plugin $pfx: Start Phase post-install"
-    #logfreespace "at start of Plugin $pfx Phase post-install"
-
     plugin_getargs $pfx "$args" "$vldargs"
     [ "$workgroup" == "" ] && workgroup="WORKGROUP"
     [ "$dhcp" == "" ] && dhcp="false"
@@ -110,6 +100,21 @@ EOF
 	fi
     fi
     #hostname sdm
+
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+
+    plugin_getargs $pfx "$args" "$vldargs"
+    [ "$workgroup" == "" ] && workgroup="WORKGROUP"
+    [ "$dhcp" == "" ] && dhcp="false"
+    [ "$do_debconf" = "" ] && do_debconf="true"
 
     logtoboth ""
     logtoboth "> Plugin $pfx: *** samba service notes ***"

@@ -52,10 +52,16 @@ then
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
-    #
-    # INSERT your Plugin Phase 1 customization stuff here
-    # In Phase 1 all references to directories in the image can be direct
-    #
+    plugin_getargs $pfx "$args" "$vldargs"
+    [ "$relayhost" == "" ] && relayhost="NoRelayHost"
+    [ "$main_mailer_type" == "" ] && main_mailer_type="Satellite system"
+    [ "$mailname" == "" ] && mailname="NoDomain.com"
+    debconf-set-selections <<< "postfix postfix/main_mailer_type select $main_mailer_type"
+    debconf-set-selections <<< "postfix postfix/mailname string $mailname"
+    debconf-set-selections <<< "postfix postfix/relayhost string $relayhost"
+
+    logtoboth "> Plugin $pfx: Install postfix and bsd-mailx"
+    doapt "install --no-install-recommends --yes postfix bsd-mailx libsasl2-modules" $showapt
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
@@ -70,12 +76,6 @@ else
     [ "$relayhost" == "" ] && relayhost="NoRelayHost"
     [ "$main_mailer_type" == "" ] && main_mailer_type="Satellite system"
     [ "$mailname" == "" ] && mailname="NoDomain.com"
-    debconf-set-selections <<< "postfix postfix/main_mailer_type select $main_mailer_type"
-    debconf-set-selections <<< "postfix postfix/mailname string $mailname"
-    debconf-set-selections <<< "postfix postfix/relayhost string $relayhost"
-
-    logtoboth "> Plugin $pfx: Install postfix and bsd-mailx"
-    doapt "install --no-install-recommends --yes postfix bsd-mailx libsasl2-modules" $showapt
 
     cp /etc/postfix/main.cf /etc/postfix/main.cf.orig
     if [ "$maincf" != "" ]
@@ -99,7 +99,7 @@ else
 source /etc/sdm/sdm-readparams
 hostname="\$(hostname)"
 hostname="\${hostname%.*}"
-sed -i "s/raspberrypi${dmn}/\$hostname${dmn}/" /etc/postfix/main.cf
+sed -i "s/myhostname = .*/myhostname = \${hostname}${dmn}/" /etc/postfix/main.cf
 #Rerun make-ssl-cert now that host name is known
 make-ssl-cert generate-default-snakeoil --force-overwrite
 newaliases
@@ -121,12 +121,13 @@ EOF
     then
 	systemctl disable postfix > /dev/null 2>&1
 	logtoboth "* Plugin $pfx:  You WILL need to modify /etc/postfix/main.cf once you burn and boot"
-	logtoboth "* Plugin $pfx:  Note that the hostname will be modified during sdm FirstBoot"
-	logtoboth "* Plugin $pfx:  Once postfix working correctly:"
+	logtoboth "* Plugin $pfx:  The hostname in /etc/postfix/main.cf will be modified when known, during sdm FirstBoot"
+	logtoboth ""
+	logtoboth "* Plugin $pfx:  Tip: Once postfix working correctly:"
 	logtoboth "* Plugin $pfx:   Save /etc/postfix.main.cf and use it with option maincf to this plugin"
 	logtoboth ""
 	logtoboth "* Plugin $pfx:  Tip: Make sure that your email clients always use 'send from' the email service account you're routing through"
-	logtoboth "* Plugin $pfx:  (e.g., myaccount@gmail.com, myaccount@outlook.com, etc."
+	logtoboth "* Plugin $pfx:  (e.g., myaccount@gmail.com, myaccount@outlook.com, etc.)"
     fi
 
     logtoboth "* Plugin $pfx:  Use 'sudo systemctl enable --now postfix' to enable/start the service when complete"
