@@ -77,7 +77,7 @@ for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
 	     sdm-customphase sdm-apps-example sdm-xapps-example \
 	     sdm-cportal sdm-hotspot sdm-logmsg sdm-gburn \
 	     plugins/apt-cacher-ng plugins/apt-file plugins/clockfake plugins/postfix \
-	     plugins/rxapp plugins/samba plugins/sdm-plugin-template plugins/vnc  \
+	     plugins/rxapp plugins/samba plugins/sdm-plugin-template plugins/vnc plugins/wsdd \
 	     1piboot/1piboot.conf
 do
     echo "Downloading '$f' to '$dir/$f'"
