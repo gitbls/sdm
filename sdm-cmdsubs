@@ -195,10 +195,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	#
-	# Set hostname into the image
-	#
-	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale noreboot"
+	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale myuser myuid noreboot"
 	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
@@ -208,6 +205,7 @@ function sdm_burndevfile() {
 	    eval b$e=\${!e}
 	done
 	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
+	initvirt
 	# Update settings with settings from cmd line as appropriate
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
@@ -221,10 +219,14 @@ function sdm_burndevfile() {
 	[ "$bapssid" != "sdm" ] && apssid=$bapssid
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
 	[ "$bplugins" != "" ] && plugins="$bplugins" || plugins=""
+	[ "$bmyuser" != "" ] && myuser=$bmyuser && myuid=$bmyuid
 	expandroot=$((bexpandroot|expandroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
+	#
+	# Set hostname into the image
+	#
 	if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
 	then
 	    # don't include domain name. Leave that to user
@@ -312,14 +314,29 @@ function sdm_burndevfile() {
 	[ $reboot -eq 1 ] && state="enabled${wmsg}" || state="disabled"
 	logtoboth "> First System Boot automatic restart $state"
 	bcp=""
-	if [ "$bpasswordpi" != "" -o "$bpasswordroot" != "" -o "$bpassworduser" != "" ]
+	if [ "$bmyuser" != "" -a "$bpassworduser" == "" ]
 	then
-	    bcp="$SDMPT/etc/sdm/assets/burn-change-passwords"
+	    while [ 1 ]
+	    do
+		echo -n "** Enter password for user '$myuser': "
+		bpassworduser=$(getpwd)
+		echo ""
+		[ "$bpassworduser" != "" ] && break
+	    done
+	fi
+	if [ "$bmyuser" != "" -o "$bpasswordpi" != "" -o "$bpasswordroot" != "" -o "$bpassworduser" != "" ]
+	then
+	    bcp="$SDMPT/etc/sdm/assets/ucp-run-script"
 	    echo "#!/bin/bash" > $bcp
 	    echo "source /etc/sdm/sdm-readparams" >> $bcp
 	    [ "$bpasswordpi" != "" ] && echo "changepwd pi \"$bpasswordpi\"" >> $bcp && passwordpi=$bpasswordpi
 	    [ "$bpasswordroot" != "" ] && echo "changepwd root \"$bpasswordroot\"" >> $bcp && passwordroot=$bpasswordroot
-	    [ "$bpassworduser" != "" ] && echo "changepwd $myuser \"$bpassworduser\"" >> $bcp && passworduser=$bpassworduser
+	    if [ "$bmyuser" == "" ]
+	    then
+		[ "$bpassworduser" != "" ] && echo "changepwd $myuser \"$bpassworduser\"" >> $bcp && passworduser=$bpassworduser
+	    else
+		echo "sdm_adduser $bmyuser \"$bmyuid\" \"$bpassworduser\"" >> $bcp && passworduser=$bpassworduser
+	    fi
 	    chmod 755 $bcp
 	fi
 	writeconfig               # Write updated params to the SD card so they are available in the following
@@ -334,20 +351,19 @@ function sdm_burndevfile() {
 	then
 	    runplugins 0
 	fi
+	declare -x SDMNSPAWN="Burn1"
 	if [ "$bcp" != "" ]
 	then
-	    logtoboth "> Change passwords per --password-pi, --password-user, and/or --password-root"
-	    sdm_spawn "$sdmdir/sdm-phase1 burn-change-passwords $(basename $bcp)" "-q --directory=$SDMPT"
+	    logtoboth "> Change passwords or add user per --user, --password-pi, --password-user, and/or --password-root"
+	    sdm_spawn "$sdmdir/sdm-phase1 b1script $(basename $bcp)" "-q --directory=$SDMPT"
 	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
-	    declare -x SDMNSPAWN="Burn1"
 	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script" "-q --directory=$SDMPT"
 	fi
 	if [ "$plugins" != "" ]
 	then
-	    declare -x SDMNSPAWN="Burn1"
 	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "-q --directory=$SDMPT"
 	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "-q --directory=$SDMPT"
 	fi
