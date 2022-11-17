@@ -263,7 +263,7 @@ function findappfile() {
 function getapplist() {
     #
     # $1 has list of apps or @file with list of apps
-    # $2 has variable name to set with list of apps
+    # Returns the app list as the function result
     #
     local lapps="" newapp fn
     if [ "${1:0:1}" == "@" ]
@@ -455,7 +455,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.1"
+version="V7.2"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -578,6 +578,7 @@ timezone=""                 #Timezone setting
 udev=""                     #Copy named udev files to /etc/udev/rules.d
 wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
+virtmode="nspawn"           #"nspawn" or "chroot"
 vdebug="|apt|"              #Valid --debug settings
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|xwindows|xapps|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
@@ -585,7 +586,9 @@ vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
 vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
+vvirtopts="|nspawn|chroot|"
 vncbase="5900"              # Base port for VNC socket services
+vqemu=""                    # Qemu architecture to use in chroot
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
 xapps=""                    #List of X apps to install in sdm-X-installs
@@ -599,12 +602,6 @@ custom4=""                  #For custom use
 [[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 src=$(dirname "$(realpath "$0")")
 source $src/sdm-cparse           # Get function defs
-if iswsl
-then
-    [ "$(which file)" == "" ] && echo "? Cannot find 'file' command" && errexit "? Please 'sudo apt install file' first"
-else
-    [ "$(which systemd-nspawn)" == "" ] && echo "? Cannot find systemd-nspawn" && errexit "? Please 'sudo apt install systemd-container' first"
-fi
 #
 # Parse the command line
 #
@@ -736,6 +733,7 @@ do
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
+	--virt)        virtmode=$2   ; shift 2 ;;
 	--vncbase)     vncbase="$2"  ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
@@ -831,7 +829,7 @@ then
     [ $nouser -eq 1 ] && myuser=""
 fi
 #
-# Ensure action requested: burn, mount, explore, aptmaint, customize
+# Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 
 #
 if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -eq 0 ]
 then
@@ -874,6 +872,8 @@ aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
 exitiferr "$aptmaint"
 journal=$(poptcheck "$journal" "$vjournalopts" "--journal")
 exitiferr "$journal"
+#virtmode=$(poptcheck "$virtmode" "$vvirtopts" "--virt")
+#exitiferr "$virtmode"
 journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
 os=$(poptcheck "$os" "$vosopts" "--os")
 exitiferr "$os"
@@ -1112,7 +1112,6 @@ then
     declare -x SDMPT=$(makemtpt)
     domount "$dimg"
     echo "* $dimgdevname '$dimg' mounted on $SDMPT"
-    wslcheck
     if [ -t 0 ]
     then
 	echo $"** BE VERY CAREFUL!! **
@@ -1142,12 +1141,12 @@ then
     exit 0
 fi
 #
-# $chroot not detected before this point
+# IMG architecture not detected before this point so don't yet know if chroot
 #
 # Not --extend (only). Other steps need IMG mounted
 declare -x SDMPT=$(makemtpt)
 domount "$dimg"
-wslcheck
+initvirt
 #
 # Handle commands --aptmaint, --customize, and --explore
 #
@@ -1234,7 +1233,6 @@ else
 	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
     logtoboth "> Command Line: $cmdline"
-    [ "$chroot" != "nspawn" ] && logtoboth "> sdm detected Windows WSL"
     logtoboth "> IMG date: $(grep -s -m1 -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\}' $SDMPT/etc/rpi-issue)"
 
     logfreespace
@@ -1284,20 +1282,9 @@ else
 fi
 
 
-if [ -t 0 ]
-then
-    cmode="--console interactive"
-    [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
-else
-    cmode="--console pipe"
-fi
-#
-# systemd got --console switch with 242, so don't try it if earlier version
-#
-read s vers junk <<< $(systemd --version)
-[[ "$newsd" -lt "242" ]] && cmode=""
-
+[ $icolors -eq 1 -a -t 0 -a "$spawncmd" == "" ] || icolors=0
+[ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 sdm_spawn "$spawncmd" "$nspawnsw"
-[ $icolors -eq 1 -a -t 0 ] && resetcolors xt
+[ $icolors -eq 1 ] && resetcolors xt
 
 exit 0
