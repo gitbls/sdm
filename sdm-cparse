@@ -73,6 +73,24 @@ EOF
     [ $showpwd -eq 1 ] && logit "> Set password for user '$user' to '$upwd'" || logit "> Set password for user '$user'"
 }
 
+sdm_adduser () {
+    # $1: username
+    # $2: "" or UID
+    # $3: password
+    local username=$1 luid=$2 pwd=$3 xuid=""
+    [ "$luid" != "" ] && xuid="--uid $luid"
+    useradd --create-home --home-dir /home/$username $xuid $username
+    usermod --gid users $username
+    usermod --groups $groups $username
+    changepwd "$username" "$pwd"
+    if [ ! -f /etc/sudoers.d/010_$username-nopasswd ]
+    then
+	logtoboth "> Add user '$username' to sudoers.d"
+	echo "$username ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$username-nopasswd
+	chmod 440 /etc/sudoers.d/010_$username-nopasswd
+    fi
+}
+
 function askyn() {
     local ans
     echo -n "$1" '[y/n]? ' ; read $2 ans
@@ -289,7 +307,7 @@ function writeconfig() {
 		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
 		     rclocal reboot regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
-		     svcenable sysctl timezone udev vncbase wificountry wpaconf fnowpa custom1 custom2 \
+		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
 		     custom3 custom4 thishost
     do
 	echo "$e:\"${!e}\"" >> $paramfile
@@ -418,51 +436,46 @@ function plugin_dbgprint() {
 }
 
 function iswsl() {
+    #
+    # Return true if running system is a WSL instance
+    #
     uname=$(uname -a)
     [[ "${uname,,}" =~ "microsoft" ]] && return 0 || return 1
 }
 
-function wslcheck() {
-    #
-    # Disk must be mounted
-    #
-    [ "$chroot" != "" ] && return
-    if iswsl
+function initvirt() {
+    # Check IMG and running system. If running on 32-bit and IMG is 64-bit, prepare for chroot
+    # wtf -> what's the file :)
+    # wami -> what is my OS (that sdm running on)
+    vqemu=""
+    bfs=""
+    wami=$(file /bin/ls)
+    wtf=$(file $SDMPT/bin/ls)
+    IFS="," read wtfelf wtfarch rest <<< "$wtf"
+    [[ "$wtfarch" =~ "ARM" ]] || errexit "? Unrecognized architecture '$wtfarch' in IMG"
+    if [[ "$wami" =~ "ARM" ]]
     then
-	if [ "$chroot" == "" ]
+	if [[ "$wami" =~ "32-bit" ]]
 	then
-	    # wtf -> what's the file :)
-	    wtf=$(file $SDMPT/bin/ls)
-	    if [[ "$wtf" =~ "ARM" ]]
+	    if  [[ "$wtf" =~ "aarch64" ]]
 	    then
-		[[ "wtf" =~ "32-bit" ]] && chroot="arm" || chroot="aarch64"
-		[ ! -f /usr/bin/qemu-${chroot}-static ] && errexit "? qemu-${chroot}-static missing for chroot; try 'sudo apt install qemu-user-static binfmt-support'"
-		if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${chroot} ]
-		then
-		    [ ! -f /usr/sbin/update-binfmts ] && errexit "? Cannot find /usr/sbin/update-binfmts; try 'sudo apt install binfmt-support'"
-		    echo "% Runing 'update-binfmts --enable' for you to enable chroot"
-		    /usr/sbin/update-binfmts --enable
-		    [ ! -f /proc/sys/fs/binfmt_misc/qemu-${chroot} ] && errexit "? Cannot find binfmt for architecture '${chroot}'"
-		fi
-	    else
-		errexit "? Unrecognized cpu architecture '${wtf%version*}'"
+		echo "% Configure chroot to use this 64-bit IMG on your 32-bit OS"
+		echo "  * sdm will run more slowly due to qemu emulation"
+		virtmode="chroot"
+		vqemu="aarch64"
+		qf="/usr/bin/qemu-aarch64-static"
+		bfs=":qemu-aarch64:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:$qf:"
 	    fi
 	fi
-	return 0
     else
-	chroot="nspawn"
-	return 1
+	# sdm not running sdm on ARM
+	echo "% Configure chroot to use this IMG on your '$wtfarch' computer"
+	echo "  * sdm will run more slowly due to qemu emulation"
+	virtmode="chroot"
+	[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
     fi
 }
 
-function wslmcheck() {
-    if iswsl
-    then
-	domount $dimg
-	wslcheck
-	docleanup keep
-    fi
-}
 function ctrlchroot() {
     echo "% Caught CTRL/C in chroot; Cleaning up..."
     rm -f $SDMPT/usr/bin/$qemu
@@ -477,24 +490,41 @@ function sdm_spawn() {
     # Already mounted on $SDMPT
     #
     local cmd="$1" nspawnsw="$2"
-    wslcheck
-    if [ $chroot == "nspawn" ]
+    if [[ "$virtmode" =~ "nspawn" ]]
     then
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
-	read s vers junk <<< $(systemd --version)
-	[[ "$newsd" -lt "242" ]] && cmode=""
+	read s vers junk <<< $(systemctl --version)
+	[[ "$vers" -lt "242" ]] && cmode=""
 	systemd-nspawn -q --directory=$SDMPT $nspawnsw $cmode $cmd
     else
 	#
 	# Copy appropriate qemu-${chroot}-static into the IMG
+	# $bfs and $vqemu set in initvirt
 	#
-	qemu="qemu-${chroot}-static"
-	cp /usr/bin/$qemu $SDMPT/usr/bin
-	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
+	qemu=""
+	if [ "$vqemu" != "" ]
+	then
+	    [ ! -f /usr/bin/qemu-${vqemu}-static ] && errexit "? qemu-${vqemu}-static missing for chroot; try 'sudo apt install qemu-user-static binfmt-support'"
+	    if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
+	    then
+		[ ! -f /sbin/update-binfmts ] && errexit "? Cannot find /sbin/update-binfmts; try 'sudo apt install binfmt-support'"
+		logtoboth "%% Run 'update-binfmts --enable' to enable chroot"
+		/sbin/update-binfmts --enable
+		if [ "$bfs" != "" -a ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
+		then
+		    echo "% Add binfmt for 64-bit ARM (aarch64)"
+		    echo "$bfs" > /proc/sys/fs/binfmt_misc/register
+		fi
+		[ -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} -o -x /bin/qemu-${vqemu}-static ] || errexit "? Cannot find binfmt for architecture '${vqemu}'"
+	    fi
+	    qemu="/usr/bin/qemu-${vqemu}-static"
+	fi
+	[ "$qemu" != "" ] && cp $qemu $SDMPT/usr/bin
 	trap "ctrlchroot" SIGINT
-	chroot $SDMPT /usr/bin/$qemu /bin/bash $spawncmd
+	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
+	chroot $SDMPT $qemu /bin/bash $cmd
 	trap SIGINT
-	rm -f $SDMPT/usr/bin/$qemu
+	[ "$qemu" != "" ] && rm -f $SDMPT/$qemu
 	umount $SDMPT/{dev/pts,dev,proc,sys}
     fi
     return
@@ -513,6 +543,9 @@ function getconfbool() {
     else
         pval=0
     fi
+    # del enclosing quotes on value read from cparams
+    pval="${pval#\"}"
+    pval="${pval%\"}"
     cmval=${!pname}
     rval=$((pval|cmval))
     echo "$rval"
