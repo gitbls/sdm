@@ -190,11 +190,11 @@ function makeb1adduser() {
         b1write $"function b1adduser() {
     logtoboth \"> b1script: Add user $username\"
     # Add user and set home directory
-    useradd -m -d /home/$username $username
+    useradd --create-home --home-dir /home/$username $username
     # Set initial login group
     usermod --gid users $username
     # Add other groups to which user should belong
-    usermod --groups $groups $username
+    usermod --append --groups $groups $username
     # Change user's password
     chpasswd <<EOF
 $username:$password
