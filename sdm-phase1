@@ -83,6 +83,27 @@ function dodt() {
     fi
 }
 
+function deferqemu() {
+    #
+    # Set deferred install
+    #
+    logtoboth "% chroot/qemu-user-static; Defer install of qemu-user-static to system FirstBoot"
+    fnqemu="/etc/sdm/0piboot/010-install-qemu.sh"
+    if [ ! -f $fnqemu ]
+    then
+	cat > $fnqemu <<EOF
+#!/bin/bash
+#
+# Install qemu-user-static. Install deferred because it can't be installed in a chroot
+#
+source /etc/sdm/sdm-readparams
+logger "FirstBoot install qemu-user-static"
+doapt "install --yes --no-install-recommends qemu-user-static" $showapt
+EOF
+	chmod 755 $fnqemu
+    fi
+}
+
 function doctrlcp1() {
     echo "% Caught CTRL/C. Exiting Phase 1..."
     exit 1     #Can't use poweroff since no job control in either nspawn or chroot
@@ -115,21 +136,10 @@ case "$cmd" in
 	fn="/etc/sdm/assets/$(basename $cmdoptions)"
 	if [ -f $fn ]
 	then
-	    logtoboth "> Execute --b1script '$cmdoptions' [$fn] in nspawn"
+	    logtoboth "> Run script '$cmdoptions' [$fn] in nspawn"
 	    /etc/sdm/assets/$(basename $cmdoptions)
 	else
-	    logtoboth "? Internal error: --b1script file '$fn' not found"
-	fi
-	exit 0
-	;;
-    burn-change-passwords)   # Burn-time password changes
-	fn="/etc/sdm/assets/$(basename $cmdoptions)"
-	if [ -f $fn ]
-	then
-	    logtoboth "> Execute burn-time password changes [$fn] in nspawn"
-	    /etc/sdm/assets/$(basename $cmdoptions)
-	else
-	    logtoboth "? Internal error: burn-change-passwords script '$fn' not found"
+	    logtoboth "? Internal error: Script '$fn' not found"
 	fi
 	exit 0
 	;;
@@ -293,7 +303,7 @@ then
     if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
     then
 	logtoboth "> Add user '$myuser'"
-	useradd -M -d /home/$myuser $xuid $myuser
+	useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
 	usermod --groups $groups $myuser
     fi
@@ -421,7 +431,7 @@ fi
 if [ "$keymap" != "" ]
 then
     logtoboth "> Set Keymap to '$keymap'"
-    iswsl && logtoboth ">!Ignore 'Running in chroot, ignoring request' message" || logtoboth ">!Ignore invoke-rc.d and 'Read-only file system' messages" 
+    [ "$virtmode" == "chroot" ] && logtoboth ">!Ignore 'Running in chroot, ignoring request' message" || logtoboth ">!Ignore invoke-rc.d and 'Read-only file system' messages"
     #raspi-config do_configure_keyboard "$keymap" nonint
     do_raspiconfig  do_configure_keyboard "$keymap" 
 fi
@@ -597,8 +607,12 @@ didapt=0
 if [[ "$poptions" =~ "|apps|" ]]
 then
     logfreespace "at start of Application Installs"
+    if [[ "$virtmode" == "chroot" ]] && [[ "$apps" =~ "qemu-user-static" ]]
+    then
+	apps=${apps/qemu-user-static}
+	deferqemu
+    fi
     doinstalls "$apps" "Application Installs"
-    logfreespace "at end of Application Installs"
     [ "$apps" != "" ] && didapt=1
 fi
 if [[ "$poptions" =~ "xwindows" ]] || [[ "$poptions" =~ "xapps" ]]
@@ -606,6 +620,11 @@ then
     logfreespace "at start of xapp/XWindows Installs"
     doinstalls "$xapps" "xapp/XWindows Installs"
     [ "$xapps" != "" ] && didapt=1
+    if [[ "$virtmode" == "chroot" ]] && [[ "$xapps" =~ "qemu-user-static" ]]
+    then
+	xapps=${xapps/qemu-user-static}
+	deferqemu
+    fi
     logfreespace "at end of xapp/XWindows Installs"
 fi
 
