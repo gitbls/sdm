@@ -1,5 +1,17 @@
 # Changelog
 
+## V7.2
+
+* Use systemctl to get systemd version rather than systemd
+* Redo wsl support to autodetect chroot required
+  * Detects sdm running on WSL, x86/64
+  * Also enables 32-bit RasPiOS to customize 64-bit RasPiOS (slow b/c of qemu but it works!)
+* Enable `--user` on the `--burn` command
+  * User will be created with specified uid (if `--uid`) or useradd choice of next uid, and home directory created
+  * sdm will prompt for password if `--user` specified without `--password-user`
+  * User directory can be populated by using a personalized plugin or b0script/b1script
+* Correct usermod command in sdm-gburn to append, not replace, groups
+
 ## V7.1
 
 * Plugins should do installs in Phase 1 so that Custom Phase Script post-installs can count on them being there. All provided plugins corrected.
