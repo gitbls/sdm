@@ -201,7 +201,13 @@ function configitemlog() {
     local msg=$1 fn=$2
    if [ "$fn" != "" ]
     then
-	[ "$(type -t "$fn")" == "function" ] && $fn "$msg" || echo "% Unrecognized config item log function: $fn"
+	if [ "$(type -t "$fn")" == "function" ]
+	then
+	    [ "$fn" == "logtoboth" ] && msg="> $msg"
+	    $fn "$msg"
+	else
+	    echo "% Unrecognized config item log function: $fn"
+	fi
     fi
 }
 
@@ -230,7 +236,7 @@ function doconfigitem() {
 	    # Processed at the very end of FirstBoot
 	    ;;
 	boot_behavior|boot_behaviour)  # Allow US spelling as well ;)
-	    configitemlog "set boot_behaviour to '$value'" $msgfn
+	    configitemlog "Set boot_behaviour '$value'" $msgfn
 	    #SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
 	    do_raspiconfig do_boot_behaviour $value
 	    ;;
@@ -305,7 +311,7 @@ function writeconfig() {
 		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
 		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
-		     rclocal reboot regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
+		     rclocal reboot redact regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
 		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
 		     custom3 custom4 thishost
@@ -439,7 +445,7 @@ function iswsl() {
     #
     # Return true if running system is a WSL instance
     #
-    uname=$(uname -a)
+    local uname=$(uname -a)
     [[ "${uname,,}" =~ "microsoft" ]] && return 0 || return 1
 }
 
@@ -572,8 +578,8 @@ function getconfstr() {
 function setbootset() {
     #
     # Handle --bootset, --svcdisable and --svcenable for customize and burn commands
-    # Can be called from Burn (SDMNSPAWN==Burn) or Phase1
-    # If from Burn, changes are written to auto-1piboot.conf since not in an nspawn
+    # Can be called from Burn (SDMNSPAWN=~Burn) or Phase1
+    # Changes are always written to auto-1piboot
     #
     local mnt=""
     [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
@@ -585,17 +591,12 @@ function setbootset() {
 	do
 	    IFS=":=" read key value <<< "$c"
 	    [ "$value" == "" ] && value=0
-	    if [[ "$SDMNSPAWN" =~ "Burn" ]]
+	    # Remove any old entry for this key and write the new one
+	    if ! grep "$key=$value" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 	    then
-		# Remove any old entry for this key and write the new one
-		if ! grep "$key=$value" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
-		then
-		    logtoboth "> Set --bootset ${key} ${value}"
-		    sed -i "/^$key=/d" $mnt/etc/sdm/auto-1piboot.conf
-		    echo "$key=$value" >> $mnt/etc/sdm/auto-1piboot.conf
-		fi
-	    else
-		doconfigitem $key $value logtoboth
+		logtoboth "> Set --bootset ${key} ${value}"
+		sed -i "/^$key=/d" $mnt/etc/sdm/auto-1piboot.conf
+		echo "$key=$value" >> $mnt/etc/sdm/auto-1piboot.conf
 	    fi
 	done
     fi
@@ -604,18 +605,11 @@ function setbootset() {
 	IFS="," read -a citems <<< "$svcdisable"
 	for c in "${citems[@]}"
 	do
-	    if [[ "$SDMNSPAWN" =~ "Burn" ]]
+	    sed -i "/^service-enable=$c/d" $mnt/etc/sdm/auto-1piboot.conf   #Delete enables of this service
+	    if ! grep "service-disable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 	    then
-		sed -i "/^service-enable=$c/d" $mnt/etc/sdm/auto-1piboot.conf   #Delete enables of this service
-		if ! grep "service-disable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
-		then
-		    logtoboth "> Disable service '$c'"
-		    echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-		fi
-	    else
 		logtoboth "> Disable service '$c'"
-		systemctl disable $c > /dev/null 2>&1
-		systemctl mask $c > /dev/null 2>&1
+		echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
 	    fi
 	done
     fi
@@ -624,18 +618,11 @@ function setbootset() {
 	IFS="," read -a citems <<< "$svcenable"
 	for c in "${citems[@]}"
 	do
-	    if [[ "$SDMNSPAWN" =~ "Burn" ]]
+	    sed -i "/^service-disable=$c/d" $mnt/etc/sdm/auto-1piboot.conf  #Delete disables of this service
+	    if ! grep "service-enable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 	    then
-		sed -i "/^service-disable=$c/d" $mnt/etc/sdm/auto-1piboot.conf  #Delete disables of this service
-		if ! grep "service-enable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
-		then
-		    logtoboth "> Enable service '$c'"
-		    echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-		fi
-	    else
 		logtoboth "> Enable service '$c'"
-		systemctl unmask $c > /dev/null 2>&1
-		systemctl enable $c > /dev/null 2>&1
+		echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
 	    fi
 	done
     fi
