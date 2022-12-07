@@ -420,6 +420,7 @@ Command Switches for --customize and --burn or as noted
  --password-root pwd Set password for root (will prompt if not provided and --rootpwd)
  --password-same y|n Use same password for pi, --user user (if set), and root (if --rootpwd)
  --poptions str      Set Phase 1 auto-run options
+ --redact            Redact passwords in /etc/sdm/history and /etc/sdm/cparams when burning
  --norestart         Do not restart after first boot (use on --burn command)
  --os osname         Specify OS in the Image (D:raspios, ubuntu)
  --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
@@ -455,7 +456,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.2"
+version="V7.3"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -554,6 +555,7 @@ plugindebug=0               #1=Enable debugging output
 plugins=""                  #List of plugins to include
 poptions=""                 #Phase options
 pvers=0                     #Print version number
+redact=0                    #1=redact passwords in /etc/sdm/{cparams,history}
 rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
@@ -581,7 +583,7 @@ vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vdebug="|apt|"              #Valid --debug settings
 vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|xwindows|xapps|none|" #Valid --poptions
-vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|overclock|boot_order|powerled|"
+vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|boot_behavior|overclock|boot_order|powerled|"
 vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
 vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
@@ -615,7 +617,7 @@ domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,plugin-debug,plugin:,plugins:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,os:,\
-password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,\
+password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,redact,\
 redo-customize,regen-ssh-host-keys,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
 sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
@@ -711,6 +713,7 @@ do
 	--plugin|--plugins) [ "$plugins" == "" ] && plugins="$2" || plugins="${plugins}~$2" ; shift 2 ;;
 	--poptions)    poptions="${2,,}" ; shift 2 ;;
 	--ppart)       fppart=1      ; shift 1 ;;
+	--redact)      redact=1      ; shift 1 ;;
 	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}~$2" ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
