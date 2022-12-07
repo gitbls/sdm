@@ -1,5 +1,10 @@
 # Changelog
 
+## V7.3
+
+* Add `--redact` which redacts passwords from /etc/sdm/cparam and /etc/sdm/history. Best to only use on burn command, but also honored on customize
+* Ensure that `--bootset` `boot_behaviour` setting is honored
+
 ## V7.2
 
 * Use systemctl to get systemd version rather than systemd
