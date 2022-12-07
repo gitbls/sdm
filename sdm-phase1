@@ -47,12 +47,21 @@ doapt "$1 $upg" "$2"
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
+function getfinalbbh {
+    #
+    # Get boot_behaviour from auto-1piboot if provided
+    # If not, return $1
+    #
+    aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
+    [ "$aval" == "" ] && echo "$1" || echo "$aval"
+}
+
 function delaydmenable {
     #
     # Disable the display manager in $1 and set for re-enable during First Boot
     # $2=delayed target (either B3 or B4)
     #
-    local dm="$1" bbh="$2"
+    local dm="$1" bbh="$(getfinalbbh $2)"
     logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
     logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
     # raspi-config spews on this command b/c no systemd running, but does the right thing
@@ -60,6 +69,10 @@ function delaydmenable {
     #do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
     echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+    #then
+	#echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    #fi
     return
 }
 
@@ -706,7 +719,8 @@ then
 	systemctl set-default multi-user.target
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
-	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
+	    aval="$(getfinalbbh B1)"
+	    logtoboth ">%1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
 	else
 	    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
 	    logtoboth ">%Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
@@ -800,13 +814,15 @@ then
     # Lite with no Desktop
     if [ $reboot -eq 1 ]
     then
-	logtoboth "> Set RasPiOS to 'console no login' for First Boot"
+	logtoboth "> Set RasPiOS to B1:'console no login' for First Boot"
 	# raspi-config spews on this command b/c no systemd running, but does the right thing
 	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
 	#do_raspiconfig do_boot_behaviour B1
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
-	    logtoboth ">%1piboot.conf 'boot_behaviour' setting will be honored after First Boot"
+	    aval=$(getfinalbbh B1)
+	    logtoboth ">%1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
+	    logtoboth "  Unpredictable results: no known display manager was found"
 	else
 	    [ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
 	    logtoboth ">%Console Autologin setting '$bbh' will be re-enabled after First Boot"
@@ -829,6 +845,21 @@ fi
 if [ "$plugins" != "" ]
 then
     runplugins post-install
+fi
+#
+# Redact passwords if requested
+#
+if [ $redact -eq 1 ]
+then
+    logtoboth "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
+    for pwd in "$passworduser" "$passwordroot" "$passwordpi"
+    do
+	if [ "$pwd" != "" ]
+	then
+	    sed -i "s/$pwd/REDACTED/" /etc/sdm/cparams
+	    sed -i "s/$pwd/REDACTED/" /etc/sdm/history
+	fi
+    done
 fi
 #
 # Check for device out of space and warn if so
