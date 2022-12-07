@@ -196,7 +196,7 @@ function sdm_burndevfile() {
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
 	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale myuser myuid noreboot"
-	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins rclocal reboot rebootwait regensshkeys"
+	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins redact rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -224,6 +224,7 @@ function sdm_burndevfile() {
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
+	redact=$((bredact|redact))
 	#
 	# Set hostname into the image
 	#
@@ -366,6 +367,21 @@ function sdm_burndevfile() {
 	then
 	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "-q --directory=$SDMPT"
 	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "-q --directory=$SDMPT"
+	fi
+	#
+	# Redact passwords if requested
+	#
+	if [ $redact -eq 1 ]
+	then
+	    logtoboth "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
+	    for pwd in "$passworduser" "$passwordroot" "$passwordpi"
+	    do
+		if [ "$pwd" != "" ]
+		then
+		    sed -i "s/$pwd/REDACTED/" $SDMPT/etc/sdm/cparams
+		    sed -i "s/$pwd/REDACTED/" $SDMPT/etc/sdm/history
+		fi
+	    done
 	fi
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"
