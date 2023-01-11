@@ -1,5 +1,10 @@
 # Changelog
 
+## V7.4
+
+* plugin names can be a full path spec now, and will be copied into local-plugins if needed
+* Some generated new disk IDs will now be odd numbers
+
 ## V7.3
 
 * Add `--redact` which redacts passwords from /etc/sdm/cparam and /etc/sdm/history. Best to only use on burn command, but also honored on customize
