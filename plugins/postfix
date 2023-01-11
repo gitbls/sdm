@@ -130,6 +130,7 @@ EOF
 	logtoboth "* Plugin $pfx:  (e.g., myaccount@gmail.com, myaccount@outlook.com, etc.)"
     fi
 
+    logtoboth ""
     logtoboth "* Plugin $pfx:  Use 'sudo systemctl enable --now postfix' to enable/start the service when complete"
     logtoboth ""
     #logfreespace "at end of $pfx Custom Phase post-install"
