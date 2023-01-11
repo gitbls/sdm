@@ -419,12 +419,15 @@ Command Switches for --customize and --burn or as noted
  --password-user pwd Set password for the --user user (will prompt if not provided)
  --password-root pwd Set password for root (will prompt if not provided and --rootpwd)
  --password-same y|n Use same password for pi, --user user (if set), and root (if --rootpwd)
+ --plugin pname:\"args\" Run plugin pname with the specified args (if multiple, separate with '|'
+ --plugin-debug      Print plugin debug messages
  --poptions str      Set Phase 1 auto-run options
  --redact            Redact passwords in /etc/sdm/history and /etc/sdm/cparams when burning
  --norestart         Do not restart after first boot (use on --burn command)
  --os osname         Specify OS in the Image (D:raspios, ubuntu)
  --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
  --reboot n          Restart the first boot of the system after n seconds
+ --redact            Redact passwords in /etc/sdm/cparams and /etc/sdm/history
  --redo-customize    If image already customized, redo without prompting
  --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot
  --restart           Restart the first boot of the system after 20 seconds
@@ -456,7 +459,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.4"
+version="V7.5"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -609,16 +612,15 @@ source $src/sdm-cparse           # Get function defs
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:,\
-autologin,b0script:,b1script:,\
-batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
+autologin,b0script:,b1script:,batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
 cscript:,csrc:,customize,datefmt:,ddsw:,debug:,dhcpcd:,dhcpcdwait,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
-hotspot:,plugin-debug,plugin:,plugins:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
+hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,os:,\
-password-pi:,password-root:,password-same:,password-user:,poptions:,ppart,rclocal:,reboot:,redact,\
-redo-customize,regen-ssh-host-keys,restart,\
+password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
+ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
 sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
 vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\

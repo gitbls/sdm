@@ -133,6 +133,7 @@ function doapt() {
     else
 	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
     fi
+    return $?
 }
 
 function ispkginstalled() {

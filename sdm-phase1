@@ -1,6 +1,10 @@
 #!/bin/bash
 # This script runs in the nspawn image
 #
+function logapterror() {
+    logtoboth "? apt returned an error; review /etc/sdm/apt.log"
+}
+
 function doinstalls() {
     #
     # $1 - app list
@@ -17,10 +21,10 @@ function doinstalls() {
 	    for a in "${alist[@]}"
 	    do
 		logtoboth "> -- $a"
-		doapt "install --no-install-recommends --yes $a" $showapt
+		doapt "install --no-install-recommends --yes $a" $showapt || logapterror
 	    done
 	else
-	    doapt "install --no-install-recommends --yes $1" $showapt
+	    doapt "install --no-install-recommends --yes $1" $showapt || logapterror
 	fi
 	logtoboth "* $2 Completed"
     else
@@ -43,7 +47,7 @@ cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
 }
 EOF
 [ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
-doapt "$1 $upg" "$2"
+doapt "$1 $upg" "$2" || logapterror
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
@@ -137,9 +141,9 @@ case "$cmd" in
     apt)
 	logtoboth "* Start apt maintenance"
 	logfreespace "at start of 'apt $cmdoptions'"
-	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doapt "--yes update"  0
+	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && (doapt "--yes update"  0 || logapterror)
 	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt $upg'" && upgkeepconf --yes 0 $aptdistupgrade
-	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doapt "--yes autoremove" 0
+	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && (doapt "--yes autoremove" 0 || logapterror)
 	cklogfreespace "at end of 'apt $cmdoptions'"
 	logtoboth "* apt maintenance Completed"
 	exit 0
@@ -580,7 +584,7 @@ if ! [[ "$poptions" =~ "noupdate" ]]
 then
     logtoboth "> Start 'apt update'"
     logfreespace "at start of 'apt update'"
-    doapt "update" $showapt
+    doapt "update" $showapt || logapterror
     logfreespace "at end of 'apt update'"
 else
     logtoboth "> Skip 'apt update' per --poption noupdate"
@@ -650,12 +654,12 @@ logtoboth "* Phase 1 post-app/xapp installation/configuration"
 case "${netman,,}" in
     dhcpcd)
 	logtoboth "> Set network manager dhcpcd"
-	doapt "install --no-install-recommends --yes dhcpcd5" $showapt
+	doapt "install --no-install-recommends --yes dhcpcd5" $showapt || logapterror
 	do_raspiconfig do_netconf 1
 	;;
     nm|network-manager)
 	logtoboth "> Set network manager NetworkManager"
-	doapt "install --no-install-recommends --yes network-manager" $showapt
+	doapt "install --no-install-recommends --yes network-manager" $showapt || logapterror
 	do_raspiconfig do_netconf 2
 	;;
 esac
@@ -682,7 +686,7 @@ then
     then
 	logtoboth "> Start 'apt autoremove'"
 	logfreespace "at start of 'apt autoremove'"
-	doapt "--yes autoremove" $showapt
+	doapt "--yes autoremove" $showapt || logapterror
 	logfreespace "at end of 'apt autoremove'"
     else
 	logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
