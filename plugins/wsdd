@@ -2,7 +2,7 @@
 #
 # This is an sdm plugin for: wsdd
 #
-# ** Only needed to install wsdd on buster and bullseye. Next major Debian release will have wsdd in apt
+# ** Only needed to install wsdd on buster and bullseye. Next major Debian release will apparently have wsdd in apt
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
@@ -21,7 +21,7 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vargs="|wsddswitches|"
+vargs="|wsddswitches|localsrc|"
 
 if [ "$phase" == "0" ]
 then
@@ -36,21 +36,30 @@ then
     plugin_getargs $pfx "$args" "$vargs"
     plugin_printkeys
 
-    logtoboth "> Plugin $pfx: download wsdd from GitHub and set configuration"
+    if [ "$localsrc" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Copy wsdd from '$localsrc'"
+	cp $localsrc/wsdd.py $SDMPT/usr/bin/wsdd
+	cp $localsrc/wsdd.8 $SDMPT/usr/share/man/man8/wsdd.i
+	cp $localsrc/wsdd.defaults $SDMPT/etc/default/wsdd
+	cp $localsrc/wsdd.service $SDMPT/etc/systemd/system/wsdd.service
+    else
+	logtoboth "> Plugin $pfx: download wsdd from GitHub"
 
-    logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/src/wsdd.py -o $SDMPT/usr/bin/wsdd"
-    curl -L https://github.com/christgau/wsdd/raw/master/src/wsdd.py -o $SDMPT/usr/bin/wsdd
+	logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/src/wsdd.py -o $SDMPT/usr/bin/wsdd"
+	curl -L https://github.com/christgau/wsdd/raw/master/src/wsdd.py -o $SDMPT/usr/bin/wsdd
 
-    logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/man/wsdd.8 -o $SDMPT/usr/share/man/man8/wsdd.8"
-    curl -L https://github.com/christgau/wsdd/raw/master/man/wsdd.8 -o $SDMPT/usr/share/man/man8/wsdd.8
+	logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/man/wsdd.8 -o $SDMPT/usr/share/man/man8/wsdd.8"
+	curl -L https://github.com/christgau/wsdd/raw/master/man/wsdd.8 -o $SDMPT/usr/share/man/man8/wsdd.8
 
-    logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.defaults -o $SDMPT/etc/default/wsdd"
-    curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.defaults -o $SDMPT/etc/default/wsdd
+	logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.defaults -o $SDMPT/etc/default/wsdd"
+	curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.defaults -o $SDMPT/etc/default/wsdd
 
-    logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.service -o $SDMPT/etc/systemd/system/wsdd.service"
-    curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.service -o $SDMPT/etc/systemd/system/wsdd.service
-    chmod 755 $SDMPT/usr/local/bin/wsdd
-
+	logtoboth "   curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.service -o $SDMPT/etc/systemd/system/wsdd.service"
+	curl -L https://github.com/christgau/wsdd/raw/master/etc/systemd/wsdd.service -o $SDMPT/etc/systemd/system/wsdd.service
+    fi
+    chmod 755 $SDMPT/usr/bin/wsdd
+    logtoboth "> Plugin $pfx: Configure '/etc/default/wsdd'"
     sed -i "s/WSDD_PARAMS=\"\"/WSDD_PARAMS=\"--user wsdd:wsdd --shortlog $wsddswitches\"/" $SDMPT/etc/default/wsdd
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
