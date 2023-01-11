@@ -42,7 +42,7 @@ then
 
     logtoboth "* Plugin $pfx: Install clockfake"
     cat >> /usr/local/bin/clockfake <<EOF
-#!/bin/python3
+#!$(which python3)
 
 from datetime import datetime, timezone
 import time
