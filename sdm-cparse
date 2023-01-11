@@ -323,20 +323,23 @@ function writeconfig() {
 function runoneplugin() {
     #
     # Run the plugin $1 for the phase specified in $2 with args in $3
+    # By the time we get here plugin will be in the sdmdir hierarchy
     #
-    local mnt="" p=$1 phase=$2 pargs="$3"
+    local mnt="" p=$(basename $1) phase=$2 pargs="$3"
     [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
     [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
-    if [ -f $mnt/$sdmdir/local-plugins/$p ]
+    for d in $mnt$sdmdir/local-plugins $mnt$sdmdir/plugins
+    do
+        if [ -f $d/$p ]
+	then
+	    logtoboth "> Run Plugin '$p' ($d/$p) Phase $phase $argstr"
+	    [ -x $d/$p ] && $d/$p "$phase" "$pargs" || logtoboth "!!Plugin '$p' file '$d/$p' not executable"
+	    break
+	fi
+    done
+    if [ ! $? ] #exit status 0 if break end, 1 if loop completed
     then
-	logtoboth "> Run Local Plugin '$p' Phase $phase $argstr"
-	$mnt/$sdmdir/local-plugins/$p "$phase" "$pargs"
-    elif [ -f $mnt/$sdmdir/plugins/$p ]
-    then
-	logtoboth "> Run Plugin '$p' Phase $phase $argstr"
-	$mnt/$sdmdir/plugins/$p "$phase" "$pargs"
-    else
-	logtoboth "!!Diagnostic: $SDMNSPAWN|$SDMPT|$mnt|$sdmdir|$(ls $mnt/$sdmdir/$plugins)"
+	logtoboth "!!Diagnostic: $SDMNSPAWN|$SDMPT|$mnt|$sdmdir|$(ls $mnt$sdmdir/$plugins)"
 	logtoboth "? Unable to find Plugin '$p'; Confounded..."
     fi
 }
@@ -513,9 +516,14 @@ function sdm_spawn() {
 	    [ ! -f /usr/bin/qemu-${vqemu}-static ] && errexit "? qemu-${vqemu}-static missing for chroot; try 'sudo apt install qemu-user-static binfmt-support'"
 	    if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
 	    then
-		[ ! -f /sbin/update-binfmts ] && errexit "? Cannot find /sbin/update-binfmts; try 'sudo apt install binfmt-support'"
+		ubf=""
+		for fn in /sbin/update-binfmts /usr/sbin/update-binfmts
+		do
+		    [ -f $fn ] && ubf=$fn && break
+		done
+		[ ! $? ] && errexit "? Cannot find update-binfmts; try 'sudo apt install binfmt-support'"
 		logtoboth "%% Run 'update-binfmts --enable' to enable chroot"
-		/sbin/update-binfmts --enable
+		$ubf --enable
 		if [ "$bfs" != "" -a ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
 		then
 		    echo "% Add binfmt for 64-bit ARM (aarch64)"
@@ -640,6 +648,22 @@ function do_raspiconfig() {
     else
 	logtoboth ">!Unable to find raspi-config for function '$cmd' with value '$value'"
     fi
+}
+
+function copyifnewer() {
+    # Copy $1 to $2 if $1 is newer
+    # $3 is echo'd if copy done
+    # Target must have same basename as src (no rename as part of copy)
+    # Target can be a directory or a dir/$(basename $1)
+    src=$1 dst=$2
+    fn=$(basename $src)
+    [ "$fn" != "$(basename $dst)" ] && dst="$dst/$fn"
+    if [ -f "$dst" ]
+    then
+	[ "$1" -nt "$dst" ] || return
+    fi
+    [ "$3" != "" ] && echo "$3"
+    cp $1 $2
 }
 
 function gterm1() {
