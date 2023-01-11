@@ -64,9 +64,8 @@ function delaydmenable {
     local dm="$1" bbh="$(getfinalbbh $2)"
     logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
     logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
-    # raspi-config spews on this command b/c no systemd running, but does the right thing
-    SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-    #do_raspiconfig do_boot_behaviour B1
+    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+    do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
     echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
     #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
@@ -713,9 +712,8 @@ then
     if [ $reboot -eq 1 ]
     then
 	logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-	# raspi-config spews on this command b/c no systemd running, but does the right thing
-	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-	#do_raspiconfig do_boot_behaviour B1
+	#SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	do_raspiconfig do_boot_behaviour B1
 	systemctl set-default multi-user.target
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
@@ -815,9 +813,8 @@ then
     if [ $reboot -eq 1 ]
     then
 	logtoboth "> Set RasPiOS to B1:'console no login' for First Boot"
-	# raspi-config spews on this command b/c no systemd running, but does the right thing
-	SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-	#do_raspiconfig do_boot_behaviour B1
+	#SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+	do_raspiconfig do_boot_behaviour B1
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    aval=$(getfinalbbh B1)
@@ -825,7 +822,7 @@ then
 	    logtoboth "  Unpredictable results: no known display manager was found"
 	else
 	    [ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
-	    logtoboth ">%Console Autologin setting '$bbh' will be re-enabled after First Boot"
+	    [ "$bbh" != "B1" ] && logtoboth ">%Console Autologin setting '$bbh' will be re-enabled after First Boot"
 	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
 	fi
     fi
