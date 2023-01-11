@@ -456,7 +456,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.3"
+version="V7.4"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -889,9 +889,20 @@ then
     for p in "${plugs[@]}"
     do
 	p="${p%:*}"
-	[ -f $src/local-plugins/$p ] && continue
-	[ -f $src/plugins/$p ] && continue
-	errexit "? Unrecognized plugin '$p'"
+	pf=0
+	for d in $src/local-plugins $src/plugins $(dirname $p)
+	do
+	    pn=$(basename $p)
+	    if [ -f $d/$pn ]
+	    then
+		[ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
+		# if plugin found outside of sdm hierarchy copy it in
+		[ "$d" == "$(dirname $p)" ] && copyifnewer $d/$pn $src/local-plugins "* Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
+		pf=1
+		break
+	    fi
+	done
+	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$p'"
     done
 fi
 #
@@ -1214,6 +1225,7 @@ else
     do
 	cp $src/$f $SDMPT/$sdmdir
     done
+    rm -f $SDMPT/usr/local/bin/sdm
     ln -s $sdmdir/sdm $SDMPT/usr/local/bin
     mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
     cp $src/plugins/* $SDMPT/$sdmdir/plugins
