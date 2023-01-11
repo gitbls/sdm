@@ -97,7 +97,7 @@ function sdm_burndevfile() {
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
     declare -x SDMPT=$(makemtpt)
-    newdiskid="$(printf  "%x" "$((RANDOM*RANDOM*RANDOM*RANDOM&0xFFFFFFFF))")"
+    newdiskid="$(printf  "%x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
     [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
