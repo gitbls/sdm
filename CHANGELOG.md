@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.5
+
+* Report the occurrence of apt failures in the sdm history
+
 ## V7.4
 
 * plugin names can be a full path spec now, and will be copied into local-plugins if needed
