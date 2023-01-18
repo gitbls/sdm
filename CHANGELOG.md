@@ -1,5 +1,10 @@
 # Changelog
 
+## V7.6
+
+* Improve compressed file check
+* Improve 'already mounted' check
+
 ## V7.5
 
 * Report the occurrence of apt failures in the sdm history
