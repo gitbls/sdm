@@ -63,6 +63,7 @@ function ctrlcexit() {
 }
 
 function doexit() {
+    trap "doexit" SIGINT
     [ "$icolors" == "1" ] && resetcolors xt
     docleanup
     exit
@@ -108,6 +109,19 @@ function makemtpt() {
     echo $sdmpt
 }
 
+function islooped() {
+    #
+    # Returns true if file in $1 is already looped
+    #
+    local fn=$(realpath $1) fl=1
+    while read line
+    do
+        [[ "$line" =~ "$fn" ]] && fl=0
+    done < <(losetup -a)
+
+    return $fl
+}
+
 function domount() {
     #
     # Before calling domount:
@@ -119,20 +133,24 @@ function domount() {
     [ ! -d $SDMPT ] && mkdir $SDMPT
     if [ $fdirtree -eq 1 ]
     then
+	ismounted $(realpath $dimg) && errexit "? Directory '$dimg' is already mounted"
 	mount --bind $dimg $SDMPT
 	notmounted $SDMPT && errexit "? Error mounting --bind '$dimg'"
 	mount --bind $dimg/boot $SDMPT/boot
 	notmounted $SDMPT/boot && errexit "? Error mounting --bind '$dimg'"
     elif [ $dimgdev -eq 0 ]
     then
+	islooped $mimg && errexit "? IMG '$mimg' already attached to a loop device"
 	echo "* Mount IMG '$mimg'"
 	loopdev=$(losetup --show -P -f $mimg)
 	mount -v ${loopdev}p2 $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
+	notmounted $SDMPT && errexit "? Error mounting IMG '$mimg'"
 	mount -v ${loopdev}p1 $SDMPT/boot
-	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dimg'"
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$mimg'"
     else
 	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
+	ismounted $dimg${p1} && errexit "? Device $dimg is already mounted"
+	ismounted $dimg${p2} && errexit "? Device $dimg is already mounted"
 	echo "* Mount device '$dimg'"
 	mount -v ${dimg}${p2} $SDMPT
 	notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
@@ -459,7 +477,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.5"
+version="V7.6"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1009,22 +1027,24 @@ if [ $fdirtree -eq 1 ]
 then
     [ ! -d $dimg ] && errexit "? Cannot find directory '$dimg'"
     dimgdevname="Directory"
-    [ $fextend -eq 1 ] && echo "% Ignoring --extend for non-file-based IMG '$dimg'" && fextend=0 
 elif [ ! -f "$dimg" ]
 then
     [ ! -b $dimg ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
     dimgdevname="Device"
 fi    
-if [ -f "$dimg" ]
+if [ $dimgdev -eq 0 -a -f "$dimg" ]
 then
-    if [ "${dimg%%.zip}" != "$dimg" -o "${dimg%%.ZIP}" != "$dimg" ]
-    then
-	errexit "? File '$dimg' appears to be a ZIP file\n  Unzip it to operate on the IMG contained within it"
-    fi
+    for fext in xz XZ zip ZIP
+    do
+	if [ "${dimg%%.$fext}" != "$dimg" ]
+	then
+	    errexit "? File '$dimg' appears to be a ${fext^^} file\n  un${fext,,} it to operate on the IMG contained within it"
+	fi
+    done
 elif [ $fextend -eq 1 ]
 then
-    echo "% Ignoring --extend for non-file-based IMG '$dimg'" && fextend=0
+    echo "% Ignoring --extend for non-file-based $dimgdevname '$dimg'" && fextend=0
 fi
 #
 # Ensure wpa is correctly configured for the request, if needed
