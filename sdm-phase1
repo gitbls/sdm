@@ -1,9 +1,6 @@
 #!/bin/bash
 # This script runs in the nspawn image
 #
-function logapterror() {
-    logtoboth "? apt returned an error; review /etc/sdm/apt.log"
-}
 
 function doinstalls() {
     #
@@ -21,10 +18,10 @@ function doinstalls() {
 	    for a in "${alist[@]}"
 	    do
 		logtoboth "> -- $a"
-		doapt "install --no-install-recommends --yes $a" $showapt || logapterror
+		doaptrpterror "install --no-install-recommends --yes $a" $showapt
 	    done
 	else
-	    doapt "install --no-install-recommends --yes $1" $showapt || logapterror
+	    doaptrpterror "install --no-install-recommends --yes $1" $showapt
 	fi
 	logtoboth "* $2 Completed"
     else
@@ -49,15 +46,6 @@ EOF
 [ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
 doapt "$1 $upg" "$2" || logapterror
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
-}
-
-function getfinalbbh {
-    #
-    # Get boot_behaviour from auto-1piboot if provided
-    # If not, return $1
-    #
-    aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
-    [ "$aval" == "" ] && echo "$1" || echo "$aval"
 }
 
 function delaydmenable {
@@ -159,6 +147,18 @@ case "$cmd" in
 	fi
 	exit 0
 	;;
+    do-disables)
+	[ "$disables" != "" ] && do_disables "$disables"
+	exit 0
+	;;
+    burn-enable-lightdm-autologin)  # Delay lightdm enable until sdm-firstboot
+	setlightdmautologin burning
+	exit 0
+	;;
+    burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
+	delaylightdmenable burning
+	exit 0
+	;;
     run-all-plugins)  # Run Plugin phase 1 or post-install
 	phase="$2"
 	runplugins $phase
@@ -205,33 +205,8 @@ logtoboth "*+Phase 1 Network/WiFi/Bluetooth configuration"
 #
 # Set to disable bluetooth and/or wifi if requested
 #
-if [[ "$disables" =~ "bluetooth" ]]
-then
-    logtoboth "> Set Bluetooth to disable in FirstBoot per --disable bluetooth"
-    fndis="/etc/sdm/0piboot/050-disable-bt.sh"
-    [ -f $fndis ] && rm -f $fndis
-    cat > $fndis <<EOF
-#!/bin/bash
-blfile="blacklist-sdm-bluetooth.conf"
-logger "FirstBoot Disable bluetooth using /etc/modprobe.d/\$blfile"
-printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
-EOF
-    chmod 755 $fndis
-    systemctl disable hciuart
-fi
-if [[ "$disables" =~ "wifi" ]]
-then
-    logtoboth "> Set WiFi to disable in FirstBoot per --disable wifi"
-    fndis="/etc/sdm/0piboot/055-disable-wifi.sh"
-    [ -f $fndis ] && rm -f $fndis
-    cat > $fndis <<EOF
-#!/bin/bash
-blfile="blacklist-sdm-wifi.conf"
-logger "FirstBoot Disable wlan0 using /etc/modprobe.d/\$blfile"
-printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
-EOF
-    chmod 755 $fndis
-fi
+[[ "$disables" =~ "bluetooth" ]] && do_disables bluetooth
+[[ "$disables" =~ "wifi" ]] && do_disables wifi
 #
 # Set dhcpcd wait if requested
 #
@@ -279,40 +254,35 @@ samepwd=""
 usesamepwd=0
 puser="'$myuser'"
 susers="user"
-pipw="$((grep -E "^pi:" /etc/shadow) | (IFS=":" read un pw tr ; echo "$pw"))"
-[ ${#pipw} -lt 2 ] && oldpios=0 || oldpios=1 #pipw="" #pwd lt 2 on Bullseye 2022-04-04 or later. Will be a full password on earlier releases
-[ $oldpios -eq 1  -a "$myuser" == "pi" ] && myusert="" || myusert=$myuser
-# Determine if more than one password needs to be set
-[ $rootpwd -eq 1 -a "$myusert" != "" ] && muser=1 || muser=0
-[ $rootpwd -eq 1 -a $oldpios -eq 1 ] && muser=1
-[ $oldpios -eq 1 -a "$myusert" != "" ] && muser=1
-if [ $muser -eq 1 ]
+#pipw="$((grep -E "^pi:" /etc/shadow) | (IFS=":" read un pw tr ; echo "$pw"))"
+[ ${raspiosver} -ge 11 ] && oldpios=0 || oldpios=1
+
+[ $oldpios -eq 1 -a "$myuser" != "pi" ] && puser="${puser} and 'pi'" && susers="users"        # Only ask about pi on older systems
+[ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
+usesamepwd=$passwordsame
+if [ $usesamepwd -eq 0 -a "$susers" == "users" ]
 then
-    [ $oldpios -eq 1 -a "$myuser" != "pi" ] && puser="${puser} and 'pi'" && susers="users"        # Only ask about pi on older systems
-    [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
-    usesamepwd=$passwordsame
-    if [ $usesamepwd -eq 0 -a "$susers" == "users" ]
-    then
-	askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
-	echo ""
-    elif [ $usesamepwd -eq 1 ]
-    then
-	logtoboth "> Using same password for $susers $puser"
-	[ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
-	[ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
-	if [ $oldpios -eq 1 ]
-	then
-	    [ "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
-	fi
-    fi
-    if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
-    then
+    askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
+    echo ""
+elif [ $usesamepwd -eq 1 ]
+then
+    [ "$susers" == "users" ] && logtoboth "> Using same password for $susers $puser"
+    [ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
+    [ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
+    [ "$samepwd" == "" -a "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
+fi
+if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
+then
+    while [ true ]
+    do
 	echo -n "** Enter password to use for $susers $puser: "
 	samepwd=$(getpwd)
 	echo ""
-    fi
+	[ "$samepwd" != "" ] && break
+    done
 fi
-if [ "$myusert" != "" ]
+[ $usesamepwd -eq 0 -a "$myuser" == "pi" -a "$passworduser" == "" ] && passworduser="$passwordpi"
+if [ "$myuser" != "" ]
 then
     [ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
     # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
@@ -322,9 +292,20 @@ then
 	useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
 	usermod --gid users $myuser
 	usermod --groups $groups $myuser
+    else
+	if [ "$xuid" != "" ]
+	then
+	    logtoboth "> Set user '$myuser' UID to '$myid'"
+	    usermod $xuid $myuser
+	fi
     fi
+    # Do this manually since we have to use --no-create-home (dir already created in Phase 0)
+    for f in /etc/skel/.* /etc/skel/*
+    do
+	[ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp $f /home/$myuser )
+    done
     [ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
-    logtoboth "> Set password for '$myuser'"
+    logtoboth "> Set password for user '$myuser'"
     changepwd $myuser "$upwd"
     [ ! -d /home/$myuser ] && mkdir /home/$myuser
     [ "$myuser" != "pi" ] && gr="users" || gr="pi"
@@ -394,7 +375,7 @@ then
 fi
 if [ "$bootadd" != "" ]
 then
-    if ! grep -q 'Following items added by sdm --bootadd' /boot/config.txt
+    if ! grep -q 'Items added by sdm --bootadd' /boot/config.txt
     then
 	logtoboth "> Add new keys to /boot/config.txt"
 	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
@@ -543,13 +524,7 @@ else
     #
     # Disable swap if requested
     #
-    if [[ "$disables" =~ "swap" ]]
-    then
-	logtoboth "> Disable swapfile per --disable swap"
-	systemctl disable dphys-swapfile
-	# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
-	#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
-    fi
+    [[ "$disables" =~ "swap" ]] && do_disables swap
 fi
 #
 # Copy systemd config files to their locations
@@ -570,15 +545,7 @@ done
 #
 # Disable Triggerhappy service if requested
 #
-if [[ "$disables" =~ "triggerhappy" ]]
-then
-    logtoboth "> Disable triggerhappy service per --disable triggerhappy"
-    systemctl disable triggerhappy.service
-    systemctl disable triggerhappy.socket
-    #Eliminate thd.socket errors from udev
-    [ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
-    [ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/thd.sdm
-fi
+[[ "$disables" =~ "triggerhappy" ]] && do_disables triggerhappy
 
 if ! [[ "$poptions" =~ "noupdate" ]]
 then
@@ -695,40 +662,22 @@ fi
 #
 # Honor --disable piwiz
 #
-if [[ "$disables" =~ "piwiz" ]]
+[[ "$disables" =~ "piwiz" ]] && do_disables piwiz
+#
+# If lightdm installed switch to console no login for first boot
+#  and set to switch back to graphical autologin after first boot
+#
+if [ -d /etc/lightdm ]
 then
-    logtoboth "> Disable running piwiz and userconfig on first boot per --disable piwiz"
-    [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
-    systemctl disable userconfig.service > /dev/null 2>&1
-    systemctl mask    userconfig.service > /dev/null 2>&1
-    [ "$(getent passwd rpi-first-boot-wizard)" != "" ] && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
-    rm -f /etc/sudoers.d/010_wiz-nopasswd
-    rm -f /etc/xdg/autostart/deluser.desktop
+    [ $reboot -eq 1 ] && delaylightdmenable || setlightdmautologin
 fi
 #
-# If RasPiOS Full switch to console no login for first boot
-#  and set to switch back to graphical autologin after first boot unless 1piboot has an uncommented boot_behav* 
+# LXDE-specific handling
 #
 if [ -f /usr/bin/startlxde-pi ]
 then
     userx=${myuser:-pi}	
     [ "$userx" == "pi" ] && gx=pi || gx=users
-    if [ $reboot -eq 1 ]
-    then
-	logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-	#SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-	do_raspiconfig do_boot_behaviour B1
-	systemctl set-default multi-user.target
-	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-	then
-	    aval="$(getfinalbbh B1)"
-	    logtoboth ">%1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
-	else
-	    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-	    logtoboth ">%Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
-	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-	fi
-    fi
     # Set left-handed mouse if requested
     if [ $fmouse -eq 1 ]
     then
@@ -811,7 +760,7 @@ fi
 #
 # If Lite and no known display manager found set to console no login
 #
-if [ ! -f /usr/bin/startlxde-pi -a $bbhandled -eq 0 ]
+if [ ! -d /etc/lightdm -a $bbhandled -eq 0 ]
 then
     # Lite with no Desktop
     if [ $reboot -eq 1 ]
@@ -832,7 +781,7 @@ then
     fi
 fi
 
-logfreespace "at end of Phase 1"
+logfreespace "at end of Phase 1 image customization"
 logtoboth "* Phase 1 Completed"
 
 if [ "$csfn" != "" ]
@@ -865,7 +814,11 @@ fi
 #
 # Check for device out of space and warn if so
 #
-cklogfreespace "at end of Customization"
+cklogfreespace "at end of image customization"
+#
+# Check for apt errors in the apt log
+#
+grep -q "^E:" /etc/sdm/apt.log && logtoboth "?!apt reported errors; review /etc/sdm/apt.log"
 
 if [ $fbatch -eq 0 ]
 then
