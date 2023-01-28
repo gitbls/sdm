@@ -6,9 +6,7 @@
 #
 
 function loadparams() {
-    local mpt=""
-    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
-    source $mpt/etc/sdm/sdm-readparams
+    source $SDMPT/etc/sdm/sdm-readparams
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -75,7 +73,7 @@ then
     debconf-set-selections <<< "samba-common samba-common/dhcp boolean $dhcp"
     debconf-set-selections <<<  "samba-common samba-common/do_debconf boolean $do_debconf"
     logtoboth "> Plugin $pfx: Install samba"
-    doapt "install --no-install-recommends --yes samba" $showapt
+    doaptrpterror "install --no-install-recommends --yes samba" $showapt
     if [ "$smbconf" != "" ]
     then
 	if [ -f /etc/sdm/assets/samba-$(basename $smbconf) ]
