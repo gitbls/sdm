@@ -6,9 +6,7 @@
 #
 
 function loadparams() {
-    local mpt=""
-    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
-    source $mpt/etc/sdm/sdm-readparams
+    source $SDMPT/etc/sdm/sdm-readparams
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -19,7 +17,7 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vargs="|interval|"
+vargs="|burntime|interval|"
 
 if [ "$phase" == "0" ]
 then
@@ -40,6 +38,7 @@ then
     plugin_getargs $pfx "$args" "$vargs"
     plugin_printkeys
 
+    [ "$interval" == "" ] && interval=60
     logtoboth "* Plugin $pfx: Install clockfake"
     cat >> /usr/local/bin/clockfake <<EOF
 #!$(which python3)
@@ -80,8 +79,24 @@ else
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vargs"
+    plugin_printkeys
+
     systemctl enable clockfake > /dev/null 2>&1
-    logtoboth "Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
-    mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
+    logtoboth "* Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
+    [ -f /etc/cron.hourly/fake-hwclock ] && mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
+    #
+    # Run the program once here to set the fake hw clock
+    #
+    if [ "$burntime" == "y" ]
+    then
+	logtoboth "> Plugin $pfx: Update fake hw clock"
+	python3 <<EOF
+from datetime import datetime, timezone
+with open("/etc/fake-hwclock.data", 'w') as f:
+    now = datetime.now(timezone.utc)
+    f.write("{}\n".format(datetime.strftime(now, "%Y-%m-%d %H:%M:%S")))
+EOF
+    fi
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
