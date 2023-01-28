@@ -1,5 +1,14 @@
 # Changelog
 
+## V7.7
+
+* If created user doesn't have .bashrc, .profile, or .bash_logout copy them from /etc/skel
+* Re-jigger password getting/setting. `--user` now defaults to pi if not specified 
+* Enable `--disable`, `--svc-disable', `--svc-enable', and `--autologin` switches with `--burn`
+* Improve first boot graphical desktop switching
+* Improve apt error detecting/reporting
+* Code improvements
+
 ## V7.6
 
 * Improve compressed file check
