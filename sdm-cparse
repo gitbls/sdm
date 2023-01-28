@@ -12,9 +12,7 @@ function logit {
     #
     # $1="message string"
     #
-    local mnt=""
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
-    [ -f $mnt/etc/sdm/history ] && echo "$(thisdate) $1" >> $mnt/etc/sdm/history
+    [ -f $SDMPT/etc/sdm/history ] && echo "$(thisdate) $1" >> $SDMPT/etc/sdm/history
 }
 
 function logtoboth() {
@@ -31,7 +29,7 @@ function logtoboth() {
 	logit "$msg"
 	echo "$msg"
     else
-	readarray -t str <<< $(fold -s -w$logwidth <<< $(echo $msg))
+	readarray -t str <<< $(fold -s -w$logwidth <<< $(echo "$msg"))
 	for (( i=0 ; i < ${#str[@]} ; i++))
 	do
 	    logit "${spc}${str[$i]}"
@@ -119,6 +117,10 @@ function outlong () {
     fi
 }
 
+function logapterror() {
+    logtoboth "?!apt returned an error; review /etc/sdm/apt.log"
+}
+
 function doapt() {
     #
     # $1 is apt command
@@ -130,10 +132,20 @@ function doapt() {
     if [ "$2" == "1" ]
     then
 	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
+	return $?
     else
 	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
+	return $?
     fi
     return $?
+}
+
+function doaptrpterror() {
+    #
+    # $1 is apt command
+    # $2 is $showapt value
+    #
+    doapt "$1" "$2" || logapterror
 }
 
 function ispkginstalled() {
@@ -175,7 +187,7 @@ function logfreespace() {
     # Logs the current free space on $dimg
     #
     local dev="/" extramsg="$1"
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && dev="$SDMPT"
+    [ "$SDMPT" != "" ] && dev="$SDMPT"
     logtoboth "> $dimgdevname '$dimg' has $(getfsdf $dev avail) 1K-blocks free $extramsg" nosplit
 }
 
@@ -304,7 +316,7 @@ function writeconfig() {
     local paramfile="$SDMPT/etc/sdm/cparams"
     rm -f $paramfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
-    for e in version apps xapps appfile xappfile apip apssid aptcache aptdistupgrade autologin \
+    for e in version thishost apps xapps appfile xappfile apip apssid aptcache aptdistupgrade autologin \
 		     fbatch b0script b1script bootadd bootconfig bootscripts bootsetpairs crond cronhourly \
 		     crondaily cronweekly cronmonthly cronsystemd cscript csrc datefmt debugs dhcpcd \
 		     dhcpcdwait dimg dimgdev dimgdevname disables domain dtoverlay dtparam ecolors eeprom \
@@ -312,10 +324,10 @@ function writeconfig() {
 		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
 		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
-		     rclocal reboot redact regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
+		     raspiosver rclocal reboot redact regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
 		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
-		     custom3 custom4 thishost
+		     custom3 custom4
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
@@ -326,8 +338,7 @@ function runoneplugin() {
     # Run the plugin $1 for the phase specified in $2 with args in $3
     # By the time we get here plugin will be in the sdmdir hierarchy
     #
-    local mnt="" p=$(basename $1) phase=$2 pargs="$3"
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    local mnt="$SDMPT" p=$(basename $1) phase=$2 pargs="$3"
     [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
     for d in $mnt$sdmdir/local-plugins $mnt$sdmdir/plugins
     do
@@ -359,8 +370,7 @@ function runplugins() {
     #
     # Run the plugins for the phase specified in $1
     #
-    local mnt="" phase=$1
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    local mnt="$SDMPT" phase=$1
     if [ "$plugins" != "" ]
     then
 	logtoboth "> Run Plugins Phase '$1'"
@@ -549,8 +559,7 @@ function getconfbool() {
     #
     # Grab one entry (name in $1) from cparams safely
     #
-    local mnt="" pname="$1"
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    local mnt="$SDMPT" pname="$1"
     paramfile="/etc/sdm/cparams"
     if [ -f $paramfile ]
     then
@@ -570,8 +579,7 @@ function getconfstr() {
     #
     # Grab one entry string (name in $1) from cparams safely
     #
-    local mnt="" pname="$1"
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    local mnt="$SDMPT" pname="$1"
     paramfile="/etc/sdm/cparams"
     if [ -f $paramfile ]
     then
@@ -590,8 +598,7 @@ function setbootset() {
     # Can be called from Burn (SDMNSPAWN=~Burn) or Phase1
     # Changes are always written to auto-1piboot
     #
-    local mnt=""
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mnt="$SDMPT"
+    local mnt="$SDMPT"
     local citems=() c key value
     if [ "$bootsetpairs" != "" ]
     then
@@ -653,18 +660,141 @@ function do_raspiconfig() {
 
 function copyifnewer() {
     # Copy $1 to $2 if $1 is newer
-    # $3 is echo'd if copy done
     # Target must have same basename as src (no rename as part of copy)
     # Target can be a directory or a dir/$(basename $1)
-    src=$1 dst=$2
-    fn=$(basename $src)
+    # Return true if it's newer (did copy) false if not
+    local src=$1 dst=$2
+    local fn=$(basename $src)
     [ "$fn" != "$(basename $dst)" ] && dst="$dst/$fn"
     if [ -f "$dst" ]
     then
-	[ "$1" -nt "$dst" ] || return
+	[ "$1" -nt "$dst" ] || return 1
     fi
-    [ "$3" != "" ] && echo "$3"
     cp $1 $2
+    return 0
+}
+
+function getfinalbbh {
+    #
+    # Get boot_behaviour from auto-1piboot if provided
+    # If not, return $1
+    #
+    aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
+    [ "$aval" == "" ] && echo "$1" || echo "$aval"
+}
+
+function setlightdmautologin() {
+    #
+    # $1 = "burning" if called from burn. "" otherwise
+    #
+    local burn="$1"
+    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
+    if [ "$burn" != "" ]
+    then
+	sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
+	logtoboth ">%Desktop Autologin setting '$bbh' will set be after First Boot"
+	echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+	do_raspiconfig do_boot_behaviour B1
+    else
+	logtoboth ">%Desktop Autologin set to '$bbh'"
+	do_raspiconfig do_boot_behaviour $bbh
+    fi
+}
+
+function delaylightdmenable() {
+    #
+    # $1 = "burning" if called from burn. "" otherwise
+    #
+    local burn="$1"
+    logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
+    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+    do_raspiconfig do_boot_behaviour B1
+    systemctl set-default multi-user.target
+    if [ "$burn" != "" ]
+    then
+	sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
+	[ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
+	logtoboth ">%Desktop Autologin setting '$bbh' will be set after First Boot"
+	echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    else
+	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+	then
+	    aval="$(getfinalbbh B1)"
+	    logtoboth ">%1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
+	else
+	    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
+	    logtoboth ">%Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
+	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+	fi
+    fi
+}
+
+function do_disables() {
+    # Process disables
+    # $1 has list of requested disables separated by "|" if more than one item
+    local dbls="$1|"
+    IFS="|" read -a dlist <<< "$dbls"
+    for ditem in "${dlist[@]}"
+    do
+	case "$ditem" in
+	    bluetooth)
+		fndis="/etc/sdm/0piboot/050-disable-bt.sh"
+		if [ -f $fndis ]
+		then
+		    logtoboth "% Bluetooth already disabled"
+		else
+		    logtoboth "> Set Bluetooth to disable in FirstBoot per --disable bluetooth"
+		    cat > $fndis <<EOF
+#!/bin/bash
+blfile="blacklist-sdm-bluetooth.conf"
+logger "FirstBoot Disable bluetooth using /etc/modprobe.d/\$blfile"
+printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
+systemctl disable hciuart
+EOF
+		    chmod 755 $fndis
+		fi
+		;;
+	    piwiz)
+		logtoboth "> Disable running piwiz and userconfig on first boot per --disable piwiz"
+		[ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
+		systemctl disable userconfig.service > /dev/null 2>&1
+		systemctl mask    userconfig.service > /dev/null 2>&1
+		[ "$(getent passwd rpi-first-boot-wizard)" != "" ] && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
+		rm -f /etc/sudoers.d/010_wiz-nopasswd
+		rm -f /etc/xdg/autostart/deluser.desktop
+		;;
+	    swap)
+		logtoboth "> Disable swapfile per --disable swap"
+		systemctl disable dphys-swapfile
+		# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
+		#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+		;;
+	    triggerhappy)
+		logtoboth "> Disable triggerhappy service per --disable triggerhappy"
+		systemctl disable triggerhappy.service
+		systemctl disable triggerhappy.socket
+		#Eliminate thd.socket errors from udev
+		[ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
+		[ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/thd.sdm
+		;;
+	    wifi)
+		fndis="/etc/sdm/0piboot/055-disable-wifi.sh"
+		if [ -f $fndis ]
+		then
+		    logtoboth "% WiFi already disabled"
+		else
+		    logtoboth "> Set WiFi to disable in FirstBoot per --disable wifi"
+		    cat > $fndis <<EOF
+#!/bin/bash
+blfile="blacklist-sdm-wifi.conf"
+logger "FirstBoot Disable wlan0 using /etc/modprobe.d/\$blfile"
+printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
+EOF
+		    chmod 755 $fndis
+		fi
+		;;
+	esac
+    done
 }
 
 function gterm1() {
