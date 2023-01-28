@@ -8,9 +8,7 @@
 #
 
 function loadparams() {
-    local mpt=""
-    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
-    source $mpt/etc/sdm/sdm-readparams
+    source $SDMPT/etc/sdm/sdm-readparams
 }
 
 # $1 is the phase: "0", "1", or "post-install"
