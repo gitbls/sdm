@@ -444,11 +444,11 @@ Command Switches for --customize and --burn or as noted
  --norestart         Do not restart after first boot (use on --burn command)
  --os osname         Specify OS in the Image (D:raspios, ubuntu)
  --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
- --reboot n          Restart the first boot of the system after n seconds
+ --reboot n          n seconds after first boot has completed restart the system
  --redact            Redact passwords in /etc/sdm/cparams and /etc/sdm/history
  --redo-customize    If image already customized, redo without prompting
  --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot
- --restart           Restart the first boot of the system after 20 seconds
+ --restart           20 seconds after first boot has completed restart the system
  --rootpwd           Set a root password into the image
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
  --showapt           Display apt output as well as logging it
@@ -477,7 +477,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.6"
+version="V7.7"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -576,6 +576,7 @@ plugindebug=0               #1=Enable debugging output
 plugins=""                  #List of plugins to include
 poptions=""                 #Phase options
 pvers=0                     #Print version number
+raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye)
 redact=0                    #1=redact passwords in /etc/sdm/{cparams,history}
 rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
@@ -824,6 +825,7 @@ Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'"
 exit 0
 fi
 [ "${dimg,,}" == "help" ] && printhelp && exit
+declare -a cmsgs                    # In case customization messages generated before we're ready to logtoboth them
 cscript="$(fndotfullpath $cscript)"
 [ $burn -eq 1 -a $burnfile -eq 1 ] && errexit "? Switch conflict: --burn and --burnfile"
 [ $burn -eq 1 -o $burnfile -eq 1 ] && burning=1 || burning=0
@@ -848,7 +850,7 @@ then
 fi
 if [ $fcustomize -eq 1 ]
 then
-    [ $nouser -eq 0 -a "$myuser" == "" ] && errexit "? A username must be specified using the --user switch"
+    [ $nouser -eq 0 -a "$myuser" == "" ] && cmsgs+=("% No username specified with the --user switch; Using 'pi'") && myuser="pi"
     [ $nouser -eq 1 ] && myuser=""
 fi
 #
@@ -910,14 +912,17 @@ then
     do
 	p="${p%:*}"
 	pf=0
-	for d in $src/local-plugins $src/plugins $(dirname $p)
+	for d in  $(dirname $p) $src/local-plugins $src/plugins
 	do
 	    pn=$(basename $p)
 	    if [ -f $d/$pn ]
 	    then
 		[ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
 		# if plugin found outside of sdm hierarchy copy it in
-		[ "$d" == "$(dirname $p)" ] && copyifnewer $d/$pn $src/local-plugins "* Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
+		if [ "$d" == "$(dirname $p)" ]
+		then
+		    copyifnewer $d/$pn $src/local-plugins && cmsgs+=("% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'")
+		fi
 		pf=1
 		break
 	    fi
@@ -1269,8 +1274,19 @@ else
 	fi
 	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
+    raspiosver=$(grep VERSION_ID $SDMPT/etc/os-release | (IFS="=" read v id ; id=${id%\"} ; echo ${id#\"}))
     logtoboth "> Command Line: $cmdline"
+    logtoboth "> IMG RasPiOS Version: $raspiosver"
     logtoboth "> IMG date: $(grep -s -m1 -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\}' $SDMPT/etc/rpi-issue)"
+
+    # Flush accumulated messages
+    if [ ${#cmsgs[@]} -gt 0 ]
+    then
+        for (( i=0 ; i < ${#cmsgs[@]} ; i++ ))
+        do
+            logtoboth "${cmsgs[$i]}"
+        done
+    fi
 
     logfreespace
     logtoboth "> Copy sdm to $sdmdir in the $dimgdevname"   # Yes, already done above ;)
