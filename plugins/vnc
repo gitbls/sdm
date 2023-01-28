@@ -6,9 +6,7 @@
 #
 
 function loadparams() {
-    local mpt=""
-    [ "$SDMNSPAWN" == "Phase0" ] && mpt=$SDMPT
-    source $mpt/etc/sdm/sdm-readparams
+    source $SDMPT/etc/sdm/sdm-readparams
 }
 
 function decodeargs() {
@@ -162,7 +160,7 @@ EOF
 	    [ -f /usr/bin/X${othervnc} ] && logtoboth "% Plugin $pfx: '$othervnc' is installed as well as the requested '$vncserver' ; '$othervnc' not configured"
 	    logtoboth "> Plugin $pfx: Install VNC server $vncp"
 	    logfreespace "at start of install VNC server $vncp"
-	    doapt "install --no-install-recommends -y $vncp" $showapt
+	    doaptrpterror "install --no-install-recommends -y $vncp" $showapt
 	    logfreespace "at end of install VNC server $vncp"
 	else
 	    logtoboth "> Plugin $pfx: VNC Server $vncp is already installed"
@@ -197,7 +195,7 @@ else
 	then
 	    logtoboth "> Plugin $pfx: Install RealVNC server '$realvncserver'"
 	    logfreespace "at start of RealVNC Server install"
-	    doapt "install --no-install-recommends --yes $realvncserver" $showapt
+	    doaptrpterror "install --no-install-recommends --yes $realvncserver" $showapt
 	    logfreespace "at end of RealVNC Server install"
 	else
 	    logtoboth "> Plugin $pfx: RealVNC server is already installed"
@@ -224,7 +222,7 @@ EOF
 	then
 	    if ! ispkginstalled x11-xserver-utils
 	    then
-		doapt "install --yes x11-xserver-utils" $showapt
+		doaptrpterror "install --yes x11-xserver-utils" $showapt
 	    fi
 	    vres="|640x480|720x480|800x600|1024x768|1280x720|1280x1024|1600x1200|1920x1080|"
 	    if [[ "$vres" =~ "$realvnc" ]]
