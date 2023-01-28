@@ -334,20 +334,31 @@ function do_delayed_boot_behavior {
     # $1 = 'reboot' if system will be rebooted
     local now="" nowb=""
     [ "$1" != "reboot" ] && now="--now" && nowb="--no-block"
-    if grep 'delayed_boot_behavior' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+    IFS="=" read key value <<< $(grep delayed_boot_behavior /etc/sdm/auto-1piboot.conf)
+    if [ "$value" != "" ]
     then
-	IFS="=" read key value <<< $(grep delayed_boot_behavior /etc/sdm/auto-1piboot.conf)
-	configitemlog "set boot behaviour to $value" bootlog
-	do_raspiconfig do_boot_behaviour $value
-	[ "$1" != "reboot" ] && systemctl daemon-reload
 	if [[ "B3B4" =~ "$value" ]]
 	then
 	    # Re-enable display manager that we disabled in phase 1
-	    [ -f /etc/lightdm/lightdm.conf ] && bootlog "Re-enable lightdm" && systemctl enable $now lightdm && sleep 3
-	    [ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
-	    [ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
-	    bootlog "Set systemd default to graphical.target"
-	    systemctl set-default graphical.target
+	    if [ -d /etc/lightdm ]
+	    then
+		configitemlog "set boot behaviour to $value" bootlog
+		do_raspiconfig do_boot_behaviour $value
+		if [ "$1" != "reboot" ]
+		then
+		    bootlog "Start lightdm"
+		    systemctl restart lightdm
+		else
+		    bootlog "Enable lightdm"
+		    systemctl enable lightdm
+		fi
+		#sleep 3
+	    else
+		[ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
+		[ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
+		bootlog "Set systemd default to graphical.target"
+		systemctl set-default graphical.target
+	    fi
 	fi
     fi
     # Perform cleanup steps done by /usr/bin/cancel_rename
