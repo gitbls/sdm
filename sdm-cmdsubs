@@ -26,6 +26,10 @@ function ddctrlc() {
     fi
 }
 
+errifrc() {
+    [ $1 -ne 0 ] && errexit "$2 $1"
+}
+
 function setdiskid() {
     local dev="$1" diskid="$2"
     sfdisk --disk-id $dev 0x${diskid}
@@ -175,13 +179,6 @@ function sdm_burndevfile() {
     sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
     ! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
     sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
-    if [ "$(getconfbool expandroot)" == "1" -a "$(getconfbool regensshkeys)" == "1" ]
-    then
-	write_burnmsg "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
-	sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
-    else
-	write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
-    fi
     #
     # Write out the accumulated messages into mounted image if image has been customized
     #
@@ -196,7 +193,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="apip apssid b0script b1script bootsetpairs bootscripts dhcpcd domain expandroot exports keymap locale myuser myuid noreboot"
+	xsettings="apip apssid autologin b0script b1script bootsetpairs bootscripts dhcpcd disables domain expandroot exports keymap locale myuser myuid noreboot"
 	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins redact rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
@@ -211,7 +208,7 @@ function sdm_burndevfile() {
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
 	[ "$bdomain" != "" ] && domain=$bdomain
-	[ $breboot -eq 1 ] && reboot=$breboot
+	[ $breboot -eq 1 ] && reboot=1
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
 	[ $bbootscripts -eq 1 ] && bootscripts=$bbootscripts
 	[ "$bbootsetpairs" != "" ] && bootsetpairs="$bbootsetpairs"
@@ -221,11 +218,22 @@ function sdm_burndevfile() {
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
 	[ "$bplugins" != "" ] && plugins="$bplugins" || plugins=""
 	[ "$bmyuser" != "" ] && myuser=$bmyuser && myuid=$bmyuid
+	[ "$bsvcenable" != "" ] && svcenable="$bsvcenable"
+	[ "$bsvcdisable" != "" ] && svcdisable="$bsvcdisable"
+	[ "$bdisables" != "" ] && disables="$bdisables"
+	[ $bautologin -eq 1 ] && autologin=1
 	expandroot=$((bexpandroot|expandroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
 	redact=$((bredact|redact))
+	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
+	then
+	    write_burnmsg "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
+	    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
+	else
+	    write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
+	fi
 	#
 	# Set hostname into the image
 	#
@@ -354,6 +362,20 @@ function sdm_burndevfile() {
 	    runplugins 0
 	fi
 	declare -x SDMNSPAWN="Burn1"
+	if [ -d $SDMPT/etc/lightdm ]
+	then
+	    if [ $breboot -eq 1 ]
+	    then
+		sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-delay" -q --directory=$SDMPT
+	    else
+		[ $bautologin -eq 1 ] && sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-autologin" -q --directory=$SDMPT
+	    fi
+	fi
+	if [ "$bdisables" != "" ]
+	then
+	    logtoboth "> Process --disable $bdisables"
+	    sdm_spawn "$sdmdir/sdm-phase1 do-disables" "-q --directory=$SDMPT"
+	fi
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords or add user per --user, --password-pi, --password-user, and/or --password-root"
@@ -366,8 +388,8 @@ function sdm_burndevfile() {
 	fi
 	if [ "$plugins" != "" ]
 	then
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "-q --directory=$SDMPT"
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "-q --directory=$SDMPT"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "-q --directory=$SDMPT --setenv=SDMNSPAWN=Burn1"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "-q --directory=$SDMPT --setenv=SDMNSPAWN=Burn1"
 	fi
 	#
 	# Redact passwords if requested
@@ -402,13 +424,8 @@ function sdm_burndevfile() {
     fi
 }
 #
-# Shrink IMG file
+# Print partitions in IMG 
 #
-
-errifrc() {
-    [ $1 -ne 0 ] && errexit "$2 $1"
-}
-
 sdm_ppart() {
     echo "* Human-readable partition list"
     parted -s $dimg unit B print
@@ -419,7 +436,9 @@ sdm_ppart() {
     #echo "1: partnum:startB:endB:sizeB:fstype:::;"
     #echo "2 partnum:startB:endB:sizeB:fstype:::;"
 }
-
+#
+# Shrink IMG file
+#
 sdm_shrink() {
     local gb=$((1024*1024*1024)) gib=$((1000*1000*1000))
 
