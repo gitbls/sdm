@@ -6,15 +6,14 @@ function readparams() {
     #
     # Restores the global variables from /etc/sdm/cparams
     #
-    local rpifun value mpt="" cf="/etc/sdm/cparams"
-    [[ "Phase0|Burn0" =~ "$SDMNSPAWN" ]] && mpt="$SDMPT" && cf="$SDMPT/$cf"
+    local rpifun value cf="$SDMPT/etc/sdm/cparams"
     if [ -f $cf ]
     then
 	while IFS=":" read rpifun value
 	do
 	    if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
             then
-		value="${value%%\#*}"    # Del EOL comments
+		#value="${value%%\#*}"    # Del EOL comments
 		value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
 		value="${value#\"}"     # Del opening double-quotes 
 		value="${value%\"}"     # Del closing double-quotes 
@@ -25,7 +24,7 @@ function readparams() {
 	    fi
 	done < $cf
     fi
-    [ -f $mpt/$sdmdir/sdm-cparse ] && source $mpt/$sdmdir/sdm-cparse || echo "? Internal error: File '$mpt/$sdmdir/sdm-cparse' not found in readparams"
+    [ -f $SDMPT/$sdmdir/sdm-cparse ] && source $SDMPT/$sdmdir/sdm-cparse || echo "? Internal error: File '$SDMPT/$sdmdir/sdm-cparse' not found in readparams"
     return
 }
 # Call the function after we've been sourced
