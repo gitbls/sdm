@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.7.1
+
+* unset/restore SDMPT around chroot
+
 ## V7.7
 
 * If created user doesn't have .bashrc, .profile, or .bash_logout copy them from /etc/skel
