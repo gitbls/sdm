@@ -498,6 +498,7 @@ function initvirt() {
 
 function ctrlchroot() {
     echo "% Caught CTRL/C in chroot; Cleaning up..."
+    declare -x SDMPT="$OLDSDMPT"
     rm -f $SDMPT/usr/bin/$qemu
     umount $SDMPT/{dev/pts,dev,proc,sys}
     exit 1
@@ -545,10 +546,13 @@ function sdm_spawn() {
 	    qemu="/usr/bin/qemu-${vqemu}-static"
 	fi
 	[ "$qemu" != "" ] && cp $qemu $SDMPT/usr/bin
+	OLDSDMPT="$SDMPT"
 	trap "ctrlchroot" SIGINT
 	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
-	chroot $SDMPT $qemu /bin/bash $cmd
+	unset SDMPT
+	chroot $OLDSDMPT $qemu /bin/bash $cmd
 	trap SIGINT
+	declare -x SDMPT="$OLDSDMPT"
 	[ "$qemu" != "" ] && rm -f $SDMPT/$qemu
 	umount $SDMPT/{dev/pts,dev,proc,sys}
     fi
