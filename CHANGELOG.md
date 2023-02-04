@@ -1,5 +1,11 @@
 # Changelog
 
+## V7.8
+
+* Correct V7.7.1 chroot fix
+* Ensure pre-phase0 and burn logging contain all messages
+* Don't try to process `--user` in burn if it's already added
+
 ## V7.7.1
 
 * unset/restore SDMPT around chroot
