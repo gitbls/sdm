@@ -89,10 +89,10 @@ function expandpartition() {
     ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
     ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
     write_burnmsg "> Expand Root: Expand partition from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
-    #parted -m /dev/$dev u s resizepart 2 $newsize
-    #errifrc $? "? parted resizepart failed with status"
-    echo ",+" | sfdisk -N 2 $fulldevname
-    errifrc $? "? sfdisk expand last partition failed with status"
+    parted -m /dev/$dev u s resizepart 2 $newsize
+    errifrc $? "? parted resizepart failed with status"
+    #echo ",+" | sfdisk -N 2 $fulldevname
+    #errifrc $? "? sfdisk expand last partition failed with status"
 }
 
 function sdm_burndevfile() {
@@ -203,7 +203,7 @@ function sdm_burndevfile() {
 	    eval b$e=\${!e}
 	done
 	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
-	initvirt
+	initvirt logtoboth
 	# Update settings with settings from cmd line as appropriate
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
@@ -229,10 +229,10 @@ function sdm_burndevfile() {
 	redact=$((bredact|redact))
 	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
 	then
-	    write_burnmsg "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
+	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
 	    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
 	else
-	    write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
+	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
 	fi
 	#
 	# Set hostname into the image
@@ -326,13 +326,19 @@ function sdm_burndevfile() {
 	bcp=""
 	if [ "$bmyuser" != "" -a "$bpassworduser" == "" ]
 	then
-	    while [ 1 ]
-	    do
-		echo -n "** Enter password for user '$myuser': "
-		bpassworduser=$(getpwd)
-		echo ""
-		[ "$bpassworduser" != "" ] && break
-	    done
+	    if grep -q ^$myuser: $SDMPT/etc/passwd
+	    then
+		logtoboth "% User $myuser already exists; Skipping..."
+		bmyuser=""
+	    else
+		while [ 1 ]
+		do
+		    echo -n "** Enter password for user '$myuser': "
+		    bpassworduser=$(getpwd)
+		    echo ""
+		    [ "$bpassworduser" != "" ] && break
+		done
+	    fi
 	fi
 	if [ "$bmyuser" != "" -o "$bpasswordpi" != "" -o "$bpasswordroot" != "" -o "$bpassworduser" != "" ]
 	then
@@ -366,30 +372,30 @@ function sdm_burndevfile() {
 	then
 	    if [ $breboot -eq 1 ]
 	    then
-		sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-delay" -q --directory=$SDMPT
+		sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-delay"
 	    else
-		[ $bautologin -eq 1 ] && sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-autologin" -q --directory=$SDMPT
+		[ $bautologin -eq 1 ] && sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-autologin"
 	    fi
 	fi
 	if [ "$bdisables" != "" ]
 	then
 	    logtoboth "> Process --disable $bdisables"
-	    sdm_spawn "$sdmdir/sdm-phase1 do-disables" "-q --directory=$SDMPT"
+	    sdm_spawn "$sdmdir/sdm-phase1 do-disables"
 	fi
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords or add user per --user, --password-pi, --password-user, and/or --password-root"
-	    sdm_spawn "$sdmdir/sdm-phase1 b1script $(basename $bcp)" "-q --directory=$SDMPT"
+	    sdm_spawn "$sdmdir/sdm-phase1 b1script $(basename $bcp)"
 	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
-	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script" "-q --directory=$SDMPT"
+	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script"
 	fi
 	if [ "$plugins" != "" ]
 	then
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "-q --directory=$SDMPT --setenv=SDMNSPAWN=Burn1"
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "-q --directory=$SDMPT --setenv=SDMNSPAWN=Burn1"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "--setenv=SDMNSPAWN=Burn1"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install"  "--setenv=SDMNSPAWN=Burn1"
 	fi
 	#
 	# Redact passwords if requested

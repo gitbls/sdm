@@ -324,7 +324,7 @@ function writeconfig() {
 		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
 		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
-		     raspiosver rclocal reboot redact regensshkeys noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
+		     raspiosver rclocal reboot redact regensshkeys frenamepi renamepi noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
 		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
 		     custom3 custom4
@@ -467,6 +467,9 @@ function initvirt() {
     # Check IMG and running system. If running on 32-bit and IMG is 64-bit, prepare for chroot
     # wtf -> what's the file :)
     # wami -> what is my OS (that sdm running on)
+    # $1 = function to call to write msgs, or null to echo
+    local msgrtn=$1
+    [ "$msgrtn" == "" ] && msgrtn=echo
     vqemu=""
     bfs=""
     wami=$(file /bin/ls)
@@ -479,8 +482,8 @@ function initvirt() {
 	then
 	    if  [[ "$wtf" =~ "aarch64" ]]
 	    then
-		echo "% Configure chroot to use this 64-bit IMG on your 32-bit OS"
-		echo "  * sdm will run more slowly due to qemu emulation"
+		$msgrtn "% Configure chroot to operate on this 64-bit IMG on your 32-bit ARM OS"
+		$msgrtn "  * sdm will run more slowly due to qemu emulation"
 		virtmode="chroot"
 		vqemu="aarch64"
 		qf="/usr/bin/qemu-aarch64-static"
@@ -489,18 +492,28 @@ function initvirt() {
 	fi
     else
 	# sdm not running sdm on ARM
-	echo "% Configure chroot to use this IMG on your '$wtfarch' computer"
-	echo "  * sdm will run more slowly due to qemu emulation"
+	IFS="," read wamielf wamiarch rest <<< "$wami"
+	$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
+	$msgrtn "  * sdm will run more slowly due to qemu emulation"
 	virtmode="chroot"
 	[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
+    fi
+}
+
+function chroot_cleanup() {
+    if [ "$SDMPT" != "" ]
+    then
+	[ "$qemu" != "" ] && rm -f $SDMPT/usr/bin/$qemu
+	umount $SDMPT/{dev/pts,dev,proc,sys}
+    else
+	logtoboth "%% SDMPT null in handling chroot cleanup. Please log an issue at https://github.com/gitbls/sdm; Continuing..."
     fi
 }
 
 function ctrlchroot() {
     echo "% Caught CTRL/C in chroot; Cleaning up..."
     declare -x SDMPT="$OLDSDMPT"
-    rm -f $SDMPT/usr/bin/$qemu
-    umount $SDMPT/{dev/pts,dev,proc,sys}
+    chroot_cleanup
     exit 1
 }
 
@@ -546,15 +559,14 @@ function sdm_spawn() {
 	    qemu="/usr/bin/qemu-${vqemu}-static"
 	fi
 	[ "$qemu" != "" ] && cp $qemu $SDMPT/usr/bin
-	OLDSDMPT="$SDMPT"
+	declare -x OLDSDMPT="$SDMPT"
 	trap "ctrlchroot" SIGINT
 	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
-	unset SDMPT
+	declare -x SDMPT=""
 	chroot $OLDSDMPT $qemu /bin/bash $cmd
-	trap SIGINT
 	declare -x SDMPT="$OLDSDMPT"
-	[ "$qemu" != "" ] && rm -f $SDMPT/$qemu
-	umount $SDMPT/{dev/pts,dev,proc,sys}
+	trap SIGINT
+	chroot_cleanup
     fi
     return
 }

@@ -180,6 +180,16 @@ function fndotfullpath() {
     echo $fn
 }
 
+function write_premsg() {
+    #
+    # $1 has the message to write
+    # It's written to the terminal and added to burnmsg
+    #
+    cmsgs+=("$1")
+    #echo "$1"
+    return 0
+}
+
 function extendimage() {
     local ldimg=$1 limgext=$2
     local line dsiz
@@ -477,7 +487,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.7.1"
+version="V7.8"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -532,6 +542,7 @@ fgadgetmode=0               #1=Configure image for gadget mode
 fmouse=0                    #1=Set left-handed mouse if LXDE installed
 fnowpa=0                    #1=I really man no automatic no wpa config
 fppart=0                    #1=Print partition tables in an IMG
+frenamepi=0                 #1=--rename-pi selected
 fshrink=0                   #1=Shrink the IMG
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
@@ -578,6 +589,7 @@ poptions=""                 #Phase options
 pvers=0                     #Print version number
 raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye)
 redact=0                    #1=redact passwords in /etc/sdm/{cparams,history}
+renamepi=""                 #Rename the user 'pi' to this
 rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
@@ -740,7 +752,8 @@ do
 		       reboot=1      ; shift 2 ;;
 	--redo-customize) redocustomize=1 ; shift 1 ;;
 	--regen-ssh-host-keys) regensshkeys=1  ; shift 1 ;;
-	--restart)      reboot=1     ; shift 1 ;;
+	--rename-pi)   renamepi=$2 ; frenamepi=1 ; shift 2 ;;
+	--restart)     reboot=1      ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
 	--sdmdir)      sdmdir=$2     ; shift 2 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
@@ -850,8 +863,13 @@ then
 fi
 if [ $fcustomize -eq 1 ]
 then
-    [ $nouser -eq 0 -a "$myuser" == "" ] && cmsgs+=("% No username specified with the --user switch; Using 'pi'") && myuser="pi"
+    [ $nouser -eq 0 -a "$myuser" == "" ] && write_premsg "% No username specified with the --user switch; Using 'pi'" && myuser="pi"
     [ $nouser -eq 1 ] && myuser=""
+fi
+if [ $frenamepi -eq 1 ]
+then
+    [ "$myuser" != "" ] && errexit "? Only one of --rename-pi and --user can be used"
+    myuser="$renameuser"
 fi
 #
 # Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 
@@ -921,7 +939,7 @@ then
 		# if plugin found outside of sdm hierarchy copy it in
 		if [ "$d" == "$(dirname $p)" ]
 		then
-		    copyifnewer $d/$pn $src/local-plugins && cmsgs+=("% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'")
+		    copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
 		fi
 		pf=1
 		break
@@ -1187,7 +1205,7 @@ fi
 # Not --extend (only). Other steps need IMG mounted
 declare -x SDMPT=$(makemtpt)
 domount "$dimg"
-initvirt
+initvirt write_premsg
 #
 # Handle commands --aptmaint, --customize, and --explore
 #
