@@ -1,0 +1,67 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: imon
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+
+    logtoboth "> Plugin $pfx: download imon from GitHub to /usr/local/bin/imon and set protection"
+    curl https://raw.githubusercontent.com/gitbls/imon/main/imon -o $SDMPT/usr/local/bin/imon
+    curl https://raw.githubusercontent.com/gitbls/imon/main/imon-configure -o $SDMPT/usr/local/bin/imon-configure
+    curl https://raw.githubusercontent.com/gitbls/imon/main/imon-action.sample -o $SDMPT/usr/local/bin/imon-action.sample
+    curl https://raw.githubusercontent.com/gitbls/imon/main/imon@.service -o $SDMPT/etc/systemd/system/imon@.service
+    chmod 755 $SDMPT/usr/local/bin/{imon,imon-configure,imon-action.sample}
+
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+
+    logtoboth "> Plugin $pfx: pip install icmplib"
+    [ "$(which pip)" == "" ] && doaptrpterror "install --no-install-recommends --yes python3-pip" $showapt
+    pip install icmplib
+
+    logtoboth "> Plugin $pfx: *** imon service notes ***"
+    logtoboth "* Plugin $pfx:  * Use imon-configure to configure imon's service parameters"
+    logtoboth "* Plugin $pfx:  * Then use sudo systemctl enable --now imon@instancename"
+    logtoboth "* Plugin $pfx:    where 'instancename' is the name you created in imon-configure"
+    logtoboth ""
+    logtoboth "* Plugin $pfx:  * See /usr/local/bin/imon-action.sample for a sample imon action script"
+    logtoboth "* Plugin $pfx:    to customize event actions"
+    logtoboth ""
+    logtoboth "* Plugin $pfx:  * For complete details: https://github.com/gitbls/imon"
+    logtoboth ""
+
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
