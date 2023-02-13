@@ -44,6 +44,7 @@ function fDebugLog() {
         fi
     fi
 }
+export -f fDebugLog
 
 IFS=''
 fDebugLog 1 "downloadUrl=${downloadUrl}"
@@ -97,7 +98,8 @@ fDebugLog 0 "Running ${baseDirectory}/sdm --customize"
     --batch \
     --fstab "${baseDirectory}"/my-fstab \
     --plugin apt-file \
-    --plugin btfix:"assetDir=${baseDirectory}/assets/"
+    --plugin btfix:"assetDir=${baseDirectory}/plugins/assets" \
+    --plugin bullseye-backports:"assetDir=${baseDirectory}/plugins/assets"
 #    --poptions apps \
 #    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2" \
     

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This is an sdm plugin for: btfix.  This stops the blutooth.service from loading the sap driver
+# This is an sdm plugin for: bullseye-backports.  This configures apt to use the bullseye-backports repository.
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
@@ -32,22 +32,24 @@ then
     plugin_printkeys
     plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
  
-    logtoboth "* Plugin $pfx: Creating directory bluetooth.service.d/" 
-    mkdir -pv $SDMPT/etc/systemd/system/bluetooth.service.d/
+    logtoboth "* Plugin $pfx: Copying $assetDir/backports.list > $SDMPT/etc/apt/sources.list.d/"
+    rsync -av $assetDir/bullseye-backports.list $SDMPT/etc/apt/sources.list.d/
 
-    logtoboth "* Plugin $pfx: Copying $assetDir/override.conf > $SDMPT/etc/systemd/system/bluetooth.service.d/override.conf"
-    rsync -av $assetDir/override.conf $SDMPT/etc/systemd/system/bluetooth.service.d/override.conf
+    logtoboth "* Plugin $pfx: Copying $assetDir/90_backports > $SDMPT/etc/apt/preferences.d/"
+    rsync -av $assetDir/90_backports $SDMPT/etc/apt/preferences.d/
 
-#    printf "Do you wish to continue? (Y/N)\n"
-#    while true
-#        do
-#        read -r -n 1 -s choice
-#        case "$choice" in
-#            n|N) exit 1;;
-#            y|Y) break;;
-#            *) echo 'Response not valid';;
-#        esac
-#    done
+    fDebugLog 1 "Testing bullseye-backports plugin" yesno
+
+    printf "Do you wish to continue? (Y/N)\n"
+    while true
+        do
+        read -r -n 1 -s choice
+        case "$choice" in
+            n|N) exit 1;;
+            y|Y) break;;
+            *) echo 'Response not valid';;
+        esac
+    done
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
