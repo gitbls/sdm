@@ -81,13 +81,11 @@ rsync -ah --progress "${baseDirectory}"/"${baseImageDirectory}"/"${baseImage}" "
 
 fDebugLog 0 "Running ${baseDirectory}/sdm --customize"
 "${baseDirectory}"/sdm --customize "${baseDirectory}"/output/"${hostName}".img \
-    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2" \
     --apt-dist-upgrade \
     --disable piwiz,swap \
     --dtoverlay i2c-rtc,pcf85063a,i2c_csi_dsi,dwc2,dr_mode=host \
     --dtparam i2c_vc=on \
     --l10n --password-user Manager09 \
-    --poptions apps \
     --restart \
     --showapt \
     --showpwd \
@@ -98,7 +96,10 @@ fDebugLog 0 "Running ${baseDirectory}/sdm --customize"
     --xmb 3073 \
     --batch \
     --fstab "${baseDirectory}"/my-fstab \
-    --cscript "${baseDirectory}"/sdm-customphase
+    --plugin apt-file \
+    --plugin btfix:"assetDir=${baseDirectory}/assets/"
+#    --poptions apps \
+#    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2" \
     
 fDebugLog 0 "Running ${baseDirectory}/sdm --shrink ${baseDirectory}/output/${hostName}.img" yesno
 "${baseDirectory}"/sdm --shrink "${baseDirectory}"/output/"${hostName}".img || true
