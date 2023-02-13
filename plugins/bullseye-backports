@@ -25,12 +25,11 @@ then
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "|test1|test2|" "|test1|"
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
+    plugin_getargs $pfx "$args" "|assetDir|"
     plugin_printkeys
-    plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
  
     logtoboth "* Plugin $pfx: Copying $assetDir/backports.list > $SDMPT/etc/apt/sources.list.d/"
     rsync -av $assetDir/bullseye-backports.list $SDMPT/etc/apt/sources.list.d/
@@ -38,20 +37,7 @@ then
     logtoboth "* Plugin $pfx: Copying $assetDir/90_backports > $SDMPT/etc/apt/preferences.d/"
     rsync -av $assetDir/90_backports $SDMPT/etc/apt/preferences.d/
 
-    fDebugLog 1 "Testing bullseye-backports plugin" yesno
-
-    printf "Do you wish to continue? (Y/N)\n"
-    while true
-        do
-        read -r -n 1 -s choice
-        case "$choice" in
-            n|N) exit 1;;
-            y|Y) break;;
-            *) echo 'Response not valid';;
-        esac
-    done
-
-    logtoboth "* Plugin $pfx: Complete Phase 0"
+        logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
 then
@@ -60,7 +46,6 @@ then
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
-    plugin_getargs $pfx "$args" "|test1|test2|" "|test1|"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
     # INSERT your Plugin Phase 1 customization stuff here
@@ -74,7 +59,6 @@ else
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "|test1|test2|" "|test1|"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
     # INSERT Your Plugin's post-install code here

@@ -19,6 +19,8 @@ baseImage=$(echo ${downloadUrl} | sed 's:.*/::')
 baseImage=${baseImage::-3}
 
 function fDebugLog() {
+    OLDIFS=${IFS}
+    IFS=''
     logLvl=${1:-99}             # Logging level to log message at. Default 99.
     logMsg="${2:-"NO MSG"}"     # Messge to log.
     logWait="${3:-"nowait"}"    # wait="Press any key to continue."
@@ -43,6 +45,7 @@ function fDebugLog() {
             done
         fi
     fi
+    IFS=${OLDIFS}
 }
 export -f fDebugLog
 
@@ -93,15 +96,18 @@ fDebugLog 0 "Running ${baseDirectory}/sdm --customize"
     --svcdisable fake-hwclock \
     --user carl \
     --wpa /etc/wpa_supplicant/wpa_supplicant.conf \
-    --extend \
-    --xmb 3073 \
     --batch \
     --fstab "${baseDirectory}"/my-fstab \
     --plugin apt-file \
     --plugin btfix:"assetDir=${baseDirectory}/plugins/assets" \
-    --plugin bullseye-backports:"assetDir=${baseDirectory}/plugins/assets"
+    --plugin bullseye-backports:"assetDir=${baseDirectory}/plugins/assets" \
+    --plugin mydotfiles:"assetDir=${baseDirectory}/plugins/assets" \
+    --plugin configgit \
+    --plugin-debug \
+    --extend \
+    --xmb 1024 \
 #    --poptions apps \
-#    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2" \
+#    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2"
     
 fDebugLog 0 "Running ${baseDirectory}/sdm --shrink ${baseDirectory}/output/${hostName}.img" yesno
 "${baseDirectory}"/sdm --shrink "${baseDirectory}"/output/"${hostName}".img || true

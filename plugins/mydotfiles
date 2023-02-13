@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This is an sdm plugin for: btfix.  This stops the blutooth.service from loading the sap driver
+# This is an sdm plugin for: mydotfiles.  This installs my dot files to my home directory.
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
@@ -31,11 +31,17 @@ then
     plugin_getargs $pfx "$args" "|assetDir|"
     plugin_printkeys
  
-    logtoboth "* Plugin $pfx: Creating directory bluetooth.service.d/" 
-    mkdir -pv $SDMPT/etc/systemd/system/bluetooth.service.d/
+    logtoboth "* Plugin $pfx: Copying .bash_aliases > home directory"
+    rsync -av $assetDir/.bash_aliases $SDMPT/home/$myuser/
 
-    logtoboth "* Plugin $pfx: Copying $assetDir/override.conf > $SDMPT/etc/systemd/system/bluetooth.service.d/override.conf"
-    rsync -av $assetDir/override.conf $SDMPT/etc/systemd/system/bluetooth.service.d/override.conf
+    logtoboth "* Plugin $pfx: Copying .bashrc > home directory"
+    rsync -av $assetDir/.bashrc $SDMPT/home/$myuser/
+
+    logtoboth "* Plugin $pfx: Creating directory ~/.ssh/"
+    mkdir -vp $SDMPT/home/$myuser/.ssh/
+
+    logtoboth "* Plugin $pfx: Copying .ssh/ > home directory"
+    rsync -av $assetDir/{authorized_keys,known_hosts,id_ed25519.pub} $SDMPT/home/$myuser/.ssh/
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
