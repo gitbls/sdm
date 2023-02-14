@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This is an sdm plugin for: configgit.  This configures my git environment.
+# This is an sdm plugin for: instlvmxfs.  This installs the requred apps for xfs on lvm.
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
@@ -24,8 +24,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     loadparams
-    logtoboth "* Plugin $pfx: Start Phase 0"
- 
+    logtoboth "* Plugin $pfx: Start Phase 0" 
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
@@ -40,8 +39,8 @@ then
     # INSERT your Plugin Phase 1 customization stuff here
     # In Phase 1 all references to directories in the image can be direct
     #
-    logtoboth "> Plugin $pfx: Install git"
-    doaptrpterror "install --no-install-recommends -y git"
+    logtoboth "> Plugin $pfx: Install lvm & xfs apps"
+    doaptrpterror "install --no-install-recommends -y lvm2 dmsetup mdadm reiserfsprogs xfsprogs"
     #
     logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"

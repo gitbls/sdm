@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This is an sdm plugin for: configgit.  This configures my git environment.
+# This is an sdm plugin for: enablenetfwd.  This enables net.ipv4.ip_forward and /net.ipv6.conf.all.forwarding in sysctl.conf
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
@@ -25,7 +25,18 @@ then
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 0"
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_getargs $pfx "$args"
+    plugin_printkeys
  
+    logtoboth "* Plugin $pfx: Enabling net forward." 
+    cat $SDMPT/etc/sysctl.conf | \
+        sed 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' | \
+        sed 's/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/g' \
+        > $SDMPT/etc/sysctl.conf
+    
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
@@ -35,15 +46,12 @@ then
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
-    logfreespace "at start of Plugin $pfx Phase 1"
+    #logfreespace "at start of Plugin $pfx Phase 1"
     #
     # INSERT your Plugin Phase 1 customization stuff here
     # In Phase 1 all references to directories in the image can be direct
     #
-    logtoboth "> Plugin $pfx: Install git"
-    doaptrpterror "install --no-install-recommends -y git"
-    #
-    logfreespace "at end of $pfx Phase 1"
+    #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
@@ -51,20 +59,10 @@ else
     #
     loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
-    #
-    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
-    #
-    plugin_getargs $pfx "$args"
-    plugin_printkeys
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
     # INSERT Your Plugin's post-install code here
     # In Phase post-install all references to directories in the image can be direct
-    logtoboth "* Plugin $pfx: Configuring git."
-    su $myuser --command="git config --global user.name \"Carl McAlwane\""
-    su $myuser --command="git config --global user.email \"carlmcalwane@hotmail.co.uk\""
-    su $myuser --command="git config --global init.defaultBranch main"
-
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"

@@ -103,11 +103,13 @@ fDebugLog 0 "Running ${baseDirectory}/sdm --customize"
     --plugin bullseye-backports:"assetDir=${baseDirectory}/plugins/assets" \
     --plugin mydotfiles:"assetDir=${baseDirectory}/plugins/assets" \
     --plugin configgit \
+    --plugin enablenetfwd \
+    --plugin instlvmxfs \
     --plugin-debug \
     --extend \
     --xmb 1024 \
-#    --poptions apps \
-#    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2"
+    --poptions apps \
+    --apps "zram-tools"
     
 fDebugLog 0 "Running ${baseDirectory}/sdm --shrink ${baseDirectory}/output/${hostName}.img" yesno
 "${baseDirectory}"/sdm --shrink "${baseDirectory}"/output/"${hostName}".img || true
