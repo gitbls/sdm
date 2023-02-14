@@ -1,0 +1,8 @@
+alias ll='ls -lah'
+alias histgrep='history | grep'
+alias apt='sudo $(which apt)'
+alias reboot='sudo $(which reboot)'
+alias halt='sudo $(which alias)'
+alias poweroff='sudo $(which poweroff)'
+alias grep='grep --color'
+alias greperrs='grep -i "error\|warning\|problem\|fail\|fatal\|panic\|not found\|missing"'

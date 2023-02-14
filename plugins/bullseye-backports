@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: bullseye-backports.  This configures apt to use the bullseye-backports repository.
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_getargs $pfx "$args" "|assetDir|"
+    plugin_printkeys
+ 
+    logtoboth "* Plugin $pfx: Copying $assetDir/backports.list > $SDMPT/etc/apt/sources.list.d/"
+    rsync -av $assetDir/bullseye-backports.list $SDMPT/etc/apt/sources.list.d/
+
+    logtoboth "* Plugin $pfx: Copying $assetDir/90_backports > $SDMPT/etc/apt/preferences.d/"
+    rsync -av $assetDir/90_backports $SDMPT/etc/apt/preferences.d/
+
+        logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    # INSERT your Plugin Phase 1 customization stuff here
+    # In Phase 1 all references to directories in the image can be direct
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    loadparams
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+    # INSERT Your Plugin's post-install code here
+    # In Phase post-install all references to directories in the image can be direct
+    #
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

@@ -19,6 +19,8 @@ baseImage=$(echo ${downloadUrl} | sed 's:.*/::')
 baseImage=${baseImage::-3}
 
 function fDebugLog() {
+    OLDIFS=${IFS}
+    IFS=''
     logLvl=${1:-99}             # Logging level to log message at. Default 99.
     logMsg="${2:-"NO MSG"}"     # Messge to log.
     logWait="${3:-"nowait"}"    # wait="Press any key to continue."
@@ -43,7 +45,9 @@ function fDebugLog() {
             done
         fi
     fi
+    IFS=${OLDIFS}
 }
+export -f fDebugLog
 
 IFS=''
 fDebugLog 1 "downloadUrl=${downloadUrl}"
@@ -81,24 +85,31 @@ rsync -ah --progress "${baseDirectory}"/"${baseImageDirectory}"/"${baseImage}" "
 
 fDebugLog 0 "Running ${baseDirectory}/sdm --customize"
 "${baseDirectory}"/sdm --customize "${baseDirectory}"/output/"${hostName}".img \
-    --apps "zram-tools nmap tmux git command-not-found bash-completion gparted btrfs-progs systemd-container jq python3-pip shellcheck lvm2" \
     --apt-dist-upgrade \
     --disable piwiz,swap \
     --dtoverlay i2c-rtc,pcf85063a,i2c_csi_dsi,dwc2,dr_mode=host \
     --dtparam i2c_vc=on \
     --l10n --password-user Manager09 \
-    --poptions apps \
     --restart \
     --showapt \
     --showpwd \
     --svcdisable fake-hwclock \
     --user carl \
     --wpa /etc/wpa_supplicant/wpa_supplicant.conf \
-    --extend \
-    --xmb 3073 \
     --batch \
     --fstab "${baseDirectory}"/my-fstab \
-    --cscript "${baseDirectory}"/sdm-customphase
+    --plugin apt-file \
+    --plugin btfix:"assetDir=${baseDirectory}/plugins/assets" \
+    --plugin bullseye-backports:"assetDir=${baseDirectory}/plugins/assets" \
+    --plugin mydotfiles:"assetDir=${baseDirectory}/plugins/assets" \
+    --plugin configgit \
+    --plugin enablenetfwd \
+    --plugin instlvmxfs \
+    --plugin-debug \
+    --extend \
+    --xmb 1024 \
+    --poptions apps \
+    --apps "zram-tools"
     
 fDebugLog 0 "Running ${baseDirectory}/sdm --shrink ${baseDirectory}/output/${hostName}.img" yesno
 "${baseDirectory}"/sdm --shrink "${baseDirectory}"/output/"${hostName}".img || true

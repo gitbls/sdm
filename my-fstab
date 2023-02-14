@@ -1,1 +1,10 @@
 UUID="809F-3016"	/mnt/rescuedata		vfat	defaults,noatime	0	0
+/dev/data1/dev          /mnt/data1/dev          xfs     defaults,noatime                                        0       0
+/dev/data1/data         /mnt/data1/data         xfs     defaults,noatime                                        0       0
+/dev/data1/backup       /mnt/data1/backup       xfs     defaults,noatime                                        0       0
+/dev/data1/netboot      /mnt/data1/netboot      xfs     defaults,noatime                                        0       0
+/dev/data1/shared       /mnt/data1/shared       xfs     defaults,noatime                                        0       0
+
+/mnt/data1/dev          /home/carl/dev          none    defaults,noatime,bind,uid=1001,guid=100,umask=022       0       0
+/mnt/data1/netboot      /srv/netboot            none    defaults,noatime,bind,uid=1001,guid=100,umask=022       0       0
+/mnt/data1/shared       /srv/shared             none    defaults,noatime,bind,uid=1001,guid=100,umask=022       0       0
