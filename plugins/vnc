@@ -77,13 +77,13 @@ function decodeargs() {
 phase=$1
 allargs="$2"
 pfx="$(basename $0)"     #For messages
+loadparams
 
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 0"
 
 # INSERT Plugin Phase 0 code here
@@ -95,7 +95,6 @@ then
     #
     # Phase 1 (in nspawn)
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
 
@@ -174,7 +173,6 @@ else
     #
     # Plugin Post-install edits
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
@@ -266,6 +264,7 @@ EOF
 	logtoboth "> Plugin $pfx: Configure wdm for VNC"
 	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
     fi
+    systemctl set-default graphical.target
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi

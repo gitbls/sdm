@@ -441,6 +441,7 @@ Command Switches for --customize and --burn or as noted
  --motd file         Use provided file as /etc/motd
  --mouse left        Enable left-handed mouse if LXDE installed
  --netman            Specify network manager to use (dhcpcd, nm, network-manager)
+ --nopassword        Do not require a password during customization
  --nouser            Do not add a new user
  --nowait-timesync   Don't wait for time to sync in sdm-firstboot
  --nspawnsw str      Additional switches for nspawn command
@@ -459,6 +460,7 @@ Command Switches for --customize and --burn or as noted
  --redact            Redact passwords in /etc/sdm/cparams and /etc/sdm/history
  --redo-customize    If image already customized, redo without prompting
  --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot
+ --rename-pi user    Rename the user 'pi' to the new username rather than creating a new user with --user
  --restart           20 seconds after first boot has completed restart the system
  --rootpwd           Set a root password into the image
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
@@ -488,7 +490,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.8"
+version="V7.9"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -541,10 +543,12 @@ fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
 fgadgetmode=0               #1=Configure image for gadget mode
 fmouse=0                    #1=Set left-handed mouse if LXDE installed
+fnopassword=0               #1=Do not require a password during customization
 fnowpa=0                    #1=I really man no automatic no wpa config
 fppart=0                    #1=Print partition tables in an IMG
 frenamepi=0                 #1=--rename-pi selected
 fshrink=0                   #1=Shrink the IMG
+fupdateplugins=0            #1=Copy any found updated plugins into the burned output
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
 hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
@@ -651,10 +655,10 @@ domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
 mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,os:,\
-password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
-ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,restart,\
+nopassword,password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
+ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,rename-pi:,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
-sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,user:,\
+sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,update-plugins,user:,\
 vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
@@ -733,6 +737,7 @@ do
 	--mouse)       fmouse=1      ; shift 2 ;;  #switch value required but ignored for now
 	--mount)       fdomount=1    ; shift 1 ;;
 	--netman)      netman=$2     ; shift 2 ;;
+	--nopassword)  fnopassword=1 ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nouser) nouser=1 ; shift 1 ;;
 	--nowait-timesync) nowaittimesync=1 ; shift 1 ;;
@@ -770,6 +775,7 @@ do
 	--timezone)    timezone=$2   ; shift 2 ;;
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
+	--update-plugins) fupdateplugins=1 ; shift 1 ;;
 	--user)        myuser=$2     ; shift 2 ;;
 	--virt)        virtmode=$2   ; shift 2 ;;
 	--vncbase)     vncbase="$2"  ; shift 2 ;;
@@ -864,13 +870,13 @@ then
 fi
 if [ $fcustomize -eq 1 ]
 then
+    if [ $frenamepi -eq 1 ]
+    then
+	[ "$myuser" != "" ] && errexit "? Only one of --rename-pi and --user can be used"
+	myuser="$renamepi"
+    fi
     [ $nouser -eq 0 -a "$myuser" == "" ] && write_premsg "% No username specified with the --user switch; Using 'pi'" && myuser="pi"
     [ $nouser -eq 1 ] && myuser=""
-fi
-if [ $frenamepi -eq 1 ]
-then
-    [ "$myuser" != "" ] && errexit "? Only one of --rename-pi and --user can be used"
-    myuser="$renameuser"
 fi
 #
 # Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 

@@ -68,7 +68,7 @@ function changepwd() {
     chpasswd <<EOF
 $user:$upwd
 EOF
-    [ $showpwd -eq 1 ] && logit "> Set password for user '$user' to '$upwd'" || logit "> Set password for user '$user'"
+    [ $showpwd -eq 1 ] && logtoboth "> Set password for user '$user' to '$upwd'" || logtoboth "> Set password for user '$user'"
 }
 
 sdm_adduser () {
@@ -323,7 +323,7 @@ function writeconfig() {
 		     expandroot exports fdirtree fgadgetmode fmouse fstab hdmiforcehotplug hdmiignoreedid \
 		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
-		     os passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
+		     os fnopassword passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
 		     raspiosver rclocal reboot redact regensshkeys frenamepi renamepi noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
 		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
@@ -522,6 +522,7 @@ function sdm_spawn() {
     # $1 - command
     # $2 - nspawn switches
     # Already mounted on $SDMPT
+    # SDMPT redefined to be "" during Phase 1 nspawn/chroot. [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
     local cmd="$1" nspawnsw="$2"
     if [[ "$virtmode" =~ "nspawn" ]]
@@ -529,7 +530,7 @@ function sdm_spawn() {
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
 	read s vers junk <<< $(systemctl --version)
 	[[ "$vers" -lt "242" ]] && cmode=""
-	systemd-nspawn -q --directory=$SDMPT $nspawnsw $cmode $cmd
+	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd
     else
 	#
 	# Copy appropriate qemu-${chroot}-static into the IMG

@@ -20,13 +20,13 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|country|localsrc|btwifidir|timeout|logfile|"
+loadparams
 
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "|country|"
     #
@@ -70,7 +70,6 @@ then
     #
     # Phase 1 (in nspawn)
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "|country|"
     #logfreespace "at start of Plugin $pfx Phase 1"
@@ -94,7 +93,6 @@ else
     #
     # Plugin Post-install edits
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "|country|"
     #logfreespace "at start of Plugin $pfx Phase post-install"

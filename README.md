@@ -75,19 +75,21 @@ Here are a few examples:
 
 * **Install applications**  &mdash; Editors (emacs, vim, etc), and any other packages you always install in a new system. sdm has two built-in package install lists, creatively named *apps* and *xapps*. You can select which of the two lists to include when you build an image, so you can build images with no additional apps, *apps* only, *xapps* only, or both.
 
-* **Install and configure VNC** &mdash; Have every system come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops.
+    See <a href="Docs/Example-Commands.md">Example Commands</a> for some examples, and also see the files sdm-apps-example and sdm-xapps-example in this GitHub.
+
+* **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/VNC.md">VNC</a>.
 
 * **Install and configure an Access Point (hotspot)** &mdash; Install a customizable, fully operational hotspot in any of three modes: *local*, *routed*, or *bridged*.
 
-* **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation
+* **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation. See <a href="Docs/Bootset-and-1piboot.md">`--bootset` and 1piboot</a>.
 
-* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system
+* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system. This can be done easily with a personal Plugin. See <a href="Docs/Example-Plugin.md">my personal plugin</a> for an example.
 
-* **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab
+* **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab. See <a href="Docs/fstab.md">fstab details</a>.
 
-* **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm
+* **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm. See `--svc-disable` and `--svc-disable` descriptions <a href="Docs/Command-Details.md">here</a>.
 
-* **Other customizations** &mdash; Done through a simple batch script. `sdm-customphase` is a skeleton Custom Phase Script that you can copy, modify, and use.
+* **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>.
 
 * **Burn SD Card Image for network distribution** &mdash; You can build a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
 
@@ -99,4 +101,4 @@ Here are a few examples:
 
 ## Complete sdm Documentation
 
-Need more details? You'll find complete details on sdm in the [Wiki](https://github.com/gitbls/sdm/wiki), and you can watch sdm in action [here](https://youtu.be/CpntmXK2wpA)
+Need more details? You'll find complete details on sdm in the <a href="Docs/index.md">online documentation</a>. You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a>

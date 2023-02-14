@@ -17,13 +17,13 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
+loadparams
 
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 0"
 
     logtoboth "> Plugin $pfx: download rxapp from GitHub to /usr/local/bin/rxapp and set protection"
@@ -37,7 +37,6 @@ then
     #
     # Phase 1 (in nspawn)
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
 
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -45,7 +44,6 @@ else
     #
     # Plugin Post-install edits
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
 
     logtoboth "* Plugin $pfx: Complete Phase post-install"

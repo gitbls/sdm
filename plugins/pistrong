@@ -1,0 +1,157 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: pistrong
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function get_servicename() {
+    for sn in strongswan strongswan-swanctl
+    do
+	if [ "$(systemctl list-unit-files --no-pager --no-legend $sn.service)" != "" ]
+	then
+	    echo "$sn"
+	    return
+	fi
+    done
+    echo "unknown"
+    return
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+vargs="|ipforward|"
+loadparams
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vargs"
+    plugin_printkeys
+    logtoboth "> Plugin $pfx: download pistrong components from GitHub"
+    logtoboth "> Plugin $pfx: curl -L https://github.com/gitbls/pistrong/raw/master/InstallPiStrong -o $SDMPT/usr/local/bin/InstallPiStrong"
+    curl -L https://github.com/gitbls/pistrong/raw/master/InstallPiStrong -o $SDMPT/usr/local/bin/InstallPiStrong
+    logtoboth "> Plugin $pfx: curl -L https://github.com/gitbls/pistrong/raw/master/pistrong -o $SDMPT/usr/local/bin/pistrong"
+    curl -L https://github.com/gitbls/pistrong/raw/master/pistrong -o $SDMPT/usr/local/bin/pistrong
+    logtoboth "> Plugin $pfx: curl -L https://github.com/gitbls/pistrong/raw/master/makeMyCA -o $SDMPT/usr/local/bin/makeMyCA"
+    curl -L https://github.com/gitbls/pistrong/raw/master/makeMyCA -o $SDMPT/usr/local/bin/makeMyCA
+    logtoboth "> Plugin $pfx: curl -L https://github.com/gitbls/pistrong/raw/master/makeTunnel -o $SDMPT/usr/local/bin/makeTunnel"
+    curl -L https://github.com/gitbls/pistrong/raw/master/makeTunnel -o $SDMPT/usr/local/bin/makeTunnel
+    chmod 755 $SDMPT/usr/local/bin/{InstallPiStrong,pistrong,makeMyCA,makeTunnel}
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    logtoboth "> Plugin $pfx: Install strongswan VPN server"
+    doaptrpterror "install --no-install-recommends --yes strongswan-swanctl strongswan-pki charon-systemd libcharon-extauth-plugins libcharon-extra-plugins libstrongswan-standard-plugins python3-pexpect iptables curl zip bind9-dnsutils" $showapt
+
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vargs"
+    [ "$ipforward" == "" ] && ipforward="no"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    logtoboth  "> Plugin $pfx: Create /etc/swanctl/pistrong directories..."
+    [ ! -d /etc/swanctl/conf.d ]   && mkdir /etc/swanctl/conf.d
+    [ ! -d /etc/swanctl/pistrong ] && mkdir -p /etc/swanctl/pistrong/{client-assets,server-assets,VPNClients,backup}
+    chmod 700 /etc/swanctl/pistrong/{client-assets,server-assets}
+    [ ! -d "/etc/swanctl/p12" ] && mkdir /etc/swanctl/p12 && chmod 750 /etc/swanctl/p12
+
+    if [[ "|yes|true|" =~ "$ipforward" ]]
+    then
+	logtoboth "> Plugin $pfx: Enable IP forwarding"
+	echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/92-pistrong.conf
+    fi
+    if [ ! -f /etc/strongswan.d/charon-systemd.conf-pistrong-orig ]
+    then
+	logtoboth "> Plugin $pfx: Disable VPN keep-alive log messages"
+        mv /etc/strongswan.d/charon-systemd.conf /etc/strongswan.d/charon-systemd.conf-pistrong-orig
+        cat >> /etc/strongswan.d/charon-systemd.conf <<EOF
+charon-systemd {
+    #
+    # Section to configure native systemd journal logger, very similar to the
+    # syslog logger as described in LOGGER CONFIGURATION in strongswan.conf(5).
+    # See https://wiki.strongswan.org/projects/strongswan/wiki/Loggerconfiguration
+    #
+    journal {
+
+        # Loglevel for a specific subsystem.
+        # <subsystem> = <default>
+
+        # Default loglevel.
+        # default = 1
+
+        # ** pistrong set {ENC,IKE,NET}=0 to turn off frequently irrelevant message logging
+        # ** comment out these lines to re-enable keep-alive message logging
+
+        enc = 0
+        ike = 0
+        net = 0
+
+    }
+}
+EOF
+    fi
+    sn="$(get_servicename)"
+    if [ "$sn" != "unknown" ]
+    then
+	pistrong config --service $sn.service
+	systemctl stop $sn > /dev/null 2>&1
+    else
+	logtoboth "%%Plugin $pfx: Could not find the strongSwan systemd service"
+	logtoboth "% Set it with 'sudo pistrong config --service servicename.service'"
+    fi
+    logtoboth ""
+    logtoboth "> Plugin $pfx: *** pistrong/strongswan service notes ***"
+    logtoboth "* Plugin $pfx:  * Complete configuration details: https://github.com/gitbls/pistrong"
+    logtoboth ""
+    logtoboth "* Plugin $pfx:  * Configure a VPN Server:"
+    logtoboth "* Plugin $pfx:    * Configure your CA. Use /usr/local/bin/makeMyCA to configure a CA"
+    logtoboth "* Plugin $pfx:      supporting Android/iOS/MacOS/Linux/Windows clients"
+    logtoboth "* Plugin $pfx:    * Configure email settings via pistrong if you intend to email certs (See 'Sending email' in the README)"
+    logtoboth "* Plugin $pfx:    * Configure iptables. See https://github.com/gitbls/pistrong/blob/master/README.md#firewall-considerations"
+    logtoboth "* Plugin $pfx:    * Configure strongSwan service to automatically start if desired"
+    logtoboth "* Plugin $pfx:    * Add port forwards on your router to this system for UDP ports 500 and 4500"
+    logtoboth "* Plugin $pfx:    * Set up dynamic DNS (or use a static External IP Address) for best results"
+    logtoboth "* Plugin $pfx:    * Add user Certs (See pistrong help and pistrong add --help for command details)"
+    logtoboth ""
+    logtoboth "* Plugin $pfx:  * Configure a VPN Client:"
+    logtoboth "* Plugin $pfx:    * Once you receive the VPN Cert Pack from the VPN Server manager"
+    logtoboth "* Plugin $pfx:      install it with 'sudo pistrong client install'"
+    logtoboth "* Plugin $pfx:    * Then:"
+    logtoboth "* Plugin $pfx:      * 'sudo systemctl enable [--now] strongswan' to enable the strongSwan service"
+    logtoboth "* Plugin $pfx:      * --now is optional and starts the service in addition to enabling it"
+    logtoboth "* Plugin $pfx:  * When you have completed all these steps, reboot the system and make sure everything works"
+    logtoboth ""
+    logtoboth "* Plugin $pfx:  * Configure a Site-to-Site or Host-to-Host Tunnel:"
+    logtoboth "* Plugin $pfx:    * See /usr/local/bin/makeTunnel"
+    logtoboth "* Plugin $pfx:    * Quick video of makeTunnel in action: https://www.youtube.com/watch?v=mUitM2JeKRc"
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth ""
+    logtoboth "* Plugin $pfx:  * pistrong documentation: https://github.com/gitbls/pistrong"
+    logtoboth ""
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

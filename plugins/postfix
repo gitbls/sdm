@@ -18,13 +18,13 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|relayhost|main_mailer_type|mailname|maincf|domain|rootmail|"
+loadparams
 
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 0"
 
     plugin_getargs $pfx "$args" "$vldargs"
@@ -47,7 +47,6 @@ then
     #
     # Phase 1 (in nspawn)
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
     plugin_getargs $pfx "$args" "$vldargs"
@@ -66,7 +65,6 @@ else
     #
     # Plugin Post-install edits
     #
-    loadparams
     logtoboth "* Plugin $pfx: Start Phase post-install"
     #logfreespace "at start of Plugin $pfx Phase post-install"
 
