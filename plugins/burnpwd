@@ -116,7 +116,7 @@ EOF
 	fi
 	rm -f $burnpwd
     else
-	logtoboth "?!Plugin $pfx: Cannot find file '$burnpwd; was there an error in Plugin burn-passwords Phase 0?"
+	[ "$pwuser" != "" ] && logtoboth "?!Plugin $pfx: Cannot find file '$burnpwd; was there an error in Plugin burn-passwords Phase 0?"
     fi
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
