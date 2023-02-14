@@ -250,89 +250,128 @@ then
 fi
 
 logtoboth "*+Phase 1 User configuration"
+#
+# Handle --rename-user
+#
+if [ $frenamepi -eq 1 ]
+then
+    # Replicate functionality in /lib/userconf-pi/userconf
+    firstuser="$(getent passwd 1000 | (IFS=":" read un rest ; echo $un))"
+    firstgroup="$(getent group 1000 | (IFS=":" read gn rest ; echo $gn))"
+    logtoboth "> Rename user '$firstuser' to '$myuser'"
+    if grep -q ^pi: /etc/passwd
+    then
+	if ! grep -q ^$myuser: /etc/passwd
+	then
+	    usermod --login $myuser $firstuser
+	    usermod --move-home --home /home/$myuser $myuser
+	    groupmod --new-name $myuser $firstgroup
+	    for file in /etc/subuid /etc/subgid
+	    do
+		sed -i "s/^$firstuser:/$myuser:/" $file
+	    done
+	    sudofile="010_$firstuser-nopasswd"
+	    if [ -f /etc/sudoers.d/$sudofile ]
+	    then
+		chmod 755 /etc/sudoers.d/$sudofile
+		sed -i "s/^$firstuser /$myuser /" /etc/sudoers.d/$sudofile
+		chmod 440 /etc/sudoers.d/$sudofile
+		mv /etc/sudoers.d/$sudofile /etc/sudoers.d/${sudofile/$firstuser/$myuser}
+	    fi
+	else
+	    logtoboth "% Skip --rename-pi; User '$myuser' already exists"
+	fi
+    fi
+fi
 samepwd=""
 usesamepwd=0
 puser="'$myuser'"
 susers="user"
-#pipw="$((grep -E "^pi:" /etc/shadow) | (IFS=":" read un pw tr ; echo "$pw"))"
-[ ${raspiosver} -ge 11 ] && oldpios=0 || oldpios=1
+if [ $fnopassword -eq 0 ]
+then
+    [ ${raspiosver} -ge 11 ] && oldpios=0 || oldpios=1
 
-[ $oldpios -eq 1 -a "$myuser" != "pi" ] && puser="${puser} and 'pi'" && susers="users"        # Only ask about pi on older systems
-[ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
-usesamepwd=$passwordsame
-if [ $usesamepwd -eq 0 -a "$susers" == "users" ]
-then
-    askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
-    echo ""
-elif [ $usesamepwd -eq 1 ]
-then
-    [ "$susers" == "users" ] && logtoboth "> Using same password for $susers $puser"
-    [ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
-    [ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
-    [ "$samepwd" == "" -a "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
-fi
-if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
-then
-    while [ true ]
-    do
-	echo -n "** Enter password to use for $susers $puser: "
-	samepwd=$(getpwd)
-	echo ""
-	[ "$samepwd" != "" ] && break
-    done
-fi
-[ $usesamepwd -eq 0 -a "$myuser" == "pi" -a "$passworduser" == "" ] && passworduser="$passwordpi"
-if [ "$myuser" != "" ]
-then
-    [ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
-    # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
-    if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
+    [ $oldpios -eq 1 -a "$myuser" != "pi" -a $frenamepi -eq 0 ] && puser="${puser} and 'pi'" && susers="users"        # Only ask about pi on older systems
+    [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
+    usesamepwd=$passwordsame
+    if [ $usesamepwd -eq 0 -a "$susers" == "users" ]
     then
-	logtoboth "> Add user '$myuser'"
-	useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
-	usermod --gid users $myuser
-	usermod --groups $groups $myuser
-    else
-	if [ "$xuid" != "" ]
+	askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
+	echo ""
+    elif [ $usesamepwd -eq 1 ]
+    then
+	[ "$susers" == "users" ] && logtoboth "> Using same password for $susers $puser"
+	[ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
+	[ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
+	[ "$samepwd" == "" -a "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
+    fi
+    if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
+    then
+	while [ true ]
+	do
+	    echo -n "** Enter password to use for $susers $puser: "
+	    samepwd=$(getpwd)
+	    echo ""
+	    [ "$samepwd" != "" ] && break
+	done
+    fi
+    if [ $usesamepwd -eq 0 -a "$passworduser" == "" ]
+    then
+	[ "$myuser" == "pi" -o $frenamepi -eq 1 ] && passworduser="$passwordpi"
+    fi
+    if [ "$myuser" != "" ]
+    then
+	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
+	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
+	if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
 	then
-	    logtoboth "> Set user '$myuser' UID to '$myid'"
-	    usermod $xuid $myuser
+	    logtoboth "> Add user '$myuser'"
+	    useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
+	    usermod --gid users $myuser
+	    usermod --groups $groups $myuser
+	else
+	    if [ "$xuid" != "" ]
+	    then
+		logtoboth "> Set user '$myuser' UID to '$myid'"
+		usermod $xuid $myuser
+	    fi
+	fi
+	# Do this manually since we have to use --no-create-home (dir already created in Phase 0)
+	for f in /etc/skel/.* /etc/skel/*
+	do
+	    [ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp $f /home/$myuser )
+	done
+	[ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
+	changepwd $myuser "$upwd"
+	[ ! -d /home/$myuser ] && mkdir /home/$myuser
+	[ "$myuser" != "pi" ] && gr="users" || gr="pi"
+	logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
+	chown -R ${myuser}.${gr} /home/$myuser
+	if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
+	then
+	    logtoboth "> Add user '$myuser' to sudoers.d"
+	    echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
+	    chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
 	fi
     fi
-    # Do this manually since we have to use --no-create-home (dir already created in Phase 0)
-    for f in /etc/skel/.* /etc/skel/*
-    do
-	[ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp $f /home/$myuser )
-    done
-    [ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
-    logtoboth "> Set password for user '$myuser'"
-    changepwd $myuser "$upwd"
-    [ ! -d /home/$myuser ] && mkdir /home/$myuser
-    [ "$myuser" != "pi" ] && gr="users" || gr="pi"
-    logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
-    chown -R ${myuser}.${gr} /home/$myuser
-    if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
+    if [ $oldpios -eq 1 ]
     then
-	logtoboth "> Add user '$myuser' to sudoers.d"
-	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
-	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
+	logtoboth "> Change user 'pi' password"
+	[ "$samepwd" == "" ] && samepwd="$passwordpi"
+	changepwd pi "$samepwd"
+	logtoboth "> Set /home/pi files ownership to 'pi.pi'"
+	chown -R pi.pi /home/pi
     fi
-fi
-if [ $oldpios -eq 1 ]
-then
-    logtoboth "> Change user 'pi' password"
-    [ "$samepwd" == "" ] && samepwd="$passwordpi"
-    changepwd pi "$samepwd"
-    logtoboth "> Set /home/pi files ownership to 'pi.pi'"
-    chown -R pi.pi /home/pi
-fi
-if [ $rootpwd -eq 1 ]
-then
-    logtoboth "> Set root password"
-    [ $usesamepwd -eq 1 ] && rpwd="$samepwd" || rpwd="$passwordroot"
-    changepwd root "$rpwd"
+    if [ $rootpwd -eq 1 ]
+    then
+	logtoboth "> Set root password"
+	[ $usesamepwd -eq 1 ] && rpwd="$samepwd" || rpwd="$passwordroot"
+	changepwd root "$rpwd"
+    else
+	logtoboth "> root password not set"
+    fi
 else
-    logtoboth "> root password not set"
+    logtoboth "> Skip password processing per --nopassword"
 fi
 logtoboth "*+Phase 1 System and Boot Configuration"
 #

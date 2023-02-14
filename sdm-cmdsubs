@@ -95,6 +95,32 @@ function expandpartition() {
     #errifrc $? "? sfdisk expand last partition failed with status"
 }
 
+function updateplugins() {
+    #
+    # Loop through plugin list and copy any updated versions into $SDMPT
+    #
+    if [ "$plugins" != "" ]
+    then
+	IFS="~" read -a plugs <<< $plugins
+	for p in "${plugs[@]}"
+	do
+	    p="${p%:*}"
+	    pf=0
+	    for d in  $(dirname $p) $src/local-plugins $src/plugins
+	    do
+		pn=$(basename $p)
+		if [ -f $d/$pn ]
+		then
+		    [ "$d" == "$(dirname $p)" ] && tgt="/usr/local/sdm/local-plugins" || tgt="/usr/local/sdm/$(basename $d)"
+		    copyifnewer $d/$pn $SDMPT/$tgt && logtoboth "% Update plugin '$pn' from '$d/$pn' to $SDMPT$tgt"
+		    pf=1
+		    break
+		fi
+	    done
+	done
+    fi
+}
+
 function sdm_burndevfile() {
 
     # Stash burn messages in an array until log on SD Card is mounted and available 
@@ -227,6 +253,7 @@ function sdm_burndevfile() {
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
 	redact=$((bredact|redact))
+	[ $fupdateplugins -eq 1 -a "$bplugins" != "" ] && updateplugins
 	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"

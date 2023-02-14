@@ -142,7 +142,7 @@ done
 
 logtoboth "*+Phase 0 Raspberry Pi-specific configuration"
 
-if [ "$myuser" != "" ]
+if [ "$myuser" != "" -a $frenamepi -eq 0 ]
 then
     #
     # Create user directory now, so that Custom Phase Script can copy into it if desired
