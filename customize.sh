@@ -7,7 +7,7 @@
 #[ $DEBUG -ge 2 ] && set -x                                               # Debugging
 [ $DEBUG -ge 1 ] && export DEBUG
                                                     # a non-zero status, or zero if no command exited with a non-zero status.
-declare -x baseDirectory           && baseDirectory=${baseDirectory:-/home/carl/dev/origsdm}
+declare -x baseDirectory           && baseDirectory=${baseDirectory:-/home/carl/dev/sdm}
 declare -x baseImage               #&& baseImage=${baseImage:-2022-09-22-raspios-bullseye-arm64-lite.img}
 declare -x baseImageDirectory      && baseImageDirectory=${baseImageDirectory:-"baseos"}
 declare -x hostName                && hostName=${hostName:-"rpicm4-1"}
