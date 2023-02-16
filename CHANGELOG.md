@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.9.1
+
+* Make `--user` handling independent of `--nopassword`.
+
 ## V7.9
 
 * Wiki documentation updated and completely moved to this github Docs/ directory. Wiki will be removed soon
