@@ -282,7 +282,40 @@ then
 	    logtoboth "% Skip --rename-pi; User '$myuser' already exists"
 	fi
     fi
+elif [ "$myuser" != "" ] # and not --rename-pi 
+then
+    [ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
+    # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
+    if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
+    then
+	logtoboth "> Add user '$myuser'"
+	useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
+	usermod --gid users $myuser
+	usermod --groups $groups $myuser
+    else
+	if [ "$xuid" != "" ]
+	then
+	    logtoboth "> Set user '$myuser' UID to '$myid'"
+	    usermod $xuid $myuser
+	fi
+    fi
+    # Do this manually since we have to use --no-create-home (dir already created in Phase 0)
+    for f in /etc/skel/.* /etc/skel/*
+    do
+	[ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp $f /home/$myuser )
+    done
+    [ ! -d /home/$myuser ] && mkdir /home/$myuser
+    [ "$myuser" != "pi" ] && gr="users" || gr="pi"
+    logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
+    chown -R ${myuser}.${gr} /home/$myuser
+    if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
+    then
+	logtoboth "> Add user '$myuser' to sudoers.d"
+	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
+	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
+    fi
 fi
+
 samepwd=""
 usesamepwd=0
 puser="'$myuser'"
@@ -321,38 +354,8 @@ then
     fi
     if [ "$myuser" != "" ]
     then
-	[ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
-	# Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
-	if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
-	then
-	    logtoboth "> Add user '$myuser'"
-	    useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
-	    usermod --gid users $myuser
-	    usermod --groups $groups $myuser
-	else
-	    if [ "$xuid" != "" ]
-	    then
-		logtoboth "> Set user '$myuser' UID to '$myid'"
-		usermod $xuid $myuser
-	    fi
-	fi
-	# Do this manually since we have to use --no-create-home (dir already created in Phase 0)
-	for f in /etc/skel/.* /etc/skel/*
-	do
-	    [ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp $f /home/$myuser )
-	done
 	[ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
 	changepwd $myuser "$upwd"
-	[ ! -d /home/$myuser ] && mkdir /home/$myuser
-	[ "$myuser" != "pi" ] && gr="users" || gr="pi"
-	logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
-	chown -R ${myuser}.${gr} /home/$myuser
-	if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
-	then
-	    logtoboth "> Add user '$myuser' to sudoers.d"
-	    echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
-	    chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
-	fi
     fi
     if [ $oldpios -eq 1 ]
     then
