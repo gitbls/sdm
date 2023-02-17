@@ -71,7 +71,7 @@ then
     then
 	logtoboth "%!Plugin $pfx: No username provided and no user found in customized IMG"
 	errors=$((errors+1))
-    elif ! grep -q ^$pwuser: /etc/passwd
+    elif [ "$(getent passwd $pwuser)" == "" ]   ###! grep -q ^$pwuser: /etc/passwd
     then
 	logtoboth "%!Plugin $pfx: Username '$pwuser' not found in customized IMG"
 	savepassword "$pwuser" "sdmNOUSER"
@@ -87,6 +87,7 @@ then
 	    random) userpwd=$(date +%s | sha256sum | base64 | head -c $length ; echo)
 		    # Another method: < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-$length};echo
  		    savepassword "$pwuser" "$userpwd"
+		    [ "$log" == "" ] && logtoboth "%!Plugin $pfx: No log specified to remember random password; Hope you have ESP!"
 		    ;;
 	    *)      logtoboth "% Plugin $pfx: Unrecognized password method '$method' ignored"
 		    ;;
