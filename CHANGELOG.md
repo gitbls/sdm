@@ -1,5 +1,14 @@
 # Changelog
 
+## V7.10
+
+* Add new plugin burnpwd that will either prompt for a user's password or generate a random password, wih neither being stored in the IMG
+* Add missing "delete loop device" to `--burnfile` after the burn
+* Check for new plugins and new sdm files on the host relative to what is written to the burned output
+* Add `--bupdate` to check and update plugins in the burned output
+* Improve handling of SDMNSPAWN so it's always correct
+* Set netman default to "" instead of dhcpcd. Default is now whatever is already installed instead of dhcpcd
+
 ## V7.9.1
 
 * Make `--user` handling independent of `--nopassword`.
