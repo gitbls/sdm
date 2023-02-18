@@ -71,7 +71,8 @@ then
     then
 	logtoboth "%!Plugin $pfx: No username provided and no user found in customized IMG"
 	errors=$((errors+1))
-    elif [ "$(getent passwd $pwuser)" == "" ]   ###! grep -q ^$pwuser: /etc/passwd
+    # ** This is Phase 0 so can't use getent
+    elif ! grep -q ^$pwuser: $SDMPT/etc/passwd
     then
 	logtoboth "%!Plugin $pfx: Username '$pwuser' not found in customized IMG"
 	savepassword "$pwuser" "sdmNOUSER"
