@@ -64,6 +64,10 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--bootconfig` *key:value,key:value,...* &mdash; Update existing, commented keys in /boot/config.txt
 * `--bootset`  *key:value,key:value,...* &mdash; Change system configuration settings. See <a href="Bootset-and-1piboot.md">Bootset and 1piboot</a>. Note that `key=value` can also be used.
 * `--bootscripts` &mdash; Directs sdm-firstboot to run the boot scripts in 1piboot/*.sh. If `--bootscripts` is specified when creating the sdm-enhanced IMG, every SD Card burned will run the boot scripts on First Boot. If not specified on IMG creation, it can be also be specified when burning the SD Card to run the boot scripts on that SD Card.
+* `--bupdate` *item* &mdash; Used only on `--burn` command. *item* can be **plugin**: Check and update plugins
+    * Best to not include it always unless you know what you're doing
+    * `--bupdate` is only honored on a burn command, and is not inspected during a customize command
+    * This is very handy when you're in the process of developing a new plugin or updating an existing plugin
 * `--cron-d` *file* &mdash; Copy the cron file to /etc/cron.d. `--cron-d` can be specified multiple times to copy multiple files.
 * `--cron-hourly` *file* &mdash; Copy the cron file to /etc/cron.hourly. `--cron-hourly` can be specified multiple times to copy multiple files.
 * `--cron-daily` *file* &mdash; Copy the cron file to /etc/cron.daily. `--cron-daily` can be specified multiple times to copy multiple files.
