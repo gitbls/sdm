@@ -20,7 +20,6 @@ function copycufiles() {
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
-declare -x SDMNSPAWN="Phase0"
 source $SDMPT/etc/sdm/sdm-readparams
 
 logtoboth "* Start Phase 0 image customization"

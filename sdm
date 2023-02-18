@@ -394,6 +394,7 @@ Command Switches for --customize and --burn or as noted
  --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
  --bootset key:value,key:value,.. Set boot-time device settings (see README)
  --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
+ --bupdate plugin    Check and update sdm plugins on burned output; See documentation for details
  --cron-d file       Copy provided cron file to /etc/cron.d (can be used multiple times)
  --cron-daily file   Copy provided cron file to /etc/cron.daily (can be used multiple times)
  --cron-hourly file  Copy provided cron file to /etc/cron.hourly (can be used multiple times)
@@ -489,7 +490,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.9.1"
+version="V7.10"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -505,6 +506,7 @@ bootadd=""                  #Items to add to /boot/config.txt
 bootconfig=""               #/boot/config.txt items to set
 bootscripts=0               #Run FirstBoot custom boot scripts
 bootsetpairs=""             #Keys and values from --bootet
+bupdate=""                  #--bupdate options selected
 burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
 burnfile=0                  #1=Burn image to a file
@@ -547,7 +549,6 @@ fnowpa=0                    #1=I really man no automatic no wpa config
 fppart=0                    #1=Print partition tables in an IMG
 frenamepi=0                 #1=--rename-pi selected
 fshrink=0                   #1=Shrink the IMG
-fupdateplugins=0            #1=Copy any found updated plugins into the burned output
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
 hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
@@ -575,7 +576,7 @@ modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
-netman="dhcpcd"             #--netman
+netman=""                   #--netman. Default is whatever is installed
 noreboot=0                  #1=Do not restart system after first boot
 nouser=0                    #1=Do not require a user to be specified
 nowaittimesync=0            #1=Don't wait for time to sync in sdm-firstboot
@@ -607,6 +608,7 @@ sdfnsystem=""               #File to augment /etc/systemd/system.conf
 sdfntimesync=""             #File to augment /etc/systemd/timesyncd.conf
 sdfnuser=""                 #File to augment /etc/ysstemd/user.conf
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg sdm-gburn"
 showpwd=0                   #1=Log password into /etc/sdm/history
 ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
                             #  Default is to write /boot/ssh
@@ -626,6 +628,7 @@ vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
 vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
+vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
 vvirtopts="|nspawn|chroot|"
 vncbase="5900"              # Base port for VNC socket services
 vqemu=""                    # Qemu architecture to use in chroot
@@ -657,7 +660,7 @@ mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,
 nopassword,password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
 ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,rename-pi:,restart,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
-sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,update-plugins,user:,\
+sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,bupdate:,user:,\
 vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
 custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
 
@@ -774,7 +777,7 @@ do
 	--timezone)    timezone=$2   ; shift 2 ;;
 	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
-	--update-plugins) fupdateplugins=1 ; shift 1 ;;
+	--bupdate)     [ "$bupdate" == "" ] && bupdate="$2" || bupdate="$bupdate|$2" ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
 	--virt)        virtmode=$2   ; shift 2 ;;
 	--vncbase)     vncbase="$2"  ; shift 2 ;;
@@ -921,6 +924,8 @@ aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
 exitiferr "$aptmaint"
 journal=$(poptcheck "$journal" "$vjournalopts" "--journal")
 exitiferr "$journal"
+bupdate=$(poptcheck "$bupdate" "$vbupdopts" "--bupdate")
+exitiferr "$bupdate"
 #virtmode=$(poptcheck "$virtmode" "$vvirtopts" "--virt")
 #exitiferr "$virtmode"
 journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
@@ -1272,7 +1277,7 @@ else
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
     mkdir -p $SDMPT/$sdmdir/1piboot
-    for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg sdm-gburn
+    for f in $sdmflist
     do
 	cp $src/$f $SDMPT/$sdmdir
     done
@@ -1352,6 +1357,7 @@ else
     #
     # Perform Phase 0 on the image
     #
+    declare -x SDMNSPAWN="Phase0"
     $SDMPT/$sdmdir/sdm-phase0
     touch $sdmdone
     
@@ -1361,7 +1367,7 @@ fi
 
 [ $icolors -eq 1 -a -t 0 -a "$spawncmd" == "" ] || icolors=0
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
-sdm_spawn "$spawncmd" "$nspawnsw"
+sdm_spawn "$spawncmd" "$nspawnsw" Phase1
 [ $icolors -eq 1 ] && resetcolors xt
 
 exit 0

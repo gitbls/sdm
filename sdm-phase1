@@ -115,7 +115,6 @@ function doctrlcp1() {
 #
 # Read configuration information from sdm
 #
-declare -x SDMNSPAWN="Phase1"
 source /etc/sdm/sdm-readparams
 
 #
@@ -259,9 +258,9 @@ then
     firstuser="$(getent passwd 1000 | (IFS=":" read un rest ; echo $un))"
     firstgroup="$(getent group 1000 | (IFS=":" read gn rest ; echo $gn))"
     logtoboth "> Rename user '$firstuser' to '$myuser'"
-    if grep -q ^pi: /etc/passwd
+    if getent passwd $firstuser > /dev/null # grep -q ^pi: /etc/passwd
     then
-	if ! grep -q ^$myuser: /etc/passwd
+	if ! getent passwd $myuser > /dev/null # ! grep -q ^$myuser: /etc/passwd
 	then
 	    usermod --login $myuser $firstuser
 	    usermod --move-home --home /home/$myuser $myuser
@@ -286,7 +285,7 @@ elif [ "$myuser" != "" ] # and not --rename-pi
 then
     [ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
     # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
-    if ! grep -E "^${myuser}:" /etc/passwd > /dev/null 2>&1
+    if ! getent passwd $myuser > /dev/null
     then
 	logtoboth "> Add user '$myuser'"
 	useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
@@ -331,7 +330,8 @@ then
     then
 	askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
 	echo ""
-    elif [ $usesamepwd -eq 1 ]
+    fi
+    if [ $usesamepwd -eq 1 ]
     then
 	[ "$susers" == "users" ] && logtoboth "> Using same password for $susers $puser"
 	[ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
@@ -860,7 +860,10 @@ cklogfreespace "at end of image customization"
 #
 # Check for apt errors in the apt log
 #
-grep -q "^E:" /etc/sdm/apt.log && logtoboth "?!apt reported errors; review /etc/sdm/apt.log"
+if [ -f /etc/sdm/apt.log ]
+then
+    grep -q "^E:" /etc/sdm/apt.log && logtoboth "?!apt reported errors; review /etc/sdm/apt.log"
+fi
 
 if [ $fbatch -eq 0 ]
 then

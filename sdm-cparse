@@ -52,8 +52,9 @@ function getpwd() {
 }
 
 function changepwd() {
+    # Must be in the container (Phase 1 or post-install)
     local user="$1" tpwd="$2" upwd
-    if ! grep -q -E "^${user}:" /etc/passwd > /dev/null 2>&1
+    if ! getent passwd $user > /dev/null
     then
 	logtoboth "% Cannot change password for ${user}; user not found in /etc/passwd"
 	return
@@ -325,7 +326,7 @@ function writeconfig() {
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
 		     os fnopassword passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
 		     raspiosver rclocal reboot redact regensshkeys frenamepi renamepi noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
-		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir showapt showpwd src ssh swapsize svcdisable \
+		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir sdmflist showapt showpwd src ssh swapsize svcdisable \
 		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
 		     custom3 custom4
     do
@@ -338,22 +339,26 @@ function runoneplugin() {
     # Run the plugin $1 for the phase specified in $2 with args in $3
     # By the time we get here plugin will be in the sdmdir hierarchy
     #
-    local mnt="$SDMPT" p=$(basename $1) phase=$2 pargs="$3"
+    local p=$(basename $1) phase=$2 pargs="$3" sts=1
     [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
-    for d in $mnt$sdmdir/local-plugins $mnt$sdmdir/plugins
+    for d in $SDMPT$sdmdir/local-plugins $SDMPT$sdmdir/plugins
     do
         if [ -f $d/$p ]
 	then
 	    logtoboth "> Run Plugin '$p' ($d/$p) Phase $phase $argstr"
-	    [ -x $d/$p ] && $d/$p "$phase" "$pargs" || logtoboth "!!Plugin '$p' file '$d/$p' not executable"
-	    break
+	    if [ -x $d/$p ]
+	    then
+		$d/$p "$phase" "$pargs"
+		sts=0
+		break
+	    else
+		logtoboth "!!Plugin '$p' file '$d/$p' not executable"
+		break
+	    fi
+	#else
 	fi
     done
-    if [ ! $? ] #exit status 0 if break end, 1 if loop completed
-    then
-	logtoboth "!!Diagnostic: $SDMNSPAWN|$SDMPT|$mnt|$sdmdir|$(ls $mnt$sdmdir/$plugins)"
-	logtoboth "? Unable to find Plugin '$p'; Confounded..."
-    fi
+    [ $sts -eq 1 ] && logtoboth "? Unable to find Plugin '$p'"
 }
 
 function runonepluginx() {
@@ -513,6 +518,7 @@ function chroot_cleanup() {
 function ctrlchroot() {
     echo "% Caught CTRL/C in chroot; Cleaning up..."
     declare -x SDMPT="$OLDSDMPT"
+    declare -x SDMNSPAWN="$OLDSDMNSPAWN"
     chroot_cleanup
     exit 1
 }
@@ -521,15 +527,17 @@ function sdm_spawn() {
     #
     # $1 - command
     # $2 - nspawn switches
+    # $3 - setting for SDMNSPAWN
     # Already mounted on $SDMPT
     # SDMPT redefined to be "" during Phase 1 nspawn/chroot. [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
-    local cmd="$1" nspawnsw="$2"
+    local cmd="$1" nspawnsw="$2" nsp="$3"
     if [[ "$virtmode" =~ "nspawn" ]]
     then
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
 	read s vers junk <<< $(systemctl --version)
 	[[ "$vers" -lt "242" ]] && cmode=""
+	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
 	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd
     else
 	#
@@ -561,11 +569,14 @@ function sdm_spawn() {
 	fi
 	[ "$qemu" != "" ] && cp $qemu $SDMPT/usr/bin
 	declare -x OLDSDMPT="$SDMPT"
+	declare -x OLDSDMNSPAWN="$SDMNSPAWN"
 	trap "ctrlchroot" SIGINT
 	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
 	declare -x SDMPT=""
+	declare -x SDMNSPAWN="$nsp"
 	chroot $OLDSDMPT $qemu /bin/bash $cmd
 	declare -x SDMPT="$OLDSDMPT"
+	declare -x SDMNSPAWN="$OLDSDMNSPAWN"
 	trap SIGINT
 	chroot_cleanup
     fi
@@ -691,6 +702,21 @@ function copyifnewer() {
     return 0
 }
 
+function checkifnewer() {
+    # Checks $1 and $2 to see if $1 is newer
+    # Target must have same basename as src (no rename as part of the check)
+    # Target can be a directory or a dir/$(basename $1)
+    # Return true if $1 newer, false if not
+    local src=$1 dst=$2
+    local fn=$(basename $src)
+    [ "$fn" != "$(basename $dst)" ] && dst="$dst/$fn"
+    if [ -f "$dst" ]
+    then
+	[ "$1" -nt "$dst" ] && return 0 || return 1
+    fi
+    return 0  # Doesn't exist, so $1 is newer
+}
+
 function getfinalbbh {
     #
     # Get boot_behaviour from auto-1piboot if provided
@@ -776,7 +802,7 @@ EOF
 		[ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
 		systemctl disable userconfig.service > /dev/null 2>&1
 		systemctl mask    userconfig.service > /dev/null 2>&1
-		[ "$(getent passwd rpi-first-boot-wizard)" != "" ] && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
+		getent passwd rpi-first-boot-wizard > /dev/null && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
 		rm -f /etc/sudoers.d/010_wiz-nopasswd
 		rm -f /etc/xdg/autostart/deluser.desktop
 		;;

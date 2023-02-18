@@ -95,30 +95,44 @@ function expandpartition() {
     #errifrc $? "? sfdisk expand last partition failed with status"
 }
 
-function updateplugins() {
+function checkupdsdm() {
     #
-    # Loop through plugin list and copy any updated versions into $SDMPT
-    #
-    if [ "$plugins" != "" ]
-    then
-	IFS="~" read -a plugs <<< $plugins
-	for p in "${plugs[@]}"
+    # Loop through sdm files and plugins and check for any newer ones on host
+    # Warn or update if so
+    # $1: 'check' to report, or 'update' to check and update
+    # $2: bupdate (sdm, plugin, or sdm+plugin (--bupdate))
+    local copt=$1 bup=$2
+
+    for fsdm in $sdmflist
+    do
+	case "$copt" in
+	    check)
+		checkifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "%!sdm file '$fsdm' on the host is newer"
+		;;
+	    update)
+		[[ "$bup" =~ "sdm" ]] && copyifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% Update sdm file '$fsdm' from the host to '$SDMPT$sdmdir"
+		;;
+	esac
+    done
+
+    for plugdir in local-plugins plugins
+    do
+	for pfn in $sdmdir/$plugdir/*
 	do
-	    p="${p%:*}"
-	    pf=0
-	    for d in  $(dirname $p) $src/local-plugins $src/plugins
-	    do
-		pn=$(basename $p)
-		if [ -f $d/$pn ]
-		then
-		    [ "$d" == "$(dirname $p)" ] && tgt="/usr/local/sdm/local-plugins" || tgt="/usr/local/sdm/$(basename $d)"
-		    copyifnewer $d/$pn $SDMPT/$tgt && logtoboth "% Update plugin '$pn' from '$d/$pn' to $SDMPT$tgt"
-		    pf=1
-		    break
-		fi
-	    done
+	    if [ "$pfn" != "$sdmdir/$plugdir/*" ]
+	    then
+		bpfn=$(basename $pfn)
+		case "$copt" in
+		    check)
+			checkifnewer $sdmdir/$plugdir/$bpfn $SDMPT/$sdmdir/$plugdir && logtoboth "%!Plugin '$bpfn' on the host is newer"
+			;;
+		    update)
+			[[ "$bup" =~ "plugin" ]] && copyifnewer $sdmdir/$plugdir/$bpfn $SDMPT/$sdmdir/$plugdir && logtoboth "%!Update plugin '$bpfn' from '$sdmdir/$plugdir' to '$SDMPT$sdmdir/$plugdir'"
+			;;
+		esac
+	    fi
 	done
-    fi
+    done
 }
 
 function sdm_burndevfile() {
@@ -195,6 +209,7 @@ function sdm_burndevfile() {
 	olddiskid="$((blkid -o value $burnfilefile) | (read id ; echo $id))"
 	loopdev=$(losetup --show -P -f $burnfilefile)
 	setdiskid $loopdev $newdiskid
+	losetup -d $loopdev
 	domount "$burnfilefile"
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
@@ -229,6 +244,8 @@ function sdm_burndevfile() {
 	    eval b$e=\${!e}
 	done
 	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
+	# --bupdate must specified on the burn command line
+	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	initvirt logtoboth
 	# Update settings with settings from cmd line as appropriate
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
@@ -253,7 +270,6 @@ function sdm_burndevfile() {
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
 	redact=$((bredact|redact))
-	[ $fupdateplugins -eq 1 -a "$bplugins" != "" ] && updateplugins
 	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
@@ -353,6 +369,7 @@ function sdm_burndevfile() {
 	bcp=""
 	if [ "$bmyuser" != "" -a "$bpassworduser" == "" ]
 	then
+	    # Not in container so can't use getent
 	    if grep -q ^$myuser: $SDMPT/etc/passwd
 	    then
 		logtoboth "% User $myuser already exists; Skipping..."
@@ -394,35 +411,35 @@ function sdm_burndevfile() {
 	then
 	    runplugins 0
 	fi
-	declare -x SDMNSPAWN="Burn1"
+	#declare -x SDMNSPAWN="Burn1"
 	if [ -d $SDMPT/etc/lightdm ]
 	then
 	    if [ $breboot -eq 1 ]
 	    then
-		sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-delay"
+		sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-delay" "" Burn1
 	    else
-		[ $bautologin -eq 1 ] && sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-autologin"
+		[ $bautologin -eq 1 ] && sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-autologin" "" Burn1
 	    fi
 	fi
 	if [ "$bdisables" != "" ]
 	then
 	    logtoboth "> Process --disable $bdisables"
-	    sdm_spawn "$sdmdir/sdm-phase1 do-disables"
+	    sdm_spawn "$sdmdir/sdm-phase1 do-disables" "" Burn1
 	fi
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords or add user per --user, --password-pi, --password-user, and/or --password-root"
-	    sdm_spawn "$sdmdir/sdm-phase1 b1script $(basename $bcp)"
+	    sdm_spawn "$sdmdir/sdm-phase1 b1script $(basename $bcp)" "" Burn1
 	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
-	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script"
+	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script" "" Burn1
 	fi
 	if [ "$plugins" != "" ]
 	then
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "--setenv=SDMNSPAWN=Burn1"
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install"  "--setenv=SDMNSPAWN=Burn1"
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "" Burn1
+	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "" Burn1
 	fi
 	#
 	# Redact passwords if requested
