@@ -75,6 +75,19 @@ btwifiset is a service that enables WiFi SSID and password configuration over Bl
 * **timeout** &mdash; After *timeout* seconds the btwifiset service will exit [Default: *15 minutes*]
 * **logfile** &mdash; Full path to btwifiset log file [Default: *Writes to syslog*]
 
+### burnpwd
+
+burnpwd enables you to defer setting the password on an account until the SD card is actually burned,. To use burnpwd, use the `--nopassword` switch during customization, and add `--burnpwd username:"arguments"` to the sdm burn command. burnpwd can either prompt for the password, or it can generate a random password.
+
+The password is not stored in an unencrypted form anywhere on the burned output device. You can use the *log* argument to burnpwd to direct burnpwd to log passwords **on the host**, which is handy, especially if you have burnpwd generate a random password.
+
+#### Arguments
+
+* **user** &mdash; The username to set the password for. The user must already exist in the IMG. If you need to do multiple users, add the `--burnpwd` switch multiple times.
+* **method** &mdash; Specifies the method to obtain the password. *prompt* will prompt for the password; *random* will generate a random password
+* **length** &mdash; Used with **method=random** to specify the length of the generated password. Default:20
+* **log** &mdash; Specifies the /full/path/to/logfile on the host where the passwords are stored. This is extremely important if you use **method=random**, as the password is not stored anywhere else!
+
 ### clockfake
 
 The fake-hwclock provided with RasPiOS runs hourly as a cron job. clockfake does the same thing as fake-hwclock, but you control the interval, and it's always running. Lower overhead, less processes activated, and more control. Life is good.
