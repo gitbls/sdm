@@ -39,8 +39,8 @@ then
     if [ "$config" != "" ]
     then
 	logtoboth "> Plugin $pfx: Copy knockd config from $localsrc to /etc/sdm/assets"
-	[ -f $config ] && cp $config $SDMPT/etc/sdm/assets/knockd-config
-	[ -f "$localsrc/pktables" ] && cp $localsrc/pktables $SDMPT/etc/sdm/assets/knockd-pktables
+	[ -f $config ] && cp $config $SDMPT/etc/sdm/assets/knockd.conf
+	[ -f "$localsrc/pktables" ] && cp $localsrc/pktables $SDMPT/etc/sdm/assets
     fi
     if [ "$localsrc" != "" ]
     then
@@ -48,21 +48,20 @@ then
 	# Copy the appropriate files from local stash into the IMG
 	#
 	logtoboth "> Plugin $pfx: Copy pktables and knockd-helper from $localsrc to /etc/sdm/assets"
-	[ -f "$localsrc/pktables" ] && cp $localsrc/pktables $SDMPT/etc/sdm/assets/knockd-pktables
-	[ -f "$localsrc/knockd-helper" ] && cp $localsrc/knockd-helper $SDMPT/etc/sdm/assets/knockd-helper
+	[ -f "$localsrc/pktables" ] && cp $localsrc/pktables $SDMPT/etc/sdm/assets/pktables
+	[ -f "$localsrc/knockd-helper" ] && cp $localsrc/knockd-helper $SDMPT/etc/sdm/assets
 	[ -f "$localsrc/knockd.service" ] && cp $localsrc/knockd.service $SDMPT/etc/sdm/assets/knockd.service
 	if [ "$config" == "" ]
 	then
 	    logtoboth "> Plugin $pfx: Copy knockd.conf from $localsrc to /etc/sdm/assets"
-	    [ -f "$localsrc/knockd.conf" ] && cp $localsrc/knockd.conf $SDMPT/etc/sdm/assets/knockd-config
+	    [ -f "$localsrc/knockd.conf" ] && cp $localsrc/knockd.conf $SDMPT/etc/sdm/assets
 	fi
     else
 	logtoboth "> Plugin $pfx: Download pktables from GitHub..."
-	
 	gsts=0
 	for f in pktables knockd-helper knockd.service
 	do
-	    wget $srcurl/$f --output-document=$SDMPT/etc/sdm/assets/knockd-$(basename $f)
+	    wget $srcurl/$f --output-document=$SDMPT/etc/sdm/assets/$f
 	    [ $? -ne 0 ] && gsts=1
 	done
 	if [  $gsts -ne 0 ]
@@ -93,12 +92,12 @@ else
     plugin_getargs $pfx "$args" "$vldargs" ""
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    [ -f /etc/sdm/assets/knockd-pktables ] && cp /etc/sdm/assets/knockd-pktables /usr/local/bin/pktables
+    [ -f /etc/sdm/assets/pktables ] && cp /etc/sdm/assets/pktables /usr/local/bin
     [ -f /etc/sdm/assets/knockd-helper ] && cp /etc/sdm/assets/knockd-helper /usr/local/bin
-    if [ -f /etc/sdm/assets/knockd-config ]
+    if [ -f /etc/sdm/assets/knockd.conf ]
     then
 	[ -f /etc/knockd.conf ] && mv /etc/knockd.conf /etc/knockd.conf.sdm
-	cp /etc/sdm/assets/knockd-config /etc/knockd.conf
+	cp /etc/sdm/assets/knockd.conf /etc
     fi
     [ -f /etc/sdm/assets/knockd.service ] && cp /etc/sdm/assets/knockd.service /etc/systemd/system && systemctl daemon-reload
     #
