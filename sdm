@@ -324,7 +324,7 @@ function readl10n() {
     then
 	source /etc/default/keyboard
     else
-	logtoboth ">%/etc/default/keyboard missing; Keyboard set to 'us'"
+	logtoboth "% /etc/default/keyboard missing; Keyboard set to 'us'"
 	XKBLAYOUT="us"
     fi
     keymap="$XKBLAYOUT"
@@ -449,7 +449,7 @@ Command Switches for --customize and --burn or as noted
  --password-user pwd Set password for the --user user (will prompt if not provided)
  --password-root pwd Set password for root (will prompt if not provided and --rootpwd)
  --password-same y|n Use same password for pi, --user user (if set), and root (if --rootpwd)
- --plugin pname:\"args\" Run plugin pname with the specified args (if multiple, separate with '|'
+ --plugin pname:\"args\" Run plugin pname with the specified args (separate multiple args with '|')
  --plugin-debug      Print plugin debug messages
  --poptions str      Set Phase 1 auto-run options
  --redact            Redact passwords in /etc/sdm/history and /etc/sdm/cparams when burning
@@ -490,7 +490,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.10"
+version="V7.11"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -934,7 +934,7 @@ exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
 [ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
 [ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
-if [ "$plugins" != "" ]
+if [ "$plugins" != "" -a $burning -eq 0 ]    # Don't update plugins on host if burning
 then
     IFS="~" read -a plugs <<< $plugins
     for p in "${plugs[@]}"
