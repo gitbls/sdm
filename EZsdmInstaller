@@ -77,8 +77,9 @@ for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
 	     sdm-firstboot sdm-apt-cacher sdm-apt \
 	     sdm-customphase sdm-apps-example sdm-xapps-example \
 	     sdm-cportal sdm-hotspot sdm-logmsg sdm-gburn \
-	     plugins/apt-cacher-ng plugins/apt-file plugins/burnpwd plugins/btwifiset plugins/burnpwd plugins/clockfake \
-	     plugins/postfix plugins/rxapp plugins/samba plugins/sdm-plugin-template plugins/vnc plugins/wsdd \
+	     plugins/addusers plugins/apt-cacher-ng plugins/apt-file plugins/btwifiset plugins/burnpwd plugins/chrony \
+	     plugins/clockfake plugins/imon plugins/knockd plugins/pistrong plugins/postfix plugins/rxapp plugins/samba \
+	     plugins/sdm-plugin-template plugins/vnc plugins/wsdd \
 	     1piboot/1piboot.conf
 do
     echo "Downloading '$f' to '$dir/$f'"
