@@ -470,7 +470,7 @@ fi
 if [ "$keymap" != "" ]
 then
     logtoboth "> Set Keymap to '$keymap'"
-    [ "$virtmode" == "chroot" ] && logtoboth ">!Ignore 'Running in chroot, ignoring request' message" || logtoboth ">!Ignore invoke-rc.d and 'Read-only file system' messages"
+    [ "$virtmode" == "chroot" ] && logtoboth "% Ignore 'Running in chroot, ignoring request' message" || logtoboth "% Ignore invoke-rc.d and 'Read-only file system' messages"
     #raspi-config do_configure_keyboard "$keymap" nonint
     do_raspiconfig  do_configure_keyboard "$keymap" 
 fi
@@ -772,7 +772,7 @@ then
     # Keeping this code in case systemctl decides to fail the service b/c of this
 #    if ! grep '\[Install\]' /lib/systemd/system/xdm.service > /dev/null 2>&1
 #    then
-#	logtoboth ">!Correcting broken /lib/systemd/system/xdm.service into /etc/systemd/system/xdm.service"
+#	logtoboth "% Correcting broken /lib/systemd/system/xdm.service into /etc/systemd/system/xdm.service"
 #	cp /lib/systemd/system/xdm.service /etc/systemd/system
 #	cat >> /etc/systemd/system/xdm.service <<EOF
 #
@@ -813,11 +813,10 @@ then
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    aval=$(getfinalbbh B1)
-	    logtoboth ">%1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
-	    logtoboth "  Unpredictable results: no known display manager was found"
+	    logtoboth "% 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
 	else
 	    [ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
-	    [ "$bbh" != "B1" ] && logtoboth ">%Console Autologin setting '$bbh' will be re-enabled after First Boot"
+	    [ "$bbh" != "B1" ] && logtoboth "% Console Autologin setting '$bbh' will be re-enabled after First Boot"
 	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
 	fi
     fi

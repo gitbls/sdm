@@ -50,7 +50,7 @@ then
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
 else
-    logtoboth ">%Skip wpa_supplicant configuration per --nowpa"
+    logtoboth "% Skip wpa_supplicant configuration per --nowpa"
 fi
 #
 # Copy dhcpcd.conf extension into the image
