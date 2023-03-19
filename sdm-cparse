@@ -53,22 +53,26 @@ function getpwd() {
 
 function changepwd() {
     # Must be in the container (Phase 1 or post-install)
-    local user="$1" tpwd="$2" upwd
+    local user="$1" upwd="$2"
     if ! getent passwd $user > /dev/null
     then
 	logtoboth "% Cannot change password for ${user}; user not found in /etc/passwd"
 	return
     fi
-    if [ "$tpwd" == "" ]
+    if [ "$upwd" == "" ]
     then
         echo -n "Password for user '$user': " && read -s upwd
         echo ""
-    else
-        upwd="$tpwd"
     fi
-    chpasswd <<EOF
+    if [ "$upwd" != "" ]
+    then
+	chpasswd <<EOF
 $user:$upwd
 EOF
+    else
+	logtoboth "% Password for user '$user' not set"
+	return
+    fi
     [ $showpwd -eq 1 ] && logtoboth "> Set password for user '$user' to '$upwd'" || logtoboth "> Set password for user '$user'"
 }
 
@@ -413,7 +417,7 @@ function plugin_getargs() {
 	    then
 		if ! [[ "$validkeys" =~ "|$key|" ]]
 		then
-		    logtoboth "%%Plugin $pfx: Unrecognized key '$key' in argument list '$args'"
+		    logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$args'"
 		fi
 	    fi
 	    [ "$key" != "" ] && eval "${key}=\"$value\""
@@ -431,7 +435,7 @@ function plugin_getargs() {
 	do
 	    if ! [[ "${keysfound}|" =~ "|$c|" ]]
 	    then
-		logtoboth "%%Plugin $pfx: Required key '$c' missing from argument list '$args'"
+		logtoboth "% Plugin $pfx: Required key '$c' missing from argument list '$args'"
 	    fi
 	done
     fi
@@ -488,7 +492,7 @@ function initvirt() {
 	    if  [[ "$wtf" =~ "aarch64" ]]
 	    then
 		$msgrtn "% Configure chroot to operate on this 64-bit IMG on your 32-bit ARM OS"
-		$msgrtn "  * sdm will run more slowly due to qemu emulation"
+		$msgrtn "  sdm will run more slowly due to qemu emulation"
 		virtmode="chroot"
 		vqemu="aarch64"
 		qf="/usr/bin/qemu-aarch64-static"
@@ -511,7 +515,7 @@ function chroot_cleanup() {
 	[ "$qemu" != "" ] && rm -f $SDMPT/usr/bin/$qemu
 	umount $SDMPT/{dev/pts,dev,proc,sys}
     else
-	logtoboth "%% SDMPT null in handling chroot cleanup. Please log an issue at https://github.com/gitbls/sdm; Continuing..."
+	logtoboth "% SDMPT null in handling chroot cleanup. Please log an issue at https://github.com/gitbls/sdm; Continuing..."
     fi
 }
 
@@ -556,7 +560,7 @@ function sdm_spawn() {
 		    [ -f $fn ] && ubf=$fn && break
 		done
 		[ ! $? ] && errexit "? Cannot find update-binfmts; try 'sudo apt install binfmt-support'"
-		logtoboth "%% Run 'update-binfmts --enable' to enable chroot"
+		logtoboth "% Run 'update-binfmts --enable' to enable chroot"
 		$ubf --enable
 		if [ "$bfs" != "" -a ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
 		then
@@ -682,7 +686,7 @@ function do_raspiconfig() {
     then
 	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
     else
-	logtoboth ">!Unable to find raspi-config for function '$cmd' with value '$value'"
+	logtoboth "% Unable to find raspi-config for function '$cmd' with value '$value'"
     fi
 }
 
@@ -735,11 +739,11 @@ function setlightdmautologin() {
     if [ "$burn" != "" ]
     then
 	sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
-	logtoboth ">%Desktop Autologin setting '$bbh' will set be after First Boot"
+	logtoboth "% Desktop Autologin setting '$bbh' will set be after First Boot"
 	echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
 	do_raspiconfig do_boot_behaviour B1
     else
-	logtoboth ">%Desktop Autologin set to '$bbh'"
+	logtoboth "% Desktop Autologin set to '$bbh'"
 	do_raspiconfig do_boot_behaviour $bbh
     fi
 }
@@ -757,16 +761,16 @@ function delaylightdmenable() {
     then
 	sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
 	[ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-	logtoboth ">%Desktop Autologin setting '$bbh' will be set after First Boot"
+	logtoboth "% Desktop Autologin setting '$bbh' will be set after First Boot"
 	echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
     else
 	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
 	then
 	    aval="$(getfinalbbh B1)"
-	    logtoboth ">%1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
+	    logtoboth "% 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
 	else
 	    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-	    logtoboth ">%Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
+	    logtoboth "% Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
 	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
 	fi
     fi
