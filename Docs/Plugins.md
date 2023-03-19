@@ -40,7 +40,7 @@ sdm-plugin-template can be used to build your own plugin. It contains some code 
 
 ### addusers
 
-addusers can be used to add user accounts quickly and easily, either during IMG customization or burning a disk. The user information can be specified in the plugin arguments, or an argument pointing to a list of users to add can be used. addusers will log the added account information to a file on the host if directed to do so.
+addusers can be used to add user accounts quickly and easily, either during IMG customization or burning a disk. The user information can be specified in the plugin arguments, or an argument pointing to a list (file) of users to add can be used. addusers will log the added account information to a file on the host if directed to do so.
 
 #### Arguments
 
@@ -51,10 +51,10 @@ addusers can be used to add user accounts quickly and easily, either during IMG 
 * **homedir** &mdash; Specifies the home directory for the new user. If not specified, /home/$username is used
 * **nohomedir** &mdash; if `nohomedir=y` is specified, no home directory will be created for the user, even if `homedir` is provided
 * **nosudo** &mdash; If `nosudo=y` is specified, the user will not be enabled to use the `sudo` command. In other words, `sudo` is enabled by default
-* **samba** &mdash; Add the username to the samba password file. If `smbpasswd` is not specified, `password` will be used. If neither is provided, the user will not be added to the samba password file
+* **samba** &mdash; If `samba=y` is specified, add the username to the samba password file. If `smbpasswd` is not specified, `password` will be used. If neither is provided, the user will not be added to the samba password file
 * **smbpasswd** &mdash; Use this password for samba for the user instead of the user's password
 * **userlist** &mdash; The /full/path/to/logfile of a list of users to add. See below.
-* **log** &mdash; The /full/path/to/file of a file on the host OS where sdm is running to log all users added via the addusers plugin
+* **log** &mdash; The /full/path/to/file of a file on the host OS where sdm is running to log all users added via the addusers plugin. If `log` is not specified, addusers will not write a separate log file.
 
 The `userlist=/full/path/to/logfile` option points to a file that consists of one line per user in the format:
 ```
@@ -113,6 +113,23 @@ The password is not stored in an unencrypted form anywhere on the burned output 
 * **method** &mdash; Specifies the method to obtain the password. *prompt* will prompt for the password; *random* will generate a random password
 * **length** &mdash; Used with **method=random** to specify the length of the generated password. Default:20
 * **log** &mdash; Specifies the /full/path/to/logfile on the host where the passwords are stored. This is extremely important if you use **method=random**, as the password is not stored anywhere else!
+
+### chrony
+
+Chrony installs the chronyd time service.
+
+#### Arguments
+
+* **conf** &mdash; /full/path/to/confname.conf that will be placed into /etc/chrony/conf.d
+* **conf2** &mdash; /full/path/to/confname2.conf that will be placed into /etc/chrony/conf.d
+* **conf3** &mdash; /full/path/to/confname3.conf that will be placed into /etc/chrony/conf.d
+* **source** &mdash; /full/path/to/sourcename.conf that will be placed into /etc/chrony/sources.d
+* **source2** &mdash; /full/path/to/sourcename2.conf that will be placed into /etc/chrony/sources.d
+* **source3** &mdash; /full/path/to/sourcename3.conf that will be placed into /etc/chrony/sources.d
+
+Chrony processes the files in the conf.d and sources.d directories on startup. Having 3 provides flexibility in how these are structured. See `man chrony.conf` for details.
+
+A RasPiOS system should only have one time service enabled. It's up to you to disable others. For instance, on a standard RasPiOS IMG you should add `--svc-disable systemd-timesyncd` to disable the in-built time service, which is enabled by default.
 
 ### clockfake
 
