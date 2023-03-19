@@ -35,7 +35,7 @@ function setdiskid() {
     sfdisk --disk-id $dev 0x${diskid}
     if [ $? -ne 0 ]    # Assume it's an older version of sfdisk without --disk-id if it fails
     then
-	write_burnmsg ">%sfdisk failed; Trying fdisk to set Disk ID"
+	write_burnmsg "% sfdisk failed; Trying fdisk to set Disk ID"
         fdisk "$dev" > /dev/null <<EOF
 x
 i
@@ -103,36 +103,66 @@ function checkupdsdm() {
     # $2: bupdate (sdm, plugin, or sdm+plugin (--bupdate))
     local copt=$1 bup=$2
 
-    for fsdm in $sdmflist
-    do
-	case "$copt" in
-	    check)
-		checkifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "%!sdm file '$fsdm' on the host is newer"
-		;;
-	    update)
-		[[ "$bup" =~ "sdm" ]] && copyifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% Update sdm file '$fsdm' from the host to '$SDMPT$sdmdir"
-		;;
-	esac
-    done
-
-    for plugdir in local-plugins plugins
-    do
-	for pfn in $sdmdir/$plugdir/*
+    #
+    # Check sdm components if --bupdate sdm
+    # Really for sdm dev work only
+    #
+    if [[ "$bup" =~ "sdm" ]]
+    then
+	for fsdm in $sdmflist
 	do
-	    if [ "$pfn" != "$sdmdir/$plugdir/*" ]
-	    then
-		bpfn=$(basename $pfn)
-		case "$copt" in
-		    check)
-			checkifnewer $sdmdir/$plugdir/$bpfn $SDMPT/$sdmdir/$plugdir && logtoboth "%!Plugin '$bpfn' on the host is newer"
-			;;
-		    update)
-			[[ "$bup" =~ "plugin" ]] && copyifnewer $sdmdir/$plugdir/$bpfn $SDMPT/$sdmdir/$plugdir && logtoboth "%!Update plugin '$bpfn' from '$sdmdir/$plugdir' to '$SDMPT$sdmdir/$plugdir'"
-			;;
-		esac
-	    fi
+	    case "$copt" in
+		check)
+		    checkifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% sdm file '$fsdm' on host is newer"
+		    ;;
+		update)
+		    [[ "$bup" =~ "sdm" ]] && copyifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% Update sdm module '$fsdm' from host to '$SDMPT$sdmdir"
+		    ;;
+	    esac
 	done
-    done
+    fi
+    #
+    # For plugins:
+    # Loop through plugin list from command line
+    # if has path always then copy to local-plugins in the img
+    # else if newer in plugins or local-plugins, copy into img if --bupdate plugin
+    if [ "$plugins" != "" ]
+    then
+	IFS="~" read -a plugs <<< "$plugins"
+        for p in "${plugs[@]}"
+        do
+	    p="${p%:*}"
+	    pn="$(basename $p)"
+            if [ "$p" != "$pn" ]
+	    then
+		# plugin with path specified; copy into IMG if newer regardless of --bupdate
+		copyifnewer $p $SDMPT/$sdmdir/local-plugins && logtoboth "% Update (or add) Plugin '$p' to $sdmdir/local-plugins"
+	    else
+		# no path on plugin. if find in plugins or local-plugins copy into img if --bupdate plugin else mention
+		# this code doesn't report if plugin not found. That will happen later when it gets run
+		for d in $sdmdir/local-plugins $sdmdir/plugins
+		do
+		    if [ -f $d/$pn ]
+		    then
+			case "$copt" in
+			    check)
+				checkifnewer $d/$pn $SDMPT/$d/$pn && logtoboth "% Plugin '$p' on the host is newer"
+				;;
+			    update)
+				if [[ "$bup" =~ "plugin" ]]
+				then
+				    copyifnewer $d/$pn $SDMPT/$sdmdir/local-plugins && logtoboth "% Update Plugin '$pn' from '$d/$pn' to '$sdmdir/local-plugins'"
+				else
+				    logtoboth "% Plugin '$pn' on the host is newer"
+				fi
+				;;
+			esac
+			break
+		    fi
+		done
+	    fi
+        done
+    fi
 }
 
 function sdm_burndevfile() {
@@ -244,8 +274,6 @@ function sdm_burndevfile() {
 	    eval b$e=\${!e}
 	done
 	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
-	# --bupdate must specified on the burn command line
-	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	initvirt logtoboth
 	# Update settings with settings from cmd line as appropriate
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
@@ -270,6 +298,8 @@ function sdm_burndevfile() {
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
 	redact=$((bredact|redact))
+	# --bupdate must specified on the burn command line
+	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
@@ -294,7 +324,7 @@ function sdm_burndevfile() {
 
 	if [[ "$loadllocal" =~ "|wifi|" ]]
 	then
-	    [ "$wificountry" == "" ] && logtoboth ">%No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
+	    [ "$wificountry" == "" ] && logtoboth "% No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
 	fi
 	[ "$bkeymap" != "" ] && keymap=$bkeymap && echo "keymap=$bkeymap" >> $SDMPT/etc/sdm/auto-1piboot.conf
 	[ "$btimezone" != "" ] && timezone=$btimezone && echo "timezone=$btimezone" >> $SDMPT/etc/sdm/auto-1piboot.conf
@@ -405,7 +435,7 @@ function sdm_burndevfile() {
 	    logtoboth "> Execute function 'do_b0script' in --b0script '$b0script'"
 	    source $b0script
 	    ftype=$(type -t do_b0script)
-	    [ "$ftype" == "function" ] && do_b0script || logtoboth ">%Function 'do_b0script' not found in '$b0script'; Skipping..."
+	    [ "$ftype" == "function" ] && do_b0script || logtoboth "% Function 'do_b0script' not found in '$b0script'; Skipping..."
 	fi
 	if [ "$plugins" != "" ]
 	then
