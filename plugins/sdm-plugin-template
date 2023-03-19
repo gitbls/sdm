@@ -18,6 +18,8 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
+vldargs="|list|of|valid|args|"
+rqdargs="|list|of|required|args|or|nullstring|"
 
 if [ "$phase" == "0" ]
 then
@@ -25,7 +27,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "|test1|test2|" "|test1|"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
@@ -39,7 +41,7 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
-    plugin_getargs $pfx "$args" "|test1|test2|" "|test1|"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
     # INSERT your Plugin Phase 1 customization stuff here
@@ -52,7 +54,7 @@ else
     # Plugin Post-install edits
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "|test1|test2|" "|test1|"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
     # INSERT Your Plugin's post-install code here
