@@ -87,6 +87,15 @@ For instance:
 2022-11-01 19:32:24 D!Plugin sdm-plugin-template: Test printout from sdm-plugin-template
 ```
 
+### Updating plugins during --burn
+
+By default, sdm does not update plugins at burn time. If you want to use a plugin at burn time that is different from the one already in the IMG:
+
+* Use `--plugin /full/path/to/plugin` on the burn command line (`--bupdate plugin` is not required)
+* Use `--bupdate plugin` to actually force the plugin to be updated
+
+In these two cases, sdm will update the plugin in the burned output if the source plugin is newer.
+
 ## Building Custom Phase Scripts
 
 Start with the file /usr/local/sdm/sdm-customphase, and similarly, copy it somewhere with a new filename, and work on it.
@@ -147,7 +156,7 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--hdmi-ignore-edid`  &mdash; $hdmiignoreedid=1
 * `--hdmigroup` n       &mdash; $hdmigroup=n
 * `--hdmimode` n        &mdash; $hdmimode=n
-* `--host` hostname     &mdash; $hname
+* `--host` hostname     &mdash; $hostname
 * `--hotspot` config    &mdash; $hotspot
 * `--journal` type      &mdash; $journal
 * `--keymap` keymapname &mdash; $keymap

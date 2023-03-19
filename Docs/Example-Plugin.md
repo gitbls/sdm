@@ -65,8 +65,8 @@ then
 	    [ -d $csrc/home/$myuser/$fd ] && cp -a -f $csrc/home/$myuser/$fd $SDMPT/home/$myuser/$fd
 	done
 	
-	logtoboth "> Plugin $pfx: Copy $csrc/home/bls/ssh-crystix to $SDMPT/home/$myuser"
-	cp -a $csrc/home/bls/ssh-crystix $SDMPT/home/$myuser/.ssh
+	logtoboth "> Plugin $pfx: Copy $csrc/home/bls/ssh-mydomain to $SDMPT/home/$myuser"
+	cp -a $csrc/home/bls/ssh-mydomain $SDMPT/home/$myuser/.ssh
 	chmod 700 $SDMPT/home/$myuser/.ssh
 	mkdir -p $SDMPT/home/$myuser/.gnupg
 	# This is also set for root (just below). Also see in Phase 1 where /usr/lib/gnupg/scdaemon is created 
