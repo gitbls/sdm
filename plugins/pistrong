@@ -84,6 +84,9 @@ else
     then
 	logtoboth "> Plugin $pfx: Enable IP forwarding"
 	echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/92-pistrong.conf
+    else
+	# place it but dotted in case wanted later
+	echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/.92-pistrong.conf
     fi
     if [ ! -f /etc/strongswan.d/charon-systemd.conf-pistrong-orig ]
     then
