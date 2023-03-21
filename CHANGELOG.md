@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.11.1
+
+* When burning, sdm checked for plugins' existence too late. It's now just right.
+
 ## V7.11
 
 * Correct plugin update handling during burn commands when full path to plugin provided. See <a href="https://github.com/gitbls/sdm/blob/master/Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a> for details
