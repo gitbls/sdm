@@ -490,7 +490,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.11"
+version="V7.11.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -934,7 +934,7 @@ exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
 [ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
 [ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
-if [ "$plugins" != "" -a $burning -eq 0 ]    # Don't update plugins on host if burning
+if [ "$plugins" != "" ]    # Don't update plugins on host if burning
 then
     IFS="~" read -a plugs <<< $plugins
     for p in "${plugs[@]}"
@@ -948,7 +948,7 @@ then
 	    then
 		[ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
 		# if plugin found outside of sdm hierarchy copy it in
-		if [ "$d" == "$(dirname $p)" ]
+		if [ "$d" == "$(dirname $p)" -a $burning -eq 0 ]
 		then
 		    copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
 		fi
