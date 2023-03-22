@@ -39,7 +39,7 @@ then
 	else
 	    logtoboth "> Plugin $pfx: Copy samba smbconf '$smbconf' into IMG /etc/sdm/assets/samba-$(basename $smbconf)"
 	    rm -f $SDMPT/etc/sdm/assets/samba-$(basename $smbconf)
-	    cp $smbconf $SDMPT/etc/sdm/assets/samba-$(basename $smbconf)
+	    cp -a $smbconf $SDMPT/etc/sdm/assets/samba-$(basename $smbconf)
 	fi
     fi
     if [ "$shares" != "" ]
@@ -50,7 +50,7 @@ then
 	else
 	    logtoboth "> Plugin $pfx: Copy samba shares file '$shares' into IMG /etc/sdm/assets/samba-$(basename $shares)"
 	    rm -f $SDMPT/etc/sdm/assets/samba-$(basename $shares)
-	    cp $shares $SDMPT/etc/sdm/assets/samba-$(basename $shares)
+	    cp -a $shares $SDMPT/etc/sdm/assets/samba-$(basename $shares)
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -79,7 +79,7 @@ then
 	then
 	    logtoboth "> Plugin $pfx: Replace /etc/samba/smb.conf with /etc/sdm/assets/samba-$(basename $smbconf)"
 	    mv /etc/samba/smb.conf /etc/samba/smb.conf.sdm-smbconf
-	    cp /etc/sdm/assets/samba-$(basename $smbconf) /etc/samba/smb.conf
+	    cp -a /etc/sdm/assets/samba-$(basename $smbconf) /etc/samba/smb.conf
 	fi
     fi
     if [ "$shares" != "" ]
@@ -87,7 +87,7 @@ then
 	if [ -f /etc/sdm/assets/samba-$(basename $shares) ]
 	then
 	    logtoboth "> Plugin $pfx: Append shares from /etc/sdm/assets/samba-$(basename $shares) to /etc/samba/smb.conf"
-	    cp /etc/samba/smb.conf /etc/samba/smb.conf.sdm-shares
+	    cp -a /etc/samba/smb.conf /etc/samba/smb.conf.sdm-shares
 	    cat >> /etc/samba/smb.conf <<EOF 
 
 #** Following share definitions added by sdm samba plugin from $shares

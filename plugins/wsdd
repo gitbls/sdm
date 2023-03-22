@@ -37,10 +37,10 @@ then
     if [ "$localsrc" != "" ]
     then
 	logtoboth "> Plugin $pfx: Copy wsdd from '$localsrc'"
-	cp $localsrc/wsdd.py $SDMPT/usr/bin/wsdd
-	cp $localsrc/wsdd.8 $SDMPT/usr/share/man/man8/wsdd.i
-	cp $localsrc/wsdd.defaults $SDMPT/etc/default/wsdd
-	cp $localsrc/wsdd.service $SDMPT/etc/systemd/system/wsdd.service
+	cp -a $localsrc/wsdd.py $SDMPT/usr/bin/wsdd
+	cp -a $localsrc/wsdd.8 $SDMPT/usr/share/man/man8/wsdd.i
+	cp -a $localsrc/wsdd.defaults $SDMPT/etc/default/wsdd
+	cp -a $localsrc/wsdd.service $SDMPT/etc/systemd/system/wsdd.service
     else
 	logtoboth "> Plugin $pfx: download wsdd from GitHub"
 

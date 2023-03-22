@@ -13,7 +13,7 @@ function copycufiles() {
     for fl in "${citems[@]}"
     do
 	logtoboth "> Copy file '$fl' to $2"
-	cp $fl $2
+	cp -a $fl $2
     done
 }
 
@@ -32,7 +32,7 @@ logtoboth "*+Phase 0 sdm configuration"
 if [ "$b1script" != "" ]
 then
     logtoboth "> Copy --b1script '$b1script' to $SDMPT/etc/sdm/assets"
-    cp $b1script $SDMPT/etc/sdm/assets
+    cp -a $b1script $SDMPT/etc/sdm/assets
 fi
 #
 # copy hotspot configuration file into the image
@@ -40,7 +40,7 @@ fi
 if [ "$hotspot" != "" ]
 then
     logtoboth "> Copy hotspot configuration file to $SDMPT/etc/sdm/assets"
-    cp $hotspot $SDMPT/etc/sdm/assets
+    cp -a $hotspot $SDMPT/etc/sdm/assets
 fi
 
 logtoboth "*+Phase 0 Network configuration"
@@ -82,7 +82,7 @@ do
     if [ "$fmconf" != "" ]
     then
 	logtoboth "> Copy --lxde-config '$fm' config file '$fmconf' to $SDMPT/etc/sdm/assets"
-	cp $fmconf $SDMPT/etc/sdm/assets
+	cp -a $fmconf $SDMPT/etc/sdm/assets
     fi
 done
 logtoboth "*+Phase 0 System configuration"
@@ -102,7 +102,7 @@ done
 if [ "$fstab" != "" ]
 then
     logtoboth "> Copy fstab extension '$fstab' to $SDMPT/etc/sdm/assets and enable for FirstBoot"
-    cp $fstab $SDMPT/etc/sdm/assets
+    cp -a $fstab $SDMPT/etc/sdm/assets
     echo "fstab=$(basename $fstab)" >> $SDMPT/etc/sdm/auto-1piboot.conf
 fi
 
@@ -114,7 +114,7 @@ fi
 #
 # Copy user-specified motd file into the image
 #
-[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to $SDMPT/etc/motd" && mv $SDMPT/etc/motd $SDMPT/etc/motd.sdm && cp $motd $SDMPT/etc/motd
+[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to $SDMPT/etc/motd" && mv $SDMPT/etc/motd $SDMPT/etc/motd.sdm && cp -a $motd $SDMPT/etc/motd
 
 #
 # Copy user-specified sysctl config file into the image
@@ -131,7 +131,7 @@ do
     if [ "$fn" != "" ]
     then
 	logtoboth "> Copy systemd '$c' config file '$fn' to $SDMPT/etc/sdm/assets"
-	cp $fn $SDMPT/etc/sdm/assets
+	cp -a $fn $SDMPT/etc/sdm/assets
     fi
 done
 #

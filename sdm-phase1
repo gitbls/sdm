@@ -301,7 +301,7 @@ then
     # Do this manually since we have to use --no-create-home (dir already created in Phase 0)
     for f in /etc/skel/.* /etc/skel/*
     do
-	[ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp $f /home/$myuser )
+	[ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp -a $f /home/$myuser )
     done
     [ ! -d /home/$myuser ] && mkdir /home/$myuser
     [ "$myuser" != "pi" ] && gr="users" || gr="pi"
@@ -581,7 +581,7 @@ do
 	[ "$c" != "system" -a "$c" != "user" ] && tdir="${tdir}d"
 	logtoboth "> Copy systemd '$c' config file '$fn' from /etc/sdm/assets to /etc/systemd/$tdir.conf.d"
 	mkdir -p /etc/systemd/$tdir.conf.d
-	cp /etc/sdm/assets/$(basename $fn) /etc/systemd/$tdir.conf.d
+	cp -a /etc/sdm/assets/$(basename $fn) /etc/systemd/$tdir.conf.d
     fi
 done
 #
@@ -726,7 +726,7 @@ then
 	logtoboth "> Enable left-handed mouse for user '$userx'"
 	dirx="/home/$userx/.config/lxsession/LXDE-pi"
 	mkdir -p $dirx
-	cp /etc/xdg/lxsession/LXDE-pi/desktop.conf $dirx
+	cp -a /etc/xdg/lxsession/LXDE-pi/desktop.conf $dirx
 	chmod 644 $dirx/desktop.conf
 	sed -i "s/LeftHanded=0/LeftHanded=1/" $dirx/desktop.conf
     fi
@@ -740,7 +740,7 @@ then
 	    dirx="/home/$userx/.config/$fm"
 	    logtoboth "> Copy --lxde-config $fm config file '$(basename $fmconf)' to '$dirx'"
 	    mkdir -p $dirx
-	    cp /etc/sdm/assets/$(basename $fmconf) $dirx/$fm.conf
+	    cp -a /etc/sdm/assets/$(basename $fmconf) $dirx/$fm.conf
 	fi
     done
     if [ -d /home/$userx/.config ]
@@ -773,7 +773,7 @@ then
 #    if ! grep '\[Install\]' /lib/systemd/system/xdm.service > /dev/null 2>&1
 #    then
 #	logtoboth "% Correcting broken /lib/systemd/system/xdm.service into /etc/systemd/system/xdm.service"
-#	cp /lib/systemd/system/xdm.service /etc/systemd/system
+#	cp -a /lib/systemd/system/xdm.service /etc/systemd/system
 #	cat >> /etc/systemd/system/xdm.service <<EOF
 #
 #[Install]

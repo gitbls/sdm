@@ -39,8 +39,8 @@ then
     if [ "$config" != "" ]
     then
 	logtoboth "> Plugin $pfx: Copy knockd config from $localsrc to /etc/sdm/assets"
-	[ -f $config ] && cp $config $SDMPT/etc/sdm/assets/knockd.conf
-	[ -f "$localsrc/pktables" ] && cp $localsrc/pktables $SDMPT/etc/sdm/assets
+	[ -f $config ] && cp -a $config $SDMPT/etc/sdm/assets/knockd.conf
+	[ -f "$localsrc/pktables" ] && cp -a $localsrc/pktables $SDMPT/etc/sdm/assets
     fi
     if [ "$localsrc" != "" ]
     then
@@ -48,13 +48,13 @@ then
 	# Copy the appropriate files from local stash into the IMG
 	#
 	logtoboth "> Plugin $pfx: Copy pktables and knockd-helper from $localsrc to /etc/sdm/assets"
-	[ -f "$localsrc/pktables" ] && cp $localsrc/pktables $SDMPT/etc/sdm/assets/pktables
-	[ -f "$localsrc/knockd-helper" ] && cp $localsrc/knockd-helper $SDMPT/etc/sdm/assets
-	[ -f "$localsrc/knockd.service" ] && cp $localsrc/knockd.service $SDMPT/etc/sdm/assets/knockd.service
+	[ -f "$localsrc/pktables" ] && cp -a $localsrc/pktables $SDMPT/etc/sdm/assets/pktables
+	[ -f "$localsrc/knockd-helper" ] && cp -a $localsrc/knockd-helper $SDMPT/etc/sdm/assets
+	[ -f "$localsrc/knockd.service" ] && cp -a $localsrc/knockd.service $SDMPT/etc/sdm/assets/knockd.service
 	if [ "$config" == "" ]
 	then
 	    logtoboth "> Plugin $pfx: Copy knockd.conf from $localsrc to /etc/sdm/assets"
-	    [ -f "$localsrc/knockd.conf" ] && cp $localsrc/knockd.conf $SDMPT/etc/sdm/assets
+	    [ -f "$localsrc/knockd.conf" ] && cp -a $localsrc/knockd.conf $SDMPT/etc/sdm/assets
 	fi
     else
 	logtoboth "> Plugin $pfx: Download pktables from GitHub..."
@@ -92,14 +92,14 @@ else
     plugin_getargs $pfx "$args" "$vldargs" ""
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    [ -f /etc/sdm/assets/pktables ] && cp /etc/sdm/assets/pktables /usr/local/bin
-    [ -f /etc/sdm/assets/knockd-helper ] && cp /etc/sdm/assets/knockd-helper /usr/local/bin
+    [ -f /etc/sdm/assets/pktables ] && cp -a /etc/sdm/assets/pktables /usr/local/bin
+    [ -f /etc/sdm/assets/knockd-helper ] && cp -a /etc/sdm/assets/knockd-helper /usr/local/bin
     if [ -f /etc/sdm/assets/knockd.conf ]
     then
 	[ -f /etc/knockd.conf ] && mv /etc/knockd.conf /etc/knockd.conf.sdm
-	cp /etc/sdm/assets/knockd.conf /etc
+	cp -a /etc/sdm/assets/knockd.conf /etc
     fi
-    [ -f /etc/sdm/assets/knockd.service ] && cp /etc/sdm/assets/knockd.service /etc/systemd/system && systemctl daemon-reload
+    [ -f /etc/sdm/assets/knockd.service ] && cp -a /etc/sdm/assets/knockd.service /etc/systemd/system && systemctl daemon-reload
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth ""

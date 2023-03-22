@@ -44,7 +44,7 @@ then
 	    [[ "$id" =~ "conf" ]] && idfext=".conf" || idfext=".source"
 	    logtoboth "> Plugin $pfx: Copy '$id' config file '$idf' to /etc/sdm/assets"
 	    dstfn=$(basename ${idf%%$idfext}$idfext)
-	    cp $idf $SDMPT/etc/sdm/assets/chronyd-$id-$dstfn
+	    cp -a $idf $SDMPT/etc/sdm/assets/chronyd-$id-$dstfn
 	fi
     done
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -71,7 +71,7 @@ else
 	    [[ "$id" =~ "chronyd-conf-" ]] && dstdir="/etc/chrony/conf.d" || dstdir="/etc/chrony/sources.d"
 	    tfn="${fn##*chronyd-$id-}"
 	    logtoboth "> Plugin $pfx: Copy chronyd file '$tfn' to $dstdir"
-	    cp $fn $dstdir/$(basename $tfn)
+	    cp -a $fn $dstdir/$(basename $tfn)
 	done
     done
     logtoboth "* Plugin $pfx: Complete Phase post-install"

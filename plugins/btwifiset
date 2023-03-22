@@ -48,7 +48,7 @@ then
 	logtoboth "> Plugin $pfx: Copy btwifiset from $localsrc to $btwifidir"
 	for f in btwifiset.py
 	do
-	    cp $localsrc/$f $SDMPT/$btwifidir/$f
+	    cp -a $localsrc/$f $SDMPT/$btwifidir/$f
 	done
     else
 	logtoboth "> Plugin $pfx: Download btwifiset from the internet to $btwifidir"

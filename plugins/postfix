@@ -35,7 +35,7 @@ then
 	if [ -f $maincf ]
 	then
 	    logtoboth "> Plugin $pfx: Copy postfix maincf file '$maincf' into IMG /etc/sdm/assets/postfix-$(basename $maincf)"
-	    cp $maincf $SDMPT/etc/sdm/assets/postfix-$(basename $maincf)
+	    cp -a $maincf $SDMPT/etc/sdm/assets/postfix-$(basename $maincf)
 	else
 	    logtoboth "%%Plugin $pfx: Cannot find maincf file '$maincf'; ignoring"
 	fi
@@ -73,14 +73,14 @@ else
     [ "$main_mailer_type" == "" ] && main_mailer_type="Satellite system"
     [ "$mailname" == "" ] && mailname="NoDomain.com"
 
-    cp /etc/postfix/main.cf /etc/postfix/main.cf.orig
+    cp -a /etc/postfix/main.cf /etc/postfix/main.cf.orig
     if [ "$maincf" != "" ]
     then
 	if [ -f /etc/sdm/assets/postfix-$(basename $maincf) ]
 	then
 	    logtoboth "> Plugin $pfx: Replace /etc/postfix/main.cf with /etc/sdm/assets/postfix-$(basename $maincf)"
 	    mv /etc/postfix/main.cf /etc/postfix/main.cf.sdm
-	    cp /etc/sdm/assets/postfix-$(basename $maincf) /etc/postfix/main.cf
+	    cp -a /etc/sdm/assets/postfix-$(basename $maincf) /etc/postfix/main.cf
 	fi
     else
 	#

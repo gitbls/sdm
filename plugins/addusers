@@ -161,7 +161,7 @@ then
 	if [ -f $userlist ]
 	then
 	    logtoboth "> Plugin $pfx: Copy userlist file '$userlist' to IMG /etc/sdm/assets/addusers-$(basename $userlist)"
-            cp $userlist $SDMPT/etc/sdm/assets/addusers-$(basename $userlist)
+            cp -a $userlist $SDMPT/etc/sdm/assets/addusers-$(basename $userlist)
 	    while read line
 	    do
 		[[ "$line" =~ "groups=" ]] && line="${line/groups=/ugroups=}"

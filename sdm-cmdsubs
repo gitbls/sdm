@@ -336,7 +336,7 @@ function sdm_burndevfile() {
 		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b1script) ]
 		then
 		    logtoboth "> Copy '$b1script' to /etc/sdm/assets"
-		    cp $b1script $SDMPT/etc/sdm/assets
+		    cp -a $b1script $SDMPT/etc/sdm/assets
 		    chmod 755 $SDMPT/etc/sdm/assets/$(basename $b1script)
 		fi
 	    else
@@ -355,13 +355,13 @@ function sdm_burndevfile() {
 	fi
 	if [ "$bexports" != "" ]
 	then
-	    cp $bexports $SDMPT/etc/exports
+	    cp -a $bexports $SDMPT/etc/exports
 	    logtoboth "> Copy '$bexports' to /etc/exports"
 	    exports=$bexports
 	fi
 	if [ "$bsysctl" != "" ]
 	then
-	    cp $bsysctl $SDMPT/etc/sysctl.d
+	    cp -a $bsysctl $SDMPT/etc/sysctl.d
 	    logtoboth "> Copy '$bsysctl' to /etc/sysctl.d/$(basename $bsysctl)"
 	    sysctl=$bsysctl
 	fi
@@ -370,7 +370,7 @@ function sdm_burndevfile() {
 	    [ ! -f $bwpaconf ] && echo "% --wpa config file '$bwpaconf' not found; Skipping"
 	    [ $burn -eq 1 ] && state="'$burndev'" || state="$'burnfilefile'"
 	    logtoboth "> Copy WPA Supplicant configuration '$bwpaconf' to '$burndev'"
-	    [ -f $bwpaconf ] && cp $bwpaconf $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
+	    [ -f $bwpaconf ] && cp -a $bwpaconf $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
 	    wpaconf="$bwpaconf"   # Write updated wpaconf to SD Card params
 	fi
 	if [ "$brclocal" != "" ]
