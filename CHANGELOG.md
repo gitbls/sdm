@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.12
+
+* Use `cp -a` for most file copies to preserve actual file creation date/time
+
 ## V7.11.1
 
 * When burning, sdm checked for plugins' existence too late. It's now just right.
