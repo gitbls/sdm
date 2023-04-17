@@ -96,6 +96,29 @@ By default, sdm does not update plugins at burn time. If you want to use a plugi
 
 In these two cases, sdm will update the plugin in the burned output if the source plugin is newer.
 
+## Running only plugins
+
+sdm can run plugins a couple of different ways:
+
+* As part of a `--customize` command
+* As part of a `--burn` command
+* By itself using the `--runonly plugin` command
+
+The first two above are described above. The `--runonly plugin` command can operate on three different system locations: a RasPiOS IMG, RasPiOS burned onto a storage device, and lastly, the running host OS.
+
+When using `--runonly` on an IMG or storage device, the environment in which the plugins run is exactly as described above (Phase 0, Phase 1, post-install)
+
+To `--runonly` on the running system specify `--directory /` in addition to other switches on the `--runonly` command line. Do not specify an IMG or device name. In this mode, if the running host OS is RasPiOS, you will be prompted to confirm that you want to run the plugins. The `--oklive` switch bypasses the confirmation. If the host OS is not RasPiOS and `--oklive` was specified, the plugins will be run, otherwise sdm will exit.
+
+When `--runonly` is run on the live host OS, the env var $SDMNSPAWN has the value **Live0** or **Live1**. Plugins can take action on that. For instance, if your plugin installs a service, if $SDMNSPAWN is **Live1** you can do commands such as `systemctl daemon-reload` and `systemctl start mydaemon`, whereas if the plugin is running in "standard" sdm Phase1 in an IMG those commands would fail. For instance:
+```
+    if [ "$SDMNSPAWN" == "Live1" ]
+    then
+        systemctl daemon-reload
+        systemctl start mydaemon
+    fi
+```
+
 ## Building Custom Phase Scripts
 
 Start with the file /usr/local/sdm/sdm-customphase, and similarly, copy it somewhere with a new filename, and work on it.

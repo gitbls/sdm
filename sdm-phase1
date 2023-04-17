@@ -163,6 +163,13 @@ case "$cmd" in
 	runplugins $phase
 	exit 0
         ;;
+    run-plugin-list) # Run list of plugins phase 1 or post-install
+	phase="$2"
+	plugins="${3#\"}"         #Strip leading/trailing double quotes
+	plugins="${plugins%\"}"
+	runplugins $phase
+	exit 0
+	;;
     run-one-plugin)  # Run Plugin phase 1 or post-install
 	# $2: plugin name and args $3: Phase
 	p="$2"

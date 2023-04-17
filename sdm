@@ -445,6 +445,7 @@ Command Switches for --customize and --burn or as noted
  --nouser            Do not add a new user
  --nowait-timesync   Don't wait for time to sync in sdm-firstboot
  --nspawnsw str      Additional switches for nspawn command
+ --oklive            It's OK to run plugins on running system without notification
  --password-pi pwd   Set password for Pi user (will prompt if not provided)
  --password-user pwd Set password for the --user user (will prompt if not provided)
  --password-root pwd Set password for root (will prompt if not provided and --rootpwd)
@@ -490,7 +491,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.12"
+version="V7.13"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -548,6 +549,7 @@ fnopassword=0               #1=Do not require a password during customization
 fnowpa=0                    #1=I really man no automatic no wpa config
 fppart=0                    #1=Print partition tables in an IMG
 frenamepi=0                 #1=--rename-pi selected
+frunonly=0                  #1=--runonly
 fshrink=0                   #1=Shrink the IMG
 fstab=""                    #Append this custom fstab to /etc/fstab
 groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
@@ -580,6 +582,7 @@ netman=""                   #--netman. Default is whatever is installed
 noreboot=0                  #1=Do not restart system after first boot
 nouser=0                    #1=Do not require a user to be specified
 nowaittimesync=0            #1=Don't wait for time to sync in sdm-firstboot
+oklive=0                    #1=--oklive don't notify about running system
 os="raspios"                #Default OS for images
 nspawnsw=""                 #Switches for nspawn
 passwordpi=""               #Values for --password-xxx
@@ -599,6 +602,7 @@ rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 regensshkeys=0              #1=Regenerate SSH keys at end of FirstBoot
+runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdfnlogin=""                #File to augment /etc/systemd/logind.conf
@@ -629,6 +633,7 @@ vjournalopts="|persistent|syslog|volatile|none|"
 vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
 vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
+vrunonlyopts="|plugin|plugins|"  #Valid options for --runonly
 vvirtopts="|nspawn|chroot|"
 vncbase="5900"              # Base port for VNC socket services
 vqemu=""                    # Qemu architecture to use in chroot
@@ -656,9 +661,9 @@ cscript:,csrc:,customize,datefmt:,ddsw:,debug:,dhcpcd:,dhcpcdwait,directory,disa
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,os:,\
+mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,oklive,os:,\
 nopassword,password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
-ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,rename-pi:,restart,\
+ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,rename-pi:,restart,runonly:,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
 sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,bupdate:,user:,\
 vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
@@ -745,6 +750,7 @@ do
 	--nowait-timesync) nowaittimesync=1 ; shift 1 ;;
 	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
+	--oklive)      oklive=1      ; shift 1 ;;
 	--os)          os="${2,,}"   ; shift 2 ;;
 	--password-pi) passwordpi=$2 ; shift 2 ;;
 	--password-root) passwordroot=$2 ; shift 2 ;;
@@ -763,6 +769,7 @@ do
 	--rename-pi)   renamepi=$2 ; frenamepi=1 ; shift 2 ;;
 	--restart)     reboot=1      ; shift 1 ;;
 	--rootpwd)     rootpwd=1     ; shift 1 ;;
+	--runonly)     runonly="${2,,}" ; shift 2 ;;
 	--sdmdir)      sdmdir=$2     ; shift 2 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
 	--showpwd)     showpwd=1     ; shift 1 ;;
@@ -870,6 +877,11 @@ then
     [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
     aptfunction=1
 fi
+if [ "$runonly" != "" ]
+then
+    [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --runonly"
+    frunonly=1
+fi
 if [ $fcustomize -eq 1 ]
 then
     if [ $frenamepi -eq 1 ]
@@ -883,7 +895,7 @@ fi
 #
 # Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 
 #
-if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -eq 0 ]
+if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart+$frunonly)) -eq 0 ]
 then
     # Handle --extend only 
     [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount)"
@@ -926,6 +938,9 @@ journal=$(poptcheck "$journal" "$vjournalopts" "--journal")
 exitiferr "$journal"
 bupdate=$(poptcheck "$bupdate" "$vbupdopts" "--bupdate")
 exitiferr "$bupdate"
+runonly=$(poptcheck "$runonly" "$vrunonlyopts" "--runonly")
+exitiferr "$runonly"
+[ "$runonly" != "" -a "$plugins" == "" ] && errexit "? No plugins specified for --runonly plugins"
 #virtmode=$(poptcheck "$virtmode" "$vvirtopts" "--virt")
 #exitiferr "$virtmode"
 journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
@@ -934,7 +949,7 @@ exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
 [ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
 [ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
-if [ "$plugins" != "" ]    # Don't update plugins on host if burning
+if [ "$plugins" != "" ]
 then
     IFS="~" read -a plugs <<< $plugins
     for p in "${plugs[@]}"
@@ -948,7 +963,7 @@ then
 	    then
 		[ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
 		# if plugin found outside of sdm hierarchy copy it in
-		if [ "$d" == "$(dirname $p)" -a $burning -eq 0 ]
+		if [ "$d" == "$(dirname $p)" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
 		then
 		    copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
 		fi
@@ -1140,7 +1155,7 @@ xappfile=$(findappfile "$xapps") #Ditto for xappfile and xapps
 exitiferr "$xappfile"
 xapps=$(getapplist "$xappfile")
 #
-# Process the command. Actions are burn, custommize, mount, and standalone --extend
+# Process the command. Actions are burn, customize, mount, runonly, and standalone --extend
 #
 trap "doexit" EXIT
 thishost="$(hostname)"
@@ -1213,6 +1228,42 @@ fi
 #
 # IMG architecture not detected before this point so don't yet know if chroot
 #
+#
+# Handle --runonly plugins
+#
+if [ $frunonly -eq 1 ]
+then
+    if [ $fdirtree -eq 1 -a "$dimg" == "/" ]
+    then
+	if [ $oklive -eq 0 ]
+	then
+	    if israspios
+	    then
+		askyn "** Do you really want to run plugins live on the running host RasPiOS system" || exit 1
+	    else
+		errexit "? Host OS is not RasPiOS. Use --oklive to run plugins live on this system"
+	    fi
+	fi
+	# Either --oklive or said yes to modify running system
+	logtoboth "* Run selected plugins on the host system"
+	declare -x SDMPT=""
+	declare -x SDMNSPAWN="Live0"
+	runplugins 0
+	declare -x SDMNSPAWN="Live1"
+	runplugins 1
+	runplugins post-install
+    else
+	# Operating on an IMG or disk
+	declare -x SDMPT=$(makemtpt)
+	domount "$dimg"
+	initvirt write_premsg
+	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
+	runplugins 0
+	sdm_spawn "$sdmdir/sdm-phase1 run-plugin-list 1 \"$plugins\"" "" Phase1
+	sdm_spawn "$sdmdir/sdm-phase1 run-plugin-list post-install \"$plugins\"" "" Phase1
+    fi
+    exit 0
+fi
 # Not --extend (only). Other steps need IMG mounted
 declare -x SDMPT=$(makemtpt)
 domount "$dimg"
@@ -1230,8 +1281,7 @@ then
 	spawncmd="$sdmdir/sdm-phase1 apt $aptmaint"
 	if [ ! -f $SDMPT/$sdmdir/sdm-phase1 ]
 	then
-	    echo "? sdm has not customized $dimgdevname '$dimg'"
-	    exit 1
+	    errexit "? sdm has not customized $dimgdevname '$dimg'"
 	fi
     else
 	#

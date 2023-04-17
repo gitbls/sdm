@@ -314,6 +314,33 @@ function doconfigitem() {
 
 }
 
+function getosver() {
+    #
+    # Returns the OS version from /etc/os-release
+    #
+    echo $(grep VERSION_ID $SDMPT/etc/os-release | (IFS="=" read v id ; id=${id%\"} ; echo ${id#\"}))
+    return
+}
+
+function getosdate() {
+    #
+    # Returns the OS date from /etc/rpi-issue
+    #
+    echo $(grep -s -m1 -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\}' $SDMPT/etc/rpi-issue)
+    return
+}
+
+function israspios() {
+    #
+    # Returns true if host is RasPiOS, false if not
+    #
+    # os-release says ID=debian, arch is aarch64 or armv7l (uname -m) and /etc/rpi-issue exists
+    [ -f /etc/os-release -a -f /etc/rpi-issue ] || return 1
+    [ "$(grep ^ID= $SDMPT/etc/os-release | (IFS="=" read v id ; id=${id%\"} ; echo ${id#\"}))" == "debian" ] || return 1
+    [[ "aarch64|armv7l" =~ "$(uname -m)" ]] || return 1
+    return 0
+}
+
 function writeconfig() {
     #
     # Write config parameters into the image
@@ -470,6 +497,85 @@ function iswsl() {
     #
     local uname=$(uname -a)
     [[ "${uname,,}" =~ "microsoft" ]] && return 0 || return 1
+}
+
+function obupdplugins() {
+    #
+    # Check plugins for --burn and --runonly
+    # Loop through plugin list from command line
+    # if has path always then copy to local-plugins in the img
+    # else if newer in plugins or local-plugins, copy into img if --bupdate plugin
+    # $1: 'check' to report, or 'update' to check and update
+    local copt=$1 bup=$2
+    if [ "$plugins" != "" ]
+    then
+	IFS="~" read -a plugs <<< "$plugins"
+        for p in "${plugs[@]}"
+        do
+	    p="${p%:*}"
+	    pn="$(basename $p)"
+            if [ "$p" != "$pn" ]
+	    then
+		# plugin with path specified; copy into IMG if newer regardless of --bupdate
+		copyifnewer $p $SDMPT/$sdmdir/local-plugins && logtoboth "% Update (or add) Plugin '$p' to $sdmdir/local-plugins"
+	    else
+		# no path on plugin. if find in plugins or local-plugins copy into img if --bupdate plugin else mention
+		# this code doesn't report if plugin not found. That will happen later when it gets run
+		for d in $sdmdir/local-plugins $sdmdir/plugins
+		do
+		    if [ -f $d/$pn ]
+		    then
+			case "$copt" in
+			    check)
+				checkifnewer $d/$pn $SDMPT/$d/$pn && logtoboth "% Plugin '$p' on the host is newer"
+				;;
+			    update)
+				if [[ "$bup" =~ "plugin" ]]
+				then
+				    copyifnewer $d/$pn $SDMPT/$sdmdir/local-plugins && logtoboth "% Update Plugin '$pn' from '$d/$pn' to '$sdmdir/local-plugins'"
+				else
+				    logtoboth "% Plugin '$pn' on the host is newer"
+				fi
+				;;
+			esac
+			break
+		    fi
+		done
+	    fi
+        done
+    fi
+}
+
+function checkupdsdm() {
+    #
+    # Loop through sdm files and plugins and check for any newer ones on host
+    # Warn or update if so
+    # $1: 'check' to report, or 'update' to check and update
+    # $2: bupdate (sdm, plugin, or sdm+plugin (--bupdate))
+    local copt=$1 bup=$2
+
+    #
+    # Check sdm components if --bupdate sdm
+    # Really for sdm dev work only
+    #
+    if [[ "$bup" =~ "sdm" ]]
+    then
+	for fsdm in $sdmflist
+	do
+	    case "$copt" in
+		check)
+		    checkifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% sdm file '$fsdm' on host is newer"
+		    ;;
+		update)
+		    [[ "$bup" =~ "sdm" ]] && copyifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% Update sdm module '$fsdm' from host to '$SDMPT$sdmdir"
+		    ;;
+	    esac
+	done
+    fi
+    #
+    # Handle plugins
+    #
+    obupdplugins $copt $bup
 }
 
 function initvirt() {
