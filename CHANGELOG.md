@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.13
+
+* Add `--runonly plugin` to only run plugins (vs a full customize). See <a href="https://github.com/gitbls/sdm/blob/master/Docs/Programming-Plugins-and-Custom-Phase-Scripts.md#running-only-plugins">Running only plugins</a> for details
+
 ## V7.12
 
 * Use `cp -a` for most file copies to preserve actual file creation date/time
