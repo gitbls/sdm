@@ -39,6 +39,7 @@ then
 
     [ "$interval" == "" ] && interval=60
     logtoboth "* Plugin $pfx: Install clockfake"
+    rm -f /usr/local/bin/clockfake
     cat >> /usr/local/bin/clockfake <<EOF
 #!$(which python3)
 
@@ -56,6 +57,7 @@ while True:
 
 EOF
     chmod 755 /usr/local/bin/clockfake
+    rm -f /etc/systemd/system/clockfake.service
     cat >> /etc/systemd/system/clockfake.service <<EOF
 [Unit]
 Description=Fake HW clock
@@ -81,6 +83,11 @@ else
     plugin_printkeys
 
     systemctl enable clockfake > /dev/null 2>&1
+    if [[ "$SDMNSPAWN" =~ "Live" ]]
+    then
+	systemctl daemon-reload
+	systemctl restart clockfake > /dev/null 2&>1
+    fi
     logtoboth "* Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
     [ -f /etc/cron.hourly/fake-hwclock ] && mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
     #
