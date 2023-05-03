@@ -101,4 +101,4 @@ Here are a few examples:
 
 ## Complete sdm Documentation
 
-Need more details? You'll find complete details on sdm in the <a href="Docs/index.md">online documentation</a>. You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a>
+Need more details? You'll find complete details on sdm in the <a href="Docs/Index.md">online documentation</a>. You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a>
