@@ -37,7 +37,7 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 * **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D). Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
 ## Customize the image with sdm
-`sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --user myuser --password-user mypassword 2022-04-04-raspios-bullseye-armhf.img `
+`sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2022-04-04-raspios-bullseye-armhf.img `
 
 sdm will make the following changes to your IMG file:
 * Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running
