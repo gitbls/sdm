@@ -83,7 +83,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
 * `--disable` *option* &mdash; Disable specified options in the comma-separated list. Supported options: `bluetooth`, `piwiz`, `swap`, `triggerhappy`, `wifi`.
     * `bluetooth` &mdash; Block bluetooth via /etc/modprobe.d/blacklist-sdm-bluetooth.conf and disable the hciuart service
-    * `piwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accomplished in sdm.
+    * `piwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accomplished in sdm. For Lite, the RasPiOS firstboot script that configures keyboard, etc is disabled.
     * `swap` &mdash; Disables the dphys-swapfile service. No service, no swap file.
     * `triggerhappy` &mdash; Disable the Triggerhappy service, which most people don't use. This also disables the udev rule that creates boot-time log spew.
     * `wifi` &mdash; Disable wifi via /etc/modprobe.d/blacklist-sdm-wifi.conf, which disables the onboard WiFi adapter.
@@ -157,7 +157,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--sdmdir` */path/to* &mdash; sdm normally is in /usr/local/sdm. If you want it to be put somewhere else when you customize an image, use this switch to specify the location. To install sdm itself into a different directory, specify it as the parameter to EZsdmInstall when you first install sdm
 * `--showpwd` &mdash; Show the passwords set on accounts in /etc/sdm/history
 * `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. If `--ssh` is not specified or if  *SSHoption* is `service`, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled at all. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
-* `--svcdisable` and `--svcenable` &mdash; Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
+* `--svc-disable` and `--svc-enable` &mdash; Alternatively, `--svcdisable` and `--svcenable`. Enable or disable named services, specified as comma-separate list, as part of the first system boot processing. 
 * `--swap` *n* &mdash; Set the swap size to *n*MB. This overrides `--disable swap`
 * `--sysctl` *file* &mdash; Copy the specified file into the image in /etc/sysctl.d. `--sysctl` can be speicified multiple times to copy multiple files.
 * `--systemd-config` *item*:*file* &mdash; Specify config files for the various systemd functions. *item* is one of: 	    `login`, `network`, `resolve`, `system`, `timesync`, `user`. The specified file is put into the directory /etc/systemd/*item*.conf.d, and the filename must be terminated with ".conf" in order for systemd to process them during systemd initialization. See the corresponding man page for details: `man logind.conf`, `man networkd.conf`, `man resolved.conf`, `man systemd-system.conf`, `man timesyncd.conf`, and `man systemd-user.conf`. The most useful of these is probably 'timesync', which lets you easily set a time server address.

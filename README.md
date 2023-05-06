@@ -34,40 +34,45 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 ## Install sdm
 `curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
 
-* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip it**. Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D). Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
+* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip** or **unxz** it.
+* Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D)
+* Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
 ## Customize the image with sdm
-`sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2022-04-04-raspios-bullseye-armhf.img `
+`sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2023-05-03-raspios-bullseye-arm64.img `
 
 sdm will make the following changes to your IMG file:
-* Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running
+* Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running (if running on RasPiOS, Debian, or a Debian derivative such as Mint or Ubuntu)
 * Copy the **wpa_supplicant.conf** you specified into the IMG file at /etc/wpa_supplicant/wpa_supplicant.conf
 * Configure the system in the IMG file to have **SSH enabled**
-* Prompt for a new **password for user pi**
-* Do an  `apt update` and `apt upgrade`
+* Creates the specified user with the given password and enables sudo for that user
+* Do an `apt update` and `apt upgrade`
+* Precludes piwiz from running (not needed) and regenerates SSH host keys after the system time has been synchronized during the first system boot
 
 No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
 ## Burn the image onto the SD Card
-`sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2022-04-04-raspios-buster-armhf.img`
+`sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-05-03-raspios-bullseye-arm64.img`
 
 ## Boot and Go
 
 Load the SD card into a Pi and power it up. The system will come up as it always does:
 
 * **WILL NOT:** Resize the root file system and restarts automatically, thanks to the use of `--expand-root`, which expands the root file system on the SD Card after the burn completes.
-* After the system restarts it goes through a complete system startup, just as it always does on a fresh SD Card
+* After the system starts it goes through a complete system startup, just as it always does on a fresh SD Card
 * Toward the end of the boot process an sdm systemd service script runs once and sets the WiFi country, unblocking WiFi. It will also take other actions as needed to fulfill the switch settings.
 * When the system boot is fully complete (it can take a while on a large SD card!), the system automatically restarts again
 
 When the system comes back up your Pi is all happy, ready to go, and configured with:
 
 * **The latest RasPiOS updates installed** for all installed packages
-* **User created** and password set for username and password of your choice
+* **User created** and password set for username and password of your choice and sudo enabled
 * **Hostname** set to *mypi1*, or whatever you choose to use as the hostname
 * **Keymap**, **Locale**, and **Timezone** configured the same as the system on which you are running sdm (easily changeable, of course)
 * **Wifi** configured and operational
 * **SSH** enabled
+
+You can review the output of the sdm first boot script with: `sudo journalctl -b -1 | grep FirstBoot`
 
 ## What else can sdm do?
 
@@ -87,7 +92,8 @@ Here are a few examples:
 
 * **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab. See <a href="Docs/fstab.md">fstab details</a>.
 
-* **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm. See `--svc-disable` and `--svc-disable` descriptions <a href="Docs/Command-Details.md">here</a>.
+* **Complex function disables** &mdash; Disable complex functions such as bluetooth, piwiz, swap, triggerhappy, and WiFi. See details <a href="Docs/Command-Details.md">here</a>.
+* **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm. See `--svc-enable` and `--svc-disable` descriptions <a href="Docs/Command-Details.md">here</a>.
 
 * **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>.
 
