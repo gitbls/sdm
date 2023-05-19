@@ -454,7 +454,7 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
         if "/formsubmit" in self.path:
             query_items = parse_qs(urlparse(self.path).query, keep_blank_values=True)
             for i in self.pd.settings:
-                if i in query_items: self.pd.settings[i] == query_items[i][0].strip()
+                if i in query_items: self.pd.settings[i] = query_items[i][0].strip()
             if self.pd.defaults != "":
                 default_items = parse_qs(urlparse(pd.defaults).query, keep_blank_values=True)
                 for i in self.pd.settings:
