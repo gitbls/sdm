@@ -491,7 +491,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.13"
+version="V7.14"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -898,7 +898,7 @@ fi
 if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart+$frunonly)) -eq 0 ]
 then
     # Handle --extend only 
-    [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount)"
+    [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount, --runonly)"
     fextendonly=1
 fi
 [ "$src" != "" -a ! -d "$src" ] && errexit "? sdm source directory '$src' not found"

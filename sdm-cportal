@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 #
-# Version X1.90 Pre-Alpha release
+# Version X1.92 Pre-Alpha release
 #
 # sdm-cportal implements a Captive Portal hotspot to obtain WiFi SSD and Password from the user
-# and configure wpa_supplicant.conf.
+# test their validity, and subsequently configure wpa_supplicant.conf
 #
-# Used by sdm, but can be used standalone independently of sdm as well
+# sdm-cportal is part of sdm, a tool that enables you to prepare IMGs that are fully customized
+# By using sdm-cportal with an sdm-prepared IMG, the WiFi SSID and password are not bound until
+# the system first boots.
+#
+# sdm-cportal can be used standalone, independently of sdm as well.
 #
 import argparse
 import datetime
@@ -21,20 +25,6 @@ from functools    import partial
 from http.server  import HTTPServer
 from http.server  import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-
-class cpcontrol:
-    def __init__(self):
-        self.ledseq = { "APoff":"----", "APon":"-.--", "Testing":"--.-", "Results":"....", "Cleanup":"...-" }
-        self.settings = { "ssid":"", "password":"", "wificountry":"US", "keymap":"", "locale":"", "timezone":"",\
-                          "dhcpwait":"0", "validate":True, "ckinternet":True, "wifipower":"on" }
-        self.sdm = self.stopflag = self.connected = self.iconnected = self.isresult = False
-        self.formdone = self.inprogress = self.debug = False
-        self.l10nhandler = self.defaults = self.allerrors = self.wlanip = self.apip = ""
-        self.apssid = self.logmsg = self.facname = self.netns = self.apname = self.netdev = self.apdev = ""
-        self.args = self.pdmsgs = self.leds = self.netops = None
-        self.mypid = os.getpid()
-        self.hostname = socket.gethostname()
-        self.sdndrunning = True if isrunning("systemd-networkd") == 0 else False
 
 class htmsgs:
     def __init__(self):
@@ -57,14 +47,6 @@ class htmsgs:
 <li>But first use the Settings App on your device to ensure you're connected to the Captive Portal WiFi Network again before clicking this link. <b>Turn WiFi Off/On, reconnect to the Captive Portal WiFi Network</b>
 </ul>
 <h3><a href="http://{}/checkresult" target="_blank">Check WiFi connection status</a></h3>
-      <font size = "1">Font size = "1"</font><br />
-      <font size = "2">Font size = "2"</font><br />
-      <font size = "3">Font size = "3"</font><br />
-      <font size = "4">Font size = "4"</font><br />
-      <font size = "5">Font size = "5"</font><br />
-      <font size = "6">Font size = "6"</font><br />
-      <font size = "7">Font size = "7"</font>
-
   </body></html>
 """
 
@@ -134,9 +116,28 @@ class htmsgs:
 """
         self.notValidated = """
 <html><body>
-<h1>WiFi Configuration Completed</h1>
-<h2>WiFi Connection NOT Tested</h2>
+<h1>WiFi Configuration for host {} Complete</h1>
+<h2>WiFi Connection was NOT Tested per request</h2>
 </body></html>
+"""
+
+        self.giveup_page = """
+<html><body>
+<h3>Giving up on testing host {}</h3>
+<br>
+<h3>The Captive Portal will now exit</h3>
+<h3>Consult your system provider for details on restarting the Captive Portal</h3>
+</body></html>
+"""
+        # save this for a while
+        self.fontsizes = """
+      <font size = "1">Font size = "1"</font><br />
+      <font size = "2">Font size = "2"</font><br />
+      <font size = "3">Font size = "3"</font><br />
+      <font size = "4">Font size = "4"</font><br />
+      <font size = "5">Font size = "5"</font><br />
+      <font size = "6">Font size = "6"</font><br />
+      <font size = "7">Font size = "7"</font>
 """
 
 def perrorexit(emsg):
@@ -180,11 +181,18 @@ def dosystem(docmd, timout=None):
 def syslogger(logstring):
     syslog.syslog(syslog.LOG_NOTICE, logstring)
 
-def tfcmd(docmd, nolog=False):
+
+def pxsyslogger(logstring):
+    # syslog and then exit
+    syslogger(logstring)
+    perrorexit(logstring)
+
+def tfcmd(docmd, nolog=False, msg=""):
     #
     # Returns return status from the command
     #
-    if nolog is False: syslogger(f'Command: {docmd}')
+    if msg != "": syslogger(msg)
+    if nolog is False: syslogger(f"Command: {docmd}")
     r = subprocess.run(docmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
     return r.returncode == 0
     
@@ -192,7 +200,7 @@ def gocmd(docmd):
     #
     # Returns stdout from the command
     #
-    r = subprocess.run(docmd, stdout=subprocess.PIPE, stderr=None, shell=True, text=True)
+    r = subprocess.run(docmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
     return r.stdout
     
 def reportcmd(docmd, nolog=False, msg=""):
@@ -201,57 +209,84 @@ def reportcmd(docmd, nolog=False, msg=""):
     # If error status return print stderr
     #
     if msg != "": syslogger(msg)
-    if nolog is False: syslogger(f'Command: {docmd}')
+    if nolog is False: syslogger(f"Command: {docmd}")
     r = subprocess.run(docmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
     if r.returncode != 0:
-        print(f'{docmd}\n {r.stderr}')
+        print(f"{docmd}\n {r.stderr}")
     return r.returncode
-
-def getmyipaddr(devname):
-#eth0             UP             192.168.92.226/24 
-    s = gocmd(f"ip -br -o -f inet addr show dev {devname}") ##
-    return ' '.join(s.split()).split(' ')[2].split('/')[0]
-
-def getwlanpm(devname):
-
-    op = gocmd(f"iwconfig {devname}")
-    for line in op.split('\n'):
-        if "Power Management:" in line: return line.split(':')[1]
-    return ""
 
 def isrunning(sname):
     r = dosystem(f"systemctl --quiet is-active {sname}")
-    return r.returncode
+    return r.returncode == 0
     
-def iponline(ipaddr):
-    return tfcmd(f"ping -c 1 -W 2 {ipaddr}", nolog=True)
+def iponline(ipaddr, pingcount=1):
+    return tfcmd(f"ping -c {pingcount} -W 2 {ipaddr}", nolog=True)
 
 def waitapip(ipaddr):
     while not iponline(ipaddr):
         time.sleep(1)
     return
 
-def writenetconfig(pd):
-    with open(f"/etc/systemd/network/{pd.apname}.network", 'w') as f:
+def read1stline(fn):
+    try:
+        with open(fn) as f: return f.readline().strip('\n')
+    except:
+        return ""
+
+def getintval(inputval, switchname):
+    retval = 0
+    if not inputval is None:
+        try:
+            retval = int(inputval)
+        except:
+            pxsyslogger(f"? Invalid value '{inputval}' for {switchname}")
+    return retval
+
+class cpcontrol:
+    def __init__(self):
+        self.ledseq = { "APoff":"----", "APon":"-.--", "Testing":"--.-", "Results":"....", "Cleanup":"...-" }
+        self.settings = { "ssid":"", "password":"", "wificountry":"US", "keymap":"", "locale":"", "timezone":"",\
+                          "dhcpwait":"0", "validate":True, "ckinternet":True, "wifipower":"on" }
+        self.errors = { "success":0, "noconnect":1, "nointernet":2, "manualgiveup":3, "notestdone":4 }
+        self.sdm = self.stopflag = self.connected = self.iconnected = self.isresult = False
+        self.formdone = self.inprogress = self.debug = False
+        self.l10nhandler = self.defaults = self.allerrors = self.wlanip = self.apip = ""
+        self.apssid = self.logmsg = self.facname = self.netns = self.apname = self.netdev = self.apdev = self.phydev = ""
+        self.args = self.pdmsgs = None
+        self.leds = self.netops = self.dhcp = self.atimer = None
+        self.retries = 5
+        self.timeout = 15
+        self.status = 999
+        self.hostname = socket.gethostname()
+        self.sdndrunning = True if isrunning("systemd-networkd") == 0 else False
+
+    def getwlanpm(self, devname):
+        op = gocmd(f"iwconfig {devname}")
+        for line in op.split('\n'):
+            if "Power Management:" in line: return line.split(':')[1]
+        return ""
+
+    def writenetconfig(self):
+        with open(f"/etc/systemd/network/{self.facname}-{self.apname}.network", 'w') as f:
             f.write(f"[Match]\n\
-Name={pd.apname}\n\
+Name={self.apname}\n\
 Type=wlan\n\
 WLANInterfaceType=ap\n\
 \n\
 [Network]\n\
 DHCPServer=yes\n\
 LinkLocalAddressing=no\n\
-Address={pd.apip}/24\n\
+Address={self.apip}/24\n\
 ConfigureWithoutCarrier=yes\n\
 IgnoreCarrierLoss=yes\n\
 \n\
 [DHCPServer]\n\
-SendOption=114:string:https://{pd.apip}/hotspot-detect.html\n\
-DNS={pd.apip}\n")
+SendOption=114:string:https://{self.apip}/hotspot-detect.html\n\
+DNS={self.apip}\n")
 
-    with open(f"/etc/systemd/network/{pd.netdev}.network", 'w') as f:
-        f.write(f"[Match]\n\
-Name={pd.netdev}\n\
+        with open(f"/etc/systemd/network/{self.facname}-{self.netdev}.network", 'w') as f:
+            f.write(f"[Match]\n\
+Name={self.netdev}\n\
 \n\
 [Network]\n\
 DHCP=ipv4\n\
@@ -261,55 +296,67 @@ IPv6AcceptRA=false\n\
 RouteMetric=20\n\
 UseDomains=yes\n")
 
-def writewpaconf(pd, wlan=""):
-    wl = "" if wlan == "" else f"-{wlan}"
-    with open(f"/etc/wpa_supplicant/wpa_supplicant{wl}.conf", 'w') as f:
-        f.write(f"ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
-country={pd.settings['wificountry']}\n\
+    def writewpaconf(self, wlan=""):
+        wl = "" if wlan == "" else f"-{wlan}"
+        with open(f"/etc/wpa_supplicant/wpa_supplicant{wl}.conf", 'w') as f:
+            f.write(f"ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
+country={self.settings['wificountry']}\n\
 update_config=1\n\
 \n\
 network={{\n\
-    ssid=\"{pd.settings['ssid']}\"\n\
-    psk=\"{pd.settings['password']}\"\n\
+    ssid=\"{self.settings['ssid']}\"\n\
+    psk=\"{self.settings['password']}\"\n\
     key_mgmt=WPA-PSK\n}}\n")
 
-def writeapwpaconf(pd):
-    ssid = f"{pd.hostname}-{pd.apssid}"
-    with open(f'/etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf', 'w') as f:
-        f.write(f"ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
-country={pd.settings['wificountry']}\n\
+    def writeapwpaconf(self):
+        ssid = f"{self.hostname}-{self.apssid}"
+        with open(f"/etc/wpa_supplicant/wpa_supplicant-{self.apname}.conf", 'w') as f:
+            f.write(f"ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
 p2p_disabled=1\n\
+country={self.settings['wificountry']}\n\
 ap_scan=1\n\
 \n\
 network={{\n\
 ssid=\"{ssid}\"\n\
 mode=2\n\
 key_mgmt=NONE\n}}\n")
-    return
 
-def cleandhcpcd(pd):
-    tfcmd(f'sed -i "/Added by sdm-cportal/,/denyinterfaces {pd.netdev}/d" /etc/dhcpcd.conf', nolog=True)
-    return
-    
-def updatedhcpcd(pd):
-    cleandhcpcd(pd)   # Ensure only once
-    with open('/etc/dhcpcd.conf', 'a') as f:
-        f.write(f"# Added by sdm-cportal for Access Point\n\
-denyinterfaces {pd.netdev} {pd.apname}\n")
-    return
+    def writel10n(self, keymap, locale, timezone):
+        ostr = ""
+        if keymap != "": ostr = f"keymap={keymap}"
+        if locale != "": ostr = f"{ostr}\nlocale={locale}"
+        if timezone != "": ostr = f"{ostr}\ntimezone={timezone}"
+        if ostr != "":
+            if self.sdm:
+                with open(f"/etc/{self.facname}/local-1piboot.conf", 'w') as f:
+                    f.write(f"{ostr}\n")
+            else:
+                if self.l10nhandler != "":
+                    reportcmd(f'{self.l10nhandler} "{keymap}" "{locale}" "{timezone}"', msg=f"Call L10N handler {self.l10nhandler}")
 
-def writel10n(pd, keymap, locale, timezone):
-    ostr = ""
-    if keymap != "": ostr = f"keymap={keymap}"
-    if locale != "": ostr = f"{ostr}\nlocale={locale}"
-    if timezone != "": ostr = f"{ostr}\ntimezone={timezone}"
-    if ostr != "":
-        if pd.sdm:
-            with open(f"/etc/{pd.facname}/local-1piboot.conf", 'w') as f:
-                f.write(f"{ostr}\n")
-        else:
-            if pd.l10nhandler != "":
-                reportcmd(f'{pd.l10nhandler} "{keymap}" "{locale}" "{timezone}"', msg=f"Call L10N handler {pd.l10nhandler}")
+class DHCPClient():
+    def __init__(self, pd):
+        self.pd = pd
+        self.dhcpclient = ""
+        self.dhcpcdrunning = False
+        self.nmrunning = False
+        if isrunning("dhcpcd"):
+            self.dhcpcdrunning = True
+            self.dhcpclient = "dhcpcd"
+        if isrunning("NetworkManager"):
+            self.nmrunning = True
+            self.dhcpclient = "NetworkManager"
+        if self.dhcpclient == "":
+            syslogger("No known running DHCP client found")
+            self.dhcpclient = "dhcpcd"
+        return
+
+    def stopclient(self):
+        reportcmd(f"systemctl stop {self.dhcpclient}", msg=f"Stop {self.dhcpclient}")
+
+    def restartclient(self):
+        if self.dhcpcdrunning or self.nmrunning:
+            reportcmd(f"systemctl start {self.dhcpclient}", msg=f"Start {self.dhcpclient}")
 
 class LEDflash(threading.Thread):
     def __init__(self, pd):
@@ -341,7 +388,7 @@ class LEDflash(threading.Thread):
         syslogger(f'Set LED flash sequence: "{newsequence}"')
         return
 
-    def setstop(self):
+    def setstopled(self):
         self.running = False
         self.sequence = ""
         self.writeflush("0")
@@ -358,7 +405,7 @@ class LEDflash(threading.Thread):
                         self.flashled(ch, ontime)
                     else:
                         break
-                    time.sleep(self.interval)
+                    if self.running: time.sleep(self.interval)
             if self.running: time.sleep(0.5)
         return
 
@@ -367,8 +414,8 @@ class Netops(threading.Thread):
         threading.Thread.__init__(self)
         self.pd = pd
 
-    #def __del__(self):
-        #syslogger("Netops deleted")
+    def __del__(self):
+        syslogger("Netops object deleted")
 
     def run(self):
         if self.pd.inprogress:
@@ -378,7 +425,11 @@ class Netops(threading.Thread):
         self.pd.inprogress = True
         syslogger(f"Write wpa_supplicant-{self.pd.netdev}.conf")
         self.pd.leds.setsequence(self.pd.ledseq['Testing'])
-        writewpaconf(self.pd, f'{self.pd.netdev}')
+        self.pd.writewpaconf(f"{self.pd.netdev}")
+        # try this again someday
+        #if "OK" in gocmd(f"wpa_cli -i {self.pd.netdev} reconfigure"):
+            #syslogger(f"Successfully reconfigured {self.pd.netdev} wpa_supplicant")
+        #else:
         reportcmd(f"systemctl restart wpa_supplicant@{self.pd.netdev}", msg=f"Restart wpa_supplicant@{self.pd.netdev} to use new SSID/password")
         # Wait for the network to come online
         myipaddr = ""
@@ -393,7 +444,7 @@ class Netops(threading.Thread):
             syslogger(f"Got IP address {self.pd.wlanip}")
             if self.pd.settings['ckinternet']  == "on" and self.pd.wlanip != "":
                 syslogger("Test Internet accessibility")
-                if iponline("1.1.1.1"):
+                if iponline("1.1.1.1", pingcount=5):
                     syslogger("Internet is Accessible")
                     self.pd.iconnected = True
                 else:
@@ -425,7 +476,7 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
             return newstring
         return  f"{oldstring}<br>{newstring}"
 
-    def _buildresponse(self, pd):
+    def _buildresponse(self, pd, redolink=False):
         response = f"<html><body><h1>WiFi Configuration Results for host {pd.hostname}</h1>"
         if self.pd.connected:
             response = f"{response}<h2>Obtained IP Address {self.pd.wlanip} via WiFi SSID '{self.pd.settings['ssid']}'<br></h2>"
@@ -438,15 +489,25 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                 response = f"{response}<h2>Internet Accessibility was not tested</h2>"
             else:
                 response = f"{response}<h2>Internet is NOT Accessible</h2>"
+        if redolink:
+            response = f"{response}<h2><a href=\"http://{self.pd.apip}/\" target=\"_blank\">Restart Captive Portal</a></h2>"
+            response = f"{response}<h2><a href=\"http://{self.pd.apip}/giveup\" target=\"_blank\">Cancel Captive Portal</a></h2>"
         return f"{response}</body></html>"
 
     def _write_response(self, htmltext):
         self._set_response()
         return self.wfile.write(htmltext.encode('utf-8'))
     
-    def _setstop(self, pd, dostop):
-        writel10n(pd, self.pd.settings['keymap'], self.pd.settings['locale'], self.pd.settings['timezone'])
+    def _setstop(self, pd):
+        pd.writel10n(self.pd.settings['keymap'], self.pd.settings['locale'], self.pd.settings['timezone'])
         self.pd.stopflag = True
+
+    def _notriesleft(self, status):
+        self.pd.status = status
+        self.pd.retries -= 1
+        if self.pd.retries == 0:
+            return True
+        return False
 
     def do_GET(self):
         if not 'favicon' in self.path:
@@ -490,18 +551,19 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                     self.pd.settings['dhcpwait'] = int(dwait)
                 except:
                     self.pd.allerrors = self._adderror(self.pd.allerrors, f"dhcpwait value '{dwait}' is not numeric")
+                    self.pd.settings['dhcpwait'] = 60
             else:
                 self.pd.settings['dhcpwait'] = 60
             if self.pd.allerrors != "":
                 syslogger("Errors were found")
-                self.pd.allerrors = f"<html><body><h1>Errors Found</h1><h2>{self.pd.allerrors}</h2></body></html>"
+                self.pd.allerrors = f"<html><body><h1>Errors Found for host {self.pd.hostname}</h1><h2>{self.pd.allerrors}</h2></body></html>"
                 syslogger("Send error report message")
                 self._write_response(self.pd.allerrors)
             else:
                 self.pd.formdone = True
                 syslogger("Form input validation complete")
                 if self.pd.settings['validate'] == "on":
-                    curpm = getwlanpm('wlan0')
+                    curpm = self.pd.getwlanpm(self.pd.netdev)
                     if self.pd.settings['wifipower'] == "on" and curpm != "on":
                         reportcmd(f"iwconfig {self.pd.netdev} power on", msg=f"Set {self.pd.netdev} Power Management on")
                     else:
@@ -513,14 +575,15 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                     self.pd.netops.start()
                     syslogger("Send redirect to testinprogress")
                     self.send_response(302)
-                    self.send_header('Location', f'http://{self.pd.apip}/testinprogress')
+                    self.send_header('Location', f"http://{self.pd.apip}/testinprogress")
                     self.end_headers()
                 else:
                     syslogger("Write WiFi configuration with No Validation")
-                    writewpaconf(self.pd)
+                    self.pd.writewpaconf()
                     syslogger("Send notValidated message")
-                    self._write_response(self.pd.pdmsgs.notValidated)
-                    self._setstop(self.pd, True)
+                    self._write_response(self.pd.pdmsgs.notValidated.format(self.pd.hostname))
+                    self._notriesleft(self.pd.errors['notestdone'])
+                    self._setstop(self.pd)
                     return
         elif self.path == "/" or "/hotspot-detect.html" in self.path:
             syslogger(f"Send greeting page to remote from query to {self.path}")
@@ -528,6 +591,11 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
         elif self.path == "/testinprogress":
             syslogger("Send testinprogress page")
             self._write_response(self.pd.pdmsgs.testinprogress_page.format(self.pd.hostname, self.pd.apip))
+        elif self.path == "/giveup":
+            syslogger("Received manual 'give up' message")
+            self.pd.status = self.pd.errors['manualgiveup']
+            self._write_response(self.pd.pdmsgs.giveup_page.format(self.pd.hostname))
+            self._setstop(pd)
         elif self.path == "/webform":
             syslogger("Send form page to remote")
             self._write_response(self.pd.pdmsgs.web_form.format(self.pd.hostname))
@@ -545,9 +613,10 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
             if myipaddr == "" or myipaddr.startswith("169.254"):
                 syslogger("Failed to obtain an IP Address")
                 syslogger("Send built response message")
-                self._write_response(self._buildresponse(pd))
+                self._write_response(self._buildresponse(pd, redolink=True))
                 self.pd.inprogress = False
-                self._setstop(pd, False)
+                if self._notriesleft(self.pd.errors['noconnect']):
+                    self._setstop(pd)
                 return
             else:
                 syslogger(f"Obtained IP Address {myipaddr}")
@@ -558,43 +627,46 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                     syslogger("Internet is Accessible")
                     syslogger("Send built response message")
                     self._write_response(self._buildresponse(pd))
+                    self.pd.status = self.pd.errors['success']
                     self.pd.inprogress = False
-                    self._setstop(pd, False)
+                    self._setstop(pd)
                 else:
                     syslogger("Internet is Not Accessible")
                     syslogger("Send built response message")
                     self._write_response(self._buildresponse(pd))
                     self.pd.inprogress = False
                     self.pd.leds.setsequence(self.pd.ledseq['APon'])
-
+                    if self._notriesleft(self.pd.errors['nointernet']):
+                        self._setstop(pd)
             else:
                 syslogger("WiFi Operational, no Internet check done")
                 syslogger("Send built response message")
+                self.pd.status = self.pd.errors['notestdone']
                 self._write_response(self._buildresponse(self.pd))
                 self.pd.inprogress = False
-                self._setstop(pd, False)
+                self._notriesleft(self.pd.errors['notestdone'])
+                self._setstop(pd)
         return
 
 def docleanup(pd, resetcmd=False):
     if gocmd(f"iw dev {pd.apname} info") != "":
         if f"tmp-{pd.facname}" in gocmd(f"ip netns"):
-            reportcmd(f'iw phy0 set netns name {pd.netns}', msg=f"Delete AP {pd.apname}")
-            reportcmd(f'ip netns exec {pd.netns} iw dev {pd.apname} del')
-            reportcmd(f'ip netns exec {pd.netns} iw "phy0" set netns 1') # Set back to primary namespace
-        reportcmd(f"ip netns del {pd.netns}")                            # And delete temp ns, no longer needed
-    reportcmd(f"systemctl stop wpa_supplicant@{pd.netdev}", msg=f"Stop {pd.netdev} wpa_supplicant")
-    reportcmd(f"systemctl stop wpa_supplicant@{pd.apname}", msg=f"Stop {pd.apname} wpa_supplicant")
-    reportcmd(f"systemctl stop dhcpcd", msg="Stop dhcpcd")
-    cleandhcpcd(pd)
+            tfcmd(f"iw {pd.phydev} set netns name {pd.netns}", msg=f"Delete Access Point {pd.apname}")
+            tfcmd(f"ip netns exec {pd.netns} iw dev {pd.apname} del")
+            tfcmd(f"ip netns exec {pd.netns} iw {pd.phydev} set netns 1") # Set back to primary namespace
+    tfcmd(f"iw dev {pd.apname} del")                         # Just in case
+    tfcmd(f"ip netns del {pd.netns}")                                         # And delete temp ns, no longer needed
+    tfcmd(f"systemctl stop wpa_supplicant@{pd.apname}", msg=f"Stop {pd.apname} wpa_supplicant")
+    tfcmd(f"systemctl stop wpa_supplicant@{pd.netdev}", msg=f"Stop {pd.netdev} wpa_supplicant")
     qdelfile(f"/var/run/wpa_supplicant/{pd.apname}")
-    qdelfile(f"/etc/systemd/network/{pd.apname}.network")
-    qdelfile(f"/etc/systemd/network/{pd.netdev}.network")
-    qdelfile(f'/etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf')
+    qdelfile(f"/etc/systemd/network/{pd.facname}-{pd.apname}.network")
+    qdelfile(f"/etc/systemd/network/{pd.facname}-{pd.netdev}.network")
+    qdelfile(f"/etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf")
     qdelfile("/etc/wpa_supplicant/wpa_supplicant.conf")
     if not resetcmd:
             qrename(f"/etc/wpa_supplicant/wpa_supplicant-{pd.netdev}.conf", "/etc/wpa_supplicant/wpa_supplicant.conf")
     qdelfile(f"/etc/wpa_supplicant/wpa_supplicant-{pd.netdev}.conf")
-    syslogger("Reload systemd and restart systemd-networkd and dhcpcd")
+    syslogger(f"Reload systemd and restart systemd-networkd and restart {pd.dhcp.dhcpclient}")
     if pd.sdndrunning:
         reportcmd("systemctl daemon-reload")
         reportcmd("systemctl restart systemd-networkd")
@@ -602,10 +674,10 @@ def docleanup(pd, resetcmd=False):
         reportcmd("systemctl stop systemd-networkd.socket")
         reportcmd("systemctl stop systemd-networkd")
         reportcmd("systemctl daemon-reload")
-    # Toggle the netdev network. Seems to work better 
-    reportcmd(f"networkctl down {pd.netdev}", msg=f"Toggle {pd.netdev} offline/online before dhcpcd restart")
-    reportcmd(f"networkctl up {pd.netdev}")
-    reportcmd("systemctl restart dhcpcd")
+    #Toggle the netdev network. Seems to work better. Or maybe not. Keep the code, commented out, for now
+    #reportcmd(f"networkctl down {pd.netdev}", msg=f"Toggle {pd.netdev} offline/online before {pd.dhcp.dhcpclient} restart")
+    #reportcmd(f"networkctl up {pd.netdev}")
+    pd.dhcp.restartclient()
 
 def resetnet(pd):
     syslogger("Reset Captive Portal WiFi Network")
@@ -614,81 +686,94 @@ def resetnet(pd):
     
 def runserver(pd):
     syslogger("Portal network reconfiguration")
-    reportcmd(f"systemctl stop dhcpcd", msg="Stop dhcpcd")
+    pd.dhcp.stopclient()
     reportcmd(f"systemctl stop systemd-networkd.socket", msg="Stop systemd-networkd")
     reportcmd(f"systemctl stop systemd-networkd")
-    reportcmd(f'ip netns add {pd.netns}', msg="Reconfigure network to create Access Point")
-    reportcmd(f'iw phy0 set netns name {pd.netns}')
-    reportcmd(f'ip netns exec {pd.netns} iw phy phy0 interface add {pd.apname} type __ap')
-    syslogger(f"Write /etc/systemd/network/{pd.apname}.network and /etc/systemd/network/{pd.netdev}.network")
-    writenetconfig(pd)
-    syslogger(f"Update /etc/dhcpcd.conf with denyinterfaces {pd.netdev} {pd.apname}")
-    updatedhcpcd(pd)
+    reportcmd(f"ip netns add {pd.netns}", msg="Reconfigure network to create Access Point")
+    reportcmd(f"iw {pd.phydev} set netns name {pd.netns}")
+    reportcmd(f"ip netns exec {pd.netns} iw phy {pd.phydev} interface add {pd.apname} type __ap")
+    syslogger(f"Write /etc/systemd/network/{pd.facname}-{pd.apname}.network and /etc/systemd/network/{pd.facname}-{pd.netdev}.network")
+    pd.writenetconfig()
     syslogger(f"Write /etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf")
-    writeapwpaconf(pd)
-    syslogger(f"Write /etc/wpa_supplicant/wpa_supplicant-{pd.netdev}.conf")
-    reportcmd(f'ip netns exec {pd.netns} iw "phy0" set netns 1') # Set back to primary namespace
+    pd.settings['ssid'] = "foobarfoobar"
+    pd.settings['password'] = "barfoobarfoobarfoobarfoo"
+    pd.writewpaconf(wlan=pd.netdev)
+    pd.writeapwpaconf()
+    reportcmd(f"ip netns exec {pd.netns} iw {pd.phydev} set netns 1") # Set back to primary namespace
     qdelfile(f"/var/run/wpa_supplicant/{pd.apname}")
-    reportcmd(f"systemctl daemon-reload", msg='Do daemon-reload / start dhcpcd with updated config / start systemd-networkd')
-    reportcmd(f"systemctl start dhcpcd")
+    reportcmd(f"systemctl daemon-reload", msg='Do daemon-reload and start systemd-networkd')
     reportcmd("systemctl start systemd-networkd")
+    #reportcmd(f"systemctl start wpa_supplicant@{pd.netdev}", msg=f"Start wpa_supplicant@{pd.netdev}")
     reportcmd(f"systemctl start wpa_supplicant@{pd.apname}", msg=f"Start wpa_supplicant@{pd.apname}")
     syslogger("Wait for access point IP to come online")
     waitapip(pd.apip)
-    server_address = (f'{pd.apip}', 80)
+    server_address = (pd.apip, 80)
     pd.leds.setsequence(pd.ledseq['APon'])
     syslogger("Start HTTP Server")
     handler = partial(sdmRequestHandler, pd)
     httpd = HTTPServer(server_address, handler)
-    while not pd.stopflag:
+    while not pd.stopflag and pd.retries > 0:
         httpd.handle_request()
     httpd.server_close()
     syslogger("Reset Captive Portal WiFi Network")
     pd.leds.setsequence(pd.ledseq['Cleanup'])
     docleanup(pd)
-    pd.leds.setstop()
+    pd.leds.setstopled()
     pd.leds.writeflush("0")
     pd.leds = pd.netops = None
     syslogger("Captive Portal Complete")
+    return pd.status
 
 if __name__ == "__main__":
     pd = cpcontrol()
     parser = argparse.ArgumentParser(prog='cportal')
-    parser.add_argument('--apssid', help="SSID name")
-    parser.add_argument('--apip', help="IP Address to use")
+    parser.add_argument('--apssid', help="SSID name for Access Point")
+    parser.add_argument('--apip', help="IP Address to use for Access Point")
     parser.add_argument('--country', default="US", help="Default WiFi country if user doesn't specify")
     parser.add_argument('--defaults', help="Provide a file with default settings")
     parser.add_argument('--reset', help="Reset networking configuration to non-portal state", action='store_true')
-    parser.add_argument('--debug', help="Print logged messages on console also", action='store_true')
+    #parser.add_argument('--debug', help="Print logged messages on console also", action='store_true')
     parser.add_argument('--facility', help="Facility name to use instead of 'sdm'")
     parser.add_argument('--l10nhandler', help="Full path to script to handle Localization data")
+    parser.add_argument('--retries', default="5", help="Stop Captive Portal after this many failed retries [Default:5]")
     parser.add_argument('--sdm', help="Invoked from sdm", action='store_true')
+    #parser.add_argument('--timeout', default="900", help="No activity timeout [Default:900 seconds]")
     parser.add_argument('--web-msgs', help="Replace Web HTML with HTML of your own choosing")
+    parser.add_argument('--wlan', default="wlan0", help="Specify WiFi device [Default:wlan0]")
     args = parser.parse_args()
     pd.args = args
     pd.apssid = args.apssid if args.apssid != None else "sdm"
     pd.apip = args.apip if args.apip != None else "10.1.1.1"
-    pd.debug = args.debug
+    #pd.debug = args.debug
     pd.facname = "sdm" if args.facility == None else args.facility
     pd.apname = f"{pd.facname}0"
     pd.netns = f"tmp-{pd.facname}"
     pd.l10nhandler = "" if args.l10nhandler == None else args.l10nhandler
     pd.sdm = args.sdm
-    # netdev is dev for testing the provided ssid/password
-    # TBD apdev is the device for running the access point. Useful with >1 wifi ?
-    pd.netdev = "wlan0"
-    pd.apdev = "wlan0"
     syslog.openlog(ident="sdm-cportal")
+    syslogger("Start Captive Portal Setup")
+    if not args.reset:
+        if os.path.exists(f"/sys/class/net/{args.wlan}"):
+            pd.phydev = read1stline(f"/sys/class/net/{args.wlan}/phy80211/name")
+            pd.netdev = args.wlan
+        if pd.netdev == "" or pd.phydev == "":
+            pxsyslogger(f"? Unrecognized WiFi device {args.wlan}")
+    else:
+        pd.netdev = args.wlan
+    
+    pd.retries = getintval(args.retries, '--retries')
+    #pd.timeout = getintval(args.timeout, '--timeout')
+    pd.dhcp = DHCPClient(pd)
     if args.reset:
         resetnet(pd)
         raise SystemExit(0)
     if not args.defaults is None:
-        if not os.path.exists(args.defaults): perrorexit(f"? Defaults file '{args.defaults}' not found")
-        with open(args.defaults, 'r') as f: pd.defaults = f.readline().strip('\n')
+        if not os.path.exists(args.defaults): pxsyslogger(f"? Defaults file '{args.defaults}' not found")
+        pd.defaults = read1stline(args.defaults)
         try:
             query_items = parse_qs(urlparse(pd.defaults).query, keep_blank_values=True)
         except ValueError:
-            perrorexit("? Unable to parse defaults file '{args.defaults}'")
+            pxsyslogger("? Unable to parse defaults file '{args.defaults}'")
     syslogger("Start Captive Portal")
     pd.pdmsgs = htmsgs()
     pd.leds = LEDflash(pd)
@@ -701,88 +786,9 @@ if __name__ == "__main__":
             impmsg = __import__(msgfn)
             del pd.pdmsgs
             pd.pdmsgs = impmsg.htmsgs()
-    runserver(pd)
-    raise SystemExit(0)
+    runsts = runserver(pd)
+    syslogger("Waiting one second")
+    time.sleep(1)
+    syslogger("Exit")
+    raise SystemExit(runsts)
 
-def README():
-    """sdm-cportal implements a simple captive portal with a command-line interface.
-
-You can see the switches with: sdm-cportal --help
-
-Switches of interest:
-
---apssid  ssid            # Set the SSID suffix for the Captive Portal. Default: 'sdm'. Full SSID is {hostname}-{apssid}
---apip ip.ad.dr.es        # Set IP address for the Captive Portal. Default: 10.1.1.1
---country cn              # 'cn' is a 2-letter country name. List in /usr/share/zoneinfo/iso3166.tab
-                          # Used as the default if WiFi country not provided in the WiFi Configuration form
---defaults /path/to/file  # Provides a set of defaults to be applied after the form input has been processed. See below
---reset                   # Resets the networking configuration. Handy if you kill it in the middle of something
-
-Not fully implemented:
-
---debug                   # Doesn't do anything at the moment
---sdm                     # Work in progress
---web-msgs                # Untested
-
-Usage notes and hints:
-
-Has only been tested on a Pi4, and only with the built-in wireless. Likely not working with USB WiFi yet.
-
-The Captive Portal (CP) doesn't automatically pop into a web page. Once your device is connected to the CP
-navigate to http://10.1.1.1 or whatever IP was specified with the command line switch --apip
-
-I found my iPhone to not perform fully as expected connecting to the CP. It seemed to take a long time for the CP WiFi
-to show up on the phone. I have found that toggling WiFi on the phone off/on then connect is pretty reliable. It's
-possible that I'm impatient in addition to having high expectations, so interested in your feedback on this, and your experience
-with other devices.
-
-It also appears that the CP WiFi (on iOS device) drops when the CP starts testing the provided ssid/password. 
-
-If you're having problems, best to hit the WiFi settings app, toggle WiFi off/on, and reconnect to the CP. I haven't done any
-further investigation yet, since I think it's good enough for broader testing.  Please let me know your feedback/issues on this.
-
-I found this wifi toggle/reconnect necessary primarily after the "Testing host WiFi Configuration" web page. Wait for the ACT
-LED (see below) to flash Results Available and then toggle/reconnect your device's WiFi before clicking on the Check WiFi
-Connection Status link
-
-ACT LED Flashing:
-
-APoff:                ----
-  The access point has not yet started
-APon:                 -.--
-  The access point is ready to accept a connection
-Testing in progress:  --.-
-  Testing the provided SSID/password
-Results Available:    ....
-  Reconnect to the access point and click the link 
-Doing Cleanup:        ...-
-  Housekeeping and exit
-
-WiFi Power Management setting
-
-Various people have reported that they need to have this set one way or the other for their Pi to connect to a network. This
-setting lets you control that. At the moment this is only for use with the CP. It does not create a permanent setting for
-subsequent system boots.
-
---defaults file
-
-The defaults file was inspired during testing. So, primarily for testing, but usage is up to you, of course. Provide a
-/full/path/to/file for your defaults file. Any items found in it replace whatever was entered in the form. During testing you
-can use a fully-populated defaults file and simply click Submit on the form page. Only the first line of the defaults file is read.
-
-defaults file format. Must all be on a single line.
-formsubmit?ssid=yourssid&password=yourwifipassword&wificountry=US&keymap=us&locale=en_US.UTF-8&timezone=America/Los_Angeles&dhcpwait=60&validate=on&ckinternet=on&wifipower=on
-
-Simply delete the whole &keyword=value for any values you don't want. For testing, I recommend setting all values, makes testing
-MUCH easier.
-
-#* There are many things left to do. Such as:
-# Code cleanup. Lots of invention on the fly here
-# Exit with status
-# Support other than built-in WiFi device
-# Need to properly find phy in case other than wlan0 rather than just jamming phy0
-# Other dhcp clients such as Network Manager
-# Constrain # retries on a WiFi connect or internet check failure
-# Improve HTML and get dynamic HTML loading working
-
-    """

@@ -622,19 +622,6 @@ then
     runplugins 1
 fi
 
-#
-# If --loadlocal wifi then disable dhcpcd now. Why wait 1:39 at boot time for nothing?
-if [[ "$loadlocal" =~ "wifi" ]]
-then
-    logtoboth "> Disable dhcpcd per --loadlocal wifi"
-    logtoboth "  dhcpcd will be re-enabled at the end of First Boot"
-    systemctl disable dhcpcd
-fi
-#
-# These are enabled by use of the --poptions switch
-# For example: --poptions apps          installs your personal set of apps
-#              --poptions apps:xwindows installs apps and XWindows apps
-#
 didapt=0
 if [[ "$poptions" =~ "|apps|" ]]
 then

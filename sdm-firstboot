@@ -183,12 +183,12 @@ EOF
 	write_console "Wait up to $dhcpwait seconds for dhcpcd to get an IP Address"
 	for (( secs=0 ; secs < $dhcpwait ; secs++ ))
 	do
-	    myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show | grep wlan0) | (IFS='/'; read a b; echo $a))
+	    myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show wlan0) | (IFS='/'; read a b; echo $a))
 	    [[ ! "$myipaddr" =~ "169.254." ]] && [ "$myipaddr" != "" ] && break
 	    [ $flashled -eq 1 ] && morseled "..-. ..-. ..-." #Waiting on IP Address
 	    sleep 1
 	done
-	myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show | grep wlan0) | (IFS='/'; read a b; echo $a))
+	myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show wlan0) | (IFS='/'; read a b; echo $a))
 	if [[ "$myipaddr" =~ "169.254." ]] || [ "$myipaddr" == "" ]
 	then
 	    bootlog "WiFi did not connect"
@@ -401,10 +401,16 @@ else
     then
 	[ "$wificountry" == "" ] && set_wifi_country US 
 	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
-	$sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid --logging $sdmdir/sdm-logmsg
-	bootlog "Re-enable dhcpcd Service"
-	systemctl daemon-reload > /dev/null 2>&1
-	systemctl enable dhcpcd > /dev/null 2>&1
+	write_console "Start Captive Portal to obtain WiFi SSID and Password"
+	write_console0 "Watch the ACT light"
+	write_console0 "   ----  Access Point not started"
+	write_console0 "   -.--  Access Point started"
+	write_console0 "   --.-  WiFi connection test in progress"
+	write_console0 "   ....  Connection test results ready"
+	write_console0 "   ...-  Restoring network configuration to exit"
+	write_console0 ""
+	$sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid
+	write_console "Captive Portal complete; Resume FirstBoot processing"
     fi
 fi
 [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Local Settings from --loadlocal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf

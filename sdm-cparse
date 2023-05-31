@@ -179,6 +179,16 @@ function ord() {
     printf '%d' "'$1"
 }
 
+function isactive() {
+    #
+    # Returns "0" if service in $1 is active
+    #
+    systemctl --quiet is-active $1
+    sts=$?
+    echo "$sts"
+    return $sts
+}
+
 function getfsdf() {
     #
     # $1: fs name
