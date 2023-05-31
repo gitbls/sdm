@@ -5,7 +5,7 @@
 * Reimplement the Captive Portal. See See <a href="Docs/Captive-Portal.md">Captive Portal</a> for details
 ## V7.13
 
-* Add `--runonly plugin` to only run plugins (vs a full customize). See <a href="https://github.com/gitbls/sdm/blob/master/Docs/Programming-Plugins-and-Custom-Phase-Scripts.md#running-only-plugins">Running only plugins</a> for details
+* Add `--runonly plugin` to only run plugins (vs a full customize). See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md#running-only-plugins">Running only plugins</a> for details
 
 ## V7.12
 
@@ -17,7 +17,7 @@
 
 ## V7.11
 
-* Correct plugin update handling during burn commands when full path to plugin provided. See <a href="https://github.com/gitbls/sdm/blob/master/Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a> for details
+* Correct plugin update handling during burn commands when full path to plugin provided. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a> for details
 * Improve message consistency
 
 ## V7.10
