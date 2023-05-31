@@ -1,5 +1,8 @@
 # Changelog
 
+## V7.14
+
+* Reimplement the Captive Portal. See See <a href="Docs/Captive-Portal.md">Captive Portal</a> for details
 ## V7.13
 
 * Add `--runonly plugin` to only run plugins (vs a full customize). See <a href="https://github.com/gitbls/sdm/blob/master/Docs/Programming-Plugins-and-Custom-Phase-Scripts.md#running-only-plugins">Running only plugins</a> for details
