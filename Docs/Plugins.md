@@ -6,7 +6,7 @@ Plugins are a modular way to extend sdm capabilities. Plugins are similar to <a 
 
 It makes sense to include some plugins into the IMG you're creating (e.g., postfix, samba) so they are installed onto every system burned from that IMG, but some are typically installed once per network (e.g., apt-cacher-ng), or not needed on every system. In that case you can use the plugin when burning the SSD/SD for that specific system.
 
-The set of plugins provided with sdm includes: apt-cacher-ng, apt-file, btwifiset, clockfake, imon, pistrong, postfix, rxapp, samba, vnc, and wsdd.
+The set of plugins provided with sdm includes: apt-cacher-ng, apt-file, btwifiset, clockfake, imon, pistrong, postfix, rxapp, samba, vnc, wificonfig, and wsdd.
 
 Other plugins are planned. If there are any specific plugins you're interested in, let me know!
 
@@ -229,6 +229,21 @@ Only one of tigervnc or tightvnc can be installed and configured on a system by 
 * `--plugin vnc:"realvnc|tigervnc=1280x1024,1600x1200` &mdash; Install RealVNC server for the console and tigervnc virtual desktop servers for the specified resolutions.
 * `--plugin vnc:"realvnc=1600x1200"` &mdash; Install RealVNC server and configure the console for 1600x1200, just as raspi-config VNC configuration does.
 * `--plugin vnc:"tigervnc=1024x768,1600x1200,1280x1024"` &mdash; Install tigervnc virtual desktop servers for the specified resolutions. Only configure RealVNC if it is already installed (e.g., RasPiOS with Desktop IMG).
+
+### wificonfig
+
+wificonfig is used to enable the sdm Captive Portal to delay WiFi SSID/Password configuration until the first system boot.
+
+#### Arguments
+
+* **apssid=APSSID** &mdash;SSID for the Access Point. Default: *sdm*
+* **apip=ap.ip.ad.dr** &mdash;IP Address for the Access Point. Default: *10.1.1.1*
+* **country=cc** &mdash;Two-letter WiFi country code. The codes are found in /usr/share/zoneinfo/iso3166.tab
+* **defaults=/path/to/defaults** &mdash;Path to defaults file. See <a href="Captive-Portal.md#defaults-file">Defaults file</a> for details
+* **facility=facname** &mdash;Facility name. Default: *sdm*
+* **retries=n** &mdash;Maximum number of retries for the user to set the SSID/Password. Default: *5*
+* **timeout=n** &mdash;Captive Portal timeout (interval between network packets from the connecting device). Default: *900 seconds* (15 minutes)
+* **wifilog=/path/to/wifilog** &mdash;Log file for the Captive Portal. Default: */etc/sdm/wifi-config.log*
 
 ### wsdd
 

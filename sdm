@@ -238,7 +238,7 @@ function poptcheck() {
     # Check options settings against valid settings
     # Report errors and exit
     #
-    local popt="$1" vopt="$2" switchname="$3" badopt="" nopt="" xopt=() o os badopt
+    local popt="$1" vopt="$2" switchname="$3" badopt="" nopt="" os xopt=()
     if [ "$popt" != "" ]
     then
 	IFS="," read -a xopt <<< "$popt"
@@ -464,6 +464,7 @@ Command Switches for --customize and --burn or as noted
  --rename-pi user    Rename the user 'pi' to the new username rather than creating a new user with --user
  --restart           20 seconds after first boot has completed restart the system
  --rootpwd           Set a root password into the image
+ --runonly plugins   Do no customization, ony run requested plugins
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
  --showapt           Display apt output as well as logging it
  --showpwd           Log password in /etc/sdm/history
@@ -491,7 +492,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.14"
+version="V7.15"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal

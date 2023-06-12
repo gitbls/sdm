@@ -385,11 +385,11 @@ source /etc/sdm/sdm-readparams
 #
 # Set WiFi Country or load WiFi credentials
 #
-[[ "$loadlocal" =~ "|flashled|" ]] && flashled=1 || flashled=0
-if [[ "$loadlocal" =~ "|usb|" ]]
+[[ "$loadlocal" =~ "flashled" ]] && flashled=1 || flashled=0
+if [[ "$loadlocal" =~ "usb" ]]
 then
     bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
-    [[ "$loadlocal" =~ "|internet|" ]] && ckinternet=1 || ckinternet=0
+    [[ "$loadlocal" =~ "internet" ]] && ckinternet=1 || ckinternet=0
     loadusbcreds $flashled $ckinternet
 else
     if [ "$wificountry" != "" ]
@@ -397,23 +397,38 @@ else
 	bootlog "Set WiFi Country to '$wificountry'"
 	set_wifi_country "$wificountry"
     fi
-    if [[ "$loadlocal" =~ "|wifi|" ]]
+    logit "> FirstBoot loadlocal: |$loadlocal|"
+    if [[ "$loadlocal" =~ "plugin" ]] || [[ "$loadlocal" =~ "wifi" ]]
     then
+	logit "> FirstBoot handling loadlocal"
 	[ "$wificountry" == "" ] && set_wifi_country US 
 	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
 	write_console "Start Captive Portal to obtain WiFi SSID and Password"
+	write_console0 ""
 	write_console0 "Watch the ACT light"
 	write_console0 "   ----  Access Point not started"
 	write_console0 "   -.--  Access Point started"
 	write_console0 "   --.-  WiFi connection test in progress"
 	write_console0 "   ....  Connection test results ready"
 	write_console0 "   ...-  Restoring network configuration to exit"
-	write_console0 ""
-	$sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid
+	#write_console0 ""
+	if [[ "$loadlocal" =~ "plugin" ]]
+	then
+	    if [ -f /etc/sdm/local-assets/plugin-wificonfig.sh ]
+	    then
+		logit "> FirstBoot Run plugin-wificonfig.sh"
+		/etc/sdm/local-assets/plugin-wificonfig.sh     # Script deletes itself when done
+	    else
+		logit "% FirstBoot wificonfig plugin set but /etc/sdm/local-assets/plugin-wificonfig.sh not found"
+	    fi
+	else
+	logit "> FirstBoot Run sdm-cportal"
+	    $sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid
+	fi
 	write_console "Captive Portal complete; Resume FirstBoot processing"
     fi
 fi
-[ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Local Settings from --loadlocal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
+[ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Localization Settings from Captive Portal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
 
 #
 # Only look at 1piboot.conf if there's anything to process
