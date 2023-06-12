@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.15
+
+* Captive Portal updates including timeout and a plugin for enhanced implementation flexibility
+
 ## V7.14
 
 * Reimplement the Captive Portal. See See <a href="Docs/Captive-Portal.md">Captive Portal</a> for details
