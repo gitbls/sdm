@@ -2,6 +2,8 @@
 
 This section provides context and details about the sdm environment for writing Plugins and Custom Phase Scripts.
 
+See <a href="Plugins.md">Plugins</a> and <a href="Custom-Phase-Script.md">Custom Phase Scripts</a> for descriptions/overviews of these capabilities.
+
 ## sdm Operation Principles
 
 sdm provides Plugins and Custom Phase Scripts with 3 operating environments:
