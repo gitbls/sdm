@@ -17,6 +17,7 @@
 <br><a href="Example-Custom-Phase-Script.md">Example: Custom Phase Script</a>
 <br><a href="Example-Plugin.md">Example: Plugin</a>
 <br><a href="First-Boot-Service.md">First Boot Service</a>
+<br><a href="First-Boot-Scripts-and-Configurations.md">First Boot Script and Configuration Information</a>
 <br><a href="fstab.md">fstab</a>
 <br><a href="Hint-Using-sdm-on-2202-04-04-and-later-images.md">Hint: Using sdm on 2202-04-04 and Later IMGs</a>
 <br><a href="Hotspot.md">Hotspot</a>

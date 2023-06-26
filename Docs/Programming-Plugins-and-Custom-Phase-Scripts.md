@@ -89,6 +89,23 @@ For instance:
 2022-11-01 19:32:24 D!Plugin sdm-plugin-template: Test printout from sdm-plugin-template
 ```
 
+### Handling plugin deferred actions
+
+Sometimes a plugin needs to defer an action until the system is actually booted. For instance, if a plugin needs the actual running hostname of a system (instead of the hostname on which sdm is running), the plugin needs to delay this actino until the system actually boots for the first time.
+
+The easiest way to do this is to create an executable script named /etc/sdm/0*-*.sh, place the necessary commands in it, and they will be run automatically during the first boot of the system.
+
+#### Example code creating a deferred action script
+This creates a deferred action script that is run during the first system boot. It enables hostapd and dnsmasq for all subsequent boots.
+
+```
+cat > /etc/sdm/0piboot/040-hostapd-enable.sh <<EOF
+#!/bin/bash
+# This script runs as root during the first boot of the system
+#source /etc/sdm/sdm-readparams  #Not needed for this example
+echo "hostname: $(hostname)" >> /etc/myservice/myservice.conf
+EOF
+```
 ### Updating plugins during --burn
 
 By default, sdm does not update plugins at burn time. If you want to use a plugin at burn time that is different from the one already in the IMG:
