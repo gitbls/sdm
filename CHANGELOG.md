@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.16
+
+* Captive portal updates: Optionally provide list of visible WiFi SSIDs in configuration dialog; Increase font sizes.
+
 ## V7.15
 
 * Captive Portal updates including timeout and a plugin for enhanced implementation flexibility
