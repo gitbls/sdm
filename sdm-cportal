@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Version X1.93 Beta release
+# Version V1.0
 #
 # sdm-cportal implements a Captive Portal hotspot to obtain WiFi SSD and Password from the user,
 # test their validity, and subsequently configure wpa_supplicant.conf
@@ -31,20 +31,36 @@ class htmsgs:
     def __init__(self):
         self.greeting_page = """
 <html><body>
+<style>
+input[type=submit] {{ font-size: 30px; }}
+input[type=checkbox] {{ height: 40px; width: 40px; }}
+body {{ font-size: 30px; }}
+form {{ font-size: 30px; }}
+</style>
 <h1>Captive Portal for host {}</h1>
-<h2>Follow these steps to configure WiFi for host {}:</h2>
+<h2>To configure WiFi for host {}:</h2>
 <ul>
-<li>Click on the link below. A new browser page with a form will open</li>
+<li>If you don't want the Portal to provide a list of visible SSIDs to choose from, uncheck List Visible SSIDs below</li>
+<li>Click the Submit button below</li>
+<li>A new browser page with a form will open</li>
 <li>Fill out the form and click Submit</li>
-<li>Wait until the ACT LED flashes "...." or "---." or 30-60 seconds 
+<li>Wait until the ACT LED flashes "...." or "---." or 30-60 seconds</li>
 <li>Ensure your device is connected to the Captive Portal WiFi Network via the Settings App</li>
 <li>Click Check WiFi Connection Status</li>
 <li><b>IMPORTANT:</b> The system configuration is not complete until you have a successful Configuration Results response</li>
 </ul>
-<h3><a href="http://{}/webform" target="_blank">Start WiFi Configuration</a></h3>
+<form action="/webform" target="_blank">
+<div>
+    <input type="checkbox" name="findssids" checked="checked">
+    <label for="findssids">List visible SSIDs (takes a bit of time to collect)</label>
+</div>
+<br>
+    <input type="submit" value="Submit">
+</form>
+</font>
 <br><br>
 <ul>
-<li>If needed, use the link below to check the connection status and complete the WiFi configuration</li>
+<li>If necessary, you can use the link below to check the connection status and complete the WiFi configuration</li>
 <li>But first use the Settings App on your device to ensure you're connected to the Captive Portal WiFi Network again before clicking this link. <b>Turn WiFi Off/On, reconnect to the Captive Portal WiFi Network</b>
 </ul>
 <h3><a href="http://{}/checkresult" target="_blank">Check WiFi connection status</a></h3>
@@ -53,13 +69,27 @@ class htmsgs:
 
         self.web_form = """
  <html><body>
-  <h1>WiFi Configuration for Host {}</h1>
+  <h1>Host {} WiFi Configuration</h1>
 <br>
+<style>
+input[type=submit] {{ font-size: 30px; }}
+input[type=text] {{ font-size: 40px; }}
+input[list] {{ font-size: 40px; }}
+input[type=checkbox] {{ height: 40px; width: 40px; }}
+select {{ font-size: 40px; }}
+h1 {{ font-size: 50px; }}
+body {{ font-size: 40px; }}
+form {{ font-size: 40px; }}
+table {{ font-size: 40px; }}
+</style>
 <form action="/formsubmit">
     <table>
-      <tr><td>SSID*</td><td><input type="text" name="ssid" value=""></td></tr>
+<tr><td>SSID*</td><td><input type="list" list="foundssids" name="ssid"></label>
+<datalist id="foundssids">
+{}
+</datalist></td></tr>
       <tr><td>Password*</td><td><input type="text" name="password" value=""></td></tr>
-      <tr><td>WiFi Country*</td><td><input type="text" name="wificountry" value=""></td></tr>
+      <tr><td><b>WiFi Country*</b></td><td><input type="text" name="wificountry" value=""></td></tr>
       <tr><td>Keymap</td><td><input type="text" name="keymap" value=""></td></tr>
       <tr><td>Locale</td><td><input type="text" name="locale" value=""></td></tr>
       <tr><td>Timezone</td><td><input type="text" name="timezone" value=""></td></tr>
@@ -82,9 +112,11 @@ class htmsgs:
 *  Entry is Required
   </body></html>
 """
-
         self.testinprogress_page = """
 <html><body>
+<style>
+body {{ font-size: 30px; }}
+</style>
 <h3>Testing host {} WiFi Configuration...</h3>
 <br>
 <h3>Wait until the ACT LED flashes "...." or "---." or 30-60 seconds</h3>
@@ -97,6 +129,9 @@ class htmsgs:
 
         self.wait_page = """
 <html><body>
+<style>
+body {{ font-size: 30px; }}
+</style>
 <h3>Still testing host {} WiFi Configuration...</h3>
 <br>
 <h3>Please continue waiting until the ACT LED flashes "...." or "---." or 30-60 seconds</h3>
@@ -108,6 +143,9 @@ class htmsgs:
 """
         self.notstarted_page = """
 <html><body>
+<style>
+body {{ font-size: 30px; }}
+</style>
 <h3>Host {} WiFi Configuration has not started</h3>
 <br>
 <h3>You MUST step through the Captive Portal in order</h3>
@@ -124,10 +162,10 @@ class htmsgs:
 
         self.giveup_page = """
 <html><body>
-<h3>Giving up on testing host {}</h3>
+<h1>Stop host {} WiFi configuration</h1>
 <br>
-<h3>The Captive Portal will now exit</h3>
-<h3>Consult your system provider for details on restarting the Captive Portal</h3>
+<h2>The Captive Portal will now exit</h2>
+<h2>Consult your system provider for assistance</h2>
 </body></html>
 """
 
@@ -225,6 +263,18 @@ def waitapip(ipaddr):
             nomsg = False
         time.sleep(1)
     return
+
+def getssidlist():
+    ssidlist = ""
+    syslogger("Collecting visible SSID list")
+    for line in gocmd("iwlist wlan0 scan").split('\n'):
+        if "ESSID" in line:
+            essid, ssid = line.split(":")
+            ssid = ssid[1:-1] # Strip leading/trailing quotes
+            if ssid != "" and not ssid in ssidlist:
+                ssidlist = f'{ssidlist}<option value="{ssid}">'
+    syslogger("SSID list collected")
+    return ssidlist
 
 def read1stline(fn):
     try:
@@ -586,6 +636,9 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                 self.pd.allerrors = self._adderror(self.pd.allerrors, "SSID cannot be blank")
             if self.pd.settings['password'] == "":
                 self.pd.allerrors = self._adderror(self.pd.allerrors, "Password cannot be blank")
+            else:
+                if len(self.pd.settings['password']) < 8 or len(self.pd.settings['password']) > 63:
+                    self.pd.allerrors = self._adderror(self.pd.allerrors, "Password must be between 8-63 characters")
             if self.pd.settings['keymap'] != "":
                 if not runcmd(f"grep \"^  {self.pd.settings['keymap']} \" /usr/share/doc/keyboard-configuration/xorg.lst", nolog=True):
                     self.pd.allerrors = self._adderror(self.pd.allerrors, f"Unrecognized keymap '{self.pd.settings['keymap']}'")
@@ -610,7 +663,10 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                 self.pd.settings['dhcpwait'] = 60
             if self.pd.allerrors != "":
                 syslogger("Errors were found")
-                self.pd.allerrors = f"<html><body><h1>Errors Found for host {self.pd.hostname}</h1><h2>{self.pd.allerrors}</h2></body></html>"
+                self.pd.allerrors = f"<html><body><style>body {{ font-size: 30px; }}</style><h1>Errors Found for host {self.pd.hostname}</h1><h2>{self.pd.allerrors}</h2>"
+                self.pd.allerrors = f"{self.pd.allerrors}<h2><a href=\"http://{self.pd.apip}/\" target=\"_blank\">Restart Captive Portal</a></h2>"
+                self.pd.allerrors = f"{self.pd.allerrors}<h2><a href=\"http://{self.pd.apip}/giveup\" target=\"_blank\">Cancel Captive Portal</a></h2>"
+                self.pd.allerrors = f"{self.pd.allerrors}</body></html>"
                 syslogger("Send error report message")
                 self._write_response(self.pd.allerrors)
             else:
@@ -641,18 +697,21 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
         elif self.path == "/" or "/hotspot-detect.html" in self.path:
             syslogger(f"Send greeting page to remote from query to {self.path}")
             self._write_response(self.pd.pdmsgs.greeting_page.format(self.pd.hostname, self.pd.hostname, self.pd.apip, self.pd.apip))
-        elif self.path == "/testinprogress":
+        elif "/testinprogress" in self.path:
             syslogger("Send testinprogress page")
             self._write_response(self.pd.pdmsgs.testinprogress_page.format(self.pd.hostname, self.pd.apip))
-        elif self.path == "/giveup":
+        elif "/giveup" in self.path:
             syslogger("Received manual 'give up' message")
             self.pd.status = self.pd.errors['manualgiveup']
             self._write_response(self.pd.pdmsgs.giveup_page.format(self.pd.hostname))
             self._setstop(pd)
-        elif self.path == "/webform":
+        elif "/webform" in self.path:
+            query_items = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+            getssids = query_items['findssids'][0].strip() if 'findssids' in query_items else ""
+            ssidlist = getssidlist() if getssids == "on" else ""
             syslogger("Send form page to remote")
-            self._write_response(self.pd.pdmsgs.web_form.format(self.pd.hostname))
-        elif self.path == "/checkresult":
+            self._write_response(self.pd.pdmsgs.web_form.format(self.pd.hostname, ssidlist))
+        elif "/checkresult" in self.path:
             if not self.pd.formdone:
                 syslogger("Checkresult called before form done")
                 self._write_response(self.pd.notstarted_page(self.pd.hostname, self.pd.apip))
@@ -739,6 +798,13 @@ def resetnet(pd):
     docleanup(pd, resetcmd=True)
     syslogger("Captive Portal WiFi Network Reset Complete")
     
+def runclean(pd):
+    # Incomplete, but better than a stack trace
+    pd.runflag = False
+    if not pd.leds is None: pd.leds.setstopled()
+    pd.leds = pd.httpd = pd.atimer = pd.netops = None
+    docleanup(pd)
+
 def runserver(pd):
     syslogger("Portal network reconfiguration")
     pd.dhcp.stopclient()
@@ -838,15 +904,14 @@ if __name__ == "__main__":
             del pd.pdmsgs
             pd.pdmsgs = impmsg.htmsgs()
     try:
-        runsts = runserver(pd)
+        runserver(pd)
+    except KeyboardInterrupt:
+        print(f"CTRL/C clean up and exit")
+        pd.status = 987
+        runclean(pd)
     except:
-        print("In outer exception")
-        #raise
-        # Incomplete, but better than a stack trace
-        if not pd.leds is None: pd.leds.setstopled()
-        pd.leds = pd.httpd = pd.atimer = pd.netops = None
-        #time.sleep(1)
+        runclean(pd)
         perrorexit(f"? Caught unhandled exception")
     time.sleep(0.5)
     syslogger("Captive Portal Exit")
-    raise SystemExit(runsts)
+    raise SystemExit(pd.status)
