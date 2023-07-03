@@ -214,6 +214,22 @@ There are no `--plugin` arguments for rxapp
 * `--plugin samba:"shares=/home/bls/mysmbshares.conf"` &mdash; Append the provided share definitions to the end of the default /etc/samba/smb.conf
 * `--plugin samba:"workgroup=myworkgroup|shares=/home/bls/mysmbshares.conf"` &mdash; Use the default /etc/samba/smb.conf, set the workgroup name to *myworkgroup* and append the provided share definitions to /etc/samba/smb.conf
 
+### trim-enable
+
+trim-enable will enable <a href="https://en.wikipedia.org/wiki/Trim_(computing)">SSD Trim</a> on all or only selected devices. Trim is not actually enabled on the devices until the system first boots.
+
+This plugin can be run manually on a running sdm-customized system by
+```
+sdm --runonly plugins --plugin trim-enable:"disks=/dev/sda,/dev/sdb" --directory /
+```
+The optional switch `--oklive` can be used to avoid the Prompt "Do you really want to run plugins live on the running host?"
+
+#### Arguments
+
+* **disks** &mdash; Specifies the disks on which to enable trim. `disks=all` will enable trim on all drives. Multiple disk names can be specified by, for example, `disks=/dev/sda,/dev/sdb`. If no disks are specified, `disks=all` is the default.
+
+Additional information on SSD Trim for RasPiOS and Linux can be found <a href="https://forums.raspberrypi.com/viewtopic.php?t=351443">here</a>, <a href="https://lemariva.com/blog/2020/08/raspberry-pi-4-ssd-booting-enabled-trim">here</a>, and <a href="https://www.jeffgeerling.com/blog/2020/enabling-trim-on-external-ssd-on-raspberry-pi">here</a>.
+
 ### vnc
 
 #### Arguments

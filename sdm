@@ -492,7 +492,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.16"
+version="V7.17"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1341,6 +1341,7 @@ else
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
     chmod 755 $SDMPT/$sdmdir/*
+    chown -R root:root $SDMPT/$sdmdir
     [ "${appfile:0:1}" == "@" ]  && cp -a -f ${appfile:1:999}  $SDMPT/$sdmdir
     [ "${xappfile:0:1}" == "@" ] && cp -a -f ${xappfile:1:999} $SDMPT/$sdmdir
     logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
