@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.17
+
+* New plugin: trim-enable enables SSD trim on all or only selected SSD devices
+
 ## V7.16
 
 * Captive portal updates: Optionally provide list of visible WiFi SSIDs in configuration dialog; Increase font sizes.
