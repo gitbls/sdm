@@ -147,7 +147,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
-    doaptrpterror "install knockd sg3-utils lsscsi --yes" $showapt
+    doaptrpterror "install sg3-utils lsscsi --yes" $showapt
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 elif [ "$phase" == "post-install" ]
