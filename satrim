@@ -124,7 +124,6 @@ for p in lsscsi sg_vpd
 do
     [ "$(type -p $p)" == "" ] && echo "? $p missing; Do sudo apt --yes install sg3-utils lsscsi" && exit
 done
-doaptrpterror "install knockd sg3-utils lsscsi --yes" $showapt
 pfx="trim-enable"
 trimcfg "$1"
 exit
