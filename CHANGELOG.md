@@ -1,5 +1,9 @@
 # Changelog
 
+## V7.18
+
+* When copying files from host into IMG in Phase 0, ensure proper file ownership and protection
+
 ## V7.17
 
 * New plugin: trim-enable enables SSD trim on all or only selected SSD devices
