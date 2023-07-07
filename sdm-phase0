@@ -13,7 +13,8 @@ function copycufiles() {
     for fl in "${citems[@]}"
     do
 	logtoboth "> Copy file '$fl' to $2"
-	cp -a $fl $2
+	cp $fl $2
+	setfileownmode $2/$(basename $fl)
     done
 }
 
@@ -32,7 +33,8 @@ logtoboth "*+Phase 0 sdm configuration"
 if [ "$b1script" != "" ]
 then
     logtoboth "> Copy --b1script '$b1script' to $SDMPT/etc/sdm/assets"
-    cp -a $b1script $SDMPT/etc/sdm/assets
+    cp $b1script $SDMPT/etc/sdm/assets
+    setfileownmode $SDMPT/etc/sdm/assets/$(basename $b1script)
 fi
 #
 # copy hotspot configuration file into the image
@@ -40,7 +42,8 @@ fi
 if [ "$hotspot" != "" ]
 then
     logtoboth "> Copy hotspot configuration file to $SDMPT/etc/sdm/assets"
-    cp -a $hotspot $SDMPT/etc/sdm/assets
+    cp $hotspot $SDMPT/etc/sdm/assets
+    setfileownmode $SDMPT/etc/sdm/assets/$(basename $hotspot)
 fi
 
 logtoboth "*+Phase 0 Network configuration"
@@ -49,6 +52,7 @@ then
     logtoboth "> Copy wpa supplicant config from '$wpaconf' to $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf"
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
+    setfileownmode $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
 else
     logtoboth "% Skip wpa_supplicant configuration per --nowpa"
 fi
@@ -82,7 +86,8 @@ do
     if [ "$fmconf" != "" ]
     then
 	logtoboth "> Copy --lxde-config '$fm' config file '$fmconf' to $SDMPT/etc/sdm/assets"
-	cp -a $fmconf $SDMPT/etc/sdm/assets
+	cp $fmconf $SDMPT/etc/sdm/assets
+	setfileownmode $SDMPT/etc/sdm/assets/$(basename $fmconf)
     fi
 done
 logtoboth "*+Phase 0 System configuration"
@@ -102,7 +107,8 @@ done
 if [ "$fstab" != "" ]
 then
     logtoboth "> Copy fstab extension '$fstab' to $SDMPT/etc/sdm/assets and enable for FirstBoot"
-    cp -a $fstab $SDMPT/etc/sdm/assets
+    cp $fstab $SDMPT/etc/sdm/assets
+    setfileownmode $SDMPT/etc/sdm/assets/$(basename $fstab)
     echo "fstab=$(basename $fstab)" >> $SDMPT/etc/sdm/auto-1piboot.conf
 fi
 
@@ -114,7 +120,7 @@ fi
 #
 # Copy user-specified motd file into the image
 #
-[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to $SDMPT/etc/motd" && mv $SDMPT/etc/motd $SDMPT/etc/motd.sdm && cp -a $motd $SDMPT/etc/motd
+[ "$motd" != "" ] && logtoboth "> Copy file '$motd' to $SDMPT/etc/motd" && mv $SDMPT/etc/motd $SDMPT/etc/motd.sdm && cp $motd $SDMPT/etc/motd && setfileownmode $SDMPT/etc/motd
 
 #
 # Copy user-specified sysctl config file into the image
@@ -131,7 +137,8 @@ do
     if [ "$fn" != "" ]
     then
 	logtoboth "> Copy systemd '$c' config file '$fn' to $SDMPT/etc/sdm/assets"
-	cp -a $fn $SDMPT/etc/sdm/assets
+	cp $fn $SDMPT/etc/sdm/assets
+	setfileownmode $SDMPT/etc/sdm/assets/$(basename $fn)
     fi
 done
 #

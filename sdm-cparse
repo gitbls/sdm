@@ -153,6 +153,18 @@ function doaptrpterror() {
     doapt "$1" "$2" || logapterror
 }
 
+function setfileownmode() {
+    #
+    # $1 is full path to file
+    # $2 is file mode (defaults to 0755)
+    # $2 is file owner (defaults to root:root)
+    local fp="$1" fm="$2" fo="$3"
+    [ "$fm" == "" ] && fm="755"
+    [ "$fo" == "" ] && fo="root:root"
+    chown $fo $fp
+    chmod $fm $fp
+}
+
 function ispkginstalled() {
     #
     # $1 has package name
