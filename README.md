@@ -32,14 +32,18 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 **Throughout this document read "SD Card" as "SSD or SD Card".** They are treated equivalently by sdm.
 
 ## Install sdm
-`curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+```sh
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+```
 
 * **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip** or **unxz** it.
 * Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D)
 * Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
 ## Customize the image with sdm
-`sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2023-05-03-raspios-bullseye-arm64.img `
+```sh
+sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2023-05-03-raspios-bullseye-arm64.img
+```
 
 sdm will make the following changes to your IMG file:
 * Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running (if running on RasPiOS, Debian, or a Debian derivative such as Mint or Ubuntu)
@@ -52,7 +56,10 @@ sdm will make the following changes to your IMG file:
 No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
 ## Burn the image onto the SD Card
-`sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-05-03-raspios-bullseye-arm64.img`
+
+```sh
+sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-05-03-raspios-bullseye-arm64.img
+```
 
 ## Boot and Go
 
@@ -72,7 +79,10 @@ When the system comes back up your Pi is all happy, ready to go, and configured 
 * **Wifi** configured and operational
 * **SSH** enabled
 
-You can review the output of the sdm first boot script with: `sudo journalctl -b -1 | grep FirstBoot`
+You can review the output of the sdm first boot script with:
+```sh
+sudo journalctl -b -1 | grep FirstBoot
+```
 
 ## What else can sdm do?
 
