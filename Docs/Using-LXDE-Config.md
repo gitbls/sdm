@@ -3,9 +3,9 @@
 The `--lxde-config` switch directs sdm to load the specified app LXDE configuration files into the image in the /home/*user*/.config directory tree. *user* will be pi by default, or the user specified by `--user`.
 
 The `--lxde-config` switch takes a comma-separated argument. The complete switch specification is:
-
-    --lxde-config pcmanfm:/path/to/pcmanfm.conf,libfm:/path/to/libfm.conf,lxterminal:/path/to/lxterminal.conf
-
+```sh
+--lxde-config pcmanfm:/path/to/pcmanfm.conf,libfm:/path/to/libfm.conf,lxterminal:/path/to/lxterminal.conf
+```
 You do not need to specify all the config files. If you only want to customize lxterminal, you only need specify that. If you are customizing pcmanfm, you'll need to specify config files for both pcmanfm AND libfm (I have no idea why pcmanfm uses two config files!)
 
 Here's how to establish your custom configuration files:

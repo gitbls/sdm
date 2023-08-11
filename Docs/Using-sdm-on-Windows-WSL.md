@@ -1,6 +1,6 @@
 # Using sdm on Windows WSL
 
-sdm can run on Windows WSL2 systems. sdm can be used for customize, explore, mount, and burnfile. It cannot, however, be used to burn an SD Card due to constraints in WSL.
+sdm can run on Windows WSL2 systems. sdm can be used for customize, explore, mount, and burnfile. At the current time, however, it cannot be used to burn an SD Card due to constraints in WSL.
 
 sdm automatically detects that it's running on WSL and enables sdm to work seamlessly for supported operations. 
 

@@ -96,9 +96,9 @@ Sometimes a plugin needs to defer an action until the system is actually booted.
 The easiest way to do this is to create an executable script named /etc/sdm/0*-*.sh, place the necessary commands in it, and they will be run automatically during the first boot of the system.
 
 #### Example code creating a deferred action script
-This creates a deferred action script that is run during the first system boot. It enables hostapd and dnsmasq for all subsequent boots.
+This creates a deferred action script that is run during the first system boot. It enables hostapd and dnsmasq for all subsequent boots. Note that this code should only be run in Phase 1 or the post-install phase; it will modify the running system if run in Phase 0 as is.
 
-```
+```sh
 cat > /etc/sdm/0piboot/040-hostapd-enable.sh <<EOF
 #!/bin/bash
 # This script runs as root during the first boot of the system
@@ -130,7 +130,7 @@ When using `--runonly` on an IMG or storage device, the environment in which the
 To `--runonly` on the running system specify `--directory /` in addition to other switches on the `--runonly` command line. Do not specify an IMG or device name. In this mode, if the running host OS is RasPiOS, you will be prompted to confirm that you want to run the plugins. The `--oklive` switch bypasses the confirmation. If the host OS is not RasPiOS and `--oklive` was specified, the plugins will be run, otherwise sdm will exit.
 
 When `--runonly` is run on the live host OS, the env var $SDMNSPAWN has the value **Live0** or **Live1**. Plugins can take action on that. For instance, if your plugin installs a service, if $SDMNSPAWN is **Live1** you can do commands such as `systemctl daemon-reload` and `systemctl start mydaemon`, whereas if the plugin is running in "standard" sdm Phase1 in an IMG those commands would fail. For instance:
-```
+```sh
     if [ "$SDMNSPAWN" == "Live1" ]
     then
         systemctl daemon-reload
@@ -142,7 +142,7 @@ When `--runonly` is run on the live host OS, the env var $SDMNSPAWN has the valu
 
 Start with the file /usr/local/sdm/sdm-customphase, and similarly, copy it somewhere with a new filename, and work on it.
 
-## HInts for both Plugins and Custom Phase Scripts
+## HInts for Plugins and Custom Phase Scripts
 
 If you run into problems, `logtoboth` is your friend. It will write the string to the console and $SDMPT/etc/sdm/history in the IMG (or burned device in the case of `--burn`).
 
@@ -153,8 +153,6 @@ Remember that sdm copies itself into the IMG during customization phase 0. If yo
 sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via $SDMPT/etc/sdm/sdm-readparams), so that all variables are defined.
 
 * `--1piboot` conf-file &mdash; $pi1bootconf
-* `--apps` applist      &mdash; $apps
-* `--xapps` applist     &mdash; $xapps
 * `--apip` IPADDR       &mdash; $apip
 * `--apssid` ssidname   &mdash; $apssid
 * `--apt`-dist-upgrade  &mdash; $aptdistupgrade
@@ -182,8 +180,6 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--debug` apt         &mdash; $debugs
 * `--disable` arg,arg   &mdash; $disables
 * `--directory`         &mdash; $fdirtree=1
-* `--dhcpcd` file       &mdash; $dhcpcd
-* `--dhcpcdwait`        &mdash; $dhcpcdwait
 * `--domain` name       &mdash; $domain
 * `--dtoverlay`         &mdash; $dtoverlay
 * `--dtparam`           &mdash; $dtparam
@@ -247,10 +243,8 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--uid` uid           &mdash; $myuid
 * `--update-plugins`    &mdash; $fupdateplugins=1
 * `--user` username     &mdash; $myuser
-* `--vncbase` n         &mdash; $vncbase
 * `--wifi-country` country &mdash; $wificountry
 * `--wpa` wpaconf       &mdash; $wpa
-* `--nowpa`             &mdash; $fnowpa=1
 * `--xmb` n             &mdash; $imgext
 
 <br>

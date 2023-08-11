@@ -22,10 +22,10 @@ Specify each plugin with a separate `--plugin` switch:
 sdm --plugin samba:"args" --plugin postfix:"args" . . .
 ```
 
-Multiple `--plugin` switches can be used on the command line.
+Multiple `--plugin` switches can be used on the command line. This includes specifying the same plugin multiple times (the `apps` plugin, for example).
 
 The complete plugin switch format is:
-```
+```sh
 --plugin plugname:"key1=val1|key2=val2|key3=val3"
 ```
 Enclose the keys/values in double quotes as above if there is more than one key/value or bash will be confused by the "|".
@@ -63,6 +63,21 @@ username=theusername|password=thepassword|homedir=homedir|...
 Only arguments that are set for a user need be specified, and they are processed as described above.
 
 NOTE: If you do not want any user's passwords to be visible in /etc/sdm/history, use `userlist`, rather than `--plugin addusers` on the command line.
+
+### apps
+
+Use the apps plugin to install applications. The apps plugin can be called multiple times on a command line. In that case, each invocation must include the `name=` parameter. The name can be any alphanumeric (including "-", "_", etc.) you want.
+
+#### Arguments
+
+* **apps** &mdash; Specifies the list of apps to install or @filename to provide a list of apps (one per line) to install. Comments are indicated by a pound sign (#) and are ignored, so you can document your app list if desired. If the specified file is not found, sdm will look in the sdm directory (/usr/local/sdm). 
+* **name** &mdash; Specifies the name of the apps list. The default name is *default*, but it can only be used once per customization. If you want to use the apps plugin 2 or more times, all plugin instances after the first must have a name provided.
+
+#### Examples
+
+* `--plugin apps:"apps=emacs,vim,zile"` &mdash; Install emacs, vim, and zile
+* `--plugin apps:"apps=@my-apps|name=myapps" --plugin apps:"apps=@my-xapps|name=myxapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
+* `--plugin apps:"apps=@mycoreapps|name=core-apps"` `--plugin apps:"apps=@myaddtlapps|name=extra-apps"` &mdash; Install the list of apps from @mycoreapps and @myaddtlapps
 
 ### apt-cacher-ng
 
@@ -139,6 +154,29 @@ The fake-hwclock provided with RasPiOS runs hourly as a cron job. clockfake does
 
 * **interval** &mdash; Interval in minutes between fake hardware clock updates
 
+### graphics
+
+The graphics plugin configures various graphics-related settings. It doesn't do much for wayland at the current time, although you might use it to set the video mode in /boot/cmdline.txt.
+
+#### Arguments
+
+* **graphics** &mdash; Supported values for the graphics keyword are `wayland` and `X11`. At the present time `wayland` does very little. If graphics is set to `X11`, the Core X11 packages (xserver-xorg, xserver-xorg-core, and xserver-common) are installed if not already installed. In the post-install phase, the plugin will look for a known Display Manager (lightdm, xdm, or wdm), and make appropriate adjustments (see below)
+* **lhmouse** &mdash; If LXDE is installed (RasPiOS Desktop), set the mouse to left-handed. 
+* **nodmconsole** &mdash; If graphics=X11, nodmconsole directs sdm to NOT start the Display Manager on the console, if the Display Manager is lightdm, wdm, or xdm.
+* **videomode** &mdash; Specifies the string to add to the video= argument in cmdline.txt. See below for an example.
+
+wayland is the Default graphics subsystem on Bookworm with Desktop images, so `graphics=wayland` is ignored on those images. The plugin currently will not install wayland on a Bookworm Lite IMG. Wayland is not supported by sdm on releases prior to Bookworm.
+
+If graphics=X11 and the Display Manager is known, the graphics plugin makes a few adjustments. Specifically:
+* If LXDE is installed, the mouse will be set to left-handed if specified on the command line. This works for wayland as well.
+* For lightdm, wdm, and xdm, sdm will cause the boot behavior you might specify to be delayed until after the First Boot.
+
+The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm will add video=HDMI-A-1:1024x768M@60D to /boot/cmdline.txt
+
+#### Examples
+
+* `--plugin graphics:"graphics=X11|nodmconsole` &mdash; Installs the X11 core components and disables the Display Manager on the console
+* `--plugin graphics:"videomode=HDMI-A-1:1920x1280@60D"` &mdash; Sets the specified video mode in /boot/cmdline.txt
 ### imon
 
 imon installs an <a href="https://github.com/gitbls/imon">Internet Monitor</a> that can monitor:
@@ -160,6 +198,28 @@ knockd installs the knockd service and <a href="https://github.com/gitbls/pktabl
 
 * **config** &mdash; Full path to your knockd.conf. If **config** isn't provided, /etc/knockd.conf will be the standard knockd.conf
 * **localsrc** &mdash; Locally accessible directory where pktables, knockd-helper, and knockd.service can be found, instead of downloading them from GitHub. If there is a knockd.conf in this directory, it will be used, unless overridden with the **config** argument
+
+### network
+
+Use the network plugin to configure various network settings
+
+#### Arguments
+
+* **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). dhcpcd is the default on Bullseye (Debian 11) and earlier, while Network Manager is the default on Bookworm (Debian 12).
+* **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
+* **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
+* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. Network Manager does not use wpa_supplicant.
+* **wifissid** &mdash; Specifies the WiFi SSID to enable. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`), or will use nmcli during First Boot to establish the specified WiFi connection.
+* **wifipassword** &mdash; Password for the `wifissid` network. See `wifissid`
+* **wificountry** &mdash; WiFi country for the `wifissid` network. See `wifissid`
+* **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
+* **nmconf** &mdash; Specifies a comma-separated list of Network Manager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
+* **nmconn** &mdash; Specifies a comma-separated list of Network Manager connection definitions that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+
+#### Examples
+
+* `--network:"netman=dhcpcd|noipv6"` &mdash; On Bookworm, set the network manager to dhcpcd (and disable Network Manager), and direct dhcpcd to not request an IPv6 address.
+* `--network:"netman=nm|wifissid=myssid|wifipassword=myssidpassword|wificountry=US|noipv6"` &mdash; Use Network Manager to configure the network and also configure the specified WiFi network.
 
 ### pistrong
 
@@ -187,6 +247,24 @@ postfix installs the postfix mail server. This plugin installs the postfix serve
 
 * `--plugin postfix:"maincf=/path/to/my-postfix-main.cf` &mdash; Uses a fully-configured main.cf, and postfix will be ready to go.
 * `--plugin postfix:"relayhost=smtp.someserver.com|mailname=mydomain.com|rootmail=myemail@somedomain.com` &mdash; Set some of the postfix parameters, but more configuration will be required to make it operational. A good reference will be cited here at some point.
+
+### quietness
+
+The quietness plugin controls the quiet and splash settings in /boot/cmdline.txt
+
+#### Arguments
+
+* **quiet** &mdash; Enables 'quiet' in /boot/cmdline.txt
+* **noquiet** &mdash; Disable 'quiet' in /boot/cmdline.txt. If `noquiet=keep` is NOT specified, sdm will re-enable 'quiet' in cmdline.txt after the First Boot.
+* **splash** &mdash; Enables 'splash' in /boot/cmdline.txt
+* **nosplash** &mdash; Disable 'splash' in /boot/cmdline.txt. If `nosplash=keep` is NOT specified, sdm will re-enable 'splash' in cmdline.txt after the First Boot.
+* **plymouth** &mdash; Enables Plymouth in /boot/cmdline.txt. Not Yet Implemented
+* **noplymouth** &mdash; Disables the Plymouth graphical splash screen for the First Boot (only). It is re-enabled at the end of First Boot.
+
+#### Examples
+
+* `--plugin quietness:"noquiet=keep|nosplash=keep"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt and do not re-enable them
+* `--plugin quietness:"noquiet|nosplash|noplymouth"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt, and disable plymouth. All will be re-enabled after the First Boot.
 
 ### rxapp
 
@@ -220,7 +298,7 @@ trim-enable will enable <a href="https://en.wikipedia.org/wiki/Trim_(computing)"
 
 This plugin can be run manually on a running sdm-customized system by
 ```
-sdm --runonly plugins --plugin trim-enable:"disks=/dev/sda,/dev/sdb" --directory /
+sdm --runonly plugins --plugin trim-enable:"disks=/dev/sda,/dev/sdb"
 ```
 The optional switch `--oklive` can be used to avoid the Prompt "Do you really want to run plugins live on the running host?"
 
@@ -232,8 +310,11 @@ Additional information on SSD Trim for RasPiOS and Linux can be found <a href="h
 
 ### vnc
 
+Install and configure either or both of Virtual VNC and RealVNC.
+
 #### Arguments
 
+* **vncbase=port** &mdash; Starting port for VNC Servers (default: 5900)
 * **realvnc=resolution** &mdash; Install RealVNC server with the specified resolution on the console. The resolution is optional.
 * **tigervnc=res1,res2,...resn** &mdash; Install tigervnc server with virtual VNC servers for the specified resolutions
 * **tightvnc=res1,res2,...resn** &mdash; Install tightvnc server with virtual VNC servers for the specified resolutions
@@ -245,6 +326,17 @@ Only one of tigervnc or tightvnc can be installed and configured on a system by 
 * `--plugin vnc:"realvnc|tigervnc=1280x1024,1600x1200` &mdash; Install RealVNC server for the console and tigervnc virtual desktop servers for the specified resolutions.
 * `--plugin vnc:"realvnc=1600x1200"` &mdash; Install RealVNC server and configure the console for 1600x1200, just as raspi-config VNC configuration does.
 * `--plugin vnc:"tigervnc=1024x768,1600x1200,1280x1024"` &mdash; Install tigervnc virtual desktop servers for the specified resolutions. Only configure RealVNC if it is already installed (e.g., RasPiOS with Desktop IMG).
+
+#### Additional details
+
+By default Virtual VNC desktops are configured with ports 5901, 5902, ... This can be modified with the `--vncbase` *base* switch. For instance, `--vncbase 6400` would place the VNC virtual desktops at ports 6401, 6402, ... Setting `--vncbase` does not change the RealVNC server port.
+
+For RasPiOS Desktop, RealVNC Server will be enabled automatically. Well, actually, it will be disabled for the first boot of the system as will the graphical desktop, and the sdm FirstBoot service will-reenable both for subsequent use.
+
+For RasPiOS Lite, if the `nodmconsole` keyword is specified to the graphics plugin AND the Display Manager is xdm or wdm, the Display Manager will not be started on the console, and neither will RealVNC Server. It can be started later, if desired, with `sudo systemctl enable --now vncserver-x11-serviced`. Note, however, that you must enable the Display Manager as well for it to really be enabled. To enable the Display Manager:
+
+* **xdm:**&nbsp;`sed -i "s/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers`
+* **wdm:** `sed -i "s/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers`
 
 ### wificonfig
 
@@ -264,6 +356,8 @@ wificonfig is used to enable the sdm Captive Portal to delay WiFi SSID/Password 
 ### wsdd
 
 wsdd is the Web Service Discovery host daemon. It's very useful in Windows/Samba environments. You can read about it at https://github.com/christgau/wsdd
+
+Note that wsdd is available in Bookworm via apt, so this plugin is not needed on Bookworm (Debian 12) or later, although it can still be used if you prefer.
 
 #### Arguments
 

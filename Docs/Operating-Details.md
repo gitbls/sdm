@@ -6,7 +6,7 @@ sdm operates on the SD Card image in distinct phases:
 
 * **Phase 1:** *Operating inside the IMG file container and in the context of that system (via systemd-nspawn or chroot)*. When operating in this context, all changes made only affect the SD Card IMG, not the host system on which sdm is running
 
-    Most, but not all commands can be used in Phase 1. For instance, most `systemctl` commands don't work because systemd is not running in the nspawn'ed image. Importantly, however, `systemctl disable` and `systemctl enable` ***do*** work.
+    Most, but not all commands can be used in Phase 1. For instance, most `systemctl` commands don't work because systemd is not running in the nspawn'ed image. Importantly, however, `systemctl disable`, `systemctl enable`, `systemctl mask`, and `systemctl unmask` ***do*** work.
 
     Other functions you might want to do in Phase 1 include: add new users, set or change passwords, install packages, update configuration files, etc. In other words, you can do almost everything you want to configure a system for repeated SD card burns.
 
@@ -22,6 +22,18 @@ sdm operates on the SD Card image in distinct phases:
 
 Once the IMG is completed (Phase 0, Phase 1, and post-install), **Phase 3** and **Phase 4** can be repeated as often as needed to create fresh bootable devices for one or more of your Pi fleet, configured exactly as you want them to be.
 <br>
+## Ordered list of sdm steps
+* Initialization &mdash; Copy sdm into the IMG
+* Phase 0 &mdash; Run sdm Phase 0 steps on the IMG
+* Plugins Phase 0 &mdash; Run Phase 0 for all enabled plugins
+* Phase 1 &mdash; Run sdm Phase1 steps on the IMG
+* Plugins Phase 1 &mdash; Run Phase 1 for all enabled plugins
+* Install apps &mdash; Install apps specified by `--apps`
+* Network configuration &mdash; Configure network as specified by `--netman`
+* apt upgrade &mdash; Upgrade all installed packages with available updates
+* apt autoremove &mdash; Auto remove any unnecessary packages
+* Plugins post-install &mdash; Run Phase post-install for all enabled plugins
+
 <form>
 <input type="button" value="Back" onclick="history.back()">
 </form>

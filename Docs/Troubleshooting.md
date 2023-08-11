@@ -1,6 +1,6 @@
 # Troubleshooting
 
-sdm places important files in the IMG in `/etc/sdm` that are used to control its operation and log status.
+sdm places important files in the IMG in `/etc/sdm` such as logs and information to control its operation.
 
 * *apt.log* contains all the apt command output (package installs) done during the SD Card creation
 

@@ -16,15 +16,8 @@ sdm consists of a primary script sdm and several supporting scripts:
 
 * **sdm-phase1** &mdash; Asks for and changes the password for the *pi* user. Optionally, if you used the sdm `--user` switch, creates your personal account, sets its password, directory and protections, etc. If `--aptcache` was specified, the IMG is enabled as an apt-cacher-ng client. See <a href="apt-Cacher-NG.md">apt Cacher NG</a> for details on apt-cacher-ng.
 
-    sdm-phase1 installs the apps that you've specified. You control which applications are installed by using the `--apps` switch. The value for the `--apps` switch can either be a quoted, space-separated list ("pkg1 pkg2 pgk3"), or @somefile, where somefile has a list of applications to install, one per line. Comments are indicated by a pound sign (#) and are ignored, so you can document your app list if desired. If the specified file is not found, sdm will look in the sdm directory (/usr/local/sdm). 
-
-    sdm-phase1 also installs the 'X' apps that you've specified. You control which applications are installed by using the `--xapps` switch. The value for the `--xapps` switch is treated the same as for the `--apps` switch above. This is probably more interesting if you're using RasPiOS Lite, which does not include the X Windows software in the image. The example file `sdm-xapps-example` provides one example of installing a minimal X Windows system, but since there are a multitude of ways to install X11, display managers, window managers, and X11-based applications, you'll undoubtedly want to build your own xapps list.
-
-    * There is no restriction that the *xapps* list actually contains X Windows apps; it can be used as a set of secondary apps if desired.
-
-    * App installation is enabled by providing the *apps* and/or *xapps* values to the `--poptions` command switch. ***In other words,*** to have sdm install apps you need to specify the set of apps using `--apps` (or `--xapps`) **AND** `--poptions apps` (and/or xapps).
-
-    * sdm does not *require* that you separate your app list into "apps" and "X apps". This is done solely to provide you with more fine-grained control over app selection. For instance, you might not want to install the X apps into a server image, but want both sets installed on a Desktop configuration.
+    
+    * App installation is accomplished using the <a href="Docs/Plugins.md#apps>`apps` plugin</a>. The `apps` plugin installs the requested apps when it is run in Phase 1.
 
 * **sdm-apt** &mdash; sdm-apt is an optional script that you can use to issue apt commands when in Phase 1 or via `sdm --explore`. It logs the apt output in $SDMPT/etc/sdm/apt.log along with all the other apt operations done in by sdm in customizing your image. Refer to the script for details.
 

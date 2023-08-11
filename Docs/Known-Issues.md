@@ -1,8 +1,8 @@
 # Known Issues
 
 * sdm must be run as root or with `sudo`
-* sdm has been thoroughly tested on RasPiOS Bullsye and Buster 32-bit and 64-bit Desktop and Lite IMG files. It has been moderately, but not recently, tested on Raspbian Stretch IMG files, but obviously functions added to raspi-config in Bullseye or Buster are not supported on Stretch.
-
+* sdm has been tested on RasPiOS Buster, Bullseye, and Bookworm Desktop and Lite IMG files. Testing is no longer done on Stretch.
+* Using sdm on a 32-bit x86 system will fail.
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
