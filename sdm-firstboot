@@ -260,6 +260,7 @@ function doscripts() {
 function doconfig() {
     cfgfile="$1"
     [ ! -f $cfgfile ] && bootlog "? Config file $cfgfile not found...skipping" && exit
+    #write_console "Start Configuration with configuration file '$cfgfile'"
     bootlog "Start Configuration with configuration file '$cfgfile'"
     while IFS=":=" read rpifun value
     do
@@ -274,6 +275,7 @@ function doconfig() {
 	    doconfigitem $rpifun $value bootlog
 	fi
     done < $cfgfile
+    #write_console "Configuration with configuration file '$cfgfile' Completed"
     bootlog "Configuration with configuration file '$cfgfile' Completed"
 }
 
@@ -381,6 +383,9 @@ fi
 declare -x SDMNSPAWN="FirstBoot"
 source /etc/sdm/sdm-readparams
 
+write_console "Start sdm FirstBoot Service"
+bootlog "Start sdm FirstBoot Service"
+
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
 #
 # Set WiFi Country or load WiFi credentials
@@ -400,7 +405,7 @@ else
     logit "> FirstBoot loadlocal: |$loadlocal|"
     if [[ "$loadlocal" =~ "plugin" ]] || [[ "$loadlocal" =~ "wifi" ]]
     then
-	logit "> FirstBoot handling loadlocal"
+	logit "> FirstBoot: Handling loadlocal"
 	[ "$wificountry" == "" ] && set_wifi_country US 
 	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
 	write_console "Start Captive Portal to obtain WiFi SSID and Password"
@@ -416,13 +421,14 @@ else
 	then
 	    if [ -f /etc/sdm/local-assets/plugin-wificonfig.sh ]
 	    then
-		logit "> FirstBoot Run plugin-wificonfig.sh"
-		/etc/sdm/local-assets/plugin-wificonfig.sh     # Script deletes itself when done
+		logit "> FirstBoot: Run plugin-wificonfig.sh"
+		/etc/sdm/local-assets/plugin-wificonfig.sh
+		mv /etc/sdm/local-assets/plugin-wificonfig.sh /etc/sdm/local-assets/.sdm.done.plugin-wificonfig.sh
 	    else
-		logit "% FirstBoot wificonfig plugin set but /etc/sdm/local-assets/plugin-wificonfig.sh not found"
+		logit "% FirstBoot: wificonfig plugin set but /etc/sdm/local-assets/plugin-wificonfig.sh not found"
 	    fi
 	else
-	logit "> FirstBoot Run sdm-cportal"
+	logit "> FirstBoot: Run sdm-cportal"
 	    $sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid
 	fi
 	write_console "Captive Portal complete; Resume FirstBoot processing"
@@ -446,11 +452,12 @@ doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated FirstBoot"
 #
 [ "$bootscripts" == "1" ] && doscripts "$sdmdir/1piboot/0*-*.sh" "Custom FirstBoot" || bootlog "Skip Custom FirstBoot Scripts"
 
-logit "> FirstBoot Disable sdm-firstboot service"
+logit "> FirstBoot: Disable sdm-firstboot service"
 systemctl disable sdm-firstboot > /dev/null 2>&1
 
 if [ $regensshkeys -eq 1 ]
 then
+    write_console "Regenerate SSH Host Keys"
     bootlog "Regenerate SSH Host Keys"
     systemctl start regenerate_ssh_host_keys
     while [ "$(systemctl show -p ActiveState regenerate_ssh_host_keys --value)" == "active" ]
