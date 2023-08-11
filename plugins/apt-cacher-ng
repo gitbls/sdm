@@ -46,7 +46,7 @@ then
     #  Other settings: "keep" keeps the value from the default install
 
     [ "$gentargetmode" == "" ] && gentargetmode="No automated setup"
-    [ "$bindaddress" == "" ] && bindaddress="keep"
+    [ "$bindaddress" == "" ] && bindaddress="0.0.0.0"
     [ "$cachedir" == "" ] && cachedir="keep"
     [ "$port" == "" ] && port="keep"
     [ "$tunnelenable" == "" ] && tunnelenable="false"
