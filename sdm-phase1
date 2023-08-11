@@ -2,33 +2,6 @@
 # This script runs in the nspawn image
 #
 
-function doinstalls() {
-    #
-    # $1 - app list
-    # $2 - subject string (e.g., "XWindows Installs" or "Application Installs")
-    #
-    if [ "$1" != "" ]
-    then
-	logtoboth "* Start $2"
-	logtoboth "> ${2}: $1"
-	if [[ "$debugs" =~ "apt" ]]
-	then
-	    logtoboth "> Install apt packages singly per '--debug apt'"
-	    IFS=" " read -a alist <<< "$1"
-	    for a in "${alist[@]}"
-	    do
-		logtoboth "> -- $a"
-		doaptrpterror "install --no-install-recommends --yes $a" $showapt
-	    done
-	else
-	    doaptrpterror "install --no-install-recommends --yes $1" $showapt
-	fi
-	logtoboth "* $2 Completed"
-    else
-	logtoboth "> Skip $2 per empty package list"
-    fi
-}
-
 function upgkeepconf() {
     #
     # Write /etc/apt/apt.conf.d/02sdm-myconf
@@ -48,25 +21,6 @@ doapt "$1 $upg" "$2" || logapterror
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
-function delaydmenable {
-    #
-    # Disable the display manager in $1 and set for re-enable during First Boot
-    # $2=delayed target (either B3 or B4)
-    #
-    local dm="$1" bbh="$(getfinalbbh $2)"
-    logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
-    logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
-    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-    do_raspiconfig do_boot_behaviour B1
-    systemctl set-default multi-user.target > /dev/null 2>&1
-    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-    #then
-	#echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    #fi
-    return
-}
-
 function dodt() {
     #
     # $1 = name (either "dtoverlay" or "dtparam"
@@ -84,27 +38,6 @@ function dodt() {
 	    logtoboth ">  $dtname $c"
 	    echo "$dtname=$c" >> /boot/config.txt
 	done
-    fi
-}
-
-function deferqemu() {
-    #
-    # Set deferred install
-    #
-    logtoboth "% chroot/qemu-user-static; Defer install of qemu-user-static to system FirstBoot"
-    fnqemu="/etc/sdm/0piboot/010-install-qemu.sh"
-    if [ ! -f $fnqemu ]
-    then
-	cat > $fnqemu <<EOF
-#!/bin/bash
-#
-# Install qemu-user-static. Install deferred because it can't be installed in a chroot
-#
-source /etc/sdm/sdm-readparams
-logger "FirstBoot install qemu-user-static"
-doapt "install --yes --no-install-recommends qemu-user-static" $showapt
-EOF
-	chmod 755 $fnqemu
     fi
 }
 
@@ -214,23 +147,6 @@ logtoboth "*+Phase 1 Network/WiFi/Bluetooth configuration"
 [[ "$disables" =~ "bluetooth" ]] && do_disables bluetooth
 [[ "$disables" =~ "wifi" ]] && do_disables wifi
 #
-# Set dhcpcd wait if requested
-#
-if [ "$dhcpcdwait" == "1" ]
-then
-    mkdir -p /etc/systemd/system/dhcpcd.service.d/
-    # use the same /path/to/dhcpcd that the dhcpcd service is
-    dex=$(grep -E "ExecStart=.*/dhcpcd" /lib/systemd/system/dhcpcd.service| head -n 1 -)
-    dhcf=${dex##ExecStart=}  #Strip leading ExecStart=
-    dhcf=${dhcf%% *}         #Strip everything after the path (switches,etc)
-    logtoboth "> Enable dhcpcd [$dhcf] 'wait for network connection'"
-    cat > /etc/systemd/system/dhcpcd.service.d/wait.conf << EOF
-[Service]
-ExecStart=
-ExecStart=$dhcf -q -w
-EOF
-fi
-#
 # Set up ssh as requested
 #
 if [ "$ssh" == "service" ]
@@ -313,7 +229,7 @@ then
     [ ! -d /home/$myuser ] && mkdir /home/$myuser
     [ "$myuser" != "pi" ] && gr="users" || gr="pi"
     logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
-    chown -R ${myuser}.${gr} /home/$myuser
+    chown -R ${myuser}:${gr} /home/$myuser
     if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
     then
 	logtoboth "> Add user '$myuser' to sudoers.d"
@@ -370,7 +286,7 @@ then
 	[ "$samepwd" == "" ] && samepwd="$passwordpi"
 	changepwd pi "$samepwd"
 	logtoboth "> Set /home/pi files ownership to 'pi.pi'"
-	chown -R pi.pi /home/pi
+	chown -R pi:pi /home/pi
     fi
     if [ $rootpwd -eq 1 ]
     then
@@ -476,10 +392,15 @@ then
 fi
 if [ "$keymap" != "" ]
 then
-    logtoboth "> Set Keymap to '$keymap'"
-    [ "$virtmode" == "chroot" ] && logtoboth "% Ignore 'Running in chroot, ignoring request' message" || logtoboth "% Ignore invoke-rc.d and 'Read-only file system' messages"
+    logtoboth "> Set Keymap to '$keymap' to be implemented during FirstBoot"
+    #[ "$virtmode" == "chroot" ] && logtoboth "% Ignore 'Running in chroot, ignoring request' message" || logtoboth "% Ignore invoke-rc.d and 'Read-only file system' messages"
     #raspi-config do_configure_keyboard "$keymap" nonint
-    do_raspiconfig  do_configure_keyboard "$keymap" 
+    #do_raspiconfig  do_configure_keyboard "$keymap"
+    cat > /etc/sdm/0piboot/010-configure-keyboard.sh <<EOF
+#!/bin/bash
+raspi-config do_configure_keyboard "$keymap" nonint
+EOF
+    chmod 755 /etc/sdm/0piboot/010-configure-keyboard.sh
 fi
 if [ "$timezone" != "" ]
 then
@@ -508,7 +429,7 @@ then
     logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
 fi
 #
-# Disable cron service and enable cron timers if requsted
+# Disable cron service and enable cron timers if requested
 #
 if [ $cronsystemd -eq 1 ]
 then
@@ -551,15 +472,18 @@ fi
 #
 case "$journal" in
     persistent|volatile|none)
-	logtoboth "> Set system journal to '$journal' and disable rsyslog"
+	logtoboth "> Set system journal to '$journal' and disable rsyslog if installed"
 	mkdir -p /etc/systemd/journald.conf.d
 	cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
 [Journal]
 Storage=$journal
 ForwardToSyslog=no
 EOF
-	systemctl disable rsyslog
-	systemctl mask rsyslog
+	if [ -f /lib/systemd/system/rsyslog.service ]
+	then
+	    systemctl disable rsyslog > /dev/null 2>&1
+	    systemctl mask rsyslog > /dev/null 2>&1
+	fi
 	;;
     syslog|*)
 	logtoboth "> System journal configuration not modified"
@@ -588,7 +512,9 @@ do
 	[ "$c" != "system" -a "$c" != "user" ] && tdir="${tdir}d"
 	logtoboth "> Copy systemd '$c' config file '$fn' from /etc/sdm/assets to /etc/systemd/$tdir.conf.d"
 	mkdir -p /etc/systemd/$tdir.conf.d
-	cp -a /etc/sdm/assets/$(basename $fn) /etc/systemd/$tdir.conf.d
+	cp /etc/sdm/assets/$(basename $fn) /etc/systemd/$tdir.conf.d
+	chown root:root /etc/systemd/$tdir.conf.d/$(basename $fn)
+	chmod 644 /etc/systemd/$tdir.conf.d/$(basename $fn)
     fi
 done
 #
@@ -615,57 +541,17 @@ else
     csfn=""
 fi
 #
-# Run requsted plugins Phase 1
+# Run requested plugins Phase 1
 #
 if [ "$plugins" != "" ]
 then
     runplugins 1
 fi
 
-didapt=0
-if [[ "$poptions" =~ "|apps|" ]]
-then
-    logfreespace "at start of Application Installs"
-    if [[ "$virtmode" == "chroot" ]] && [[ "$apps" =~ "qemu-user-static" ]]
-    then
-	apps=${apps/qemu-user-static}
-	deferqemu
-    fi
-    doinstalls "$apps" "Application Installs"
-    [ "$apps" != "" ] && didapt=1
-fi
-if [[ "$poptions" =~ "xwindows" ]] || [[ "$poptions" =~ "xapps" ]]
-then
-    logfreespace "at start of xapp/XWindows Installs"
-    doinstalls "$xapps" "xapp/XWindows Installs"
-    [ "$xapps" != "" ] && didapt=1
-    if [[ "$virtmode" == "chroot" ]] && [[ "$xapps" =~ "qemu-user-static" ]]
-    then
-	xapps=${xapps/qemu-user-static}
-	deferqemu
-    fi
-    logfreespace "at end of xapp/XWindows Installs"
-fi
-
 #
 # Post-install Configuration
 #
-logtoboth "* Phase 1 post-app/xapp installation/configuration"
-#
-# Network manager configuration
-#
-case "${netman,,}" in
-    dhcpcd)
-	logtoboth "> Set network manager dhcpcd"
-	doapt "install --no-install-recommends --yes dhcpcd5" $showapt || logapterror
-	do_raspiconfig do_netconf 1
-	;;
-    nm|network-manager)
-	logtoboth "> Set network manager NetworkManager"
-	doapt "install --no-install-recommends --yes network-manager" $showapt || logapterror
-	do_raspiconfig do_netconf 2
-	;;
-esac
+logtoboth "* Phase 1 post-app installation/configuration"
 
 if [ "$hotspot" != "" ]
 then
@@ -679,142 +565,23 @@ then
     logfreespace "at start of 'apt $upg'"
     upgkeepconf "-y" "$showapt" $aptdistupgrade
     logfreespace "at end of 'apt $upg'"
-    didapt=1
 else
     logtoboth "> Skip 'apt upgrade' per --poption noupgrade"
 fi    
-if [ $didapt -eq 1 ]
+
+if [[ ! "$poptions" =~ "noautoremove" ]]
 then
-    if [[ ! "$poptions" =~ "noautoremove" ]]
-    then
-	logtoboth "> Start 'apt autoremove'"
-	logfreespace "at start of 'apt autoremove'"
-	doapt "--yes autoremove" $showapt || logapterror
-	logfreespace "at end of 'apt autoremove'"
-    else
-	logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
-    fi
+    logtoboth "> Start 'apt autoremove'"
+    logfreespace "at start of 'apt autoremove'"
+    doapt "--yes autoremove" $showapt || logapterror
+    logfreespace "at end of 'apt autoremove'"
+else
+    logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
 fi
 #
 # Honor --disable piwiz
 #
 [[ "$disables" =~ "piwiz" ]] && do_disables piwiz
-#
-# If lightdm installed switch to console no login for first boot
-#  and set to switch back to graphical autologin after first boot
-#
-if [ -d /etc/lightdm ]
-then
-    [ $reboot -eq 1 ] && delaylightdmenable || setlightdmautologin
-fi
-#
-# LXDE-specific handling
-#
-if [ -f /usr/bin/startlxde-pi ]
-then
-    userx=${myuser:-pi}	
-    [ "$userx" == "pi" ] && gx=pi || gx=users
-    # Set left-handed mouse if requested
-    if [ $fmouse -eq 1 ]
-    then
-	logtoboth "> Enable left-handed mouse for user '$userx'"
-	dirx="/home/$userx/.config/lxsession/LXDE-pi"
-	mkdir -p $dirx
-	cp -a /etc/xdg/lxsession/LXDE-pi/desktop.conf $dirx
-	chmod 644 $dirx/desktop.conf
-	sed -i "s/LeftHanded=0/LeftHanded=1/" $dirx/desktop.conf
-    fi
-    # Copy LXDE config files if requested
-    for fm in $lxdeconflist
-    do
-	cname="${fm}conf"
-	fmconf="${!cname}"
-	if [ "$fmconf" != "" ]
-	then
-	    dirx="/home/$userx/.config/$fm"
-	    logtoboth "> Copy --lxde-config $fm config file '$(basename $fmconf)' to '$dirx'"
-	    mkdir -p $dirx
-	    cp -a /etc/sdm/assets/$(basename $fmconf) $dirx/$fm.conf
-	fi
-    done
-    if [ -d /home/$userx/.config ]
-    then
-	logtoboth "> Set owner to '$userx:$gx' and protection to 700 on '/home/$userx/.config' directory tree"
-	chown -R $userx:$gx /home/$userx/.config
-	chmod -R 700 /home/$userx/.config
-    fi
-fi
-#
-# If xdm installed, disable it on console if requested
-#
-bbhandled=0
-if [ -d /etc/X11/xdm ]
-then
-    bbhandled=1
-    # VV This overrides default LISTEN * ; 127.0.0.1 disables xdmcp finder, finder enabled with 0.0.0.0. By default xdmcp finder is enabled
-    #echo "LISTEN 0.0.0.0" >> /etc/X11/xdm/Xaccess
-    if [[ "$poptions" =~ "nodmconsole" ]]
-    then
-	logtoboth "> Disable xdm on console"
-	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
-	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
-	systemctl set-default multi-user.target
-    else
-	delaydmenable xdm B3
-    fi
-    # xdm.service is missing the [Install] section. systemctl complains about it but it works
-    # Keeping this code in case systemctl decides to fail the service b/c of this
-#    if ! grep '\[Install\]' /lib/systemd/system/xdm.service > /dev/null 2>&1
-#    then
-#	logtoboth "% Correcting broken /lib/systemd/system/xdm.service into /etc/systemd/system/xdm.service"
-#	cp -a /lib/systemd/system/xdm.service /etc/systemd/system
-#	cat >> /etc/systemd/system/xdm.service <<EOF
-#
-#[Install]
-#WantedBy=graphical.target
-#EOF
-#    fi
-fi
-#
-# Ditto for wdm
-#
-
-if [ -d /etc/X11/wdm ]
-then
-    bbhandled=1
-    if [[ "$poptions" =~ "nodmconsole" ]]
-    then
-	logtoboth "> Disable wdm on console"
-	sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/wdm/Xservers
-	# RealVNC server operation with wdm unknown, so disable RealVNC 
-	[ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
-	systemctl set-default multi-user.target
-    else
-	delaydmenable wdm B3
-    fi
-fi
-#
-# If Lite and no known display manager found set to console no login
-#
-if [ ! -d /etc/lightdm -a $bbhandled -eq 0 ]
-then
-    # Lite with no Desktop
-    if [ $reboot -eq 1 ]
-    then
-	logtoboth "> Set RasPiOS to B1:'console no login' for First Boot"
-	#SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-	do_raspiconfig do_boot_behaviour B1
-	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-	then
-	    aval=$(getfinalbbh B1)
-	    logtoboth "% 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
-	else
-	    [ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
-	    [ "$bbh" != "B1" ] && logtoboth "% Console Autologin setting '$bbh' will be re-enabled after First Boot"
-	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-	fi
-    fi
-fi
 
 logfreespace "at end of Phase 1 image customization"
 logtoboth "* Phase 1 Completed"
@@ -825,7 +592,7 @@ then
     $csfn post-install
 fi
 #
-# Run requested plugins
+# Run requested plugins post-install phase
 #
 if [ "$plugins" != "" ]
 then
@@ -855,7 +622,7 @@ cklogfreespace "at end of image customization"
 #
 if [ -f /etc/sdm/apt.log ]
 then
-    grep -q "^E:" /etc/sdm/apt.log && logtoboth "?!apt reported errors; review /etc/sdm/apt.log"
+    grep -q "^E:" /etc/sdm/apt.log && logtoboth "? apt reported errors; review /etc/sdm/apt.log"
 fi
 
 if [ $fbatch -eq 0 ]
@@ -863,6 +630,7 @@ then
     if [ -t 0 ]
     then
 	logtoboth "* Enter Shell Command Prompt"
+	logtoboth "> 'exit' to exit back to host system"
 	IFS=":" read efg ebg ecursor <<< $ecolors
 	stermcolors "$efg" "$ebg" "$ecursor" x1
 	bash -i
