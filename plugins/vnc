@@ -24,7 +24,7 @@ function decodeargs() {
 	then
 	    if ! [[ "$validkeys" =~ "$key" ]]
 	    then
-		logtoboth "Plugin $pfx: %%Unrecognized key '$key'"
+		logtoboth "Plugin $pfx: % Unrecognized key '$key'"
 	    fi
 	fi
 	keysfound="${keysfound}|$key"
@@ -98,9 +98,9 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
 
-    decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
+    decodeargs "$allargs" "realvnc,tightvnc,tigervnc,vncbase"
 
-    vbase=${vncbase-5900}
+    vbase=${vncbase:-5900}
     vncserver=""
 
     # Process the lists
@@ -166,21 +166,10 @@ EOF
 	fi
     fi
 
-    [ "$realvnc" != "" ] && logtoboth "> Plugin $pfx: RealVNC will be installed in the post-install phase"
-    #logfreespace "at end of $pfx Phase 1"
-    logtoboth "* Plugin $pfx: Complete Phase 1"
-else
-    #
-    # Plugin Post-install edits
-    #
-    logtoboth "* Plugin $pfx: Start Phase post-install"
-    #logfreespace "at start of Plugin $pfx Phase post-install"
-    decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
     if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
     then
 	[ "$realvnc" == "" ] && realvnc="default"
     fi
-    vbase=${vncbase-5900}
 
     [ "$realvnc" != "" ] && realvncserver="realvnc-vnc-server" || realvncserver=""
 
@@ -237,13 +226,22 @@ NoDisplay=true
 Exec=sh -c "if ! (xrandr | grep -q -w connected) ; then /usr/bin/xrandr --fb $realvnc ; fi"
 EOF
 		else
-		    logtoboth "%%Plugin $pfx: Directory /etc/xdg/autostart does not exist for xrandr; is LXDE installed?"
+		    logtoboth "% Plugin $pfx: Directory /etc/xdg/autostart does not exist for xrandr; is LXDE installed?"
 		fi
 	    else
-		logtoboth "%%Plugin $pfx: RealVNC resolution $realvnc is not in supported list: '$vres'"
+		logtoboth "% Plugin $pfx: RealVNC resolution $realvnc is not in supported list: '$vres'"
 	    fi
 	fi
     fi
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
     #
     # Configure display manager for vnc. Warn if none of lightdm/xdm/wdm is installed
     #
@@ -264,7 +262,6 @@ EOF
 	logtoboth "> Plugin $pfx: Configure wdm for VNC"
 	sed -i "s/DisplayManager.requestPort:	0/\!DisplayManager.requestPort:	0/" /etc/X11/wdm/wdm-config
     fi
-    systemctl set-default graphical.target
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
