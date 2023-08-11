@@ -195,7 +195,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="apip apssid autologin b0script b1script bootsetpairs bootscripts dhcpcd disables domain expandroot exports keymap locale myuser myuid noreboot"
+	xsettings="apip apssid autologin b0script b1script bootsetpairs bootscripts disables domain expandroot exports keymap locale myuser myuid noreboot"
 	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins redact rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
@@ -277,12 +277,6 @@ function sdm_burndevfile() {
 		   b1script=""
 		fi
 	    fi
-	fi
-	if [ "$bdhcpcd" != "" ]
-	then
-	    cat $bdhcpcd >> $SDMPT/etc/dhcpcd.conf
-	    logtoboth "> Append '$bdhcpcd' to /etc/dhcpcd.conf"
-	    dhcpcd=$bdhcpcd
 	fi
 	if [ "$bexports" != "" ]
 	then
