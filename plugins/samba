@@ -35,7 +35,7 @@ then
     then
 	if [ ! -f $smbconf ]
 	then
-	    logtoboth "%%Plugin $pfx: Cannot find samba smbconf file '$smbconf'; ignoring"
+	    logtoboth "% Plugin $pfx: Cannot find samba smbconf file '$smbconf'; ignoring"
 	else
 	    logtoboth "> Plugin $pfx: Copy samba smbconf '$smbconf' into IMG /etc/sdm/assets/samba-$(basename $smbconf)"
 	    rm -f $SDMPT/etc/sdm/assets/samba-$(basename $smbconf)
@@ -46,7 +46,7 @@ then
     then
 	if [ ! -f $shares ]
 	then
-	    logtoboth "%%Plugin $pfx: Cannot find samba shares file '$shares'; ignoring"
+	    logtoboth "% Plugin $pfx: Cannot find samba shares file '$shares'; ignoring"
 	else
 	    logtoboth "> Plugin $pfx: Copy samba shares file '$shares' into IMG /etc/sdm/assets/samba-$(basename $shares)"
 	    rm -f $SDMPT/etc/sdm/assets/samba-$(basename $shares)

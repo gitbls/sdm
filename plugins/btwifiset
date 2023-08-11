@@ -59,7 +59,7 @@ then
 	done
 	if [ ! $wsts ]
 	then
-	    logtoboth "?!Plugin $pfx: Unable to download btwifiset from $srcurl (Error $wsts)"
+	    logtoboth "? Plugin $pfx: Unable to download btwifiset from $srcurl (Error $wsts)"
 	    logtoboth "  btwifiset cannot be installed"
 	fi
     fi

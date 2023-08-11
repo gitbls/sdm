@@ -124,7 +124,7 @@ EOF
 	pistrong config --service $sn.service
 	systemctl stop $sn > /dev/null 2>&1
     else
-	logtoboth "%%Plugin $pfx: Could not find the strongSwan systemd service"
+	logtoboth "% Plugin $pfx: Could not find the strongSwan systemd service"
 	logtoboth "% Set it with 'sudo pistrong config --service servicename.service'"
     fi
     logtoboth ""

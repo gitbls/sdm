@@ -94,7 +94,7 @@ function au_adduser () {
 	[ "$hdir" != "" ] && logtoboth "> Plugin $pfx: Create home directory '$hdir' for user '$user'" || logtoboth "> Plugin $pfx: No home directory created for user '$user'"
 	if ! useradd $hdsw $uidsw $user
 	then
-	    logtoboth "?! Plugin $pfx: Useradd returned an error"
+	    logtoboth "? Plugin $pfx: Useradd returned an error"
 	fi
     fi
     #
@@ -171,7 +171,7 @@ then
 	    username="" ; homedir="" ; uid="" ; password="" ; nohomedir="" ; ugroups="" ; nosudo="" ; samba="" ; smbpasswd=""
 	    done < $userlist
 	else
-	    logtoboth "%%Plugin $pfx: Cannot find userlist file '$userlist'; ignoring"
+	    logtoboth "% Plugin $pfx: Cannot find userlist file '$userlist'; ignoring"
 	fi
     else
 	if [ "$username" != "" ]
