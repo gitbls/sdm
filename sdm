@@ -27,20 +27,6 @@
 #     3   Boot the newly-created storage device
 #
 
-function errexit() {
-    echo -e "$1"
-    exit 1
-}
-
-function ferrexit() {
-    [ "$1" != "" ] && printf "$1"
-    exit 1
-}
-
-function exitiferr() {
-    [ "${1:0:1}" == "?" ] && errexit "$1"
-}
-
 function docleanup() {
     #
     # $1: if 'keep' (don't unset SDMPT)
@@ -168,18 +154,6 @@ function checknumeric() {
     return
 }
 
-function fndotfullpath() {
-    #
-    # Fix directory if it's "."
-    #
-    local fn="$1"
-    if [ "$fn" != "" ]
-    then
-	[ "$(dirname $fn)" == "." ] && fn="$(pwd)/$fn"    # Ensure fully qualified path to cscript
-    fi
-    echo $fn
-}
-
 function write_premsg() {
     #
     # $1 has the message to write
@@ -257,62 +231,6 @@ function poptcheck() {
     fi
 }
 
-function findappfile() {
-    #
-    # $1 = app/xapp variable
-    # $2 = app/xapp output variable
-    #
-    # Updates app/xapp output variable with actual file location
-    # or the value of $1 if it's not a file location (no leading '@')
-    #
-    local fn fnc
-    if [ "${1:0:1}" == "@" ]
-    then
-	fn="${1:1:999}"
-	fn="$(fndotfullpath $fn)"
-	if [ ! -f "$fn" ]
-	then
-	    fnc="$src/$(basename $fn)"
-	    if [ ! -f "$fnc" ]
-	    then
-		echo "? $2 file '$fn' not found"
-		return
-	    else
-		echo "@$fnc"
-	    fi
-	else
-	    echo "@$fn"
-	fi
-    else
-	echo "$1"
-    fi
-}
-
-function getapplist() {
-    #
-    # $1 has list of apps or @file with list of apps
-    # Returns the app list as the function result
-    #
-    local lapps="" newapp fn
-    if [ "${1:0:1}" == "@" ]
-    then
-	fn="${1:1:999}"
-	while read line
-	do
-	    #
-	    # Strip trailing spaces, tabs, and comments
-	    #
-            newapp="${line%%\#*}"    # Del EOL comments
-            newapp="${newapp%"${newapp##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-	    [ "$newapp" != "" ] && lapps="$lapps $newapp"
-	done < $fn
-    else
-	lapps="$1"
-    fi
-    lapps="${lapps## }"      # Del leading spaces
-    echo "$lapps"
-}
-
 function readl10n() {
     #
     # Get the L10N config from the running system
@@ -379,8 +297,6 @@ Commands
  --shrink            Shrink an IMG file 
 Command Switches for --customize and --burn or as noted
  --1piboot conf-file Use alternate 1piboot.conf
- --apps applist      List of app packages to install or @file with list
- --xapps applist     List of X11 packages to install or @file with list
  --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]
  --apssid ssidname   SSID name for WiFi Captive Portal [sdm]
  --apt-dist-upgrade  Use apt-get dist-upgrade instead of upgrade 
@@ -406,11 +322,9 @@ Command Switches for --customize and --burn or as noted
  --custom[1-4] str   Can be used in Custom cscripts
  --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
  --ddsw str          Switches for dd command [bs=16M iflag=direct]
- --debug apt         Enable debug features. apt=do single apt install for each package in apps,xapps
+ --debug apt         Enable debug features. apt=do single apt install for each package list (apps)
  --disable arg,arg   Disables specific complex services (bluetooth,piwiz,swap,triggerhappy,wifi)
  --directory         sd-image-file is a directory tree rather than an IMG
- --dhcpcd file       Append file to /etc/dhcpcd.conf
- --dhcpcdwait        Enable dhcpcd Wait for Internet
  --domain name       Domain name (for use in Custom Phase Script; sdm does not use)
  --dtoverlay         Add dtoverlay=string setting to /boot/config.txt (can be used multiple times)
  --dtparam           Add dtparam=string setting to /boot/config.txt (can be used multiple times)
@@ -439,8 +353,6 @@ Command Switches for --customize and --burn or as noted
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
  --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
  --motd file         Use provided file as /etc/motd
- --mouse left        Enable left-handed mouse if LXDE installed
- --netman            Specify network manager to use (dhcpcd, nm, network-manager)
  --nopassword        Do not require a password during customization
  --nouser            Do not add a new user
  --nowait-timesync   Don't wait for time to sync in sdm-firstboot
@@ -480,10 +392,8 @@ Command Switches for --customize and --burn or as noted
  --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
  --uid uid           UID for non-root user [next free]
  --user username     Create non-root user
- --vncbase n         Set the base port for virtual VNC connections [5900]
  --wifi-country country Set WiFi Country for unblocking WiFi
  --wpa wpaconf       wpa_supplicant.conf file to use
- --nowpa             Do not do WPA config file processing
  --xmb n             Set the --extend size in MB [2048]
  --version           Print sdm version number"
 }
@@ -492,7 +402,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V7.18"
+version="V8.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -528,8 +438,6 @@ ddsw="bs=16M iflag=direct"  #Switches for dd
 debugs=""                   #Debug settings
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
 disables=""                 #Complex services to disable
-dhcpcd=""                   #Append this custom dhcpcd.conf to /etc/dhcpcd.conf
-dhcpcdwait=0                #1=Enable wait for internet (like raspi-config System Options 'wait for network connection')
 domain=""                   #--domain name
 dtoverlay=""                #Collected --dtoverlay settings
 dtparam=""                  #Collected --dtparam settings
@@ -545,9 +453,7 @@ fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
 fgadgetmode=0               #1=Configure image for gadget mode
-fmouse=0                    #1=Set left-handed mouse if LXDE installed
 fnopassword=0               #1=Do not require a password during customization
-fnowpa=0                    #1=I really man no automatic no wpa config
 fppart=0                    #1=Print partition tables in an IMG
 frenamepi=0                 #1=--rename-pi selected
 frunonly=0                  #1=--runonly
@@ -579,7 +485,6 @@ modprobe=""                 #List of files to copy to /etc/modprobe.d
 motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
 myuid=""                    #UID for non-root user if created
-netman=""                   #--netman. Default is whatever is installed
 noreboot=0                  #1=Do not restart system after first boot
 nouser=0                    #1=Do not require a user to be specified
 nowaittimesync=0            #1=Don't wait for time to sync in sdm-firstboot
@@ -596,7 +501,7 @@ plugindebug=0               #1=Enable debugging output
 plugins=""                  #List of plugins to include
 poptions=""                 #Phase options
 pvers=0                     #Print version number
-raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye)
+raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye, 12:Bookworm)
 redact=0                    #1=redact passwords in /etc/sdm/{cparams,history}
 renamepi=""                 #Rename the user 'pi' to this
 rclocal=""                  #Command(s) to add to /etc/rc.local
@@ -627,7 +532,7 @@ wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vdebug="|apt|"              #Valid --debug settings
-vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|nodmconsole|xwindows|xapps|none|" #Valid --poptions
+vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
 vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|boot_behavior|overclock|boot_order|powerled|"
 vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
 vjournalopts="|persistent|syslog|volatile|none|"
@@ -636,11 +541,9 @@ vosopts="|raspios|raspbian|ubuntu|"
 vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
 vrunonlyopts="|plugin|plugins|"  #Valid options for --runonly
 vvirtopts="|nspawn|chroot|"
-vncbase="5900"              # Base port for VNC socket services
 vqemu=""                    # Qemu architecture to use in chroot
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
-xapps=""                    #List of X apps to install in sdm-X-installs
 pi1bootconf=""              #Command-line specified 1piboot.conf file to use
 wpaconf=""                  #Command-line specified wpa_supplicant.conf
 custom1=""                  #For custom use
@@ -648,9 +551,9 @@ custom2=""                  #For custom use
 custom3=""                  #For custom use
 custom4=""                  #For custom use
 
-[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 src=$(dirname "$(realpath "$0")")
 source $src/sdm-cparse           # Get function defs
+[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 #
 # Parse the command line
 #
@@ -658,17 +561,16 @@ cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:,\
 autologin,b0script:,b1script:,batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
 cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
-cscript:,csrc:,customize,datefmt:,ddsw:,debug:,dhcpcd:,dhcpcdwait,directory,disable:,\
+cscript:,csrc:,customize,datefmt:,ddsw:,debug:,directory,disable:,\
 domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
 fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
 hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,mouse:,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,netman:,oklive,os:,\
+mcolors:,modprobe:,motd:,mount,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,oklive,os:,\
 nopassword,password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
 ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,rename-pi:,restart,runonly:,\
 rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
 sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,bupdate:,user:,\
-vncbase:,wifi-country:,wificountry:,xapps:,xmb:,\
-custom1:,custom2:,custom3:,custom4:,version,nowpa,wpa:"
+wifi-country:,wificountry:,xmb:,custom1:,custom2:,custom3:,custom4:,version,wpa:"
 
 OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
 [ $? -ne 0 ] && errexit "? $0: Unable to parse command"
@@ -681,7 +583,6 @@ do
 	--1piboot)     pi1bootconf=$2; shift 2 ;;
 	--apip)        apip=$2       ; shift 2 ;;
 	--apssid)      apssid=$2     ; shift 2 ;;
-	--apps)        apps="$2"     ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
@@ -709,8 +610,6 @@ do
 	--datefmt)     datefmt=$2    ; shift 2 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--debug)       debugs=$2     ; shift 2 ;;
-	--dhcpcd)      dhcpcd=$2     ; shift 2 ;;
-	--dhcpcdwait)  dhcpcdwait=1  ; shift 1 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
 	--disable)     disables="${2,,}" ; shift 2 ;;
 	--domain)      domain=$2     ; shift 2 ;;
@@ -742,14 +641,11 @@ do
 	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--modprobe)    [ "$modprobe" == "" ] && modprobe="$2" || modprobe="$modprobe|$2" ; shift 2 ;;
 	--motd)        motd=$2       ; shift 2 ;;
-	--mouse)       fmouse=1      ; shift 2 ;;  #switch value required but ignored for now
 	--mount)       fdomount=1    ; shift 1 ;;
-	--netman)      netman=$2     ; shift 2 ;;
 	--nopassword)  fnopassword=1 ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nouser) nouser=1 ; shift 1 ;;
 	--nowait-timesync) nowaittimesync=1 ; shift 1 ;;
-	--nowpa)       fnowpa=1      ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--oklive)      oklive=1      ; shift 1 ;;
 	--os)          os="${2,,}"   ; shift 2 ;;
@@ -788,10 +684,8 @@ do
 	--bupdate)     [ "$bupdate" == "" ] && bupdate="$2" || bupdate="$bupdate|$2" ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
 	--virt)        virtmode=$2   ; shift 2 ;;
-	--vncbase)     vncbase="$2"  ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
-	--xapps)       xapps="$2"    ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
 	--custom2)     custom2=$2    ; shift 2 ;;
@@ -805,9 +699,7 @@ do
 done
 
 dimg="$1"
-#src=$(dirname $0)
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
-#source $src/sdm-cparse           # Get function defs
 
 #
 # Adjust settings based on switches and check for conflicting switches
@@ -882,6 +774,7 @@ if [ "$runonly" != "" ]
 then
     [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --runonly"
     frunonly=1
+    [ "$dimg" == "" ] && dimg="/" && fdirtree=1  # Default to running system if nothing specified
 fi
 if [ $fcustomize -eq 1 ]
 then
@@ -941,9 +834,8 @@ bupdate=$(poptcheck "$bupdate" "$vbupdopts" "--bupdate")
 exitiferr "$bupdate"
 runonly=$(poptcheck "$runonly" "$vrunonlyopts" "--runonly")
 exitiferr "$runonly"
+
 [ "$runonly" != "" -a "$plugins" == "" ] && errexit "? No plugins specified for --runonly plugins"
-#virtmode=$(poptcheck "$virtmode" "$vvirtopts" "--virt")
-#exitiferr "$virtmode"
 journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
 os=$(poptcheck "$os" "$vosopts" "--os")
 exitiferr "$os"
@@ -955,16 +847,16 @@ then
     IFS="~" read -a plugs <<< $plugins
     for p in "${plugs[@]}"
     do
-	p="${p%:*}"
+	IFS=':' read -a fpn <<< "$p"
 	pf=0
-	for d in  $(dirname $p) $src/local-plugins $src/plugins
+	for d in  $(dirname $fpn) $src/local-plugins $src/plugins
 	do
-	    pn=$(basename $p)
+	    pn=$(basename $fpn)
 	    if [ -f $d/$pn ]
 	    then
 		[ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
 		# if plugin found outside of sdm hierarchy copy it in
-		if [ "$d" == "$(dirname $p)" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
+		if [ "$d" == "$(dirname $fpn)" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
 		then
 		    copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
 		fi
@@ -972,7 +864,7 @@ then
 		break
 	    fi
 	done
-	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$p'"
+	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$fpn'"
     done
 fi
 #
@@ -1002,16 +894,6 @@ then
 	esac
     done
     [ "$emsg" != "" ] && errexit "? --systemd-config file(s) not found: $emsg"
-fi
-#
-# --netman
-#
-if [ "$netman" != "" ]
-then
-    if ! [[ "|nm|dhcpcd|network-manager|" =~ "|$netman|" ]]
-    then
-	errexit "? Unknown --netman value: $netman"
-    fi
 fi
 #
 # Password-related switches
@@ -1100,7 +982,6 @@ fi
 # Ensure wpa is correctly configured for the request, if needed
 #
 [ "$wpaconf" != "" -a ! -f "$wpaconf" ] && errexit "? wpa_supplicant config file '$wpaconf' not found"
-[ $fcustomize -eq 1 -a "$wpaconf" == "" -a $fnowpa -ne 1 ] && errexit "? Use --nowpa for no automatic wpa processing or --wpa to specify your wpa_supplicant.conf"
 
 if [ "$eeprom" != "" ]
 then
@@ -1110,7 +991,6 @@ then
     fi
 fi    
 
-[ "$dhcpcd" != ""  -a ! -f "$dhcpcd" ]  && errexit "? --dhcpcd file '$dhcpcd' not found"
 [ "$exports" != "" -a ! -f "$exports" ] && errexit "? --exports file '$exports' not found"
 
 for c in d hourly daily weekly monthly
@@ -1146,15 +1026,6 @@ IFS=":" read efg ebg ecursor <<< $ecolors
 [ "$ebg" == "" ] && ebg="gray"
 [ "$ecursor" == "" ] && ecursor="red"
 ecolors="$efg:$ebg:$ecursor"
-#
-# Process --apps and --xapps switches
-#
-appfile=$(findappfile "$apps") #Gets real @file nam or list of apps into '$appfile'
-exitiferr "$appfile"
-apps=$(getapplist "$appfile")    #Gets definitive app list into '$apps'
-xappfile=$(findappfile "$xapps") #Ditto for xappfile and xapps
-exitiferr "$xappfile"
-xapps=$(getapplist "$xappfile")
 #
 # Process the command. Actions are burn, customize, mount, runonly, and standalone --extend
 #
@@ -1336,14 +1207,13 @@ else
     ln -s $sdmdir/sdm $SDMPT/usr/local/bin
     mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
     cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
-    [ "$(ls $src/local-plugins 2>/dev/null)" != "" ] && cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
+    compgen -G "$src/local-plugins/*" > /dev/null && cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
     # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
     chmod 755 $SDMPT/$sdmdir/*
     chown -R root:root $SDMPT/$sdmdir
     [ "${appfile:0:1}" == "@" ]  && cp -a -f ${appfile:1:999}  $SDMPT/$sdmdir
-    [ "${xappfile:0:1}" == "@" ] && cp -a -f ${xappfile:1:999} $SDMPT/$sdmdir
     logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
@@ -1355,10 +1225,17 @@ else
 	fi
 	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
-    raspiosver=$(grep VERSION_ID $SDMPT/etc/os-release | (IFS="=" read v id ; id=${id%\"} ; echo ${id#\"}))
+    raspiosver=$(getosver)
     logtoboth "> Command Line: $cmdline"
-    logtoboth "> IMG RasPiOS Version: $raspiosver"
-    logtoboth "> IMG date: $(grep -s -m1 -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\}' $SDMPT/etc/rpi-issue)"
+    logtoboth "* Host Information"
+    logtoboth "   Hostname: $(hostname)"
+    logtoboth "   uname: $(uname -a)"
+    logtoboth "   os-release Name: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^NAME= /etc/os-release))"
+    logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= /etc/os-release))"
+    logtoboth "* IMG Information"
+    logtoboth "   Date: $(getosdate)"
+    logtoboth "   RasPiOS Version: $raspiosver"
+    logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= $SDMPT/etc/os-release))"
 
     # Flush accumulated messages
     if [ ${#cmsgs[@]} -gt 0 ]
@@ -1375,10 +1252,10 @@ else
     then
 	readl10n
 	logtoboth "> Load Localization (L10N) settings from running system"
-	logtoboth "> * Keymap:       $keymap"
-	logtoboth "> * Locale:       $locale"
-	logtoboth "> * Timezone:     $timezone"
-	logtoboth "> * WiFi Country: $wificountry"
+	logtoboth "   Keymap:       $keymap"
+	logtoboth "   Locale:       $locale"
+	logtoboth "   Timezone:     $timezone"
+	logtoboth "   WiFi Country: $wificountry"
     fi
     if [ "$pi1bootconf" != "" ]
     then
@@ -1399,9 +1276,6 @@ else
 	cp -a $cscript $SDMPT/$sdmdir
     fi
     chmod 755 $SDMPT/$sdmdir/*
-    # If --apps and/or --xapps are files copy them also. If not, clear the variables for writeconfig
-    [ "${appfile:0:1}" == "@" ]  && cp -a ${appfile:1:999}  $SDMPT/$sdmdir || appfile=""
-    [ "${xappfile:0:1}" == "@" ] && cp -a ${xappfile:1:999} $SDMPT/$sdmdir || xappfile=""
     #
     # Write the config settings into the IMG
     #
