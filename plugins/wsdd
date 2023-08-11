@@ -34,6 +34,11 @@ then
     plugin_getargs $pfx "$args" "$vargs"
     plugin_printkeys
 
+    if [ ${raspiosver} -ge 12 ]
+    then
+	logtoboth "% Plugin $pfx: wsdd is available via apt in this RasPiOS release"
+    fi
+
     if [ "$localsrc" != "" ]
     then
 	logtoboth "> Plugin $pfx: Copy wsdd from '$localsrc'"
