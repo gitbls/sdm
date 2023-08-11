@@ -3,7 +3,7 @@
 Another way to accomplish these types of customizations is to use <a href="Plugins.md">Plugins</a>, which are more capable and easier to understand.
 
 ## b0script
-```
+```sh
 #!/bin/bash
 #
 # Script run after burn, in a --mount mode (running system and burned disk both accessible)
@@ -42,7 +42,7 @@ function do_b0script() {
 }
 ```
 ## b1script
-```
+```sh
 #!/bin/bash
 #
 # Runs in an nspawn so references are direct
