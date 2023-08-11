@@ -1,12 +1,31 @@
 # Changelog
 
+## V8.0
+
+* Initial Bookworm support
+* Changes in apps installs, graphics, network handling with new plugins: `apps`, `network`, `graphics`, `quietness`
+* Removed switches no longer needed: `--apps`, `--xapps`, `--netman`, `--dhcpcd`, `--dhcpcdwait`, `--nowpa`, `--mouse`, and `--vncbase`
+  * See <a href="Docs/Upgrade-Notes.md">Upgrade Notes</a>
+* Removed poptions no longer needed: `apps`, `nodmconsole`, `xwindows`, `xapps`
+  * See <a href="Docs/Upgrade-Notes.md">Upgrade Notes</a>
+* Graphics (X11, Wayland) changes to accomodate Bookworm and new features
+  * `graphics` plugin installs X11 core (xserver-xorg xserver-xorg-core xserver-common) if X11 requested
+  * On Bullseye Desktop and earlier, system default is X11. Switching to Wayland not supported
+  * On Bookworm Desktop and later, system default is Wayland, can switch to X11
+* `quietness` plugin provides simple control for the cmdline.txt settings quiet and nosplash
+* Bug fixes
+  * Fixed incorrect default bindaddress in apt-cacher-ng plugin
+  * Fixed incorrect echoing of terminal color inquiry responses
+  * Fixed plugin argument parsing handling of ':'
+* Documentation updates (lots)
+
 ## V7.18
 
 * When copying files from host into IMG in Phase 0, ensure proper file ownership and protection
 
 ## V7.17
 
-* New plugin: trim-enable enables SSD trim on all or only selected SSD devices
+* New plugin: `trim-enable` enables SSD trim on all or only selected SSD devices
 
 ## V7.16
 
