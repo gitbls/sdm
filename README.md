@@ -29,17 +29,22 @@ If you find sdm useful, please consider starring it to help me understand how ma
 
 Here's how to quickly and easily to create and customize an IMG file and burn it to an SD Card. It's assumed that there is an SD Card in /dev/sde.
 
-**Throughout this document read "SD Card" as "SSD or SD Card".** They are treated equivalently by sdm.
+**Throughout this document read "SD Card" as "SSD or SD Card".** sdm treats them equivalently.
 
 ## Install sdm
-`curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash`
+```sh
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+```
 
+* sdm will download the files to /usr/local/sdm by default, and make a link for sdm in /usr/local/bin for ease of use.
 * **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip** or **unxz** it.
 * Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D)
 * Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
 ## Customize the image with sdm
-`sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2023-05-03-raspios-bullseye-arm64.img `
+```sh
+sudo sdm --customize --wpa /path/to/working/wpa_supplicant.conf --L10n --restart --disable piwiz --regen-ssh-host-keys --user myuser --password-user mypassword 2023-05-03-raspios-bullseye-arm64.img
+```
 
 sdm will make the following changes to your IMG file:
 * Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running (if running on RasPiOS, Debian, or a Debian derivative such as Mint or Ubuntu)
@@ -52,7 +57,9 @@ sdm will make the following changes to your IMG file:
 No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
 ## Burn the image onto the SD Card
-`sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-05-03-raspios-bullseye-arm64.img`
+```sh
+sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-05-03-raspios-bullseye-arm64.img
+```
 
 ## Boot and Go
 
@@ -72,17 +79,20 @@ When the system comes back up your Pi is all happy, ready to go, and configured 
 * **Wifi** configured and operational
 * **SSH** enabled
 
-You can review the output of the sdm first boot script with: `sudo journalctl -b -1 | grep FirstBoot`
+You can review the output of the sdm first boot script with:
+```sh
+sudo journalctl -b -1 | grep FirstBoot
+```
 
 ## What else can sdm do?
 
 Here are a few examples:
 
-* **Install applications**  &mdash; Editors (emacs, vim, etc), and any other packages you always install in a new system. sdm has two built-in package install lists, creatively named *apps* and *xapps*. You can select which of the two lists to include when you build an image, so you can build images with no additional apps, *apps* only, *xapps* only, or both.
+* **Install applications**  &mdash; Editors (emacs, vim, etc), and any other packages you always install in a new system. You direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps>app plugin</a> for details.
 
     See <a href="Docs/Example-Commands.md">Example Commands</a> for some examples, and also see the files sdm-apps-example and sdm-xapps-example in this GitHub.
 
-* **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/VNC.md">VNC</a>.
+* **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">VNC plugin</a>.
 
 * **Install and configure an Access Point (hotspot)** &mdash; Install a customizable, fully operational hotspot in any of three modes: *local*, *routed*, or *bridged*.
 
