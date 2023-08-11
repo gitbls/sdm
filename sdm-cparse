@@ -6,6 +6,20 @@
 #
 # Common functions 
 #
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
+function ferrexit() {
+    [ "$1" != "" ] && printf "$1"
+    exit 1
+}
+
+function exitiferr() {
+    [ "${1:0:1}" == "?" ] && errexit "$1"
+}
+
 function logit {
     #
     # Writes message to /etc/sdm/history
@@ -42,7 +56,7 @@ function logtoboth() {
 function bootlog() {
     # Write string in $1 to the system log/journal and /etc/sdm/history.log
     logger "FirstBoot: $1"
-    logit "> FirstBoot $1"
+    logit "> FirstBoot: $1"
 }
 
 function getpwd() {
@@ -123,26 +137,30 @@ function outlong () {
 }
 
 function logapterror() {
-    logtoboth "?!apt returned an error; review /etc/sdm/apt.log"
+    logtoboth "? apt returned an error; review /etc/sdm/apt.log"
 }
 
 function doapt() {
     #
     # $1 is apt command
     # $2 is $showapt value
+    # $3 is optional apt command [D:apt-get]
     #
+    local aptcmd="$3" sts
+    [ "$aptcmd" == "" ] && aptcmd="apt-get -qq"
     echo "" >> /etc/sdm/apt.log
-    outlong "apt $1" "/etc/sdm/apt.log"
+    outlong "$aptcmd $1" "/etc/sdm/apt.log"
     echo "" >> /etc/sdm/apt.log
     if [ "$2" == "1" ]
     then
-	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
-	return $?
+	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
+	sts=$?
     else
-	DEBIAN_FRONTEND=noninteractive apt-get -qq -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
-	return $?
+	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
+	sts=$?
     fi
-    return $?
+    echo "[Done]" >> /etc/sdm/apt.log
+    return $sts
 }
 
 function doaptrpterror() {
@@ -304,11 +322,6 @@ function doconfigitem() {
 	#
 	# fstab, keymap, locale, and timezone may be set via sdm --burn command
 	#
-	# dhcpcd not currently used by sdm, keep for future just in case
-	dhcpcd)
-	    configitemlog "Append dhcpcd.conf extension '$value' to /etc/dhcpcd.conf" $msgfn
-	    cat /etc/sdm/assets/$value >> /etc/dhcpcd.conf
-	    ;;
 	fstab)
 	    configitemlog "Append fstab extension '$value' to /etc/fstab" $msgfn
 	    cat /etc/sdm/assets/$value >> /etc/fstab
@@ -370,17 +383,17 @@ function writeconfig() {
     local paramfile="$SDMPT/etc/sdm/cparams"
     rm -f $paramfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
-    for e in version thishost apps xapps appfile xappfile apip apssid aptcache aptdistupgrade autologin \
+    for e in version thishost apip apssid aptcache aptdistupgrade autologin \
 		     fbatch b0script b1script bootadd bootconfig bootscripts bootsetpairs crond cronhourly \
-		     crondaily cronweekly cronmonthly cronsystemd cscript csrc datefmt debugs dhcpcd \
-		     dhcpcdwait dimg dimgdev dimgdevname disables domain dtoverlay dtparam ecolors eeprom \
-		     expandroot exports fdirtree fgadgetmode fmouse fstab hdmiforcehotplug hdmiignoreedid \
+		     crondaily cronweekly cronmonthly cronsystemd cscript csrc datefmt debugs \
+		     dimg dimgdev dimgdevname disables domain dtoverlay dtparam ecolors eeprom \
+		     expandroot exports fdirtree fgadgetmode fstab hdmiforcehotplug hdmiignoreedid \
 		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
-		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser netman nouser nowaittimesync \
+		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser nouser nowaittimesync \
 		     os fnopassword passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
 		     raspiosver rclocal reboot redact regensshkeys frenamepi renamepi noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
 		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir sdmflist showapt showpwd src ssh swapsize svcdisable \
-		     svcenable sysctl timezone udev virtmode vncbase vqemu wificountry wpaconf fnowpa custom1 custom2 \
+		     svcenable sysctl timezone udev virtmode vqemu wificountry wpaconf custom1 custom2 \
 		     custom3 custom4
     do
 	echo "$e:\"${!e}\"" >> $paramfile
@@ -398,7 +411,7 @@ function runoneplugin() {
     do
         if [ -f $d/$p ]
 	then
-	    logtoboth "> Run Plugin '$p' ($d/$p) Phase $phase $argstr"
+	    [[ "$p" =~ ^sdm. ]] || logtoboth "> Run Plugin '$p' ($d/$p) Phase $phase $argstr"
 	    if [ -x $d/$p ]
 	    then
 		$d/$p "$phase" "$pargs"
@@ -419,7 +432,8 @@ function runonepluginx() {
     # $1: Plugin name and args (in $plugin format: plugin:key=value:key=value)
     # $2 phase
     #
-    local p="$1" pin="${p%:*}" pargs="${p#*:}" phase=$2
+    local p="$1" phase=$2 pin
+    IFS=":" read pin pargs <<< "$p"
     [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
     runoneplugin $pin $phase "$pargs"
 }
@@ -454,13 +468,13 @@ function plugin_getargs() {
     # also creates symbol foundkeys="|key1|key2|...|"
     #
     local arglist=() pfx=$1 args="$2" validkeys="$3" rqkeys="$4" keysfound=""
-    IFS="|:" read -a arglist <<< "$args"
+    IFS="|" read -a arglist <<< "$args"
     for c in "${arglist[@]}"
     do
 	# Peel off the args and put them into variables
 	while [ "$c" != "" ]
 	do
-	    IFS="=|:" read key value remain <<< "$c"
+	    IFS="=|" read key value remain <<< "$c"
 	    c="$remain"
 	    if [ "$validkeys" != "" ]
 	    then
@@ -469,6 +483,7 @@ function plugin_getargs() {
 		    logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$args'"
 		fi
 	    fi
+	    [[ "$value" =~ "$" ]] && value=${value//$/\\$}    # Replace $ with \$
 	    [ "$key" != "" ] && eval "${key}=\"$value\""
 	    keysfound="${keysfound}|$key"
 	done
@@ -628,12 +643,13 @@ function initvirt() {
 	    fi
 	fi
     else
-	# sdm not running sdm on ARM
+	# Not running sdm on ARM. Won't work if host is 32-bit without chroot, but just let it fail. Who runs 32-bit any more?
 	IFS="," read wamielf wamiarch rest <<< "$wami"
-	$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
-	$msgrtn "  * sdm will run more slowly due to qemu emulation"
-	virtmode="chroot"
-	[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
+	$msgrtn "% sdm will try to use systemd-nspawn on this '${wamiarch##\ }' system"
+	#$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
+	#$msgrtn "  * sdm will run more slowly due to qemu emulation"
+	#virtmode="chroot"
+	#[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
     fi
 }
 
@@ -715,6 +731,27 @@ function sdm_spawn() {
     return
 }
 
+function deferqemu() {
+    #
+    # Set deferred install
+    #
+    logtoboth "% chroot/qemu-user-static; Defer install of qemu-user-static to system FirstBoot"
+    fnqemu="/etc/sdm/0piboot/010-install-qemu.sh"
+    if [ ! -f $fnqemu ]
+    then
+	cat > $fnqemu <<EOF
+#!/bin/bash
+#
+# Install qemu-user-static. Install deferred because it can't be installed in a chroot
+#
+source /etc/sdm/sdm-readparams
+logger "FirstBoot: Install qemu-user-static"
+doapt "install --yes --no-install-recommends qemu-user-static" $showapt
+EOF
+	chmod 755 $fnqemu
+    fi
+}
+
 function getconfbool() {
     #
     # Grab one entry (name in $1) from cparams safely
@@ -785,7 +822,8 @@ function setbootset() {
 	    if ! grep "service-disable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 	    then
 		logtoboth "> Disable service '$c'"
-		echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
+		#echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
+		systemctl disable -q $c
 	    fi
 	done
     fi
@@ -798,7 +836,8 @@ function setbootset() {
 	    if ! grep "service-enable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
 	    then
 		logtoboth "> Enable service '$c'"
-		echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
+		#echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
+		systemctl enable -q $c
 	    fi
 	done
     fi
@@ -904,6 +943,25 @@ function delaylightdmenable() {
     fi
 }
 
+function delaydmenable {
+    #
+    # Disable the display manager in $1 and set for re-enable during First Boot
+    # $2=delayed target (either B3 or B4)
+    #
+    local dm="$1" bbh="$(getfinalbbh $2)"
+    logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
+    logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
+    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+    do_raspiconfig do_boot_behaviour B1
+    systemctl set-default multi-user.target > /dev/null 2>&1
+    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+    #then
+	#echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    #fi
+    return
+}
+
 function do_disables() {
     # Process disables
     # $1 has list of requested disables separated by "|" if more than one item
@@ -922,7 +980,7 @@ function do_disables() {
 		    cat > $fndis <<EOF
 #!/bin/bash
 blfile="blacklist-sdm-bluetooth.conf"
-logger "FirstBoot Disable bluetooth using /etc/modprobe.d/\$blfile"
+logger "FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
 printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
 systemctl disable hciuart
 EOF
@@ -935,6 +993,7 @@ EOF
 		systemctl disable userconfig.service > /dev/null 2>&1
 		systemctl mask    userconfig.service > /dev/null 2>&1
 		getent passwd rpi-first-boot-wizard > /dev/null && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
+		[ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ] && mv /etc/systemd/system/getty@tty1.service.d/autologin.conf /etc/systemd/system/getty@tty1.service.d/.autologin.conf.sdm
 		rm -f /etc/sudoers.d/010_wiz-nopasswd
 		rm -f /etc/xdg/autostart/deluser.desktop
 		;;
@@ -962,7 +1021,7 @@ EOF
 		    cat > $fndis <<EOF
 #!/bin/bash
 blfile="blacklist-sdm-wifi.conf"
-logger "FirstBoot Disable wlan0 using /etc/modprobe.d/\$blfile"
+logger "FirstBoot: Disable wlan0 using /etc/modprobe.d/\$blfile"
 printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
 EOF
 		    chmod 755 $fndis
@@ -972,6 +1031,101 @@ EOF
     done
 }
 
+function findappfile() {
+    #
+    # $1 = app/xapp variable
+    # $2 = app/xapp output variable
+    #
+    # Updates app/xapp output variable with actual file location
+    # or the value of $1 if it's not a file location (no leading '@')
+    #
+    local fn fnc
+    if [ "${1:0:1}" == "@" ]
+    then
+	fn="${1:1:999}"
+	fn="$(fndotfullpath $fn)"
+	if [ ! -f "$fn" ]
+	then
+	    fnc="$src/$(basename $fn)"
+	    if [ ! -f "$fnc" ]
+	    then
+		echo "? $2 file '$fn' not found"
+		return
+	    else
+		echo "@$fnc"
+	    fi
+	else
+	    echo "@$fn"
+	fi
+    else
+	echo "$1"
+    fi
+}
+
+function getapplist() {
+    #
+    # $1 has list of apps or @file with list of apps
+    # Returns the app list as the function result
+    #
+    local lapps="" newapp fn
+    if [ "${1:0:1}" == "@" ]
+    then
+	fn="${1:1:999}"
+	while read line
+	do
+	    #
+	    # Strip trailing spaces, tabs, and comments
+	    #
+            newapp="${line%%\#*}"    # Del EOL comments
+            newapp="${newapp%"${newapp##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	    [ "$newapp" != "" ] && lapps="$lapps $newapp"
+	done < $fn
+    else
+	lapps="$1"
+    fi
+    lapps="${lapps## }"      # Del leading spaces
+    echo "$lapps"
+}
+
+function doinstalls() {
+    #
+    # $1 - app list
+    # $2 - subject string (e.g., "XWindows Installs" or "Application Installs")
+    #
+    if [ "$1" != "" ]
+    then
+	logtoboth "* Start $2"
+	logtoboth "> ${2}: $1"
+	if [[ "$debugs" =~ "apt" ]]
+	then
+	    logtoboth "> Install apt packages singly per '--debug apt'"
+	    IFS=" " read -a alist <<< "$1"
+	    for a in "${alist[@]}"
+	    do
+		logtoboth "> -- $a"
+		doaptrpterror "install --no-install-recommends --yes $a" $showapt
+	    done
+	else
+	    doaptrpterror "install --no-install-recommends --yes $1" $showapt
+	fi
+	logtoboth "* $2 Completed"
+    else
+	logtoboth "> Skip $2 per empty package list"
+    fi
+}
+
+function fndotfullpath() {
+    #
+    # Fix directory if it's "."
+    #
+    local fn="$1"
+    if [ "$fn" != "" ]
+    then
+	[ "$(dirname $fn)" == "." ] && fn="$(pwd)/$fn"    # Ensure fully qualified path to cscript
+    fi
+    echo $fn
+}
+
 function gterm1() {
     #
     # $1: control (10:foreground, 11:background, 12:cursor, 13:mousefg, 14:mousebg)
@@ -979,8 +1133,7 @@ function gterm1() {
     #
     local vname="$2" cval
     # Query the xterm for the attribute and read result
-    echo -e -n "\e]$1;?\a"
-    read -s  -N 40 -t 0.1 cval
+    stty -echo ; printf "\e]$1;?\007" ;  read -s -n 24 -t 0.2 cval ; stty echo
     # Trim response to just the color string and return it in the named variable
     cval="${cval:2:${#cval}-3}"   # Strip off ESC] at beginning and ctrl-g at end of string
     cval="${cval##*;}"            # Strip off leading semi-colon
