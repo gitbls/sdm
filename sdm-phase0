@@ -47,24 +47,12 @@ then
 fi
 
 logtoboth "*+Phase 0 Network configuration"
-if [ "$wpaconf" != "" ]    #First b/c it's most important
+if [ "$wpaconf" != "" ]
 then
     logtoboth "> Copy wpa supplicant config from '$wpaconf' to $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf"
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
     setfileownmode $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
-else
-    logtoboth "% Skip wpa_supplicant configuration per --nowpa"
-fi
-#
-# Copy dhcpcd.conf extension into the image
-#
-if [ "$dhcpcd" != "" ]
-then
-    logtoboth "> Append dhcpcd.conf extension '$dhcpcd' to $SDMPT/etc/dhcpcd.conf"
-    cat $dhcpcd >> $SDMPT/etc/dhcpcd.conf
-# Don't need to do it this way, but keep for future reference
-#    echo "dhcpcd=$(basename $dhcpcd)" >> $SDMPT/etc/sdm/auto-1piboot.conf
 fi
 #
 # Copy exports file into the image
@@ -121,7 +109,6 @@ fi
 # Copy user-specified motd file into the image
 #
 [ "$motd" != "" ] && logtoboth "> Copy file '$motd' to $SDMPT/etc/motd" && mv $SDMPT/etc/motd $SDMPT/etc/motd.sdm && cp $motd $SDMPT/etc/motd && setfileownmode $SDMPT/etc/motd
-
 #
 # Copy user-specified sysctl config file into the image
 #
