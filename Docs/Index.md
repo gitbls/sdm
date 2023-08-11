@@ -10,7 +10,6 @@
 <br><a href="Credits.md">Credits</a>
 <br><a href="Custom-Phase-Script.md">Custom Phase Script</a>
 <br><a href="Description.md">Description of sdm</a>
-<br><a href="Detailed-Installation-Guide.md">Detailed Installation Guide</a>
 <br><a href="Example-Burn-Multiple-Hosts-From-Single-IMG.md">Example: Burn Multiple Hosts from a Single IMG</a>
 <br><a href="Example-Burn-Scripts.md">Example: Burn Scripts</a>
 <br><a href="Example-Commands.md">Example: Commands</a>
@@ -27,11 +26,11 @@
 <br><a href="Operating-Details.md">Operating Details</a>
 <br><a href="Passwords.md">Passwords</a>
 <br><a href="Performance-How-Fast-is-sdm.md">Performance: How Fast is sdm</a>
+<br><a href="Plugins.md">Plugins</a>
 <br><a href="Programming-Plugins-and-Custom-Phase-Scripts.md">Programming: Plugins and Custom Phase Scripts</a>
 <br><a href="Script-Details.md">sdm Script Details</a>
-<br><a href="Plugins.md">sdm Plugins</a>
 <br><a href="Terminal-Colors.md">Terminal Colors</a>
 <br><a href="Troubleshooting.md">Troubleshooting: Overview</a>
+<br><a href="Upgrade-Notes.md">Upgrading to sdm V8</a>
 <br><a href="Using-LXDE-Config.md">Using --lxde-config</a>
 <br><a href="Using-sdm-on-Windows-WSL.md">Using sdm on Windows WSL</a>
-<br><a href="VNC.md">Plugin VNC details</a>

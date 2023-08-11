@@ -39,7 +39,6 @@ These switches can be used with `--burn`. When used this way, they affect only t
 * `--b1script`
 * `--bootscripts`
 * `--bootset`
-* `--dhcpcd`
 * `--disables`
 * `--expand-root`
 * `--exports`
@@ -52,12 +51,12 @@ These switches can be used with `--burn`. When used this way, they affect only t
 * `--password-pi`
 * `--password-user`
 * `--password-root`
-* `--redact`
-* `--regen-ssh-keys`
 * `--plugin`
 * `--plugin-debug`
 * `--rclocal`
 * `--reboot`
+* `--redact`
+* `--regen-ssh-keys`
 * `--svc-disable`
 * `--svc-enable`
 * `--sysctl`

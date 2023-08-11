@@ -1,7 +1,7 @@
 # Example: Custom Phase Script
 
 This is my (lightly edited) personal Custom Phase script that I used to use. I am now using a <a href="Plugins.md">Plugin</a>, which you can see <a href="Example-Plugin.md">here</a> for comparison and contrast.
-```
+```sh
 #!/bin/bash
 # My sdm customizations
 #
@@ -63,10 +63,6 @@ then
 	logtoboth "> $pfx Copy ssh files"
 	cp -a /rpi/my-ssh-files $SDMPT/home/$myuser/.ssh
 	chmod 700 $SDMPT/home/$myuser/.ssh
-	mkdir -p $SDMPT/home/$myuser/.gnupg
-	# This is also set for root (just below). Also see in Phase 1 where /usr/lib/gnupg/scdaemon is hacked
-	echo "disable-scdaemon" > $SDMPT/home/$myuser/.gnupg/gpg-agent.conf
-	chmod 700 $SDMPT/home/$myuser/.gnupg
 	logtoboth "> $pfx Copy login scripts to $SDMPT/root"
 	[ ! -d $SDMPT/root/orig ] && mkdir $SDMPT/root/orig && mv $SDMPT/root/.bashrc $SDMPT/root/orig
 	[ -f $SDMPT/root/.bash_profile ] && mv $SDMPT/root/.bash_profile $SDMPT/root/orig
@@ -75,9 +71,6 @@ then
 	chmod 755 $SDMPT/root/.bash_profile
 	cp -a $SDMPT/home/$myuser/.ssh $SDMPT/root/.ssh
 	chown -R root.root $SDMPT/root/.ssh
-	mkdir -p $SDMPT/root/.gnupg
-	echo "disable-scdaemon" > $SDMPT/root/.gnupg/gpg-agent.conf
-	chmod 700 $SDMPT/root/.gnupg
     fi
     
     logtoboth "> $pfx Copy systemd services"
@@ -123,31 +116,6 @@ else
     #
     logtoboth "* $pfx Custom Phase post-install"
     logfreespace "at start of $pfx Custom Phase post-install"
-
-    #
-    # Disable gnugp scdaemon error completely
-    #
-    logtoboth "> $pfx Eliminate gnupg scdaemon error messages"
-    if [ ! -f /usr/lib/gnupg/scadaemon ]
-    then
-	cat > /usr/lib/gnupg/scdaemon <<EOF
-#!/bin/bash
-exit 0
-EOF
-	chmod 755 /usr/lib/gnupg/scdaemon
-    fi
-
-    if [ -f /etc/default/nfs-kernel-server ]
-    then
-	logtoboth "> Change nfsd process count from 8 to 4 in /etc/default/nfs-kernel-server"
-	sed -i "s/RPCNFSDCOUNT=8/RPCNFSDCOUNT=4/" /etc/default/nfs-kernel-server
-	logtoboth "> $pfx Eliminate NFS /run/rpc_pipefs/nfs/blocklayout boot message"
-	mkdir /etc/systemd/system/nfs-blkmap.service.d
-	cat > /etc/systemd/system/nfs-blkmap.service.d/fixpipe.conf <<EOF
-[Service]
-ExecStartPre=/usr/sbin/modprobe blocklayoutdriver
-EOF
-    fi
 
     if [[ ! "$custom1" =~ "nopostfix" ]]
     then

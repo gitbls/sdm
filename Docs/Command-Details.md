@@ -51,7 +51,6 @@ sdm commands include:
 sdm has a broad set of command switches. These can be specified in any case (UPPER, lower, or MiXeD).
 
 * `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf. Note that this is less preferable than using the `--bootset` command switch.
-* `--apps` *applist* &mdash; Specifies a list of apps to install. This can be either a quoted list of space-separate apps ("zip iperf3 nmap") or a pointer to a file (@file), which has one package name per line. Comments are preceded by a pound sign ('#') and are ignored. You must specify `--poptions apps` in order for sdm to process the *apps* list.
 * `--apssid` *SSID* &mdash; Use the specified SSID for the Captive Portal instead of the default 'sdm'. See <a href="Captive-Portal.md">Captive Portal</a> for details.
 * `--apip` *IPaddr* &mdash; use the specified IP Address instead of the default 10.1.1.1. See <a href="Captive-Portal.md">Captive Portal</a> for details.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
@@ -78,9 +77,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.
 * `--datefmt "fmt"` &mdash; Use the specified date format instead of the default "%Y-%m-%d %H:%M:%S". See `man date` for format string details.
-* `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, the default value is replaced.
-* `--dhcpcdwait` &mdash; Enable 'wait for network' (raspi-config System option S6).
-* `--dhcpcd` *file* &mdash; Append the contents of the specified file to /etc/dhcpcd.conf in the Customized Image.
+* `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, it replaces the default value.
 * `--disable` *option* &mdash; Disable specified options in the comma-separated list. Supported options: `bluetooth`, `piwiz`, `swap`, `triggerhappy`, `wifi`.
     * `bluetooth` &mdash; Block bluetooth via /etc/modprobe.d/blacklist-sdm-bluetooth.conf and disable the hciuart service
     * `piwiz` &mdash; Don't run piwiz during first system boot if LXDE is installed. All the settings in piwiz can be accomplished in sdm. For Lite, the RasPiOS firstboot script that configures keyboard, etc is disabled.
@@ -137,14 +134,11 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--plugin plugin-name:"arguments"` &mdash; Include the named plugin with its arguments. See <a href="Plugins.md">Plugins</a> for complete plugin details
 * `--plugin-debug` &mdash; Enable additional debug printout in plugins (useful for plugin development)
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
-    * **apps** &mdash; install the *apps*
     * **noautoremove** &mdash; do not do an `apt autoremove`
     * **noupdate** &mdash; do not do an `apt update`
-    * **nodmconsole** &mdash; do not enable Display Manager on console (xdm or wdm only)
     * **noupgrade** &mdash; do not do an `apt upgrade`
-    * **xapps** &mdash; install the *xapps*
 
-    Enter multiple values as a single string separated by commas. For example `--poptions apps,xapps` or `--poptions noupdate,noupgrade`
+    Enter multiple values as a single string separated by commas. For example `--poptions noupdate,noupgrade`
 
 * `--rclocal` *command* &mdash; Add the specified command to /etc/rc.local. Multiple `--rclocal` switches can be specified, and the commands are added in the order specified on the command line.
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
@@ -153,6 +147,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--regenerate-ssh-host-keys` &mdash; The sdm FirstBoot process will regenerate the SSH host keys on the first system boot once the system time has been synchronized. The system will move ahead and regenerate the keys if the time has not been synchronized within 60 seconds.
 * ``--rename-pi newuser` &mdash; Instead of creating a new user, rename the `pi` user to the specified new username, and properly configure the home directory, etc.a
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
+* `--runonly plugins` &mdash; Only run plugins. If no device or directory specified, sdm defaults to directory '/' on the running system.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--sdmdir` */path/to* &mdash; sdm normally is in /usr/local/sdm. If you want it to be put somewhere else when you customize an image, use this switch to specify the location. To install sdm itself into a different directory, specify it as the parameter to EZsdmInstall when you first install sdm
 * `--showpwd` &mdash; Show the passwords set on accounts in /etc/sdm/history
@@ -168,9 +163,9 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--update-plugins` &mdash; Typically for sdm development use only. When plugins are used during an sdm burn, they are run from the copy in the source IMG. This switch causes sdm to look for newer updates on the host system, and update the burn target before running the plugins.
 * `--vncbase` *base* &mdash; Set the base port for VNC virtual desktops; RealVNC Console service is not changed.
 * `--wifi-country` *countryname* &mdash; Specify the name of the country to use for the WiFi Country setting. See /usr/share/zoneinfo/iso3166.tab for the complete WiFi Country code list. Also see the `--l10n` command switch which will extract the current WiFi Country setting from /etc/wpa_supplicant/wpa_supplicant.conf or /etc/wpa_supplicant/wpa_supplicant-wlan0.conf on the system on which sdm is running.
-* `--wpa` *conffile* &mdash; Specify the wpa_supplicant.conf file to use. You can either specify your wpa_supplicant.conf on the command line, or copy it into your image in your sdm-customphase script. See the sample sdm-customphase for an example. `--wpa` can also be specified when burning the SD Card.
-* `--nowpa` &mdash; Use this to tell sdm that you really meant to not provide a wpa_supplicant.conf file. You must either specify `--wpa` or `--nowpa` when customizing an IMG. This is useful if you want to build SD Cards for different networks. You can use `--nowpa` when you customize the IMG, and then specify `--wpa` *conffile* when burning the SD Card.
-* `--xapps` *xapplist* &mdash; Like `--apps`, but specifies the list of apps to install when `--poptions xapps` is specified.
+* `--wpa` *conffile* &mdash; Specify the wpa_supplicant.conf file to use. You can either specify your wpa_supplicant.conf on the command line, or copy it into your image in a plugin or Custom Phase script. See the sample sdm-customphase for an example. `--wpa` can also be specified when burning the SD Card.
+
+  If used in conjunction with the `network` plugin, the wpa_supplicant.conf specified on the command line overrides the plugin. Note that wpa_supplicant is not used with Network Manager. See <a href="Docs/Plugin.md#network">network plugin</a> for details
 * `--xmb` *n* &mdash; Specify the number of MB to extend the image. The default is 2048 (MB), which is 2GB. You may need to increase this depending on the number of packages you choose to install in Phase 1. If the image isn't large enough, package installations will fail. If the image is too large, it will consume more disk space, and burning the image to an SD Card will take longer.
 
 ## Customization switches that can be used with --burn

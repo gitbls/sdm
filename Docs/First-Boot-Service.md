@@ -14,6 +14,8 @@ The FirstBoot service looks at these settings and implements them as needed:
 * Runs custom scripts in /etc/sdm/0piboot/0*-*.sh. See <a href="First-Boot-Scripts-and-Configurations.md">First Boot Scripts</a> for details.
 * Optionally (if `--bootscripts`) executes custom scripts in /usr/local/sdm/thispi/1piboot/0*-*.sh. sdm Phase 0 copies these files from /usr/local/sdm/1piboot on the running system.
 
+Note that the hostname does not need to be set since you typically set it when you burn the disk with sdm.
+
 After all First System Boot processing has been done, FirstBoot waits until the system boot process has fully completed. If `--restart` or `--reboot` were specified, FirstBoot will then restart the system.
 
 First Boot Automatic System Restart is useful for a couple reasons:

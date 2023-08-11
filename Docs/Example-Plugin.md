@@ -1,7 +1,9 @@
 # Example: Plugin
 
 This is my (lightly edited) personal Plugin script that I use. You can read about <a href="Plugins.md">Plugins here</a>, and you can compare and constrast this plugin with a similar Custom Phase Script <a href="Example-Custom-Phase-Script.md">here</a>.
-```
+
+You should note that there's very little difference between a Custom Phase Script and a Plugin from a coding perspective. The biggest difference is that it's much easier to pass arguments to a Plugin from the command line.
+```sh
 #!/bin/bash
 # My sdm customizations
 #
@@ -68,10 +70,6 @@ then
 	logtoboth "> Plugin $pfx: Copy $csrc/home/bls/ssh-mydomain to $SDMPT/home/$myuser"
 	cp -a $csrc/home/bls/ssh-mydomain $SDMPT/home/$myuser/.ssh
 	chmod 700 $SDMPT/home/$myuser/.ssh
-	mkdir -p $SDMPT/home/$myuser/.gnupg
-	# This is also set for root (just below). Also see in Phase 1 where /usr/lib/gnupg/scdaemon is created 
-	echo "disable-scdaemon" > $SDMPT/home/$myuser/.gnupg/gpg-agent.conf
-	chmod 700 $SDMPT/home/$myuser/.gnupg
 
 	logtoboth "> Plugin $pfx: Copy login scripts to $SDMPT/root"
 	[ ! -d $SDMPT/root/orig ] && mkdir $SDMPT/root/orig && mv $SDMPT/root/.bashrc $SDMPT/root/orig
@@ -80,9 +78,6 @@ then
 	echo "source /root/.bashrc" > $SDMPT/root/.bash_profile
 	chmod 755 $SDMPT/root/.bash_profile
 	cp -a $SDMPT/home/$myuser/.ssh $SDMPT/root/.ssh
-	mkdir -p $SDMPT/root/.gnupg
-	echo "disable-scdaemon" > $SDMPT/root/.gnupg/gpg-agent.conf
-	chmod 700 $SDMPT/root/.gnupg
 	chown -R root.root $SDMPT/root/.ssh
     fi
     
@@ -100,18 +95,24 @@ then
     plugin_getargs $pfx "$args" "$vldargs"
     #logfreespace "at start of $pfx Phase 1"
     
-    if [ "$random" == "haveged" ]
+    if [ "$random" == "" ]
     then
-        logtoboth "> Plugin $pfx: Disable rng-tools and install haveged"
-        doapt "install --yes --no-install-recommends haveged" $showapt
-        systemctl disable rng-tools > /dev/null 2>&1
-        systemctl disable rng-tools-debian > /dev/null 2>&1   # On some systems it is named this
-        systemctl enable haveged > /dev/null 2>&1
-    else
+	if [[ "haveged|rng-tools5" =~ "$random" ]]
+	then
+            logtoboth "> Plugin $pfx: Remove rng-tools, rng-tools-debian, and install $random"
+            systemctl disable rng-tools > /dev/null 2>&1
+            systemctl disable rng-tools-debian > /dev/null 2>&1   # On some systems it is named this
+	    doapt "remove --yes rng-tools rng-tools-debian" $showapt
+            doapt "install --yes --no-install-recommends $random" $showapt
+	    rm -f /etc/default/rng-tools-debian /etc/init.d/rng-tools-debian
+	else
+	    logtoboth "% Ignoring unrecognized 'random' setting '$random'"
+	fi
+    #else
 	# Bullseye: Be aware of this if the system runs more than 8 days: https://rachelbythebay.com/w/2022/04/20/rngd/
-        logtoboth "> Plugin $pfx: Use rngd"
-	logtoboth "> Plugin $pfx: Disable rngd logging"
-	echo "RNGDOPTIONS=\"-S 0\"" >> /etc/default/rng-tools-debian
+        #logtoboth "> Plugin $pfx: Use rngd"
+	#logtoboth "> Plugin $pfx: Disable rngd logging"
+	#echo "RNGDOPTIONS=\"-S 0\"" >> /etc/default/rng-tools-debian
     fi
 
     logtoboth "> Plugin $pfx: Disable $SDMPT/etc/profile.d/wifi-check.sh and sshpwd.sh"
@@ -144,11 +145,6 @@ else
     logtoboth "> Plugin $pfx: Set ext4 partition commit higher"
     sed -i "s/ext4    defaults,noatime/ext4    defaults,noatime,commit=300/" /etc/fstab
 
-    if [ -f /usr/bin/startlxde-pi ]
-    then
-	sed -i "s/window_manager=mutter/window_manager=openbox/" /etc/xdg/lxsession/LXDE-pi/desktop.conf
-	[ -f /home/bls/.config/lxsession/LXDE-pi/desktop.conf ] && sed -i "s/window_manager=mutter/window_manager=openbox/" /home/bls/.config/lxsession/LXDE-pi/desktop.conf
-    fi
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Phase post-install Completed"
 fi

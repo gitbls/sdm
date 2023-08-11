@@ -104,9 +104,7 @@ Typically one would run sdm-cportal as part of configuring a system online via W
 If you are using sdm-cportal as part of a configuration system, you may want to capture the localization settings that the user provided in the Captive Portal form. The `--l10nhandler` switch takes a filename value which is a script that is called when the localization settings are known.
 
 Here is a sample script template you can start with for this. This sample simply uses raspi-config to set the values passed to it. Each set value is logged to the system log with the `logger` command.
-```
-#!/bin/bash
-
+```sh
 #!/bin/bash
 #
 # $1: keymap

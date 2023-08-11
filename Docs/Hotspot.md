@@ -12,7 +12,7 @@ Hotspot configuration is done with the `--hotspot` switch.
 
     The hotspot configuration is specified in *config-file*, which contains a set of directives, one per line. The settings shown here are the defaults:
 
-```
+```sh
 # Type of hotspot
 #  local: Clients can only access the hotspot IP itself
 #  routed: Clients can access the hotspot IP; non-local traffic is routed to the Pi's eth0 network

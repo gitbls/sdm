@@ -2,7 +2,7 @@
 
 This is a very simple script that doesn't do much. See the sdm script sdm-gburn if your needs for this are more complex.
 
-```
+```sh
 #!/bin/bash
 #
 # Burn a bunch of SSDs/SD Cards from the same image
