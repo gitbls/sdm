@@ -53,6 +53,16 @@ then
     # Copy and strip carriage returns just in case
     tr -d '\r' < $wpaconf > $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
     setfileownmode $SDMPT/etc/wpa_supplicant/wpa_supplicant.conf
+    if [ "$wificountry" == "" ]
+    then
+	# Get wifi country from wpa_supplicant if it's there
+	IFS="=" read a wificountry <<< $(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
+	if [ "$wificountry" != "" ]
+	then
+	    logtoboth "> Set wificountry to '$wificountry' from /etc/wpa_supplicant/wpa_supplicant.conf"
+	    writeconfig
+	fi
+    fi
 fi
 #
 # Copy exports file into the image
