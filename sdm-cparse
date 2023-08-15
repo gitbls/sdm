@@ -380,8 +380,9 @@ function writeconfig() {
     #
     # Write config parameters into the image
     #
-    local paramfile="$SDMPT/etc/sdm/cparams"
-    rm -f $paramfile
+    local paramfile="$SDMPT/etc/sdm/cparams" bkfile="${paramfile}.old" orgfile="${paramfile}.orig"
+    rm -f $bkfile
+    [ -f $paramfile ] && mv $paramfile $bkfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     for e in version thishost apip apssid aptcache aptdistupgrade autologin \
 		     fbatch b0script b1script bootadd bootconfig bootscripts bootsetpairs crond cronhourly \
@@ -398,6 +399,7 @@ function writeconfig() {
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
+    [ -f $orgfile ] || cp -a $paramfile $orgfile
 }
 
 function runoneplugin() {
@@ -467,8 +469,8 @@ function plugin_getargs() {
     # In addition to creating a key/value symbol for each found key/value,
     # also creates symbol foundkeys="|key1|key2|...|"
     #
-    local arglist=() pfx=$1 args="$2" validkeys="$3" rqkeys="$4" keysfound=""
-    IFS="|" read -a arglist <<< "$args"
+    local arglist=() pfx=$1 largs="$2" validkeys="$3" rqkeys="$4" keysfound=""
+    IFS="|" read -a arglist <<< "$largs"
     for c in "${arglist[@]}"
     do
 	# Peel off the args and put them into variables
@@ -480,7 +482,7 @@ function plugin_getargs() {
 	    then
 		if ! [[ "$validkeys" =~ "|$key|" ]]
 		then
-		    logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$args'"
+		    logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$largs'"
 		fi
 	    fi
 	    [[ "$value" =~ "$" ]] && value=${value//$/\\$}    # Replace $ with \$
@@ -499,7 +501,7 @@ function plugin_getargs() {
 	do
 	    if ! [[ "${keysfound}|" =~ "|$c|" ]]
 	    then
-		logtoboth "% Plugin $pfx: Required key '$c' missing from argument list '$args'"
+		logtoboth "% Plugin $pfx: Required key '$c' missing from argument list '$largs'"
 	    fi
 	done
     fi
@@ -1124,6 +1126,34 @@ function fndotfullpath() {
 	[ "$(dirname $fn)" == "." ] && fn="$(pwd)/$fn"    # Ensure fully qualified path to cscript
     fi
     echo $fn
+}
+
+function appendvalue() {
+    #
+    # append value to string
+    # $1: former value of string
+    # $2: value to append to string
+    # $3: separator character
+    # Return value is the new string
+    #
+    local  oldval=$1 addval=$2 sep=$3
+    [ "$oldval" == "" ] && echo "$addval" || echo "${oldval}${sep}${addval}"
+    return
+}
+
+function stripquotes() {
+    #
+    # Remove leading/trailing single and double quotes
+    # If $2 != "" then quote $ character
+    #
+    local str="$1" qd="$2"
+    [[ "$qd" != "" ]] && [[ "$str" =~ "$" ]] && str=${str//$/\\$}    # Replace $ with \$
+    str="${str%"${str##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+    str="${str#\"}"     # Del opening double-quotes 
+    str="${str%\"}"     # Del closing double-quotes 
+    str="${str#\'}"     # Del opening single-quotes 
+    str="${str%\'}"     # Del closing single-quotes 
+    echo "$str"
 }
 
 function gterm1() {
