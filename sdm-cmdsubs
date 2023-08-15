@@ -179,7 +179,6 @@ function sdm_burndevfile() {
     # init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
     sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
     sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
-    ! grep -q splash $SDMPT/boot/cmdline.txt && sed -i "s/ quiet//g" $SDMPT/boot/cmdline.txt # Remove 'quiet' if Lite (no splash)
     sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
     #
     # Write out the accumulated messages into mounted image if image has been customized
@@ -246,11 +245,12 @@ function sdm_burndevfile() {
 	    # don't include domain name. Leave that to user
 	    # [ "$domain" != "" ] && hnd="${hname}.${domain}" || hnd=$hname
 	    # [ "$domain" != "" ] && shn=$hnd || shn=""
-	    hnd=$hname
+	    # Get current hostname in IMG
+	    chost=$(tr -d " \t\n\r" < /etc/hostname)
 	    [ "$domain" != "" ] && shn="${hname}.${domain}" || shn=""
-	    logtoboth "> Set hostname '$hnd'"
-	    echo $hnd > $SDMPT/etc/hostname
-	    sed -i "s/127.0.1.1.*raspberrypi/127.0.1.1\t$hname $shn/g" $SDMPT/etc/hosts
+	    logtoboth "> Set hostname '$hname'"
+	    echo $hname > $SDMPT/etc/hostname
+	    sed -i "s/127\.0\.1\.1.*${chost}/127.0.1.1\t${hname} ${shn}/g" $SDMPT/etc/hosts
 	fi
 
 	if [[ "$loadllocal" =~ "|wifi|" ]]
@@ -420,11 +420,11 @@ function sdm_burndevfile() {
 	[ "$b1script" != "" ] && echo "  and b1script '$b1script' will not be processed"
 	if [ "$hname" != "" ]
 	then
-	    hnd=$hname
+	    chost=$(tr -d " \t\n\r" < /etc/hostname)
 	    [ "$domain" != "" ] && shn="${hname}.${domain}" || shn=""
-	    logtoboth "> Set hostname '$hnd'"
-	    echo $hnd > $SDMPT/etc/hostname
-	    sed -i "s/127.0.1.1.*raspberrypi/127.0.1.1\t$hname $shn/g" $SDMPT/etc/hosts
+	    logtoboth "> Set hostname '$hname'"
+	    echo $hname > $SDMPT/etc/hostname
+	    sed -i "s/127\.0\.1\.1.*${chost}/127.0.1.1\t${hname} ${shn}/g" $SDMPT/etc/hosts
 	fi
     fi
 }
