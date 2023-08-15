@@ -61,7 +61,7 @@ then
 		if [ -f $wpa ]
 		then
 		    logtoboth "> Plugin $pfx: Copy wpa_supplicant config file '$wpa' to /etc/sdm/assets/dhcpcd-wpa"
-		    cp $wpa $SDMPT/etc/sdm/assets/dhcpcd-wpa
+		    tr -d '\r' < $wpa > $SDMPT/etc/sdm/assets/dhcpcd-wpa
 		else
 		    logtoboth "? Plugin $pfx: wpa file '$wpa' not found"
 		fi
@@ -113,8 +113,80 @@ else
     netman=$(getdefnm "$netman")
     plugin_printkeys
     #logfreespace "at start of Plugin $pfx Phase post-install"
-    [ "$wificountry" == "" ] && wificountry="$xwificountry"
 
+    #
+    # Figure out wifi country. command line wpa overrides settings here atm
+    [ "$wificountry" == "" ] && wificountry="$xwificountry"
+    if [ "$wpaconf" == "" ]
+    then
+	if [ "$wifissid" == "" -o "$wifipassword" == "" -o "$wificountry" == "" ]
+	then
+	    if [ "$wpa" != "" ]
+	    then
+		if [ -f /etc/sdm/assets/dhcpcd-wpa ]
+		then
+		    logtoboth "> Plugin $pfx: Copy /etc/sdm/assets/dhcpcd-wpa to /etc/wpa-supplicant.conf"
+		    cp /etc/sdm/assets/dhcpcd-wpa /etc/wpa_supplicant/wpa_supplicant.conf
+		    setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf
+		else
+		    logtoboth "? Cannot find /etc/sdm/assets/dhcpcd-wpa":
+		fi
+	    fi
+	else
+	    logtoboth "> Plugin $pfx: Create /etc/wpa_supplicant/wpa_supplicant.conf"
+	    logtoboth "  with SSID: $wifissid Password: $wifipassword WiFi Country: $wificountry"
+	    cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOF
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+country=$wificountry
+update_config=1
+ap_scan=1
+
+network={
+    priority=10
+    ssid="$wifissid"
+    psk="$wifipassword"
+}
+EOF
+	fi
+    else
+	if [ "$wpa" != "" -o "$wifissid" != "" -o "$wifipassword" != "" -o "$wificountry" != "" ]
+	then
+	    logtoboth "% Plugin $pfx: Command line --wpa overrides plugin settings"
+	fi
+    fi
+    if [ "$wificountry" == "" ]
+    then
+	if [ -f /etc/wpa_supplicant/wpa_supplicant.conf ]
+	then
+            IFS="=" read a wificountry <<< $(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
+	fi
+    fi
+    if [ "$wificountry" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Set WiFi Country '$wificountry' to be implemented during FirstBoot"
+	writeconfig    # Update config to save updated wificountry
+    else
+	logtoboth "% WiFi Country not found from command line, network plugin, or wpa_supplicant.conf"
+    fi
+    #
+    # If wifissid and wifipassword not provided but a wpa_supplicant.conf exists, find them there
+    #
+    if [ "$wifissid" == "" ]
+    then
+	if [ -f /etc/wpa_supplicant/wpa_supplicant.conf ]
+	then
+	    IFS="=#" read a wifissid junk <<<$(grep 'ssid=' /etc/wpa_supplicant/wpa_supplicant.conf)
+	    wifissid=$(stripquotes $wifissid)
+	fi
+    fi
+    if [ "$wifipassword" == "" ]
+    then
+	if [ -f /etc/wpa_supplicant/wpa_supplicant.conf ]
+	then
+	    IFS="=#" read a wifipassword junk <<<$(grep 'psk=' /etc/wpa_supplicant/wpa_supplicant.conf)
+	    wifipassword=$(stripquotes $wifipassword 1)
+	fi
+    fi
     case "${netman}" in
 	dhcpcd)
 	    logtoboth "> Plugin $pfx: Set network management to dhcpcd and disable NetworkManager"
@@ -157,42 +229,6 @@ EOF
 		    logtoboth "% Plugin $pfx: /lib/dhcpcd/dhcp-hooks/10-wpa_supplicant not found. WiFi will not work"
 		fi
 	    fi
-	    if [ "$wpaconf" == "" ]
-	    then
-		if [ "$wifissid" == "" -o "$wifipassword" == "" -o "$wificountry" == "" ]
-		then
-		    if [ "$wpa" != "" ]
-		    then
-			if [ -f /etc/sdm/assets/dhcpcd-wpa ]
-			then
-			    logtoboth "> Plugin $pfx: Copy /etc/sdm/assets/dhcpcd-wpa to /etc/wpa-supplicant.conf"
-			    cp /etc/sdm/assets/dhcpcd-wpa /etc/wpa_supplicant/wpa_supplicant.conf
-			else
-			    logtoboth "? Cannot find /etc/sdm/assets/dhcpcd-wpa":
-			fi
-		    fi
-		else
-		    logtoboth "> Plugin $pfx: Create /etc/wpa_supplicant/wpa_supplicant.conf"
-		    logtoboth "  with SSID: $wifissid Password: $wifipassword WiFi Country: $wificountry"
-		    cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOF
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-country=$wificountry
-update_config=1
-ap_scan=1
-
-network={
-    priority=10
-    ssid="$wifissid"
-    psk="$wifipassword"
-}
-EOF
-		fi
-	    else
-		if [ "$wpa" != "" -o "$wifissid" != "" -o "$wifipassword" != "" -o "$wificountry" != "" ]
-		then
-		    logtoboth "% Plugin $pfx: Command line --wpa overrides plugin settings"
-		fi
-	    fi
 	    ;;
 
 	nm|network-manager)
@@ -208,7 +244,7 @@ EOF
 		cat >> /etc/sdm/0piboot/060-nm-config.sh <<EOF
 #!/bin/bash
 nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
-nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk '$wifipassword'
+nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
 EOF
 		if [ -v noipv6 ]
 		then
