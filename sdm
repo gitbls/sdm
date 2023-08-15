@@ -402,7 +402,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V8.0"
+version="V8.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -593,16 +593,16 @@ do
 	--bootadd)     bootadd=$2    ; shift 2 ;;
 	--bootconfig)  bootconfig=$2 ; shift 2 ;;
 	--bootscripts) bootscripts=1 ; shift 1 ;;
-	--bootset)     bootsetpairs=$2 ; shift 2 ;;
+	--bootset)     bootsetpairs=$(appendvalue "$bootsetpairs" "$2" ",") ; shift 2 ;;
 	--burn)        burn=1 ;
 		       burndev=$2    ; shift 2 ;;
 	--burnfile)    burnfile=1 ;
 		       burnfilefile=$2 ; shift 2 ;;
-	--cron-d)      [ "$crond" == "" ] && crond="$2" || crond="$crond|$2" ; shift 2 ;;
-	--cron-hourly) [ "$cronhourly" == "" ] && cronhourly="$2" || cronhourly="$cronhourly|$2" ; shift 2 ;;
-	--cron-daily)  [ "$crondaily" == "" ] && crondaily="$2" || crondaily="$crondaily|$2" ; shift 2 ;;
-	--cron-weekly) [ "$cronweekly" == "" ] && cronweekly="$2" || cronweekly="$cronweekly|$2" ; shift 2 ;;
-	--cron-monthly) [ "$cronmonthly" == "" ] && cronmonthly="$2" || cronmonthly="$cronmonthly|$2" ; shift 2 ;;
+	--cron-d)      crond=$(appendvalue "$crond" "$2" "|" ) ; shift 2 ;;
+	--cron-hourly) cronhourly=$(appendvalue "$cronhourly" "$2" "|" ) ; shift 2 ;;
+	--cron-daily)  crondaily=$(appendvalue "$crondaily" "$2" "|" ) ; shift 2 ;;
+	--cron-weekly) cronweekly=$(appendvalue "$cronweekly" "$2" "|" ) ; shift 2 ;;
+	--cron-monthly) cronmonthly=$(appendvalue "$cronmonthly" "$2" "|" ); shift 2 ;;
 	--cron-systemd) cronsystemd=1 ; shift 1 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
@@ -611,10 +611,10 @@ do
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--debug)       debugs=$2     ; shift 2 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
-	--disable)     disables="${2,,}" ; shift 2 ;;
+	--disable)     disables=$(appendvalue "$disables" "${2,,}" ",") ; shift 2 ;;
 	--domain)      domain=$2     ; shift 2 ;;
-	--dtoverlay)   [ "$dtoverlay" == "" ] && dtoverlay="$2" || dtoverlay="$dtoverlay|$2" ; shift 2 ;;
-	--dtparam)     [ "$dtparam" == "" ]   && dtparam="$2"   || dtparam="$dtparam|$2" ; shift 2 ;;
+	--dtoverlay)   dtoverlay=$(appendvalue "$dtoverlay" "$2" "|") ; shift 2 ;;
+	--dtparam)     dtparam=$(appendvalue "$dtparam" "$2" "|") ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--expand-root) expandroot=1  ; shift 1 ;;
@@ -639,7 +639,7 @@ do
 	--logwidth)    logwidth=$2   ; shift 2 ;;
 	--lxde-config) lxdeconfig=$2 ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
-	--modprobe)    [ "$modprobe" == "" ] && modprobe="$2" || modprobe="$modprobe|$2" ; shift 2 ;;
+	--modprobe)    modprobe=$(appendvalue "$modprobe" "$2" "|") ; shift 2 ;;
 	--motd)        motd=$2       ; shift 2 ;;
 	--mount)       fdomount=1    ; shift 1 ;;
 	--nopassword)  fnopassword=1 ; shift 1 ;;
@@ -654,11 +654,11 @@ do
 	--password-same) samepwd=$2  ; shift 2 ;;
 	--password-user) passworduser=$2 ; shift 2 ;;
 	--plugin-debug) plugindebug=1 ; shift 1 ;;
-	--plugin|--plugins) [ "$plugins" == "" ] && plugins="$2" || plugins="${plugins}~$2" ; shift 2 ;;
-	--poptions)    poptions="${2,,}" ; shift 2 ;;
+	--plugin|--plugins) plugins=$(appendvalue "$plugins" "$2" "~") ; shift 2 ;;
+	--poptions)    poptions=$(appendvalue "$poptions" "${2,,}" ",") ; shift 2 ;;
 	--ppart)       fppart=1      ; shift 1 ;;
 	--redact)      redact=1      ; shift 1 ;;
-	--rclocal)     [ "$rclocal" == "" ] && rclocal="$2" || rclocal="${rclocal}~$2" ; shift 2 ;;
+	--rclocal)     rclocal=$(appendvalue "$rclocal" "$2" "~") ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
 	--redo-customize) redocustomize=1 ; shift 1 ;;
@@ -672,16 +672,16 @@ do
 	--showpwd)     showpwd=1     ; shift 1 ;;
 	--shrink)      fshrink=1     ; shift 1 ;;
 	--ssh)         ssh="${2,,}"        ; shift 2 ;;
-	--svc*disable) svcdisable=$2 ; shift 2 ;;
-	--svc*enable)  svcenable=$2  ; shift 2 ;;
+	--svc*disable) svcdisable=$(appendvalue "$svcdisable" "$2" ",") ; shift 2 ;;
+	--svc*enable)  svcenable=$(appendvalue "$svcenable" "$2" ",")  ; shift 2 ;;
 	--swap)        swapsize=$2   ; shift 2 ;;
-	--sysctl)      [ "$sysctl" == "" ] && sysctl="$2" || sysctl="$sysctl|$2" ; shift 2 ;;
+	--sysctl)      sysctl=$(appendvalue "$sysctl" "$2" "|") ; shift 2 ;;
 	--systemd-config) systemdconfig=$2 ; shift 2 ;;
 	--timesyncd)   timesyncd=$2  ; shift 2 ;;
 	--timezone)    timezone=$2   ; shift 2 ;;
-	--udev)        [ "$udev" == "" ] && udev="$2" || udev="$udev|$2" ; shift 2 ;;
+	--udev)        udev=$(appendvalue "$udev" "$2" "|") ; shift 2 ;;
 	--uid)         myuid=$2      ; shift 2 ;;
-	--bupdate)     [ "$bupdate" == "" ] && bupdate="$2" || bupdate="$bupdate|$2" ; shift 2 ;;
+	--bupdate)     bupdate=$(appendvalue "$bupdate" "$2" "|") ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
 	--virt)        virtmode=$2   ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
@@ -1232,6 +1232,7 @@ else
     logtoboth "   uname: $(uname -a)"
     logtoboth "   os-release Name: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^NAME= /etc/os-release))"
     logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= /etc/os-release))"
+    logtoboth "   sdm Version: $version"
     logtoboth "* IMG Information"
     logtoboth "   Date: $(getosdate)"
     logtoboth "   RasPiOS Version: $raspiosver"
