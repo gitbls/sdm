@@ -266,6 +266,22 @@ The quietness plugin controls the quiet and splash settings in /boot/cmdline.txt
 * `--plugin quietness:"noquiet=keep|nosplash=keep"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt and do not re-enable them
 * `--plugin quietness:"noquiet|nosplash|noplymouth"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt, and disable plymouth. All will be re-enabled after the First Boot.
 
+### runatboot
+
+The `runatboot` plugin provides a way to run an arbitrary script during the First Boot of the system. The script is run as root with no other provisions or control made by sdm. Behavior, output, logging, etc is all the responsibility of the script.
+
+#### Arguments
+
+* **script** &mdash; /full/path/to/the/script that should be run
+* **args*** &mdash; The arguments to provide to the script
+* **output** &mdash; Where to set stdout. Default is /dev/null
+* **error** &mdash; Where to set stderr. Default is the same as stdout via `2>&1`
+
+#### Example
+
+* `--plugin runatboot:script="/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments
+* `--plugin runatboot:script="/path/to/script2|args=arg1 arg2 arg3|stdout=/var/log/myscript.log"` &mdash; Run the specified script with the 3 provided arguments with stdout and stderr going to /var/log/myscript.log
+
 ### rxapp
 
 **rxapp** is a handy tool to securely and remotely start X11 apps via SSH without a password. You can read about it [here](https://github.com/gitbls/rxapp).
