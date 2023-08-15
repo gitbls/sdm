@@ -230,13 +230,7 @@ return
 # ..-. ..-. ..-. Waiting on DHCP address
 
 function set_wifi_country () {
-    #	SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$1" nonint
-    # This seems to be all that's necessary from do_wifi_country
-    rfkill unblock wifi
-    for fn in /var/lib/systemd/rfkill/*:wlan
-    do
-        echo "0" > "$fn"
-    done
+    SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$1" nonint
 }
 
 function doscripts() {
