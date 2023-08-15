@@ -1,5 +1,13 @@
 # Changelog
 
+## V8.1
+
+* Enable these switches to be specified multiple times on the command line: `--disable`, `--poptions`, `--bootset`, `--poptions`, `--svc-disable`, and `--svc-enable`
+* Improve  wpa configuration handling and wificountry in `network` plugin
+* Handle hostname NOT being "raspberrypi" when burning and `--hostname` used
+* Ensure that WiFi country is set and properly configured if it's available (`--l10n`, `--wificountry`, or in wpa_supplicant.conf)
+* New plugin: `runatboot` runs the specified script with the provided arguments during the First Boot of the system
+
 ## V8.0
 
 * Initial Bookworm support
@@ -545,4 +553,3 @@ New features:
 *  Simplified Localization&mdash; `--L10n` gathers the localization settings from the system on which sdm is running, or easily specify on the command line using `--keymap`, `--locale`, `--timezone`, and `--wifi-country
 * **Integrated wpa_supplicant.conf handling** &mdash; Specify your wpa_supplicant.conf on the command line
 * **Integrated SSH handling** &mdash; SSH is enabled by default. Use `--ssh none` to disable SSH, or `--ssh socket` to use systemd socket-based SSH to remove one process from the running system.
-
