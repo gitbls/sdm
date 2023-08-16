@@ -162,7 +162,6 @@ then
 #!/bin/bash
 $sdmdir/plugins/trim-enable boot "$args"
 EOF
-    chmod 755 /etc/sdm/0piboot/020-trim-enable.sh
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 elif [ "$phase" == "boot" ]
 then
