@@ -750,7 +750,6 @@ source /etc/sdm/sdm-readparams
 logger "FirstBoot: Install qemu-user-static"
 doapt "install --yes --no-install-recommends qemu-user-static" $showapt
 EOF
-	chmod 755 $fnqemu
     fi
 }
 
@@ -986,7 +985,6 @@ logger "FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
 printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
 systemctl disable hciuart
 EOF
-		    chmod 755 $fndis
 		fi
 		;;
 	    piwiz)
@@ -1026,7 +1024,6 @@ blfile="blacklist-sdm-wifi.conf"
 logger "FirstBoot: Disable wlan0 using /etc/modprobe.d/\$blfile"
 printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
 EOF
-		    chmod 755 $fndis
 		fi
 		;;
 	esac

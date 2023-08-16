@@ -251,7 +251,6 @@ EOF
 		    echo "nmcli c modify $wificname ipv6.method disabled" >> /etc/sdm/0piboot/060-nm-config.sh
 		    echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> /etc/sdm/0piboot/060-nm-config.sh
 		fi
-		chmod 755 /etc/sdm/0piboot/060-nm-config.sh
 	    fi
 	    for conf in nmconf nmconn
 	    do

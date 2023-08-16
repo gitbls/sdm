@@ -204,7 +204,6 @@ systemctl enable vncserver-x11-serviced.service
 #
 systemctl disable vncserver-virtuald.service
 EOF
-	chmod 755 /etc/sdm/0piboot/040-realvnc-server.sh
 	if [ "$realvnc" != "default" ]
 	then
 	    if ! ispkginstalled x11-xserver-utils

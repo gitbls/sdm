@@ -103,7 +103,6 @@ else
 logger "FirstBoot: Run plugin-configured Captive Portal"
 $sdmdir/sdm-cportal --sdm $switches $dbgout
 EOF
-    chmod 755 /etc/sdm/local-assets/plugin-wificonfig.sh
     logtoboth "plugin-wificonfig: $(cat /etc/sdm/local-assets/plugin-wificonfig.sh)"
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"

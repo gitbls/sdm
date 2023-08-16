@@ -400,7 +400,6 @@ then
 #!/bin/bash
 raspi-config do_configure_keyboard "$keymap" nonint
 EOF
-    chmod 755 /etc/sdm/0piboot/010-configure-keyboard.sh
 fi
 if [ "$timezone" != "" ]
 then
@@ -417,7 +416,6 @@ then
 logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
 sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
 EOF
-    chmod 755 /etc/sdm/0piboot/030-rpi-eeprom.sh
 fi
 
 #

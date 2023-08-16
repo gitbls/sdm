@@ -99,7 +99,6 @@ rm -f /etc/apt/apt.conf.d/02proxy
 echo "Acquire::http::proxy \"http://127.0.0.1:3142\";" >> /etc/apt/apt.conf.d/02proxy
 systemctl enable apt-cacher-ng > /dev/null 2>&1
 EOF
-    chmod 755 $acs01
 
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"

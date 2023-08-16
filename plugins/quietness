@@ -47,7 +47,6 @@ then
     cat > /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 #!/bin/bash
 EOF
-    chmod 755 /etc/sdm/0piboot/090-reset-quietness.sh
     if [ -v quiet ]
     then
 	logtoboth "> Plugin $pfx: Enable quiet in /boot/cmdline.txt"

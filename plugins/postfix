@@ -101,7 +101,6 @@ make-ssl-cert generate-default-snakeoil --force-overwrite
 newaliases
 #systemctl enable postfix
 EOF
-	chmod 755 $pf01
     fi
 
     if [ "$rootmail" != "" ]
