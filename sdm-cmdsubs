@@ -237,6 +237,11 @@ function sdm_burndevfile() {
 	else
 	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
 	fi
+	if [ $regensshkeys -eq 1 ]
+	then
+	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
+	    systemctl -q disable regenerate_ssh_host_keys
+	fi
 	#
 	# Set hostname into the image
 	#
