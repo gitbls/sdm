@@ -274,12 +274,15 @@ The `runatboot` plugin provides a way to run an arbitrary script during the Firs
 
 * **script** &mdash; /full/path/to/the/script that should be run
 * **args*** &mdash; The arguments to provide to the script
+* **user** &mdash; If provided use sudo to run script as the specified user
+* **sudoswitches** &mdash; If `user` provided, include these sudo switches
 * **output** &mdash; Where to set stdout. Default is /dev/null
 * **error** &mdash; Where to set stderr. Default is the same as stdout via `2>&1`
 
 #### Example
 
 * `--plugin runatboot:script="/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments
+* `--plugin runatboot:user=me|sudoswitches=-H|script="/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments as the specified user and include `-H` on the sudo command
 * `--plugin runatboot:script="/path/to/script2|args=arg1 arg2 arg3|stdout=/var/log/myscript.log"` &mdash; Run the specified script with the 3 provided arguments with stdout and stderr going to /var/log/myscript.log
 
 ### rxapp
@@ -323,6 +326,19 @@ The optional switch `--oklive` can be used to avoid the Prompt "Do you really wa
 * **disks** &mdash; Specifies the disks on which to enable trim. `disks=all` will enable trim on all drives. Multiple disk names can be specified by, for example, `disks=/dev/sda,/dev/sdb`. If no disks are specified, `disks=all` is the default.
 
 Additional information on SSD Trim for RasPiOS and Linux can be found <a href="https://forums.raspberrypi.com/viewtopic.php?t=351443">here</a>, <a href="https://lemariva.com/blog/2020/08/raspberry-pi-4-ssd-booting-enabled-trim">here</a>, and <a href="https://www.jeffgeerling.com/blog/2020/enabling-trim-on-external-ssd-on-raspberry-pi">here</a>.
+
+### ufw
+
+Install and configure the ufw firewall
+
+#### Arguments
+* **`ufwscript`** &mdash; a list of one or more /path/to/script containing a she-bang (`#!/bin/bash`) and series of one or more ufw commands to configure the firewall. The traditional `sudo` is not required, since the script is run as root. Multiple scripts, if provided, are run in lexical order.
+* **`savescriptdir`** &mdash; Specifies a directory where the ufw plugin will save the provided `ufwscript` scripts. If not provided, the scripts will be saved in `/usr/local/bin`.
+
+#### Examples
+* `--plugin ufw:"/ufwscript=/path/to/script1,/path/to/script2"` &mdash; Install ufw and configure it with the two provided script files. Save the script files in the IMG in /usr/local/bin
+* `--plugin ufw` &mdash; Install ufw, do not configure any rules. ufw documentation says that all inbound network accesses are denied by default
+
 
 ### vnc
 
