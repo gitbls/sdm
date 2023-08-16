@@ -80,8 +80,8 @@ for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
 	     plugins/addusers plugins/apps plugins/apt-cacher-ng \
 	     plugins/apt-file plugins/btwifiset plugins/burnpwd plugins/chrony \
 	     plugins/clockfake plugins/graphics plugins/imon plugins/knockd \
-	     plugins/network plugins/pistrong plugins/postfix plugins/quietness plugins/rxapp plugins/samba \
-	     plugins/sdm-plugin-template plugins/trim-enable plugins/vnc plugins/wificonfig plugins/wsdd \
+	     plugins/network plugins/pistrong plugins/postfix plugins/quietness plugins/runatboot plugins/rxapp plugins/samba \
+	     plugins/sdm-plugin-template plugins/trim-enable plugins/ufw plugins/vnc plugins/wificonfig plugins/wsdd \
 	     1piboot/1piboot.conf
 do
     echo "Downloading '$f' to '$dir/$f'"
