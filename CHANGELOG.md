@@ -1,5 +1,13 @@
 # Changelog
 
+## V8.2
+
+* Add new `ufw` plugin to install and configure ufw
+* Update EZsdmInstaller with new files
+* If `--regen-ssh-host-keys` is set, disable running the service; sdm-firstboot runs it if after the system time has been set
+* Remove extraneous chmods on files in /etc/sdm/0piboot. sdm-firstboot now does that before running them
+* Add new arguments to `runatboot` plugin: `user` and `sudoswitches`
+
 ## V8.1
 
 * Enable these switches to be specified multiple times on the command line: `--disable`, `--poptions`, `--bootset`, `--poptions`, `--svc-disable`, and `--svc-enable`
