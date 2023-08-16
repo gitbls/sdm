@@ -1,0 +1,98 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: ufw
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|ufwscript|savescriptdir|"
+rqdargs=""
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_printkeys
+    if [ "$ufwscript" != "" ]
+    then
+	IFS="," read -a citems <<< "$ufwscript"
+	for c in "${citems[@]}"
+	do
+	    if [ -f $c ]
+	    then
+		bnc=$(basename $c)
+		logtoboth "> Plugin $pfx: copy ufw script $c to /etc/sdm/assets/ufw-$bnc"
+		cp -a $c $SDMPT/etc/sdm/assets/ufw-$bnc
+		chmod 755 $SDMPT/etc/sdm/assets/ufw-$bnc
+		if [ "$savescriptdir" == "" ]
+		then
+		    logtoboth "> Plugin $pfx: $c will be saved to /usr/local/bin"
+		    savescriptdir="/usr/local/bin"
+		else
+		    logtoboth "> Plugin $pfx: $c will be saved to $savescriptdir"
+		fi
+		cp -a $c $SDMPT/$savescriptdir/$bnc
+		chmod 755 $SDMPT/$savescriptdir/$bnc
+	    else
+		logtoboth "> Plugin $pfx: Cannot find ufwscript '$c'"
+	    fi
+	done
+    else
+	logtoboth "% Plugin $pfx: No ufwscript provided; ufw firewall will deny all incoming traffic"
+    fi
+    logtoboth "> Plugin $pfx: Defer final ufw configuration/enable to First Boot"
+    cat > $SDMPT/etc/sdm/0piboot/090-ufw.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Configure and Enable ufw"
+if compgen -G "/etc/sdm/assets/ufw-*" > /dev/null
+then
+    for cufw in /etc/sdm/assets/ufw-*
+    do
+        \$cufw
+    done
+fi
+ufw enable
+[ \$? -ne 0 ] && logger "FirstBoot: ? ufw enable failed"
+EOF
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+    #plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    logtoboth "> Plugin $pfx: install ufw"
+    doaptrpterror "install --no-install-recommends --yes ufw" $showapt
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
