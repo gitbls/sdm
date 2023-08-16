@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 allargs="$2"
 loadparams
-vldargs="|script|args|output|error"
+vldargs="|script|user|sudoswitches|args|output|error"
 rqdargs="|script|"
 
 if [ "$phase" == "0" ]
@@ -40,14 +40,21 @@ then
 #!/bin/bash
 logger "FirstBoot: Run runatboot scripts"
 EOF
-	    chmod 755 $sfn
 	fi
-	logtoboth "> Plugin $pfx: Set plugin '$sbn' in '$sfn' to run at first system boot"
 	[ "$output" == "" ] && output=">/dev/null" || output=">$output"
 	[ "$error" == "" ] && error="2>&1" || error="2>$error"
+	if [ "$user" != "" ]
+	then
+	    xdo="sudo -u $user $sudoswitches"
+	    xstr=" as user '$user'"
+	else
+	    xdo=""
+	    xstr=""
+	fi
+	logtoboth "> Plugin $pfx: Set plugin '$sbn' in '$sfn' to run at first system boot${xstr}"
 	cat >> $sfn <<EOF
-logger "FirstBoot: Run runatboot script '$sbn': /etc/sdm/assets/runatboot-${sbn} $args $output $error"
-/etc/sdm/assets/runatboot-${sbn} $args $output $error
+logger "FirstBoot: Run runatboot script '${sbn}'${xstr}: /etc/sdm/assets/runatboot-${sbn} $args $output $error"
+$xdo /etc/sdm/assets/runatboot-${sbn} $args $output $error
 EOF
     else
 	logtoboth "% Plugin $pfx: Script file '$script' not found'"
