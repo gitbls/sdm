@@ -53,8 +53,18 @@ EOF
 	fi
 	logtoboth "> Plugin $pfx: Set plugin '$sbn' in '$sfn' to run at first system boot${xstr}"
 	cat >> $sfn <<EOF
-logger "FirstBoot: Run runatboot script '${sbn}'${xstr}: /etc/sdm/assets/runatboot-${sbn} $args $output $error"
-$xdo /etc/sdm/assets/runatboot-${sbn} $args $output $error
+if [ "$xdo" != "" ]
+then
+    logger "FirstBoot: Copy runatboot script /etc/sdm/assets/runatboot-${sbn} to /tmp to run${xstr}"
+    cp /etc/sdm/assets/runatboot-${sbn} /tmp
+    chown $user /tmp/runatboot-${sbn}
+    chmod 755 /tmp/runatboot-${sbn}
+    runfile="/tmp/runatboot-${sbn}"
+else
+    runfile="/etc/sdm/assets/runatboot-${sbn}"
+fi
+logger "FirstBoot: Run runatboot script '${sbn}'${xstr}: \$runfile $args $output $error"
+$xdo \$runfile $args $output $error
 EOF
     else
 	logtoboth "% Plugin $pfx: Script file '$script' not found'"
