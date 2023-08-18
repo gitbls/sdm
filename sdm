@@ -402,7 +402,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V8.2"
+version="V8.3"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -1208,6 +1208,7 @@ else
     mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
     cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
     compgen -G "$src/local-plugins/*" > /dev/null && cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
+    chmod 755 $SDMPT/$sdmdir/plugins/* $SDMPT/$sdmdir/local-plugins/*
     # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
@@ -1218,11 +1219,11 @@ else
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
-	if [ $bootscripts -eq 1 ]
-	then
-	    [ -f $SDMPT/$sdmdir/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports '--disable triggerhappy'; suggest removing $sdmdir/1piboot/010-disable-triggerhappy.sh"
-	    [ -f $SDMPT/$sdmdir/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing $sdmdir/1piboot/030-disable-rsyslog.sh"
-	fi
+	#if [ $bootscripts -eq 1 ]
+	#then
+	    #[ -f $SDMPT/$sdmdir/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports '--disable triggerhappy'; suggest removing $sdmdir/1piboot/010-disable-triggerhappy.sh"
+	    #[ -f $SDMPT/$sdmdir/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing $sdmdir/1piboot/030-disable-rsyslog.sh"
+	#fi
 	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
     raspiosver=$(getosver)
@@ -1276,7 +1277,6 @@ else
 	logtoboth "> Copy Custom Phase Script '$cscript' to $sdmdir in the $dimgdevname"
 	cp -a $cscript $SDMPT/$sdmdir
     fi
-    chmod 755 $SDMPT/$sdmdir/*
     #
     # Write the config settings into the IMG
     #
