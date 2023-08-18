@@ -55,15 +55,20 @@ EOF
 	cat >> $sfn <<EOF
 if [ "$xdo" != "" ]
 then
+    if ! getent passwd $user > /dev/null
+    then
+        logger "FirstBoot: User '$user' for runatboot plugin script '$sbn' does not exist"
+        exit
+    fi
     logger "FirstBoot: Copy runatboot script /etc/sdm/assets/runatboot-${sbn} to /tmp to run${xstr}"
     cp /etc/sdm/assets/runatboot-${sbn} /tmp
     chown $user /tmp/runatboot-${sbn}
-    chmod 755 /tmp/runatboot-${sbn}
     runfile="/tmp/runatboot-${sbn}"
 else
     runfile="/etc/sdm/assets/runatboot-${sbn}"
 fi
 logger "FirstBoot: Run runatboot script '${sbn}'${xstr}: \$runfile $args $output $error"
+chmod 755 \$runfile
 $xdo \$runfile $args $output $error
 EOF
     else
