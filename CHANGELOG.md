@@ -1,5 +1,13 @@
 # Changelog
 
+## V8.3
+
+* Allow hostname to be set during customize as well as burn
+* If runas `user` provided to plugin runatboot, check that it exists before running the script at First Boot
+* First phase of spawn usage improvements; should be no visible changes
+* If `--regen-ssh-host-keys`, delay starting ssh service at FirstBoot until host key regen completes
+* Code cleanups
+
 ## V8.2
 
 * Add new `ufw` plugin to install and configure ufw
