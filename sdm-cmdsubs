@@ -194,7 +194,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="apip apssid autologin b0script b1script bootsetpairs bootscripts disables domain expandroot exports keymap locale myuser myuid noreboot"
+	xsettings="apip apssid autologin b0script b1script bootsetpairs bootscripts disables domain expandroot exports hname keymap locale myuser myuid noreboot"
 	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins redact rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
@@ -217,6 +217,7 @@ function sdm_burndevfile() {
 	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
 	[ "$bapssid" != "sdm" ] && apssid=$bapssid
 	[ "$bwificountry" != "" ] && wificountry="$bwificountry"
+	[ "$bhname" != "" ] && hname="$bhname"
 	[ "$bplugins" != "" ] && plugins="$bplugins" || plugins=""
 	[ "$bmyuser" != "" ] && myuser=$bmyuser && myuid=$bmyuid
 	[ "$bsvcenable" != "" ] && svcenable="$bsvcenable"
@@ -237,26 +238,10 @@ function sdm_burndevfile() {
 	else
 	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
 	fi
-	if [ $regensshkeys -eq 1 ]
-	then
-	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
-	    systemctl -q disable regenerate_ssh_host_keys
-	fi
 	#
 	# Set hostname into the image
 	#
-	if [ "$hname" != "" -a -f $SDMPT/etc/hostname ]
-	then
-	    # don't include domain name. Leave that to user
-	    # [ "$domain" != "" ] && hnd="${hname}.${domain}" || hnd=$hname
-	    # [ "$domain" != "" ] && shn=$hnd || shn=""
-	    # Get current hostname in IMG
-	    chost=$(tr -d " \t\n\r" < /etc/hostname)
-	    [ "$domain" != "" ] && shn="${hname}.${domain}" || shn=""
-	    logtoboth "> Set hostname '$hname'"
-	    echo $hname > $SDMPT/etc/hostname
-	    sed -i "s/127\.0\.1\.1.*${chost}/127.0.1.1\t${hname} ${shn}/g" $SDMPT/etc/hosts
-	fi
+	[ "$hname" != "" ] && updatehostname $hname
 
 	if [[ "$loadllocal" =~ "|wifi|" ]]
 	then
@@ -376,30 +361,30 @@ function sdm_burndevfile() {
 	then
 	    if [ $breboot -eq 1 ]
 	    then
-		sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-delay" "" Burn1
+		sdm_runspawn burn-enable-lightdm-delay "" Burn1
 	    else
-		[ $bautologin -eq 1 ] && sdm_spawn "$sdmdir/sdm-phase1 burn-enable-lightdm-autologin" "" Burn1
+		[ $bautologin -eq 1 ] && sdm_runspawn burn-enable-lightdm-autologin "" Burn1
 	    fi
 	fi
 	if [ "$bdisables" != "" ]
 	then
 	    logtoboth "> Process --disable $bdisables"
-	    sdm_spawn "$sdmdir/sdm-phase1 do-disables" "" Burn1
+	    sdm_runspawn do-disables "" Burn1
 	fi
 	if [ "$bcp" != "" ]
 	then
 	    logtoboth "> Change passwords or add user per --user, --password-pi, --password-user, and/or --password-root"
-	    sdm_spawn "$sdmdir/sdm-phase1 b1script $(basename $bcp)" "" Burn1
+	    sdm_runspawn b1script "$(basename $bcp)" Burn1
 	fi
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
-	    sdm_spawn "$sdmdir/sdm-phase1 b1script $b1script" "" Burn1
+	    sdm_runspawn b1script "$b1script" Burn1
 	fi
 	if [ "$plugins" != "" ]
 	then
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins 1" "" Burn1
-	    sdm_spawn "$sdmdir/sdm-phase1 run-all-plugins post-install" "" Burn1
+	    sdm_runspawn run-all-plugins 1 Burn1
+	    sdm_runspawn run-all-plugins post-install Burn1
 	fi
 	#
 	# Redact passwords if requested
@@ -416,6 +401,12 @@ function sdm_burndevfile() {
 		fi
 	    done
 	fi
+	if [ $regensshkeys -eq 1 ]
+	then
+	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
+	    sdm_runspawn run-command "systemctl disable regenerate_ssh_host_keys" Burn1
+	fi
+
 	declare -x SDMNSPAWN="Burn0"
 	logtoboth "* Burn Completed"
     else
@@ -423,14 +414,7 @@ function sdm_burndevfile() {
   Logs and configuration updates will not be written"
 	[ "$b0script" != "" ] && echo "  and b0script '$b0script' will not be processed"
 	[ "$b1script" != "" ] && echo "  and b1script '$b1script' will not be processed"
-	if [ "$hname" != "" ]
-	then
-	    chost=$(tr -d " \t\n\r" < /etc/hostname)
-	    [ "$domain" != "" ] && shn="${hname}.${domain}" || shn=""
-	    logtoboth "> Set hostname '$hname'"
-	    echo $hname > $SDMPT/etc/hostname
-	    sed -i "s/127\.0\.1\.1.*${chost}/127.0.1.1\t${hname} ${shn}/g" $SDMPT/etc/hosts
-	fi
+	[ "$hname" != "" ] && updatehostname $hname
     fi
 }
 #
