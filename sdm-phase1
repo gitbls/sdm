@@ -110,6 +110,13 @@ case "$cmd" in
 	runonepluginx "$p" $phase
 	exit 0
         ;;
+    run-command)  # Run a single command in phase 1 or post-install
+	# $2: Command line
+	runcmd=$(stripquotes "$2")
+	#logtoboth "> Run command line: $runcmd"
+	$runcmd
+	exit 0
+        ;;
 esac
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
@@ -120,7 +127,7 @@ logtoboth "*+Phase 1 sdm configuration"
 # on the first boot of the system.
 #
 logtoboth "> Configure and enable sdm FirstBoot service (sdm-firstboot)"
-[ -f /etc/systemd/system/sdm-firstboot.service ] && rm -f /etc/systemd/system/sdm-firstboot.service
+rm -f /etc/systemd/system/sdm-firstboot.service
 cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
 Description=sdm System FirstBoot Configuration
@@ -141,6 +148,7 @@ EOF
 systemctl enable sdm-firstboot > /dev/null 2>&1
 
 logtoboth "*+Phase 1 Network/WiFi/Bluetooth configuration"
+[ "$hname" != "" ] && updatehostname $hname   # If hostname specified on customize then set it
 #
 # Set to disable bluetooth and/or wifi if requested
 #
@@ -394,7 +402,6 @@ if [ "$keymap" != "" ]
 then
     logtoboth "> Set Keymap to '$keymap' to be implemented during FirstBoot"
     #[ "$virtmode" == "chroot" ] && logtoboth "% Ignore 'Running in chroot, ignoring request' message" || logtoboth "% Ignore invoke-rc.d and 'Read-only file system' messages"
-    #raspi-config do_configure_keyboard "$keymap" nonint
     #do_raspiconfig  do_configure_keyboard "$keymap"
     cat > /etc/sdm/0piboot/010-configure-keyboard.sh <<EOF
 #!/bin/bash
