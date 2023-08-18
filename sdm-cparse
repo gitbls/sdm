@@ -389,7 +389,7 @@ function writeconfig() {
 		     crondaily cronweekly cronmonthly cronsystemd cscript csrc datefmt debugs \
 		     dimg dimgdev dimgdevname disables domain dtoverlay dtparam ecolors eeprom \
 		     expandroot exports fdirtree fgadgetmode fstab hdmiforcehotplug hdmiignoreedid \
-		     hdmigroup hdmimode hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
+		     hdmigroup hdmimode hname hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
 		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser nouser nowaittimesync \
 		     os fnopassword passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
 		     raspiosver rclocal reboot redact regensshkeys frenamepi renamepi noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
@@ -400,6 +400,19 @@ function writeconfig() {
 	echo "$e:\"${!e}\"" >> $paramfile
     done
     [ -f $orgfile ] || cp -a $paramfile $orgfile
+}
+
+function updatehostname() {
+    hnm="$1" hnimg=""
+    [ -f $SDMPT/etc/hostname ] && read hnimg < <(tr -d " \t\n\r" < $SDMPT/etc/hostname)
+    [ "$hnimg" == "" ] && hnm="raspberrypi"
+    if [ "$hnm" != "$hnimg" ]
+    then
+	[ "$domain" != "" ] && shn="${hnm}.${domain}" || shn=""
+	logtoboth "> Set hostname '$hnm'"
+	echo $hnm > $SDMPT/etc/hostname
+	sed -i "s/127\.0\.1\.1.*${hnimg}.*/127.0.1.1\t${hnm} ${shn}/g" $SDMPT/etc/hosts
+    fi
 }
 
 function runoneplugin() {
@@ -673,6 +686,25 @@ function ctrlchroot() {
     exit 1
 }
 
+function sdm_runspawn() {
+    #
+    # Run (relatively) short-lived command in container context (see sdm-phase1 for the commands)
+    # $1 - command
+    # $2 - command arguments (quote if needed)
+    # $3 - optional setting for SDMNSPAWN [d:Burn1]
+    #
+    # Always runs phase1 with $1 as the command
+    # $SDMPT points to correct img (mounted)
+    #
+    local cmd="$1" cmdargs="$2" nsp="$3"
+    cmode="--console pipe"
+    read s vers junk <<< $(systemctl --version)
+    [[ "$vers" -lt "242" ]] && cmode=""
+    [ "$nsp" == "" ] && nsp="Burn1"
+    nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
+    systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $sdmdir/sdm-phase1 $cmd "$cmdargs"
+    return
+}
 function sdm_spawn() {
     #
     # $1 - command
