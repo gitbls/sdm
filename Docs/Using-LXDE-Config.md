@@ -8,6 +8,8 @@ The `--lxde-config` switch takes a comma-separated argument. The complete switch
 ```
 You do not need to specify all the config files. If you only want to customize lxterminal, you only need specify that. If you are customizing pcmanfm, you'll need to specify config files for both pcmanfm AND libfm (I have no idea why pcmanfm uses two config files!)
 
+NOTE: Starting with sdm V8.0 you must also add `--plugin graphics` to your command line, along with `--lxde-config`. The graphics plugin moves the staged LXDE config files to their proper locations.
+
 Here's how to establish your custom configuration files:
 
 * Boot a RasPiOS Desktop system with LXDE
