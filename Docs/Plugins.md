@@ -268,22 +268,22 @@ The quietness plugin controls the quiet and splash settings in /boot/cmdline.txt
 
 ### runatboot
 
-The `runatboot` plugin provides a way to run an arbitrary script during the First Boot of the system. The script is run as root with no other provisions or control made by sdm. Behavior, output, logging, etc is all the responsibility of the script.
+The `runatboot` plugin provides a way to run an arbitrary script during the First Boot of the system. The script is run as root or `user` if specified, with no other provisions or control made by sdm. Behavior, output, logging content, etc is all the responsibility of the script.
 
 #### Arguments
 
 * **script** &mdash; /full/path/to/the/script that should be run
 * **args*** &mdash; The arguments to provide to the script
-* **user** &mdash; If provided use sudo to run script as the specified user
+* **user** &mdash; If provided use sudo to run script as the specified user. User must exist at time of First Boot
 * **sudoswitches** &mdash; If `user` provided, include these sudo switches
-* **output** &mdash; Where to set stdout. Default is /dev/null
-* **error** &mdash; Where to set stderr. Default is the same as stdout via `2>&1`
+* **output** &mdash; Where to set stdout. Default is /dev/null. The directory must already exist, and the user (root or `user` if specified) must be able to write the output file in that directory
+* **error** &mdash; Where to set stderr. Default is the same as stdout (`2>&1`)
 
 #### Example
 
-* `--plugin runatboot:script="/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments
-* `--plugin runatboot:user=me|sudoswitches=-H|script="/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments as the specified user and include `-H` on the sudo command
-* `--plugin runatboot:script="/path/to/script2|args=arg1 arg2 arg3|stdout=/var/log/myscript.log"` &mdash; Run the specified script with the 3 provided arguments with stdout and stderr going to /var/log/myscript.log
+* `--plugin runatboot:"script=/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments
+* `--plugin runatboot:"user=me|sudoswitches=-H|script=/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments as the specified user and include `-H` on the sudo command
+* `--plugin runatboot:"script=/path/to/script2|args=arg1 arg2 arg3|output=/var/log/myscript.log"` &mdash; Run the specified script with the 3 provided arguments with output and error going to /var/log/myscript.log
 
 ### rxapp
 
