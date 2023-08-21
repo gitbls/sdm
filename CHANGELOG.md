@@ -1,5 +1,10 @@
 # Changelog
 
+## V8.5
+
+* Correct device handling for --expand-root during burn
+* Add support for --bootadd on the --burn command
+
 ## V8.4
 
 * Add new `copyfile` plugin. Simplifies copying files into an IMG without you writing a plugin
