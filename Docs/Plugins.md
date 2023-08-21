@@ -53,10 +53,10 @@ addusers can be used to add user accounts quickly and easily, either during IMG 
 * **nosudo** &mdash; If `nosudo=y` is specified, the user will not be enabled to use the `sudo` command. In other words, `sudo` is enabled by default
 * **samba** &mdash; If `samba=y` is specified, add the username to the samba password file. If `smbpasswd` is not specified, `password` will be used. If neither is provided, the user will not be added to the samba password file
 * **smbpasswd** &mdash; Use this password for samba for the user instead of the user's password
-* **userlist** &mdash; The /full/path/to/logfile of a list of users to add. See below.
+* **userlist** &mdash; The /full/path/to/file of a list of users to add. See below.
 * **log** &mdash; The /full/path/to/file of a file on the host OS where sdm is running to log all users added via the addusers plugin. If `log` is not specified, addusers will not write a separate log file.
 
-The `userlist=/full/path/to/logfile` option points to a file that consists of one line per user in the format:
+The `userlist=/full/path/to/file` option points to a file that consists of one line per user in the format:
 ```
 username=theusername|password=thepassword|homedir=homedir|...
 ```
@@ -153,6 +153,33 @@ The fake-hwclock provided with RasPiOS runs hourly as a cron job. clockfake does
 #### Arguments
 
 * **interval** &mdash; Interval in minutes between fake hardware clock updates
+
+### copyfile
+
+Copy one or more files from the host system into the IMG
+
+#### Arguments
+
+* **from** &mdash; /full/path/to/sourcefile on the host system
+* **to** &mdash; /path/in/IMG to place the file in the IMG. This must be a directory, not a file. The directory must already exist
+* **chown** &mdash; The `user:group` to set the file ownership
+* **chmod** &mdash; The mode to set the file protection (e.g., 755, 644, etc)
+* **mkdirif** &mdash; Create the directory if it doesn't exist
+* **runphase** &mdash; Normally files are copied to their final destinations in Phase 1. Use `runphase=postinstall` to have a single file copied in the post-install phase
+* **filelist** &mdash; The /full/path/to/file of a file on the host OS of a list of files to copy. See below.
+
+The `filelist=/full/path/to/file` option points to a file that consists of one line per file in the format:
+```
+from=/path/to/file|to=/some/dir|chown=user:group|chmod=filemode|runphase=postinstall
+```
+chown and chmod are optional. If not specified, the file attributes will not be set, and will be whatever they were on the host system. `runphase` is optional, and if not specified, the file is copied in Phase 1.
+
+copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 0, and copies them into their target locations in the phase 1 or post-install phase (dependant on `runphase`) once all packages have been installed, all users have been added, etc.
+
+#### Examples
+
+* `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc/myconf.conf"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
+* `--plugin copyfile:"filelist=/usr/local/bin/`. The list of files in the provided `filelist` will be processed per above.
 
 ### graphics
 
