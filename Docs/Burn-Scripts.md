@@ -37,6 +37,7 @@ These switches can be used with `--burn`. When used this way, they affect only t
 * `--autologin`
 * `--b0script`
 * `--b1script`
+* `--bootadd`
 * `--bootscripts`
 * `--bootset`
 * `--disables`
