@@ -1,5 +1,9 @@
 # Changelog
 
+## V8.4
+
+* Add new `copyfile` plugin. Simplifies copying files into an IMG without you writing a plugin
+
 ## V8.3
 
 * Allow hostname to be set during customize as well as burn
