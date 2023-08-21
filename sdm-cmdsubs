@@ -52,9 +52,10 @@ EOF
 
 function expandpartition() {
     # $1: devicename (/dev/sdX)
-    local fulldevname=$1
+    # #2: Name of partition 2 ("2" or "p2")
+    local fulldevname=$1 pname=$2
     local dev=${fulldevname##/dev/}
-    local part="${dev}2"           # RasPiOS Ext 4 partition is always partition 2
+    local part="${dev}${pname}"           # RasPiOS Ext 4 partition is always partition 2
     local gb=$((1024*1024*1024)) gib=$((1000*1000*1000))
 
     while read line
@@ -88,7 +89,7 @@ function expandpartition() {
     pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($pbytes/$gib, 2)))")
     ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
     ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
-    write_burnmsg "> Expand Root: Expand partition from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
+    write_burnmsg "> Expand Root: Expand partition '$part' on device '$fulldevname' from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
     parted -m /dev/$dev u s resizepart 2 $newsize
     errifrc $? "? parted resizepart failed with status"
     #echo ",+" | sfdisk -N 2 $fulldevname
@@ -139,7 +140,7 @@ function sdm_burndevfile() {
 	[[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	if [ $expandroot -eq 1 ]
 	then
-	    expandpartition $burndev
+	    expandpartition $burndev $p2
 	fi
 	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
 	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
@@ -194,7 +195,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="apip apssid autologin b0script b1script bootsetpairs bootscripts disables domain expandroot exports hname keymap locale myuser myuid noreboot"
+	xsettings="apip apssid autologin b0script b1script bootadd bootsetpairs bootscripts disables domain expandroot exports hname keymap locale myuser myuid noreboot"
 	xsettings="$xsettings nowaittimesync passwordpi passwordroot passworduser plugindebug plugins redact rclocal reboot rebootwait regensshkeys"
 	xsettings="$xsettings svcdisable svcenable sysctl timezone wificountry wpaconf"
 	# Save settings made with the --burn command
@@ -211,7 +212,8 @@ function sdm_burndevfile() {
 	[ "$bdomain" != "" ] && domain=$bdomain
 	[ $breboot -eq 1 ] && reboot=1
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
-	[ $bbootscripts -eq 1 ] && bootscripts=$bbootscripts
+	[ $bbootadd != "" ] && bootadd="$bbootadd"
+	[ $bbootscripts -eq 1 ] && bootscripts="$bbootscripts"
 	[ "$bbootsetpairs" != "" ] && bootsetpairs="$bbootsetpairs"
 	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
 	[ "$bapip" != "10.1.1.1" ] && apip=$bapip
@@ -305,6 +307,7 @@ function sdm_burndevfile() {
 	    [ "$rclocal" == "" ] && rclocal="$brclocal" || rclocal="${rclocal}|$brclocal"
 	fi
 	hostname="$hname"         # So it gets written to updated params on SD card
+	dobootadd "$bootadd"      # no-op if no --bootadd on burn
 	[ "$bbootsetpairs" != "" -o "$bsvcdisable" != "" -o "$bsvcenable" != "" ] &&  setbootset  # Process --bootset settings
 	[ $bootscripts -eq 1 ] && state="enabled" || state="disabled"
 	logtoboth "> First System Boot Custom Boot Scripts $state"

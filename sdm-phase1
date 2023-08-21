@@ -346,25 +346,7 @@ then
 	logtoboth ">  $key=$value"
     done
 fi
-if [ "$bootadd" != "" ]
-then
-    if ! grep -q 'Items added by sdm --bootadd' /boot/config.txt
-    then
-	logtoboth "> Add new keys to /boot/config.txt"
-	logtoboth "> Update /boot/config.txt for bootadd: $bootadd"
-	echo "# Items added by sdm --bootadd" >> /boot/config.txt
-	IFS="," read -a citems <<< "$bootadd"
-	for c in "${citems[@]}"
-	do
-	    IFS=":=" read key value <<< "$c"
-	    echo "$key=$value" >> /boot/config.txt
-	    logtoboth ">  $key=$value"
-	done
-	echo "# Above items added by sdm --bootadd" >> /boot/config.txt
-    else
-	logtoboth "> /boot/config.txt already updated for --bootadd; skipping"
-    fi
-fi
+dobootadd "$bootadd"
 #
 # Process --dtparm and --dtoverlay settings
 #

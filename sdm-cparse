@@ -661,6 +661,7 @@ function initvirt() {
 	# Not running sdm on ARM. Won't work if host is 32-bit without chroot, but just let it fail. Who runs 32-bit any more?
 	IFS="," read wamielf wamiarch rest <<< "$wami"
 	$msgrtn "% sdm will try to use systemd-nspawn on this '${wamiarch##\ }' system"
+	$msgrtn "  If this does not work please post a GitHub issue"
 	#$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
 	#$msgrtn "  * sdm will run more slowly due to qemu emulation"
 	#virtmode="chroot"
@@ -820,6 +821,29 @@ function getconfstr() {
     cmval=${!pname}
     [ "$cmval" != "" ] && rval=$cmval || rval=$pval
     echo "$rval"
+}
+
+function dobootadd() {
+    local bootadds="$1"
+    if [ "$bootadds" != "" ]
+    then
+	#if ! grep -q 'Items added by sdm --bootadd' $SDMPT/boot/config.txt
+	#then
+            logtoboth "> Add new keys to /boot/config.txt"
+            logtoboth "> Update /boot/config.txt for bootadd: $bootadds"
+            echo "# Items added by sdm --bootadd at $(thisdate)" >> $SDMPT/boot/config.txt
+            IFS="," read -a citems <<< "$bootadds"
+            for c in "${citems[@]}"
+            do
+		IFS=":=" read key value <<< "$c"
+		echo "$key=$value" >> $SDMPT/boot/config.txt
+		logtoboth "   $key=$value"
+            done
+            echo "# Above items added by sdm --bootadd" >> $SDMPT/boot/config.txt
+	#else
+        #    logtoboth "> /boot/config.txt already updated for --bootadd; skipping"
+	#fi
+    fi
 }
 
 function setbootset() {
