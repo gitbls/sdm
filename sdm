@@ -402,7 +402,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V8.5"
+version="V8.6"
 sdmcommandline="$0 $@"      #Used in error messages
 apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
 apssid="sdm"                #Default SSID for the WiFi Captive Portal
@@ -540,7 +540,6 @@ vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
 vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
 vrunonlyopts="|plugin|plugins|"  #Valid options for --runonly
-vvirtopts="|nspawn|chroot|"
 vqemu=""                    # Qemu architecture to use in chroot
 rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
@@ -683,7 +682,6 @@ do
 	--uid)         myuid=$2      ; shift 2 ;;
 	--bupdate)     bupdate=$(appendvalue "$bupdate" "$2" "|") ; shift 2 ;;
 	--user)        myuser=$2     ; shift 2 ;;
-	--virt)        virtmode=$2   ; shift 2 ;;
 	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
 	--wpa)         wpaconf=$2    ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
