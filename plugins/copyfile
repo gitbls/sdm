@@ -83,35 +83,63 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     plugin_printkeys
+    if [ "$filelist" == "" ]
+    then
+	[ "$from" == "" -o "$to" == "" ] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided"
+	exit
+    fi
+    if [ "$runphase" != "" ]
+    then
+	if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
+	then
+	    logtoboth "% Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
+	    runphase="phase1"
+	fi
+    fi
     mkdir -p $SDMPT/etc/sdm/assets/copyfile
     for fn in phase1 postinstall
     do
 	runfile="$SDMPT/etc/sdm/assets/copyfile/run-$fn"
-	rm -f $runfile
-	cat > $runfile <<EOF
+	if [ ! -f $runfile ]
+	then
+	    cat > $runfile <<EOF
 #!/bin/bash
 source \$SDMPT/etc/sdm/sdm-readparams
 EOF
-    chmod 755 $runfile
+	    chmod 755 $runfile
+	fi
     done
     if [ "$from" != "" -a "$to" != "" ]
     then
 	[ -v mkdirif ] && mkdirif="yes"
-	p0copyfile "$from" "$to" "$chown" "$chmod" $mkdirif $runphase
+	p0copyfile "$from" "$to" "$chown" "$chmod" $mkdirif "${runphase,,}"
     fi
     if [ "$filelist" != "" ]
     then
-	logtoboth "> Plugin $pfx: Process filelist '$filelist'"
-	cp $filelist $SDMPT/etc/sdm/assets/copyfile/filelist-$(basename $filelist)
-	# read the file and add each specified file to the list
-	while read line
-	do
-	    unset mkdirif
-	    plugin_getargs $pfx "$line" "$vldargs" "|from|to|"
-	    [ -v mkdirif ] && mkdirif="yes"
-	    p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" "${runphase,,}"
-	    from="" ; to="" ; chown="" ; chmod=""
-	done < $filelist
+	if [ -f $filelist ]
+	then
+	    logtoboth "> Plugin $pfx: Process filelist '$filelist'"
+	    cp $filelist $SDMPT/etc/sdm/assets/copyfile/filelist-$(basename $filelist)
+	    # read the file and add each specified file to the list
+	    while read line
+	    do
+		unset mkdirif
+		plugin_getargs $pfx "$line" "$vldargs" "|from|to|"
+		if [ "$runphase" != "" ]
+		then
+		    if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
+		    then
+			logtoboth "? Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
+			runphase="phase1"
+		    fi
+		fi
+		[ -v mkdirif ] && mkdirif="yes"
+		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" "${runphase,,}"
+		from="" ; to="" ; chown="" ; chmod=""
+	    done < $filelist
+	else
+	    logtoboth "? Plugin $pfx: File for filelist '$filelist' not found"
+	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
@@ -124,7 +152,7 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
-    /etc/sdm/assets/copyfile/run-phase1
+    [ -f /etc/sdm/assets/copyfile/run-phase1 ] && /etc/sdm/assets/copyfile/run-phase1
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -136,7 +164,7 @@ else
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    /etc/sdm/assets/copyfile/run-postinstall
+    [ -f /etc/sdm/assets/copyfile/run-postinstall ] && /etc/sdm/assets/copyfile/run-postinstall
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
