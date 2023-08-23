@@ -1,5 +1,9 @@
 # Changelog
 
+## V8.6
+
+* Correct copyfile plugin multiple invocations and clean up error handling
+
 ## V8.5
 
 * Correct device handling for --expand-root during burn
