@@ -178,7 +178,7 @@ copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 
 
 #### Examples
 
-* `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc/myconf.conf"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
+* `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
 * `--plugin copyfile:"filelist=/usr/local/bin/`. The list of files in the provided `filelist` will be processed per above.
 
 ### graphics
