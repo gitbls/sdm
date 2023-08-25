@@ -145,7 +145,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--redact` &mdash; See <a href="Passwords.md">Passwords</a> for details.
 * `--redo-customize` &mdash; Directs sdm to not prompt for confirmation to redo the customization on a target found to already be customized.
 * `--regenerate-ssh-host-keys` &mdash; The sdm FirstBoot process will regenerate the SSH host keys on the first system boot once the system time has been synchronized. The system will move ahead and regenerate the keys if the time has not been synchronized within 60 seconds.
-* ``--rename-pi newuser` &mdash; Instead of creating a new user, rename the `pi` user to the specified new username, and properly configure the home directory, etc.a
+* `--rename-pi newuser` &mdash; Instead of creating a new user, rename the `pi` user to the specified new username, and properly configure the home directory, etc.a
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--runonly plugins` &mdash; Only run plugins. If no device or directory specified, sdm defaults to directory '/' on the running system.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
