@@ -23,7 +23,7 @@ sudo sdm $1 \
      --logwidth 132 \                                         # Break long log lines at 132 characters
      --l10n \                                                 # Get Localization settings from system sdm is on
      --plugin vnc:"realvnc=default|tigervnc=2540x1350,1880x1100" \ # Enable RealVNC on the console and virtual desktops with the given geometries
-     --plugin network:"netman=nm|nmconn=/rpi/etc/mywifi.nmconnection \ # Use Network Manager and import a system-connection file
+     --plugin network:"netman=nm|nmconn=/rpi/etc/mywifi.nmconnection" \ # Use Network Manager and import a system-connection file
      --ssh service \                                          # Enable sshd service (This is the default if --ssh not specified)
      --systemd-config timesyncd:/rpi/systemd/timesyncd.conf \ # Load a local timesyncd.conf that sets the IP address of the LAN's timeserver
      --disable piwiz,swap,triggerhappy \                      # Disable these things because I don't need them (everything piwiz does sdm will have done)
