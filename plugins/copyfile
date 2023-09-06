@@ -85,8 +85,7 @@ then
     plugin_printkeys
     if [ "$filelist" == "" ]
     then
-	[ "$from" == "" -o "$to" == "" ] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided"
-	exit
+	[ "$from" == "" -o "$to" == "" ] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided" && exit
     fi
     if [ "$runphase" != "" ]
     then
