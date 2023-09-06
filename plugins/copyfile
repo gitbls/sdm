@@ -85,8 +85,7 @@ then
     plugin_printkeys
     if [ "$filelist" == "" ]
     then
-	[ "$from" == "" -o "$to" == "" ] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided"
-	exit
+	[ "$from" == "" -o "$to" == "" ] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided" && exit
     fi
     if [ "$runphase" != "" ]
     then
@@ -96,6 +95,7 @@ then
 	    runphase="phase1"
 	fi
     fi
+    logtoboth "> Plugin $pfx: Create directory $SDMPT/etc/sdm/assets/copyfile"
     mkdir -p $SDMPT/etc/sdm/assets/copyfile
     for fn in phase1 postinstall
     do
