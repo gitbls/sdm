@@ -93,17 +93,6 @@ then
     logtoboth "* $pfx Phase 1"
     logfreespace "at start of $pfx Custom Phase 1"
     
-    if [[ ! "$custom1" =~ "nohaveged" ]]
-    then
-	logtoboth "> $pfx Disable rng-tools and install haveged"
-	doapt "install --yes --no-install-recommends haveged" $showapt
-	systemctl disable rng-tools > /dev/null 2>&1
-	systemctl disable rng-tools-debian > /dev/null 2>&1   # On some systems it is named this
-	systemctl enable haveged > /dev/null 2>&1
-    else
-	logtoboth "> $pfx Skip replace rng-tools with haveged"
-    fi
-
     logtoboth "> $pfx Add group 'mygroup'"
     groupadd -g 3700 mygroup
     usermod -a -G 4300 bls
@@ -117,36 +106,6 @@ else
     logtoboth "* $pfx Custom Phase post-install"
     logfreespace "at start of $pfx Custom Phase post-install"
 
-    if [[ ! "$custom1" =~ "nopostfix" ]]
-    then
-	#
-	# Installs postfix as a satellite system.
-	# Need to do final fixups in First Boot so that environment is correct
-	#
-	logtoboth "> $pfx Install postfix"
-	debconf-set-selections <<< "postfix postfix/main_mailer_type select Satellite system"
-	debconf-set-selections <<< "postfix postfix/mailname string $domain"
-	debconf-set-selections <<< "postfix postfix/relayhost string $custom2"
-	doapt "install --yes --no-install-recommends bsd-mailx postfix libsasl2-modules" $showapt
-	cp /etc/postfix/main.cf /etc/postfix/main.cf.orig
-	logtoboth "> $pfx Set postfix completion script to run after first boot"
-	pf01="/etc/sdm/0piboot/080-complete-postfix.sh"
-	[ -f $pf01 ] && rm -f $pf01
-	cat > $pf01 <<EOF
-#!/bin/bash
-source /usr/local/sdm/sdm-cparse ; readparams
-sed -i "s/raspberrypi.\$domain/\$hostname.\$domain/" /etc/postfix/main.cf
-sed -i "s/\$domain,//" /etc/postfix/main.cf               # Remove domain name from mydestinations (was first in list. If it moves, this breaks)
-#Rerun make-ssl-cert now that host name is known
-make-ssl-cert generate-default-snakeoil --force-overwrite
-newaliases
-systemctl enable postfix
-EOF
-	chmod 755 $pf01
-	systemctl disable postfix
-	echo "root: myemail@somewhere.com" >> /etc/aliases
-	echo "bls:  myemail@somewhere.com" >> /etc/aliases
-    fi
     logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* $pfx Custom Phase post-install Completed"
 fi

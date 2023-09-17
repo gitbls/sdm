@@ -20,7 +20,7 @@ While better than not having *any* notes, this approach requires relatively comp
 
 `sdm` lets you keep your notes in simple working bash code and comments, and makes a "not such a long winded process" into a single command that you run whenever you need to create a new SD card or SSD. And the disk is built with ALL of your favorite apps installed and all your favorite customizations.
 
-`sdm` is for RasPiOS, and runs on RasPiOS Stretch, Buster, Bullseye, and Bookworm. It can also run on other Linux systems. See <a href="Compatibility.md">Compatibility</a>. `sdm` requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use `sdm` to rewrite the running system's system disk.
+`sdm` is for RasPiOS IMGs, and runs on RasPiOS Stretch, Buster, Bullseye, and Bookworm. It can also run on other Linux systems. See <a href="Compatibility.md">Compatibility</a>. `sdm` requires a USB SD Card reader to write a new SD Card, or a USB adapter to write a new SSD. You cannot use `sdm` to rewrite the running system's system disk.
 
 `sdm` is written completely in Bash, except for the Captive Portal module, which is Python. This means that you can:
 

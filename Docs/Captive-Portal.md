@@ -22,15 +22,15 @@ The Captive Portal (sdm-cportal) can also be used independently of sdm. See <a h
 
 Installing the Captive Portal into an IMG:
 ```
-sdm --customize --nowpa --plugin wifconfig:"country=us" [...other switches...] 2023-05-03-raspios-bullseye.img
+sdm --customize --nowpa --plugin wificonfig:"country=us" [...other switches...] 2023-05-03-raspios-bullseye.img
 ```
 Installing the Captive Portal when burning an SSD/SD Card:
 ```
-sdm --burn /dev/sdc --plugin wifconfig:"country=us" [...other switches...] 2023-05-03-raspios-bullseye.img
+sdm --burn /dev/sdc --plugin wificonfig:"country=us" [...other switches...] 2023-05-03-raspios-bullseye.img
 ```
 Installing the Captive Portal on a specific SSD/SD Card after it's burned:
 ```
-sdm --runonly plugins --plugin wifconfig:"country=us" [...other switches...] /dev/sdc
+sdm --runonly plugins --plugin wificonfig:"country=us" [...other switches...] /dev/sdc
 ```
 
 ### Using the sdm command line

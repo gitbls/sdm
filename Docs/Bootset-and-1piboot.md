@@ -1,9 +1,9 @@
-# Bootset and 1piboot
-## raspi-config control using 1piboot.conf and the --bootset command switch
+# Bootconfig and 1piboot
+## raspi-config control using 1piboot.conf and the `bootconfig` plugin
 
 1piboot/1piboot.conf is a configuration file that describes RasPiOS-related configuration settings to be made in your image. Configuration settings are made when the system first boots. All of these settings use raspi-config to make the actual changes to the system. sdm does not syntax check the settings.
 
-The settings in 1piboot.conf can be controlled by editing the config file, or via the `--bootset` command switch. For instance, you can set `serial=0` in 1piboot.conf or you can use the `--bootset serial=0` command switch. In addition, you can use `--bootset` when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file. To set multiple values, separate them with a comma: `--bootset serial=0,boot_behaviour=B4,camera=0`
+The settings in 1piboot.conf can be controlled by editing the config file, or via the `bootconfig` plugin. For instance, you can set `serial=0` in 1piboot.conf or you can use the `--plugin bootconfig:"serial=0"` command switch. In addition, you can use the `bootconfig` plugin when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file. To set multiple values, separate them with a comma: `--plugin bootconfig:"serial=0,boot_behaviour=B4,camera=0"`
 
 ## First Boot configuration settings
 
@@ -16,7 +16,6 @@ The following can only be set in the context of a running system, so are set dur
 * **net_names** &mdash; Enable predictable device names
 * **onewire** &mdash; Enable the one-wire interface
 * **rgpio** &mdash; Enable the network-accessible GPIO server
-* **serial** &mdash; Enable the serial port
 * **spi** &mdash; Enable the SPI interface
 * **blanking** &mdash; Enable screen blanking
 * **overscan** &mdash; Enable compensation for displays with overscan.

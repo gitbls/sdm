@@ -32,41 +32,26 @@ See <a href="Example-Burn-Scripts.md">Example Burn Scripts</a> for examples of b
 
 These switches can be used with `--burn`. When used this way, they affect only the output SSD/SD Card, and not the IMG file.
 
-* `--apip`
-* `--apssid`
 * `--autologin`
 * `--b0script`
 * `--b1script`
-* `--bootadd`
 * `--bootscripts`
-* `--bootset`
 * `--disables`
 * `--expand-root`
-* `--exports`
 * `--hostname`
-* `--keymap`
-* `--locale`
 * `--noreboot`
 * `--nowait-timesync`
 * `--rebootwait`
-* `--password-pi`
-* `--password-user`
-* `--password-root`
 * `--plugin`
 * `--plugin-debug`
 * `--rclocal`
 * `--reboot`
 * `--redact`
 * `--regen-ssh-keys`
-* `--svc-disable`
-* `--svc-enable`
-* `--sysctl`
-* `--timezone`
-* `--uid`
-* `--user`
 * `--update-plugins`
 * `--wifi-country`
-* `--wpa`
+
+In addition to the above switches, any plugin can be run from the `--burn` command line, exactly as you can when customizing an IMG.
 <br>
 <br>
 <form>

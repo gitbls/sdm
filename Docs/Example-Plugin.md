@@ -95,34 +95,10 @@ then
     plugin_getargs $pfx "$args" "$vldargs"
     #logfreespace "at start of $pfx Phase 1"
     
-    if [ "$random" == "" ]
-    then
-	if [[ "haveged|rng-tools5" =~ "$random" ]]
-	then
-            logtoboth "> Plugin $pfx: Remove rng-tools, rng-tools-debian, and install $random"
-            systemctl disable rng-tools > /dev/null 2>&1
-            systemctl disable rng-tools-debian > /dev/null 2>&1   # On some systems it is named this
-	    doapt "remove --yes rng-tools rng-tools-debian" $showapt
-            doapt "install --yes --no-install-recommends $random" $showapt
-	    rm -f /etc/default/rng-tools-debian /etc/init.d/rng-tools-debian
-	else
-	    logtoboth "% Ignoring unrecognized 'random' setting '$random'"
-	fi
-    #else
-	# Bullseye: Be aware of this if the system runs more than 8 days: https://rachelbythebay.com/w/2022/04/20/rngd/
-        #logtoboth "> Plugin $pfx: Use rngd"
-	#logtoboth "> Plugin $pfx: Disable rngd logging"
-	#echo "RNGDOPTIONS=\"-S 0\"" >> /etc/default/rng-tools-debian
-    fi
-
     logtoboth "> Plugin $pfx: Disable $SDMPT/etc/profile.d/wifi-check.sh and sshpwd.sh"
     [ -f $SDMPT/etc/profile.d/wifi-check.sh ] && mv $SDMPT/etc/profile.d/wifi-check.sh $SDMPT/etc/profile.d/.sdm.wifi-check.sh
     [ -f $SDMPT/etc/profile.d/sshpwd.sh ] &&     mv $SDMPT/etc/profile.d/sshpwd.sh $SDMPT/etc/profile.d/.sdm.sshpwd.sh
     
-    logtoboth "> Plugin $pfx: Add group 'mygroup'"
-    groupadd -g 2800 mygroup
-    usermod -a -G 2800 bls
-
     logtoboth "> Plugin $pfx: Set APT::Install-Recommends to false"
     echo "APT::Install-Recommends \"false\";" >> /etc/apt/apt.conf.d/03-norecommends
 
@@ -135,10 +111,6 @@ else
     logtoboth "* Plugin $pfx: Phase post-install"
     plugin_getargs $pfx "$args" ""
     #logfreespace "at start of $pfx Phase post-install"
-    #
-    # Disable cron hourly
-    #
-    systemctl disable cron@hourly.timer
     #
     # Set fstab ext4 partition to a higher commit
     #

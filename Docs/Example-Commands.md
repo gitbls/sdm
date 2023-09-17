@@ -15,35 +15,54 @@
     sdm enters the nspawn container for the IMG so you can work on it. For example, you might want to do an *apt update* and *apt upgrade*, install additional packages, or make other configuration or customization changes, before you burn a new SD Card.
 
 
-* This is a more complex example with explanations of the switches:
+This is an example that can be copied and used. Following that is an annotated version with some explanations.
 
 ```sh
-sudo sdm $1 \
-     --customize \                                            # Customize command
-     --logwidth 132 \                                         # Break long log lines at 132 characters
-     --l10n \                                                 # Get Localization settings from system sdm is on
-     --plugin vnc:"realvnc=default|tigervnc=2540x1350,1880x1100" \ # Enable RealVNC on the console and virtual desktops with the given geometries
-     --plugin network:"netman=nm|nmconn=/rpi/etc/mywifi.nmconnection \ # Use Network Manager and import a system-connection file
-     --ssh service \                                          # Enable sshd service (This is the default if --ssh not specified)
-     --systemd-config timesyncd:/rpi/systemd/timesyncd.conf \ # Load a local timesyncd.conf that sets the IP address of the LAN's timeserver
-     --disable piwiz,swap,triggerhappy \                      # Disable these things because I don't need them (everything piwiz does sdm will have done)
-     --svcdisable apt-daily.timer,apt-daily-upgrade.timer \   # Disable some services
-     --eeprom stable \                                        # Use eeprom = stable
+
+#!/bin/bash
+
+sudo sdm \
+     --customize $1 \
+     --poptions noupdate,noupgrade,noautoremove \
+     --logwidth 132 \
+     --extend --xmb 2048 \
+     --plugin user:"deluser=pi" \
+     --plugin user:"adduser=bls|password=mypassword|uid=3300" \
+     --plugin network:"netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \
+     --plugin system:"systemd-config=timesync=/rpi/systemd/timesyncd.conf" \
+     --plugin system:"service-disable=apt-daily.timer,apt-daily-upgrade.timer|eeprom:stable|fstab=/rpi/etc/fstab.lan" \
+     --plugin disables:"piwiz|triggerhappy" \
+     --plugin lxde:lhmouse \
+     --plugin L10n:host \
+     --plugin bootconfig:"hdmi_force_hotplug=1|hdmi_ignore_edid|dtparam=sd_poll_once" \
+     --ssh service \
      --plugin apps:"apps=@myapps|name=myapps" \
      --plugin apps:"apps=@myxapps|name=myxapps" \
-     --apt-dist-upgrade \                                     # May be needed on Bullseye systems
-     --aptcache 192.168.42.4 \                                # Use this for an apt caching server
-     --dtparam sd_poll_once \                                 #
-     --hdmi-force-hotplug \                                   #
-     --hdmi-ignore-edid \                                     #
-     --reboot 20 \                                            # ...
-     --cscript bls-sdm-customize \                            # Here's my Custom Phase Script that does configuration beyond what sdm does
-     --user bls \                                             # Add a user with the username 'bls'
-     --uid 3300 \                                             # Make the uid for 'bls' 3300. This will be the same on every pi to make NFS easier
-     --password-pi mysecretpassword \                         # Set the password for user 'pi'
-     --password-user anotherpassword \                        # Set the password for user 'bls'
-     --fstab /rpi/etc/fstab.lan \                             # Add my local network shares to the end of /etc/fstab
-     --mouse left                                             # I'm a leftie, so make the mouse left-handed in LXDE
+     --aptcache 192.168.42.4 \
+     --reboot 20                                              
+
+```
+
+Annotated version
+```sh
+
+sudo sdm \
+     --customize $1 \                                                               # Pass the IMG filename as the parameter
+     --logwidth 132 \                                                               # Break long log lines at 132 characters
+     --extend --xmb 2048 \                                                          # Extend the IMG by 2GB
+     --plugin user:"deluser=pi" \                                                   # Delete user pi
+     --plugin user:"adduser=bls|password=mypassword|uid=3300" \                     # Create a new user with a password using a specific UID
+     --plugin network:"netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \ # Use Network Manager and set up a connection
+     --plugin system:"systemd-config=timesync=/rpi/systemd/timesyncd.conf" \        # Configure systemd-timesyncd
+     --plugin system:"service-disable=apt-daily.timer,apt-daily-upgrade.timer|eeprom:stable|fstab=/rpi/etc/fstab.lan" \ # Other system settings
+     --plugin disables:"piwiz|triggerhappy" \                                       # Disable piwiz and triggerhappy
+     --plugin lxde:lhmouse \                                                        # If done against a desktop version, enable left-handed mouse
+     --plugin L10n:host \                                                           # Get localization settings from the host
+     --plugin bootconfig:"hdmi_force_hotplug=1|hdmi_ignore_edid|dtparam=sd_poll_once" \ # Add some settings to bootconfig
+     --plugin apps:"apps=@myapps|name=myapps" \                                     # Install apps from a list
+     --plugin apps:"apps=@myapps1|name=myapps2" \                                   # Install more apps
+     --aptcache 192.168.42.4 \
+     --reboot 20                                              
 
 ```
 <br>
