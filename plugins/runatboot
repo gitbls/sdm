@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 allargs="$2"
 loadparams
-vldargs="|script|user|sudoswitches|args|output|error"
+vldargs="|script|user|sudoswitches|args|output|error|"
 rqdargs="|script|"
 
 if [ "$phase" == "0" ]
