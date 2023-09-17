@@ -1,14 +1,19 @@
 #!/bin/bash
 #
-# V6.0
+# V9.0
 #
 # EZ Installer. Run from the bash command line:
 #
 #    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 #
-# Installs into /usr/local/sdm by default
-# You can specify a different directory as the first argument to the script. To use this
-# you must download the script to your computer and start it from the command line.
+# $1: Branch to install from (D:master)
+# $2: Target install directory (D:/usr/local/sdm)
+# ** To use either of these arguments you must download this script to your system
+#    and start it from the command line:
+#    e.g., bash$ EZsdmInstaller V9.0                       # Install V9.0 release to /usr/local/sdm
+#          bash$ EZsdmInstaller "" /home/$(whoami)/sdm     # Install master branch to /home/$(whoami)/sdm
+#
+# NOTE: Using this version on the master branch requires that the master branch is updated to V9.0 (NYI)
 #
 # At the moment requires apt-based package installs. Easy to fix, of course. It's only code...
 #
@@ -55,10 +60,17 @@ myscript="$0 $@"
 #
 # Create directories and download sdm
 #
-[ "$1" != "" ] && dir="$1" || dir="/usr/local/sdm"
+[ "$1" == "" ] && branch="master" || branch="$1"
+[ "$2" != "" ] && dir="$2" || dir="/usr/local/sdm"
 
-[ "$SDMLAN" != "" ] && src=$SDMLAN || src="https://raw.githubusercontent.com/gitbls/sdm/master"
-[ "$SDMLAN" != "" ] && curl="scp" || curl="curl"
+if [ "$SDMLAN" != "" ]
+then
+    src=$SDMLAN
+    curl="scp"
+else
+    src="https://github.com/gitbls/sdm/raw/$branch"
+    curl="curl"
+fi
 
 sudo=""
 if [ -d $dir ]
@@ -74,14 +86,13 @@ $sudo mkdir -p $dir $dir/1piboot $dir/plugins $dir/local-plugins
 
 dlerrors=0
 for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
-	     sdm-firstboot sdm-apt-cacher sdm-apt \
-	     sdm-customphase sdm-apps-example sdm-xapps-example \
-	     sdm-cportal sdm-hotspot sdm-logmsg sdm-gburn \
-	     plugins/addusers plugins/apps plugins/apt-cacher-ng \
-	     plugins/apt-file plugins/btwifiset plugins/burnpwd plugins/chrony \
-	     plugins/clockfake plugins/copyfile plugins/graphics plugins/imon plugins/knockd \
-	     plugins/network plugins/pistrong plugins/postfix plugins/quietness plugins/runatboot plugins/rxapp plugins/samba \
-	     plugins/sdm-plugin-template plugins/trim-enable plugins/ufw plugins/vnc plugins/wificonfig plugins/wsdd \
+	     sdm-firstboot sdm-apt-cacher sdm-apt sdm-customphase sdm-apps-example sdm-xapps-example \
+	     sdm-cportal sdm-hotspot sdm-logmsg sdm-gburn plugins/apps plugins/apt-cacher-ng plugins/apt-file \
+	     plugins/bootconfig plugins/btwifiset plugins/chrony plugins/clockfake plugins/copyfile \
+	     plugins/disables plugins/graphics plugins/imon plugins/knockd plugins/L10n plugins/lxde \
+	     plugins/network plugins/pistrong plugins/postfix plugins/quietness plugins/raspiconfig \
+	     plugins/runatboot plugins/rxapp plugins/samba plugins/sdm-plugin-template plugins/system \
+	     plugins/trim-enable plugins/ufw plugins/user plugins/vnc plugins/wificonfig plugins/wsdd \
 	     1piboot/1piboot.conf
 do
     echo "Downloading '$f' to '$dir/$f'"
@@ -122,10 +133,12 @@ then
     echo "* Invoke sdm with 'sudo sdm'"
 else
     echo "* Invoke sdm with 'sudo $dir/sdm'"
+    echo "* You can make an ease-of-use link with: sudo ln -s $dir/sdm /usr/local/bin/sdm"
+    echo "  so you can invoke sdm with 'sudo sdm'"
 fi
 
 echo $"
-  Complete sdm documentation: https://github.com/gitbls/sdm/wiki
+  Complete sdm documentation: https://github.com/gitbls/sdm/tree/$branch/Docs
 "
 
 if [ $dlerrors -ne 0 ]
@@ -133,6 +146,7 @@ then
     echo $"%% The sdm download was not complete
 $dlerrors file(s) not downloaded
 This must be corrected before you can use sdm
+
 If you need help, open an issue at https://github.com/gitbls/sdm
 "
 fi
