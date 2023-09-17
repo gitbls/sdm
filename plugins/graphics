@@ -9,141 +9,77 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
-# $1 is the phase: "0", "1", or "post-install"
-# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
-#
-# Main code for the Plugin
-#
-phase=$1
-pfx="$(basename $0)"     #For messages
-args="$2"
-loadparams
-vldargs="|graphics|lhmouse|nodmconsole|videomode|"
-rqdargs=""
+function setdelayedbbh() {
+    local dbbh=$1
+    sed -i "/delayed_boot_behav/d" /etc/sdm/auto-1piboot.conf
+    echo "delayed_boot_behavior=$dbbh" >> /etc/sdm/auto-1piboot.conf
+}
 
-if [ "$phase" == "0" ]
-then
+function delaydmenable() {
     #
-    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    # Disable the display manager in $1 and set for re-enable during First Boot
+    # $2=delayed target (either B3 or B4)
     #
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    plugin_printkeys
-elif [ "$phase" == "1" ]
-then
+    local dm="$1" bbh="$(getfinalbbh $2)"
+    logtoboth "% Plugin $pfx: Display Manager '$dm' will be disabled when the system first boots"
+    logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
+    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
+    do_raspiconfig do_boot_behaviour B1
+    systemctl set-default multi-user.target > /dev/null 2>&1
+    setdelayedbbh $bbh
+    #echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+    #then
+	#echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+    #fi
+    return
+}
+
+function delaylightdmenable() {
     #
-    # Phase 1 (in nspawn)
+    # $1 = "burning" if called from burn. "" otherwise
     #
-    logtoboth "* Plugin $pfx: Start Phase 1"
-    #logfreespace "at start of Plugin $pfx Phase 1"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    case "${graphics,,}" in
-	#wayland) 
-	    # Only supported on bookworm+
-	    # need to figure out what to install
-	    # probably need to force lightdm?
-	    #;;
-	x11)
-	    logtoboth "> Plugin $pfx: X11 requested"
-	    if [ ! -x /bin/Xorg ]
-	    then
-		x11pkgs="xserver-xorg xserver-xorg-core xserver-common"
-		logtoboth "> Plugin $pfx: Install Core X11 packages: $x11pkgs"
-		doinstalls "$x11pkgs" "X11 Core Install"
-	    fi
-	    ;;
-    esac
-    #logfreespace "at end of $pfx Phase 1"
-    logtoboth "* Plugin $pfx: Complete Phase 1"
-else
-    #
-    # Plugin Post-install edits
-    #
-    logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    #logfreespace "at start of Plugin $pfx Phase post-install"
-    if [ "$videomode" != "" ]
+    local burn="$1" aval
+    logtoboth "> Plugin $pfx: Display Manager lightdm will be disabled when the system first boots"
+    do_raspiconfig do_boot_behaviour B1
+    systemctl set-default multi-user.target > /dev/null 2>&1
+    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
+    aval=$((grep ^delayed_boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
+    if [ "$bbh" != "$aval" ]
     then
-	logtoboth "> Add cmdline video mode 'video=$videomode' to /boot/cmdline.txt"
-	sed -i "1 s/^/video=$videomode /" /boot/cmdline.txt
+	if [ "$burn" != "" ]
+	then
+	    logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be set after First Boot"
+	    setdelayedbbh $bbh
+	    #sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
+	    #echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+	else
+	    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+	    then
+		aval="$(getfinalbbh B1)"
+		logtoboth "% Plugin $pfx: 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
+	    else
+		logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
+		setdelayedbbh $bbh
+	    fi
+	fi
+    #else
+	#logtoboth "> Plugin $pfx: lightdm delayed boot behavior already set to '$bbh'"
     fi
-    case "${graphics,,}" in
-	wayland) 
-	    case "$raspiosver" in
-		12) logtoboth "> Plugin $pfx: Wayland is the default on Debian 12/Bookworm"
-		    ;;
-		*) logtoboth "> Plugin $pfx: sdm does not support Wayland pre-Bookworm"
-		   ;;
-	    esac
-	    ;;
-	x11)
-	    case "$raspiosver" in
-		12) if [ -f /etc/lightdm/lightdm.conf ]
-		    then
-			logtoboth "> Plugin $pfx: Set Graphics mode to X11"
-			do_raspiconfig do_wayland W1
-		    fi
-		    ;;
-		# X11 is default on RasPiOS 11 and earlier
-		* ) logtoboth "> Plugin $pfx: X11 is default on pre-Bookworm"
-		    ;;
-	    esac
-    esac
+}
+
+function gfxcfgpostinstall() {
+
     if [ -d /etc/lightdm ]
     then
 	logtoboth "> Plugin $pfx: Found Display Manager lightdm"
-	[ $reboot -eq 1 ] && delaylightdmenable || setlightdmautologin
-    fi
-    #
-    # LXDE-specific handling
-    #
-    if [ -f /usr/bin/startlxde-pi ]
-    then
-	logtoboth "> Plugin $pfx: Special LXDE-Pi handling"
-	userx=${myuser:-pi}	
-	[ "$userx" == "pi" ] && gx=pi || gx=users
-	mkdir -p /home/$userx/.config
-	if [ -d /etc/wayfire ]
-	then
-	    cp /etc/wayfire/template.ini /home/$userx/.config/wayfire.ini
-	    chmod 644 /home/$userx/.config/wayfire.ini
-	    [ "$keymap" != "" ] && sed -i "s/xkb_layout.*=.*/xkb_layout=$keymap/" /home/$userx/.config/wayfire.ini
-	fi
-	# Set left-handed mouse if requested
-	if [ -v lhmouse ]
-	then
-	    logtoboth "> Plugin $pfx: Enable left-handed mouse for user '$userx'"
-	    if [ -f /home/$userx/.config/wayfire.ini ]
-	    then
-		sed -i '/xkb_layout.*=.*/a left_handed_mode=true' /home/$userx/.config/wayfire.ini
-	    fi
-	    dirx="/home/$userx/.config/lxsession/LXDE-pi"
-	    mkdir -p $dirx
-	    cp -a /etc/xdg/lxsession/LXDE-pi/desktop.conf $dirx
-	    chmod 644 $dirx/desktop.conf
-	    sed -i "s/LeftHanded=0/LeftHanded=1/" $dirx/desktop.conf
-	fi
-	# Copy LXDE config files if requested
-	for fm in $lxdeconflist
-	do
-	    cname="${fm}conf"
-	    fmconf="${!cname}"
-	    if [ "$fmconf" != "" ]
-	    then
-		dirx="/home/$userx/.config/$fm"
-		logtoboth "> Plugin $pfx: Copy --lxde-config $fm config file '$(basename $fmconf)' to '$dirx'"
-		mkdir -p $dirx
-		cp -a /etc/sdm/assets/$(basename $fmconf) $dirx/$fm.conf
-	    fi
-	done
-	logtoboth "> Plugin $pfx: Set owner to '$userx:$gx' and protection to 700 on '/home/$userx/.config' directory tree"
-	chown -R $userx:$gx /home/$userx/.config
-	chmod 700 /home/$userx/.config
+	#[ $reboot -eq 1 ] && delaylightdmenable || setlightdmautologin
+	delaylightdmenable
     fi
     #
     # If xdm installed, disable it on console if requested
     #
     bbhandled=0
-    [[ -v nodmconsole ]] && nodmconsole=1 || nodmconsole=0
     if [ -d /etc/X11/xdm ]
     then
 	logtoboth "> Plugin $pfx: Found Display Manager xdm"
@@ -183,7 +119,7 @@ else
     #
     if [ ! -d /etc/lightdm -a $bbhandled -eq 0 ]
     then
-	# Lite with no Desktop
+	# Lite with no known Desktop
 	if [ $reboot -eq 1 ]
 	then
 	    logtoboth "> Plugin $pfx: No known Display Manager found"
@@ -197,8 +133,116 @@ else
 	    else
 		[ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
 		[ "$bbh" != "B1" ] && logtoboth "% Console Autologin setting '$bbh' will be re-enabled after First Boot"
-		echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
+		setdelayedbbh $bbh
 	    fi
 	fi
+    fi
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|graphics|nodmconsole|nopiwiz|videomode|runfunction|runargs|"
+rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_printkeys
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    case "${graphics,,}" in
+	#wayland) 
+	# Only supported on bookworm+
+	# need to figure out what to install
+	# probably need to force lightdm?
+	#;;
+	x11)
+	    logtoboth "> Plugin $pfx: X11 requested"
+	    if [ ! -x /bin/Xorg ]
+	    then
+		x11pkgs="xserver-xorg xserver-xorg-core xserver-common"
+		logtoboth "> Plugin $pfx: Install Core X11 packages: $x11pkgs"
+		doinstalls "$x11pkgs" "X11 Core Install"
+	    fi
+	    ;;
+    esac
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    [ -v nodmconsole ] && nodmconsole=1 || nodmconsole=0
+    if [ "$videomode" != "" ]
+    then
+	logtoboth "> Add cmdline video mode 'video=$videomode' to /boot/cmdline.txt"
+	sed -i "1 s/^/video=$videomode /" /boot/cmdline.txt
+    fi
+    if [ -v nopiwiz ]
+    then
+	logtoboth "> Plugin $pfx: Disable running piwiz and userconfig on FirstBoot"
+	[ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
+	systemctl disable userconfig.service > /dev/null 2>&1
+	systemctl mask    userconfig.service > /dev/null 2>&1
+	getent passwd rpi-first-boot-wizard > /dev/null && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
+	[ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ] && mv /etc/systemd/system/getty@tty1.service.d/autologin.conf /etc/systemd/system/getty@tty1.service.d/.autologin.conf.sdm
+	rm -f /etc/sudoers.d/010_wiz-nopasswd
+	rm -f /etc/xdg/autostart/deluser.desktop
+    fi
+    case "${graphics,,}" in
+	wayland) 
+	    case "$raspiosver" in
+		12) logtoboth "> Plugin $pfx: Wayland is the default on Debian 12/Bookworm"
+		    ;;
+		*) logtoboth "> Plugin $pfx: sdm does not support Wayland pre-Bookworm"
+		   ;;
+	    esac
+	    ;;
+	x11)
+	    case "$raspiosver" in
+		12) if [ -f /etc/lightdm/lightdm.conf ]
+		    then
+			logtoboth "> Plugin $pfx: Set Graphics mode to X11"
+			do_raspiconfig do_wayland W1
+		    fi
+		    ;;
+		# X11 is default on RasPiOS 11 and earlier
+		* ) logtoboth "> Plugin $pfx: X11 is default on pre-Bookworm"
+		    ;;
+	    esac
+    esac
+    gfxcfgpostinstall
+elif [ "$phase" == "runfunction" ]
+then
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_printkeys
+    [ -v nodmconsole ] && nodmconsole=1 || nodmconsole=0
+    if [ "$runfunction" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Run function: $runfunction $runargs"
+	$runfunction $runargs
+    else
+	logtoboth "? Plugin $pfx: Run function called with no function"
     fi
 fi
