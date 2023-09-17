@@ -25,14 +25,14 @@ Once the IMG is completed (Phase 0, Phase 1, and post-install), **Phase 3** and 
 ## Ordered list of sdm steps
 * Initialization &mdash; Copy sdm into the IMG
 * Phase 0 &mdash; Run sdm Phase 0 steps on the IMG
-* Plugins Phase 0 &mdash; Run Phase 0 for all enabled plugins
+* Plugins Phase 0 &mdash; Run Phase 0 for all enabled plugins in command-line order
 * Phase 1 &mdash; Run sdm Phase1 steps on the IMG
-* Plugins Phase 1 &mdash; Run Phase 1 for all enabled plugins
+* Plugins Phase 1 &mdash; Run Phase 1 for all enabled plugins in command-line order
 * Install apps &mdash; Install apps specified by `--apps`
 * Network configuration &mdash; Configure network as specified by `--netman`
 * apt upgrade &mdash; Upgrade all installed packages with available updates
 * apt autoremove &mdash; Auto remove any unnecessary packages
-* Plugins post-install &mdash; Run Phase post-install for all enabled plugins
+* Plugins post-install &mdash; Run Phase post-install for all enabled plugins in command-line order
 
 <form>
 <input type="button" value="Back" onclick="history.back()">

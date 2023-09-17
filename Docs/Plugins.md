@@ -10,7 +10,7 @@ The set of plugins provided with sdm includes: apt-cacher-ng, apt-file, btwifise
 
 Other plugins are planned. If there are any specific plugins you're interested in, let me know!
 
-You can add your own plugins as well. Put the plugin script in /usr/local/sdm/local-plugins, and it will be automatically found. sdm looks at local-plugins first, so you can override an sdm-provided plugin with your modifications if desired.
+You can add your own plugins as well. Put your plugin script in /usr/local/sdm/local-plugins, and it will be automatically found. sdm looks at local-plugins first, so you can override an sdm-provided plugin with your modifications if desired.
 
 You can also specify the plugin name with a full path. sdm will copy the plugin to /usr/local/sdm/local-plugins if it does not exist or the one specified is newer than the one in local_plugins.
 
@@ -24,6 +24,8 @@ sdm --plugin samba:"args" --plugin postfix:"args" . . .
 
 Multiple `--plugin` switches can be used on the command line. This includes specifying the same plugin multiple times (the `apps` plugin, for example).
 
+Plugins are run in the order they appear on the command line.
+
 The complete plugin switch format is:
 ```sh
 --plugin plugname:"key1=val1|key2=val2|key3=val3"
@@ -32,37 +34,11 @@ Enclose the keys/values in double quotes as above if there is more than one key/
 
 See below for plugin-specific examples and important information.
 
-## Plugin-specific notes
+## Plugin-specific documentation
 
 ### sdm-plugin-template
 
 sdm-plugin-template can be used to build your own plugin. It contains some code in Phase 0 demonstrating some of the things you can do with the *plugin_getargs* function and how to access the results.
-
-### addusers
-
-addusers can be used to add user accounts quickly and easily, either during IMG customization or burning a disk. The user information can be specified in the plugin arguments, or an argument pointing to a list (file) of users to add can be used. addusers will log the added account information to a file on the host if directed to do so.
-
-#### Arguments
-
-* **username** &mdash; Specifies the username to add
-* **password** &mdash; Specifies the password for the new username. If no password is provided, no password is set for the new user
-* **uid** &mdash; Specifies the UID for the new user. If not provided, the system will assign an unused uid
-* **groups** &mdash; Specifies the list of groups to be added to the new user. If not specified, the groups specified by the command line `--groups` switch are used. The default is "dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio"
-* **homedir** &mdash; Specifies the home directory for the new user. If not specified, /home/$username is used
-* **nohomedir** &mdash; if `nohomedir=y` is specified, no home directory will be created for the user, even if `homedir` is provided
-* **nosudo** &mdash; If `nosudo=y` is specified, the user will not be enabled to use the `sudo` command. In other words, `sudo` is enabled by default
-* **samba** &mdash; If `samba=y` is specified, add the username to the samba password file. If `smbpasswd` is not specified, `password` will be used. If neither is provided, the user will not be added to the samba password file
-* **smbpasswd** &mdash; Use this password for samba for the user instead of the user's password
-* **userlist** &mdash; The /full/path/to/file of a list of users to add. See below.
-* **log** &mdash; The /full/path/to/file of a file on the host OS where sdm is running to log all users added via the addusers plugin. If `log` is not specified, addusers will not write a separate log file.
-
-The `userlist=/full/path/to/file` option points to a file that consists of one line per user in the format:
-```
-username=theusername|password=thepassword|homedir=homedir|...
-```
-Only arguments that are set for a user need be specified, and they are processed as described above.
-
-NOTE: If you do not want any user's passwords to be visible in /etc/sdm/history, use `userlist`, rather than `--plugin addusers` on the command line.
 
 ### apps
 
@@ -104,6 +80,25 @@ apt-file installs the *apt-file* command and builds the database. This is very h
 
 There are no `--plugin` arguments for apt-file
 
+### `bootconfig`
+
+The `bootconfig` plugin configures the contents of /boot/config.txt.
+
+#### Arguments
+
+* **comment** &mdash; Append the comment to the end of config.txt. Comments can also be specified by an argument starting with `#` or `\n`. In the latter case, the comment is transformed to `\n# comment string` resulting in a blank line before the comment.
+* **inline** &mdash; If `inline` is provided as an argument (does not take a value), the plugin will replace existing settings in config.txt (if they exist) with any new value provided to the plugin. If it doesn't exist, or if `inline` is not provided, new arguments are appended to the end of the file.
+* **reset** &mdash; If `reset` is provided /boot/config.txt will be saved as /boot/config.txt.sdm. If no value is provided for `reset` then /boot/config.txt will be set to a null file. If `reset=/path/to/file` is provided, the specified file will replace /boot/config.txt. To work correctly, `reset` must be specified before any other arguments (this is not enforced or specifically logged by sdm).
+* **section** &mdash; The `section` argument takes a value like `pi4` or `[pi4]`, and appends the appropriately-bracketed section value to the end of config.txt preceded by a blank line.
+
+* **somename=somevalue** &mdash; All other key/value settings are presumed to be settings in config.txt and added to it. There is no validity checking, so typos are propagated. But, on the other hand, the `bootconfig` plugin doesn't need to be updated every time a brand new setting is added to config.txt.
+
+#### Examples
+
+* `--plugin bootconfig:"section=[pi4]|somesetting=somevalue"`
+* `--plugin bootconfig:"inline|hdmi_group=72|hdmi_force_hotplug=1|hdmi_mode=40|hdmi_ignore_edid"` &mdash; The plugin adds the correct value for `hdmi_ignore_edid` (0xa5000080)
+* `--plugin bootconfig:"reset|dtparam=audio=on|camera_auto_detect=1|display_auto_detect=1|dtoverlay=vc4-kms-v3d|max_framebuffers=2|arm_64bit=1|disable_overscan=1|section=cm4|otg_mode=1|section=pi4|arm_boost=1|section=all"` &mdash; An identical replacement for the Bullseye /boot/config.txt but with no comments or blank lines
+  
 ### btwifiset
 
 btwifiset is a service that enables WiFi SSID and password configuration over Bluetooth using an iOS app. Once the service is running, you can use the BTBerryWifi iOS app to connect to the service running on your Pi and configure the WiFi. See https://github.com/nksan/Rpi-SetWiFi-viaBluetooth for details on btwifiset itself.
@@ -115,19 +110,6 @@ btwifiset is a service that enables WiFi SSID and password configuration over Bl
 * **btwifidir** &mdash; Directory where btwifiset will be installed. [Default: */usr/local/btwifiset*]
 * **timeout** &mdash; After *timeout* seconds the btwifiset service will exit [Default: *15 minutes*]
 * **logfile** &mdash; Full path to btwifiset log file [Default: *Writes to syslog*]
-
-### burnpwd
-
-burnpwd enables you to defer setting the password on an account until the SD card is actually burned,. To use burnpwd, use the `--nopassword` switch during customization, and add `--burnpwd username:"arguments"` to the sdm burn command. burnpwd can either prompt for the password, or it can generate a random password.
-
-The password is not stored in an unencrypted form anywhere on the burned output device. You can use the *log* argument to burnpwd to direct burnpwd to log passwords **on the host**, which is handy, especially if you have burnpwd generate a random password.
-
-#### Arguments
-
-* **user** &mdash; The username to set the password for. The user must already exist in the IMG. If you need to do multiple users, add the `--burnpwd` switch multiple times.
-* **method** &mdash; Specifies the method to obtain the password. *prompt* will prompt for the password; *random* will generate a random password
-* **length** &mdash; Used with **method=random** to specify the length of the generated password. Default:20
-* **log** &mdash; Specifies the /full/path/to/logfile on the host where the passwords are stored. This is extremely important if you use **method=random**, as the password is not stored anywhere else!
 
 ### chrony
 
@@ -174,12 +156,27 @@ from=/path/to/file|to=/some/dir|chown=user:group|chmod=filemode|runphase=postins
 ```
 chown and chmod are optional. If not specified, the file attributes will not be set, and will be whatever they were on the host system. `runphase` is optional, and if not specified, the file is copied in Phase 1.
 
-copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 0, and copies them into their target locations in the phase 1 or post-install phase (dependant on `runphase`) once all packages have been installed, all users have been added, etc.
+copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 0, and copies them into their target locations in the phase 1 or post-install phase (conditioned on `runphase`) once all packages have been installed, all users have been added, etc.
 
 #### Examples
 
 * `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
 * `--plugin copyfile:"filelist=/usr/local/bin/`. The list of files in the provided `filelist` will be processed per above.
+
+### disables
+
+The disables plugin makes it easy to disable a few *complex* functions.
+
+#### Arguments
+
+* **bluetooth** &mdash; Disables bluetooth via a blacklist file in /etc/modprobe.d
+* **piwiz** &mdash; Disables piwiz during the first system boot. You must set up everything that piwiz does or you may not like the results: User, Password, Keymap, Locale, and Timezone. This is equivalent to the `graphics` plugin `nopiwiz` argument
+* **triggerhappy** &mdash; Disable the triggerhappy service. If you're not using it, this will eliminate the log spew it creates
+* **wifi** &mdash; Disables WiFi via a blacklist file in /etc/modprobe.d
+
+#### Examples
+
+* `--plugin disables:"bluetooth|piwiz|triggerhappy"` &mdash; Disable Bluetooth, Triggerhappy, and piwiz, but leave WiFi enabled
 
 ### graphics
 
@@ -188,15 +185,15 @@ The graphics plugin configures various graphics-related settings. It doesn't do 
 #### Arguments
 
 * **graphics** &mdash; Supported values for the graphics keyword are `wayland` and `X11`. At the present time `wayland` does very little. If graphics is set to `X11`, the Core X11 packages (xserver-xorg, xserver-xorg-core, and xserver-common) are installed if not already installed. In the post-install phase, the plugin will look for a known Display Manager (lightdm, xdm, or wdm), and make appropriate adjustments (see below)
-* **lhmouse** &mdash; If LXDE is installed (RasPiOS Desktop), set the mouse to left-handed. 
-* **nodmconsole** &mdash; If graphics=X11, nodmconsole directs sdm to NOT start the Display Manager on the console, if the Display Manager is lightdm, wdm, or xdm.
+* **nodmconsole** &mdash; If `graphics=X11`, `nodmconsole` directs sdm to NOT start the Display Manager on the console, if the Display Manager is lightdm, wdm, or xdm.
+* **nopiwiz** &mdash; Do no run piwiz or userconfig services at FirstBoot. This is the same as `--plugin disables:piwiz`
 * **videomode** &mdash; Specifies the string to add to the video= argument in cmdline.txt. See below for an example.
 
 wayland is the Default graphics subsystem on Bookworm with Desktop images, so `graphics=wayland` is ignored on those images. The plugin currently will not install wayland on a Bookworm Lite IMG. Wayland is not supported by sdm on releases prior to Bookworm.
 
-If graphics=X11 and the Display Manager is known, the graphics plugin makes a few adjustments. Specifically:
+If `graphics=X11` and the Display Manager is known, the graphics plugin makes a few adjustments. Specifically:
 * If LXDE is installed, the mouse will be set to left-handed if specified on the command line. This works for wayland as well.
-* For lightdm, wdm, and xdm, sdm will cause the boot behavior you might specify to be delayed until after the First Boot.
+* For Display Managers lightdm, wdm, and xdm, sdm will cause the boot behavior you might specify to be delayed until after the First Boot.
 
 The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm will add video=HDMI-A-1:1024x768M@60D to /boot/cmdline.txt
 
@@ -204,6 +201,7 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 * `--plugin graphics:"graphics=X11|nodmconsole` &mdash; Installs the X11 core components and disables the Display Manager on the console
 * `--plugin graphics:"videomode=HDMI-A-1:1920x1280@60D"` &mdash; Sets the specified video mode in /boot/cmdline.txt
+
 ### imon
 
 imon installs an <a href="https://github.com/gitbls/imon">Internet Monitor</a> that can monitor:
@@ -226,6 +224,42 @@ knockd installs the knockd service and <a href="https://github.com/gitbls/pktabl
 * **config** &mdash; Full path to your knockd.conf. If **config** isn't provided, /etc/knockd.conf will be the standard knockd.conf
 * **localsrc** &mdash; Locally accessible directory where pktables, knockd-helper, and knockd.service can be found, instead of downloading them from GitHub. If there is a knockd.conf in this directory, it will be used, unless overridden with the **config** argument
 
+### L10n
+
+Use the `L10n` plugin to set the localization parameters: `keymap`, `locale`, and `timezone`. You can find the valid values for these arguments with
+```
+sudo sdm --info keymap     # Displays list of valid keymaps
+sudo sdm --info locale     # Displays list of valid locales
+sudo sdm --info timezone   # Displays list of valid timezones
+```
+
+#### Arguments
+
+* **keymap** &mdash; Specify the keymap to set
+* **locale** &mdash; Specify the locale for the system
+* **timezone** &mdash; Specify the timezone
+* **host** &mdash; Get the above settings from the host sysetm on which sdm is running
+
+#### Examples
+
+* `--plugin L10n:"keymap=us|locale=en_US.UTF-8|timezone=Americas/Los_Angeles"`
+* `--plugin L10n:"host"`
+
+### lxde
+
+Use the `lxde` plugin to establish your preferred settings, such as left-handed mouse, and config files for `libfm`, `pcmanfm`, and `lxterminal`. These are not well-documented. The best way to create your personalized versions is to use RasPiOS to configure the desktop as you'd like it, and then save the files.
+
+#### Arguments
+
+* **lhmouse** &mdash; Set LXDE for a left-handed mouse
+* **lxde-config** &mdash; Specify existing config files for `libfm`, `pcmanfm`, and `lxterminal`. See the example, and see <a href="Using-LXDE-Config.md">Using LXDE configuration</a> for details
+* **user** &mdash; The settings apply to the specified user. If no `user` argument is specified, they apply to the first user created with the `user` plugin. The `user` plugin must be specified on the command line before the `lxde` plugin
+
+#### Examples
+
+* `--plugin lxde:"lxde-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
+* `--plugin lxde:"lhmouse|user=someuser"`
+
 ### network
 
 Use the network plugin to configure various network settings
@@ -235,13 +269,14 @@ Use the network plugin to configure various network settings
 * **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). dhcpcd is the default on Bullseye (Debian 11) and earlier, while Network Manager is the default on Bookworm (Debian 12).
 * **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
 * **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
-* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. Network Manager does not use wpa_supplicant.
+* **ssh** &mdash; Accepts one of the values `service`, `socket`, or `none`. The default if `ssh` is not specified is to enable the SSH service
 * **wifissid** &mdash; Specifies the WiFi SSID to enable. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`), or will use nmcli during First Boot to establish the specified WiFi connection.
 * **wifipassword** &mdash; Password for the `wifissid` network. See `wifissid`
 * **wificountry** &mdash; WiFi country for the `wifissid` network. See `wifissid`
+* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. Network Manager does not use wpa_supplicant.conf
 * **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
 * **nmconf** &mdash; Specifies a comma-separated list of Network Manager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
-* **nmconn** &mdash; Specifies a comma-separated list of Network Manager connection definitions that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+* **nmconn** &mdash; Specifies a comma-separated list of Network Manager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
 
 #### Examples
 
@@ -281,6 +316,7 @@ The quietness plugin controls the quiet and splash settings in /boot/cmdline.txt
 
 #### Arguments
 
+* **consoleblank** &mdash; Set a console blanking timeout (Default: 300 seconds)
 * **quiet** &mdash; Enables 'quiet' in /boot/cmdline.txt
 * **noquiet** &mdash; Disable 'quiet' in /boot/cmdline.txt. If `noquiet=keep` is NOT specified, sdm will re-enable 'quiet' in cmdline.txt after the First Boot.
 * **splash** &mdash; Enables 'splash' in /boot/cmdline.txt
@@ -290,8 +326,49 @@ The quietness plugin controls the quiet and splash settings in /boot/cmdline.txt
 
 #### Examples
 
-* `--plugin quietness:"noquiet=keep|nosplash=keep"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt and do not re-enable them
-* `--plugin quietness:"noquiet|nosplash|noplymouth"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt, and disable plymouth. All will be re-enabled after the First Boot.
+* `--plugin quietness:"consoleblank|noquiet=keep|nosplash=keep"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt and do not re-enable them. Console blanking timeout set to 300 seconds (5 minutes)
+* `--plugin quietness:"consoleblank=600|noquiet|nosplash|noplymouth"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt, and disable plymouth. All will be re-enabled after the First Boot. Console blanking timeout set to 600 seconds (10 minutes).
+
+### `raspiconfig` 
+
+the `raspiconfig` plugin is used to modify settings supported by `raspi-config`. This is not necessarily the complete list (done quickly), and one or two of these may not be supportable. There's more work to do on this one!
+
+See <a href="https://www.raspberrypi.com/documentation/computers/configuration.html">RaspberryPi Documentation for raspi-config</a> for details.
+
+#### Arguments
+
+* **audio**
+* **audioconf**
+* **blanking**
+* **boot_behaviour, boot_behavior**
+* **boot_order**
+* **boot_splash**
+* **boot_wait**
+* **camera**
+* **composite**
+* **glamor**
+* **gldriver**
+* **i2c**
+* **leds**
+* **legacy**
+* **memory_split**
+* **net_names**
+* **onewire**
+* **overclock**
+* **overlayfs**
+* **overscan**
+* **pi4video**
+* **pixdub**
+* **powerled**
+* **proxy**
+* **rgpio**
+* **serial**
+* **spi**
+* **xcompmgr**
+
+#### Examples
+
+* `--plugin raspiconfig:"net_names=1|boot_splash=1"`
 
 ### runatboot
 
@@ -338,6 +415,39 @@ There are no `--plugin` arguments for rxapp
 * `--plugin samba:"shares=/home/bls/mysmbshares.conf"` &mdash; Append the provided share definitions to the end of the default /etc/samba/smb.conf
 * `--plugin samba:"workgroup=myworkgroup|shares=/home/bls/mysmbshares.conf"` &mdash; Use the default /etc/samba/smb.conf, set the workgroup name to *myworkgroup* and append the provided share definitions to /etc/samba/smb.conf
 
+### system
+
+The `system` plugin is a collection of system-related configuration settings. You are responsible for using correct file types expected by each function (e.g., .conf, .rules, etc). The plugin does no checking/modification of file types.
+
+#### Arguments
+
+* **cron-d** &mdash; Comma-separated list of files to copy to /etc/cron.d
+* **cron-daily** &mdash; Comma-separated list of files to copy to /etc/cron.daily
+* **cron-hourly** &mdash; Comma-separated list of files to copy to /etc/cron.hourly
+* **cron-weekly** &mdash; Comma-separated list of files to copy to /etc/cron.weekly
+* **cron-monthly** &mdash; Comma-separated list of files to copy to /etc/cron.monthly
+* **cron-systemd** &mdash; Takes no value. Switches from using cron to systemd-based cron timers
+* **eeprom** &mdash; Supported values are ***critical***, ***stable***, and ***beta***
+* **exports** &mdash; Comma-separated list of files to append to /etc/exports
+* **fstab** &mdash; Comma-separated list of files to append to /etc/fstab
+* **journal** &mdash; Configure systemd journal. Supported values are ***persistent***, ***volatile***, and ***none***. By default Bullseye uses rsyslog and `journal=volatile` while Bookworm uses `journal=persistent`.
+    * `persistent`: Makes a permanent journal in /var/log
+    * `volatile`: The journal is in memory and not retained across system restarts
+    * `none`: There is no system journal
+* **modprobe** &mdash; Comma-separated list of files to copy to /etc/modprobe.d
+* **motd** &mdash; Single /path/to/file to use for /etc/motd. /dev/null results in an empty motd
+* **service-disable** &mdash; Comma-separated list of services to disable
+* **service-enable** &mdash; Comma-separated list of services to enable
+* **swap** &mdash; **disable** or integer swapsize in MB to set
+* **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
+* **systemd-config** &mdash; Comma-separated list of `type:file`, where type is one of *login*, *network*, *resolve*, *system*, *timesync*, or *user*. Copies the provided file to /etc/systemd/*type*.conf.d
+* **udev** &mdash; Comma-separated list of files to copy to /etc/udev/rules.d
+
+#### Examples
+
+* `--plugin system:"cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2"`
+* `--plugin system:"systemd-config=timesync=/path/to/timesync.conf,user=/path/to/user.conf|service-disable=svc1,svc2"`
+
 ### trim-enable
 
 trim-enable will enable <a href="https://en.wikipedia.org/wiki/Trim_(computing)">SSD Trim</a> on all or only selected devices. Trim is not actually enabled on the devices until the system first boots.
@@ -366,6 +476,104 @@ Install and configure the ufw firewall
 * `--plugin ufw:"/ufwscript=/path/to/script1,/path/to/script2"` &mdash; Install ufw and configure it with the two provided script files. Save the script files in the IMG in /usr/local/bin
 * `--plugin ufw` &mdash; Install ufw, do not configure any rules. ufw documentation says that all inbound network accesses are denied by default
 
+### user
+
+Use the `user` plugin to delete, create, or set passwords for users
+
+#### Arguments
+
+* **userlist** &mdash; Value is a /path/to/file with a list of "commands". See the discussion below
+  * Syntax: userlist=/path/to/file
+* **log** &mdash; Value is a /path/to/file on the **host** system where the log is to be created. NOTE: The log is written in Phase 0, while the actual user management is done in Phase 1, except for setting Samba passwords, which is done in the post-install phase.
+  * Syntax: log=/path/on/host/to/logfile
+* **adduser** &mdash; Add the specified user
+  * Syntax: `adduser=username`
+* **deluser** &mdash; Delete the specified user
+  * Syntax: `deluser=username`
+* **setpassword** &mdash; Set the password for the specified user. The user must already exist
+  * Syntax: `setpassword=username|password=newpassword`
+* **addgroup** &mdash; Add a new group
+  * Syntax: `addgroup=groupname,gid`
+* **gid** &mdash; Put the user in the specified group
+  * Syntax: `gid=name-or-number`
+* **homedir** &mdash; Specify the home directory for a new user. Default is /home/username.  A home directory will not be created if `nohomedir` is specified
+  * Syntax: `homedir=/home/not-the-usual-place`
+* **uid** &mdash; Force the new user's ID to be the given number Default is the next uid to be assigned
+  * Syntax: `uid=name-or-number`
+* **password** &mdash; Specify the password for `adduser` and `setpassword`
+  * Syntax: `password=topsecretpassword`
+* **nohomedir** &mdash; Do not create a home directory for this user
+  * Syntax: `nohomedir`
+* **noskel** &mdash; Do not copy /etc/skel files to the newly-created login directory
+  * Syntax: `noskel`
+* **nochown** &mdash; Do not set the home directory file ownership. Useful for home directories that need to be secured from their users
+  * Syntax: `nochown`
+* **Group** &mdash; Set the initial login group
+  * Syntax: `Group=primary-group-name`
+* **groupadd** &mdash; Augment the user's groups (see `groups` argument) with these. See discussion below
+  * Syntax: `groupadd=groups,to,add`
+* **groups** &mdash; Set the list of groups for a user. If not specified, `--groups` is used, with the default:
+```
+dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio
+```
+* **prompt** &mdash; Prompt for the user's password
+  * Syntax: `prompt`
+* **rootpwd** &mdash; Set the root account password to this user's password
+  * Syntax: `rootpwd`
+* **redact** &mdash; At the end of `user` plugin processing, redact all passwords
+  * Syntax: `redact`
+* **nosudo** &mdash; Do not enable this account for `sudo`
+  * Syntax: `nosudo`
+* **samba** &mdash; Set a Samba username and password for this user
+  * Syntax: `samba`
+* **smbpasswd** &mdash; Use the provided password for the Samba password instead of the user's password
+  * Syntax: `smbpasswd=smbpasswdforuser`
+* **shell** &mdash; Set the user's shell
+  * Syntax: `shell=/sbin/nologin`
+
+#### Overview and handling multiple accounts
+
+Conceptually, each invocation of the `user` plugin, or each line in a `userlist` file, consists of a *verb* and some arguments. Verbs are:
+* `adduser` &mdash; Adds the user as described by the rest of the arguments
+* `deluser` &mdash; Deletes the specified user
+* `setpassword` &mdash; Set the user's password
+* `addgroup` &mdash; Add a new group
+
+So, some example lines in a `userlist` (or each set of arguments for several `--plugin user` command line switches) are:
+```
+deluser=pi
+addgroup=myhomegroup,7654
+addgroup=demousers
+adduser=bls|uid=4321|password=mypassword|groupadd=myhomegroup|Group=users
+adduser=demo1|prompt|nohomedir|groups=demousers|nosudo
+adduser=demo2|nohomedir|groups=demousers|nosudo|prompt
+adduser=demo3|nosudo
+setpassword=demo3|password=thenewpassword
+
+```
+In the above
+* The pi account will be deleted, if it exists
+* The two groups will be added. `myhomegroup` will have gid 7654.
+* The user `bls` account will be created with the specified group, and a default login group of `users`. The group `myhomegroup` will be added to the default set of groups (`--groups` or the plugin `group` argument.
+* The user `demo1` will be created with no home directory. The group `demousers` will be added to the defalt set of groups for this user. sdm will prompt for the password.
+* The user `demo2` will be created, sdm will prompt for the password
+* The user `demo3` will be created and a home directory /home/demo3 will be created
+* sdm will set the password for demo3 as a separate step (this is not necessary, btw; one could use the `password=` argument on the demo3 line
+
+  The plugin will prompt for the user's password
+
+The above userlist can be equivalently placed on the command line:
+```
+--plugin user:"deluser=pi" \
+--plugin user:"addgroup=myhomegroup,7654" \
+--plugin user:"addgroup=demousers" \
+--plugin user:"adduser=bls|uid=4321|password=mypassword|groupadd=myhomegroup|Group=users" \
+--plugin user:"adduser=demo1|prompt|nohomedir|groups=demousers" \
+--plugin user:"adduser=demo2|nohomedir|groups=demousers|nosudo|prompt" \
+--plugin user:"adduser=demo3|nosudo" \
+--plugin user:"setpassword=demo3|password=thenewpassword"
+```
+Plugins are run in the order they are specified on the command line. I recommend that the `user` plugin be as close to the first plugin run as possible, so that the first created user ($myuser) is available to other plugins.
 
 ### vnc
 

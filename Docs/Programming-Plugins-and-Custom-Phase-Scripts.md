@@ -140,9 +140,9 @@ When `--runonly` is run on the live host OS, the env var $SDMNSPAWN has the valu
 
 ## Building Custom Phase Scripts
 
-Start with the file /usr/local/sdm/sdm-customphase, and similarly, copy it somewhere with a new filename, and work on it.
+Start with the file /usr/local/sdm/sdm-customphase, and similarly, copy it somewhere with a new filename, and work on it. Plugins are a better approach, however.
 
-## HInts for Plugins and Custom Phase Scripts
+## Hints for Plugins and Custom Phase Scripts
 
 If you run into problems, `logtoboth` is your friend. It will write the string to the console and $SDMPT/etc/sdm/history in the IMG (or burned device in the case of `--burn`).
 
@@ -153,8 +153,6 @@ Remember that sdm copies itself into the IMG during customization phase 0. If yo
 sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via $SDMPT/etc/sdm/sdm-readparams), so that all variables are defined.
 
 * `--1piboot` conf-file &mdash; $pi1bootconf
-* `--apip` IPADDR       &mdash; $apip
-* `--apssid` ssidname   &mdash; $apssid
 * `--apt`-dist-upgrade  &mdash; $aptdistupgrade
 * `--aptcache` IPADDR   &mdash; $aptcache
 * `--aptmaint` options  &mdash; $aptmaint
@@ -162,59 +160,26 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--batch`             &mdash; $batch
 * `--b0script` script   &mdash; $b0script
 * `--b1script` script   &mdash; $b1script
-* `--bootadd` key:value,key:value,... &mdash; $bootadd
-* `--bootconfig` key:value,key:value,... &mdash; $bootconfig
-* `--bootset` key:value,key:value,.. &mdash; $bootset
 * `--bootscripts`       &mdash; $bootscripts
-* `--cron-d` file       &mdash; $crond
-* `--cron-daily` file   &mdash; $crondaily
-* `--cron-hourly` file  &mdash; $cronhourly
-* `--cron-monthly` file &mdash; $cronmonthly
-* `--cron-weekly` file  &mdash; $cronweekly
-* `--cron-systemd`      &mdash; $cronsystemd
 * `--cscript` script    &mdash; $cscript
 * `--csrc` dir          &mdash; $csrc
 * `--custom[1-4]` str   &mdash; $custom[1-4]
 * `--datefmt` str       &mdash; $datefmt
 * `--ddsw` str          &mdash; $ddsw
 * `--debug` apt         &mdash; $debugs
-* `--disable` arg,arg   &mdash; $disables
 * `--directory`         &mdash; $fdirtree=1
 * `--domain` name       &mdash; $domain
-* `--dtoverlay`         &mdash; $dtoverlay
-* `--dtparam`           &mdash; $dtparam
 * `--ecolors` fg:bg:cur &mdash; $ecolors
 * `--eeprom` str        &mdash; $eeprom
 * `--expand-root`       &mdash; $expandroot=1
-* `--exports` file      &mdash; $exports
 * `--extend`            &mdash; $fextend=1
-* `--fstab` file        &mdash; $fstab
 * `--groups` list       &mdash; $groups
-* `--hdmi-force-hotplug` &mdash; $hdmiforcehotplug=1
-* `--hdmi-ignore-edid`  &mdash; $hdmiignoreedid=1
-* `--hdmigroup` n       &mdash; $hdmigroup=n
-* `--hdmimode` n        &mdash; $hdmimode=n
 * `--host` hostname     &mdash; $hostname
-* `--hotspot` config    &mdash; $hotspot
-* `--journal` type      &mdash; $journal
-* `--keymap` keymapname &mdash; $keymap
-* `--L10n`              &mdash; $loadl10n=1
 * `--loadlocal` args    &mdash; $loadlocal
-* `--locale` localename &mdash; $locale
 * `--logwidth` N        &mdash; $logwidth
-* `--lxde-config` files &mdash; $lxdeconfig
 * `--mcolors` fg:bg:cur &mdash; $mcolors
-* `--modprobe` file     &mdash; $modprobe
-* `--motd` file         &mdash; $motd
-* `--mouse` left        &mdash; $fmouse=1
-* `--nopassword`        &mdash; $fnopassword=1
-* `--nouser`            &mdash; $nouser=1
 * `--nowait-timesync`   &mdash; $nowaittimesync=1
 * `--nspawnsw` str      &mdash; $nspawnsw
-* `--password-pi` pwd   &mdash; $passwordpi
-* `--password-user` pwd &mdash; $passworduser
-* `--password-root` pwd &mdash; $passwordroot
-* `--password-same` y|n &mdash; $samepwd
 * `--plugin` pname:"args" &mdash; $plugins
 * `--plugin-debug`      &mdash; $plugindebug
 * `--poptions` str      &mdash; $poptions
@@ -226,25 +191,12 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--redo-customize`    &mdash; $redocustomize=1
 * `--regen-ssh-host-keys` &mdash; $regensshkeys=1
 * `--restart`           &mdash; $rebootwait=20, $reboot=1
-* `--rootpwd`           &mdash; $rootpwd
 * `--sdmdir` /path/to/sdm &mdash; $sdmdir
 * `--showapt`           &mdash; $showapt=1
-* `--showpwd`           &mdash; $showpwd=1
 * `--ssh` none|socket|service &mdash; $ssh
-* `--swap` n            &mdash; $swapsize
-* `--svcdisable` svc1,svc2,...  &mdash; $svcdisable
-* `--svc`-disable svc1,svc2,... &mdash; $svcdisable
-* `--svcenable`  svc1,svc2,...  &mdash; $svcenable
-* `--svc-enable`  svc1,svc2,... &mdash; $svcenable
-* `--sysctl` file       &mdash; $sysctl
-* `--systemd-config` item:file,... &mdash; $systemdconfig
-* `--timezone` tzname   &mdash; $timezone
-* `--udev` file         &mdash; $udev
-* `--uid` uid           &mdash; $myuid
+* `--plugin user:"useradd=name"` &mdash; $myuser
 * `--update-plugins`    &mdash; $fupdateplugins=1
-* `--user` username     &mdash; $myuser
 * `--wifi-country` country &mdash; $wificountry
-* `--wpa` wpaconf       &mdash; $wpa
 * `--xmb` n             &mdash; $imgext
 
 <br>

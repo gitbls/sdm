@@ -31,6 +31,7 @@
 <br><a href="Script-Details.md">sdm Script Details</a>
 <br><a href="Terminal-Colors.md">Terminal Colors</a>
 <br><a href="Troubleshooting.md">Troubleshooting: Overview</a>
-<br><a href="Upgrade-Notes.md">Upgrading to sdm V8</a>
-<br><a href="Using-LXDE-Config.md">Using --lxde-config</a>
+<br><a href="9Upgrade-Notes.md">Upgrading to sdm V9</a>
+<br><a href="8Upgrade-Notes.md">Upgrading to sdm V8</a>
+<br><a href="Using-LXDE-Config.md">Using the lxde plugin</a>
 <br><a href="Using-sdm-on-Windows-WSL.md">Using sdm on Windows WSL</a>
