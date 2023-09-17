@@ -53,7 +53,7 @@ then
     [ "$proxy" == "" ] && proxy="keep"
 
     debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/gentargetmode string $gentargetmode"
-    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/bindaddress string bindaddress"
+    debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/bindaddress string $bindaddress"
     debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/cachedir string $cachedir"
     debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/port string $port"
     debconf-set-selections <<< "apt-cacher-ng apt-cacher-ng/tunnelenable string $tunnelenable"
