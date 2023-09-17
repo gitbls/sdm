@@ -1,0 +1,481 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: user
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+# If log= is provided it is the full path to a file on the host where the added user(s) information is logged
+#  Note: This log is written in Phase 0 and is on the host OS
+#        Because of this, messages will actually be issued twice: Once in Phase 0 when writing the log,
+#         and additional messages in the post-install Phase when are changes actually made
+#
+# Users are added/modified in phase 1 so there's no ordering requirement with the samba plugin
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function mkhomedir() {
+    local username=$1 homedir="$2" nohomedir="${3,,}"
+    if ! [[ "$nohomedir" =~ "y" ]]
+    then
+	[ "$homedir" == "" ] && homedir="/home/$username"
+	if [ -d $SDMPT/$homedir ]
+	then
+	    logtoboth "% Plugin $pfx: User '$username' home directory '$homedir' already exists"
+	else
+	    logtoboth "> Plugin $pfx: Create user '$username' home directory '$homedir' so available for other plugins"
+	fi
+	mkdir -p $SDMPT/$homedir
+    fi
+}
+function getpassword() {
+    local pwd pwuser="$1"
+    while [ true ]
+    do
+        echo -n "Password for $pwuser: " && read -u 0 -s pwd
+        echo ""
+        [ "$pwd" != "" ] && break
+    done
+    # userpwd must be defined in scope above this so it can be used
+    # had problems calling this as a function 
+    printf -v userpwd "%s" "$pwd"
+}
+
+function redact_passwords() {
+    local pswd
+    if [ -f $assetdir/redact-passwords ]
+    then
+	logtoboth "> Plugin $pfx: Redact passwords in /etc/sdm/cparams and /etc/sdm/history"
+	while read pswd
+	do
+	    sed -i "s/$pswd/REDACTED/" $SDMPT/etc/sdm/cparams
+	    sed -i "s/$pswd/REDACTED/" $SDMPT/etc/sdm/history
+	done < $assetdir/redact-passwords
+    fi
+    rm -f $assetdir/redact-passwords $assetdir/userlist-*
+}
+
+function loguseraction() {
+    # Must be in Phase 0
+    local action="$1" user="$2" pswd="$3" prompt="$4" homedir="$5" uid="$6" nohomedir="$7" agroups="$8" nosudo="$9" samba="${10}" smbpasswd="${11}" noskel="${12}" nochown="${13}" pgroup="${14}" shell="${15}" groupadd="${16}" rootpwd="${17}"
+    local imgorhost="" agroups grpname gid settings settings2
+
+    if [ "$action" == "add" -a "$myuser" == "" ] # If myuser has not been set up yet, set it up with this first user
+    then
+	myuser="$user"
+	writeconfig
+    fi
+
+    if [ "$log" != "" ]
+    then
+	[ -f $log ] || printf "%-19s %-16s %-16s%s\n" "Date" "Operation"  "User/Group" "IMG/Hostname" > $log
+	[[ "$SDMNSPAWN" =~ "Burn" ]] && imgorhost="Host: $hostname" || imgorhost="$(basename $dimg)"
+	[ "$pswd" == "" -a  "$prompt" == "y" ] && pswd="[prompt]"
+	case "$action" in
+	    add)
+		printf "\n%-19s %-16s %-16s%s\n" "$(date +'%Y-%m-%d %H:%M:%S')" "Add User" "$user" "$imgorhost" >> $log
+		settings="" ; settings2=""
+		[ "$pswd" != "" ] && settings="password:$pswd "
+		[ "$rootpwd" != "" ] && settings="${settings}rootpwd "
+		[ "$uid" != "" ] && settings="${settings}uid:$uid "
+		[ "$nohomedir" != "" ] && homedir="/dev/null"
+		[ "$homedir" == "" ] && homedir="/home/$user"
+		settings="${settings}homedir:$homedir "
+		[ "$nohomedir" != "" ] && settings="${settings}nohomedir:$nohomedir "
+		[ "$nosudo" != "" ] && settings2="${settings2}nosudo:$nosudo " 
+		[ "$samba" != "" ] && settings2="${settings2}samba:$samba "
+		[ "$smbpasswd" != "" ] && settings2="${settings2}smbpasswd:$smbpasswd "
+		[ "$noskel" != "" ] && settings2="${settings2}noskel:$noskel "
+		[ "$nochown" != "" ] && settings2="${settings2}nochown:$nochown "
+		[ "$pgroup" != "" ] && settings2="${settings2}Group:$pgroup "
+		[ "$shell" != "" ] && settings2="${settings2}Shell:$shell "
+		printf "%-19s %s\n" " " "$settings" >> $log
+		[ "$settings2" != "" ] && printf "%-19s %s\n" " " "$settings2" >> $log    #&& logtoboth "  Plugin $pfx:     $settings2"      
+		[ "$agroups" == "default" -o "$agroups" == "" ] && agroups="$dgroups"
+		if [ "$groupadd" != "" ]
+		then
+		    [ "$agroups" == "" ] && agroups="$groupadd" || agroups="$agroups,$groupadd"
+		fi
+		[ "$agroups" != "" ] && printf "%-19s %s\n" " " "groups:$agroups" >> $log #&& logtoboth "  Plugin $pfx:     groups:$agroups" 
+		;;
+	    delete)
+		printf "\n%-19s %-16s %-16s%s\n" "$(date +'%Y-%m-%d %H:%M:%S')" "Delete User" "$user" "$imgorhost" >> $log
+		;;
+	    setpassword)
+		printf "\n%-19s %-16s %-16s%s\n" "$(date +'%Y-%m-%d %H:%M:%S')"  "Set Password" "$user" "$imgorhost">> $log
+		printf "%-19s %s\n" " " "password:$pswd" >> $log
+		;;
+	    addgroup)
+		IFS="," read grpname gid <<< "$user"
+		[ "$gid" == "" ] && gid="[next]"
+		printf "\n%-19s %-16s %-16s%s\n" "$(date +'%Y-%m-%d %H:%M:%S')" "Add Group" "$grpname" "$imgorhost" >> $log
+		printf "%-19s %s\n" " " "gid:$gid" >> $log
+		;;
+	esac
+    fi
+}
+
+function delete_user() {
+    local user="$1"
+    if getent passwd $user > /dev/null
+    then
+	logtoboth "> Plugin $pfx: Delete user '$user'"
+	userdel --remove $user
+    else
+	logtoboth "% Plugin $pfx: User '$user' not found for deluser"
+    fi
+}
+
+function setpassword_user() {
+    local user="$1" pswd="$2" prompt="$3" userpwd
+    if getent passwd $user > /dev/null
+    then
+	if [ "$pswd" == "" ]
+	then
+	    if [ "$prompt" == "y" ]
+	    then
+		getpassword $user
+		pswd="$userpwd"
+	    else
+		logtoboth "% Plugin $pfx: Blank password and prompt not enabled for user '$user'"
+	    fi
+	fi
+	logtoboth "> Plugin $pfx: Update password for user '$user'"
+	chpasswd <<EOF
+$user:$pswd
+EOF
+    else
+	logtoboth "% Plugin $pfx: User '$user' not found for setpassword"
+    fi
+}
+
+function add_group() {
+    #
+    # $1: groupname,gid to add (or just groupname to get next assigned by system)
+    #
+    local addgroup="$1"
+    IFS="," read grpname gid <<< "$addgroup"
+    if [ "$gid" != "" ]
+    then
+        groupadd --gid $gid $grpname
+    else
+        groupadd $grpname
+    fi
+}
+
+function add_user() {
+    #
+    # $1:  username
+    # $2:  password
+    # $3:  home dir
+    # $4:  uid
+    # $5:  nohomedir "y" if no homedir otherwise homedir created
+    # $6:  groups (comma-separated) or ""
+    # $7:  nosudo "y" to disable sudo for user
+    # $8:  samba "y" to enable samba for user [Samba must already be installed]
+    # $9:  samba password. If "", uses $4
+    # $10: noskel "y" if not to copy skel files to home directory
+    # $11: nochown "y" to not change owner on home directory
+    # $12: Group name of primary group or "" to use username as primary group name
+    # $13: Shell or ""
+    # $14: Append group list (default is $dgroup)
+    # $15: "" or "y" to prompt for password
+    #
+    local user="$1" pswd="$2" homedir="$3" uid="$4" nohomedir="$5" agroups="$6" nosudo="$7" samba="$8" smbpasswd="$9"
+    local noskel="${10}" nochown="${11}" Group="${12}" shell="${13}" groupadd="${14}" prompt="${15}"
+    local hdsw="--no-create-home" uidsw="" uhomedir
+    if [ "$uid" != "" ]
+    then
+	uidsw="--uid $uid"
+	getent group $uid > /dev/null && logtoboth "% UID '$uid' already in /etc/group; ignoring" && uidsw="$uidsw --non-unique"
+    else
+	uidsw=""
+    fi
+    if getent passwd $user > /dev/null
+    then
+	logtoboth "% Plugin $pfx: User '$user' already in /etc/passwd"
+	return
+    else
+	logtoboth "> Plugin $pfx: Add user '$user'"
+	if ! useradd $hdsw $uidsw $user
+	then
+	    logtoboth "? Plugin $pfx: useradd returned an error"
+	    return
+	fi
+	uhomedir="$homedir"
+	[[ "$nohomedir" =~ "y" ]] && [[ "$homedir" == "" ]] && uhomedir="/dev/null"
+	[ "$uhomedir" != "" ] && logtoboth "> Plugin $pfx: Update user '$user' home directory to '$uhomedir'" && usermod --home $uhomedir $user
+	[ "$shell" != "" ] && logtoboth "> Plugin $pfx: Update user '$user' shell to '$shell'" && usermod --shell $shell $user
+    fi
+    # Get username and group name
+    [ "$homedir" == "" ] && uhomedir="/home/$user" || uhomedir="$homedir"
+    #
+    # Modify account per settings
+    #
+    if getent passwd $user > /dev/null
+    then
+	[ "$agroups" == "default" -o "$agroups" == "" ] && agroups="$dgroups"
+	if [ "$groupadd" != "" ]
+	then
+	    [ "$agroups" == "" ] && agroups="$groupadd" || agroups="$agroups,$groupadd"
+	fi
+	[ "$agroups" != "" ] && usermod --groups $agroups $user && logtoboth "> Plugin $pfx: Add groups to user '$user': $agroups"
+	[ "$prompt" == "y" ] &&  getpassword $user && pswd="$userpwd" && savedpwd="$userpwd"
+	if [ "$Group" != "" ]
+	then
+	    if getent group $Group > /dev/null
+	    then
+		logtoboth "> Plugin $pfx: Set user '$user' primary group to '$Group'"
+		usermod $user --gid $Group
+	    else
+		logtoboth "% Plugin $pfx: Group '$Group' does not exist for user '$user'"
+	    fi
+	fi
+	if [[ "$nosudo" =~ "y" ]]
+	then
+	    logtoboth "> Plugin $pfx: sudo not enabled for user '$user'"
+	else
+	    logtoboth "> Plugin $pfx: Enable sudo for user '$user'"
+	    echo "$user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$user-nopasswd
+	    chmod 440 /etc/sudoers.d/010_$user-nopasswd
+	fi
+	if [[ "$samba" =~ "y" ]]
+	then
+	    [ "$smbpasswd" == "" ] && smbpasswd="$pswd"
+	    echo "$user:$smbpasswd" >> $assetdir/smbpasswords
+	fi
+	if [ "$noskel" == "" -a -d $uhomedir ]
+	then
+	    logtoboth "> Plugin $pfx: Copy skel files for user '$user'"
+	    for f in /etc/skel/.* /etc/skel/*
+	    do
+		[ -f $f ] && ( [ -f $uhomedir/$(basename $f) ] || cp -a $f $uhomedir )
+	    done
+	else
+	    plugin_dbgprint "> Plugin $pfx: Skip skel copy for user '$user'"
+	fi
+	IFS=":" read xuser xpw xuid gx rest <<< $(getent passwd $user)
+	IFS=":" read gxnm xpw xgx rest <<< $(getent group $gx)
+	if [ "$nochown" == "" -a -d $uhomedir ]
+	then
+	    logtoboth "> Plugin $pfx: Set user '$user' home directory '$uhomedir' owner to '$xuser:$gxnm'"
+	    chown -R $user:$gxnm $uhomedir
+	else
+	    plugin_dbgprint "> Plugin $pfx: Skip change owner for user '$user' home directory '$uhomedir' to '$xuser:$gxnm'"
+	fi
+	if [ "$pswd" != "" ]
+	then
+	    logtoboth "> Plugin $pfx: Set password for user '$user'"
+	    printf "${pswd}\n" >> $assetdir/redact-passwords  # Save for redaction
+	    chpasswd <<EOF
+$user:$pswd
+EOF
+	fi
+    fi
+}
+
+function converty() {
+    [ -v nochown ]   && nochown=y
+    [ -v nohomedir ] && nohomedir=y
+    [ -v noskel ]    && noskel=y
+    [ -v nosudo ]    && nosudo=y
+    [ -v prompt ]    && prompt=y
+    [ -v redact ]    && redact=y
+    [ -v rootpwd ]   && rootpwd=y
+    [ -v samba ]     && samba=y
+}
+
+function addp0user() {
+    #
+    # process a phase 0 command (add, delete, setpassword, addgroup)
+    # variables set in caller
+    #
+    if [ "$adduser" != "" ]
+    then
+ 	loguseraction add "$adduser" "$password" "$prompt" "$homedir" "$uid" "$nohomedir" "$ugroups" "$nosudo" "$samba" "$smbpasswd" "$noskel" "$nochown" "$Group" "$shell" "$groupadd" "$rootpwd"
+	mkhomedir $adduser "$homedir" "$nohomedir"
+	if [ "$rootpwd" == "y" ]
+	then
+	    if [ "$password" != "" -o "$prompt" == "y" ]
+	    then
+		loguseraction setpassword root "$password" "$prompt"
+	    else
+		logtoboth "% Plugin $pfx: Root password not set: user '$adduser' has blank password and prompt not enabled"
+	    fi
+	fi
+    elif [ "$deluser" != "" ]
+    then
+	loguseraction delete "$deluser"
+    elif [ "$setpassword" != "" ]
+    then
+	loguseraction setpassword "$setpassword" "$password" "$prompt"
+    elif [ "$addgroup" != "" ]
+    then
+	loguseraction addgroup "$addgroup"
+    else
+	[ "$redact" != "" ] && logtoboth "% Plugin $pfx: None of adduser/deluser/setpassword nor userlist arguments provided"
+    fi
+}
+
+function addp1user() {
+    #
+    # process a phase 1 commad
+    # variables set in caller
+    #
+    local savedpwd=""
+    if [ "$adduser" != "" ]
+    then
+	add_user "$adduser" "$password" "$homedir" "$uid" "$nohomedir" "$ugroups" "$nosudo" "$samba" "$smbpasswd" "$noskel" "$nochown" "$Group" "$shell" "$groupadd" "$prompt"
+	if [ "$rootpwd" == "y" ]
+	then
+	    [ "$password" == "" -a "$prompt" == "y" ] && password="$savedpwd" # savedpwd set in add_user if [prompt]
+	    [ "$password" != "" -o "$prompt" == "y" ] && setpassword_user root "$password" "$prompt"
+	fi
+    elif [ "$deluser" != "" ]
+    then
+	delete_user "$deluser"
+    elif [ "$setpassword" != "" ]
+    then
+	setpassword_user "$setpassword" "$password" "$prompt"
+    elif [ "$addgroup" != "" ]
+    then
+	add_group "$addgroup"
+    else
+	[ "$redact" != "" ] && logtoboth "% Plugin $pfx: No adduser/deluser/setpassword specified"
+    fi
+}
+
+function do_userlist() {
+    # $1: userlist file to process
+    # $2: 'addp0user' or 'addp1user'
+    
+    local ul="$1" line dofn="$2"
+    exec {FD}< $ul
+    while read -u ${FD} line
+    do
+	if [[ ! "$line" =~ ^\ *# && -n $line ]]  # Skip comment and blank lines
+	then
+	    line="${line%#*}"   # strip trailing comment
+	    [[ "$line" =~ "groups=" ]] && line="${line/groups=/ugroups=}"
+	    unset addgroup adduser deluser gid homedir uid password nohomedir noskel nochown Group groupadd ugroups prompt rootpwd setpassword redact nosudo samba shell smbpasswd userlist
+	    logtoboth "> Plugin $pfx: Line:  $line"
+	    plugin_getargs $pfx "$line" "$vldargs"
+	    plugin_printkeys
+	    converty
+	    $dofn
+	fi
+    done
+    exec {FD}<&-
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+vldargs="|addgroup|adduser|deluser|gid|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|samba|shell|smbpasswd|userlist|log|"
+loadparams
+assetdir="$SDMPT/etc/sdm/assets/user"
+[[ "$args" =~ "groups=" ]] && args="${args/groups=/ugroups=}"
+case "$phase" in
+    0)
+	#
+	# In Phase 0 all references to directories in the image must be preceded by $SDMPT
+	#
+	logtoboth "* Plugin $pfx: Start Phase 0"
+	plugin_getargs $pfx "$args" "$vldargs"
+	#
+	# Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+	#
+	plugin_printkeys
+	mkdir -p $assetdir
+	if [ "$userlist" != "" ]
+	then
+	    if [ -f $userlist ]
+	    then
+		logtoboth "> Plugin $pfx: Copy userlist file '$userlist' to IMG $assetdir/userlist-$(basename $userlist)"
+		cp -a $userlist $assetdir/userlist-$(basename $userlist)
+		logtoboth "> Plugin $pfx: Process userlist '$userlist' for Phase 0"
+		do_userlist $userlist addp0user
+	    else
+		logtoboth "% Plugin $pfx: Cannot find userlist file '$userlist'; ignoring"
+	    fi
+	else
+	    converty
+	    addp0user
+	fi
+	logtoboth "* Plugin $pfx: Complete Phase 0"
+	;;
+    
+    1)
+	#
+	# Phase 1 (in nspawn)
+	#
+	logtoboth "* Plugin $pfx: Start Phase 1"
+	plugin_getargs $pfx "$args" "$vldargs"
+	if [ "$userlist" != "" ]
+	then
+	    ul="$assetdir/userlist-$(basename $userlist)"
+	    if [ -f $ul ]
+	    then
+		logtoboth "> Plugin $pfx: Process userlist '$ul' for Phase 1"
+		do_userlist $ul addp1user
+	    else
+		logtoboth "? Plugin $pfx: Cannot find userlist file '$ul'"
+	    fi
+	else
+	    converty
+	    addp1user
+	fi
+	logtoboth "* Plugin $pfx: Complete Phase 1"
+	;;
+    post-install)
+	#
+	# Plugin Post-install edits
+	#
+	logtoboth "* Plugin $pfx: Start Phase post-install"
+	plugin_getargs $pfx "$args" "$vldargs"
+	#plugin_printkeys
+	if [ -f $assetdir/smbpasswords ]
+	then
+	    if dpkg-query -W samba > /dev/null 2>&1
+	    then
+		while IFS=":" read user smbpasswd
+		do
+		    if [ "$smbpasswd" != "" ]
+		    then
+			logtoboth "> Plugin $pfx: Set smbpasswd for user '$user'"
+			(echo "$smbpasswd" ; echo "$smbpasswd") | smbpasswd -s -a "$user"
+		    else
+			logtoboth "> Plugin $pfx: Samba password for user '$user' is blank; not set"
+		    fi
+		done < $assetdir/smbpasswords
+	    else
+		logtoboth "% Plugin $pfx: Samba not installed; Skip smbpasswd for user '$user'"
+	    fi
+	    # ** rm -f $assetdir/smbpasswords
+	fi
+	if [ "$fredact" == "1" -o -v redact ]
+	then
+	    redact_passwords
+	fi
+	logtoboth "* Plugin $pfx: Complete Phase post-install"
+	;;
+    redact)
+	plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+	plugin_printkeys
+
+	if [ "$fredact" == "1" -o -v redact ]
+	then
+	    redact_passwords
+	fi
+	;;
+    *)
+	logtoboth "? Plugin $pfx: Unrecognized phase '$phase'"
+	;;
+esac

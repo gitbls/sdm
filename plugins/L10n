@@ -1,0 +1,139 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: l10n
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function readl10n() {
+    #
+    # Get the L10N config from the running system
+    # Sets: locale, timezone, wificountry, keymap
+    #
+    local tz=$(realpath /etc/localtime)
+    # Keyboard
+    if [ -f /etc/default/keyboard ]
+    then
+	source /etc/default/keyboard
+    else
+	logtoboth "% /etc/default/keyboard missing; Keyboard set to 'us'"
+	XKBLAYOUT="us"
+    fi
+    keymap="$XKBLAYOUT"
+    # Locale
+    source /etc/default/locale
+    locale="$LANG"
+    # Timezone
+    timezone=${tz##/usr/share/zoneinfo/}
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|keymap|locale|timezone|host|"
+rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/l10n"
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_printkeys
+    mkdir -p $assetdir
+    if [ -v host ]
+    then
+	logtoboth "> Plugin $pfx: Read L10n configuration from host system"
+	keymap="" ; locale="" ; timezone=""
+	readl10n
+	logtoboth "> Plugin $pfx: Load Localization (L10N) settings from running system"
+	logtoboth "> Plugin $pfx:   Keymap:       $keymap"
+	logtoboth "> Plugin $pfx:   Locale:       $locale"
+	logtoboth "> Plugin $pfx:   Timezone:     $timezone"
+    fi
+    logtoboth "> Plugin $pfx: Save L10n configuration"
+    for kn in keymap locale timezone
+    do
+	if [ -v $kn ]
+	then
+	    value="${!kn}"
+	    if ckl10n $kn "$value"
+	    then
+		echo "$value" > $assetdir/$kn
+	    else
+		logtoboth "? Prefix $pfx: Unrecognized $kn '$value'"
+	    fi
+	fi
+    done
+	
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+    
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    for kn in keymap locale timezone
+    do
+	if [ -f $assetdir/$kn ]
+	then
+	    read value < $assetdir/$kn
+	    case "$kn" in
+		keymap)
+		    # actual keymap setting deferred until first boot
+		    if [ "$value" != "" ]
+		    then
+			logtoboth "% Plugin $pfx: Keymap will be set during FirstBoot"
+			keymap="$value"
+			writeconfig
+			cat > /etc/sdm/0piboot/010-configure-keyboard.sh <<EOF
+#!/bin/bash
+source /etc/sdm/sdm-readparams
+SUDO_USER=\$myuser raspi-config do_configure_keyboard "\$keymap" nonint
+systemctl enable keyboard-setup
+EOF
+			logtoboth "> Plugin $pfx: Disable keyboard-setup service; will be re-enabled during FirstBoot"
+			systemctl disable keyboard-setup
+		    fi
+		    ;;
+		locale)
+		    if [ "$value" != "" ]
+		    then
+			logtoboth "> Plugin $pfx: Set locale to '$value'"
+			do_raspiconfig do_change_locale "$value"
+		    fi
+		    ;;
+		timezone)
+		    if [ "$value" != "" ]
+		    then
+			logtoboth "> Plugin $pfx: Set timezone to '$value'"
+			do_raspiconfig do_change_timezone "$value"
+		    fi
+		    ;;
+	    esac
+	else
+	    logtoboth "% Plugin $pfx: L10n item '$kn' was not set"
+	fi
+    done
+	logtoboth "* Plugin $pfx: Complete Phase 1"
+	    
+elif [ "$phase" == " post-install" ]
+then
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

@@ -1,0 +1,319 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: system
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|modprobe|motd|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
+rqdargs=""
+argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
+assetdir="$SDMPT/etc/sdm/assets/system"
+eepromvals="|critical|stable|beta|"
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_printkeys
+    logtoboth "> Plugin $pfx: Create directory $assetdir"
+    mkdir -p $assetdir
+    IFS="|" read -a sargs <<< "$foundkeys"
+    for c in "${sargs[@]}"
+    do
+	chyp=${c/__/-} 
+	cval="${!c}"
+	if [[ "$argswithfiles" =~ "|$chyp|" ]]
+	then
+	    if [ "$cval" == "" ]
+	    then
+		logtoboth "? Plugin $pfx: Key '$chyp' requires a value but none provided"
+	    else
+		#logtoboth "> Plugin $pfx: key '$chyp' has value '$cval"
+		IFS="," read -a flist <<< "${cval}"
+		for fl in "${flist[@]}"
+		do
+		    logtoboth "> Plugin $pfx: Create directory $assetdir/$chyp"
+		    mkdir -p $assetdir/$chyp
+		    if [ "$chyp" == "motd" ]
+		    then
+			if [ "$fl" == "/dev/null" ]
+			then
+			    logtoboth "> Plugin $pfx: Set motd to null file"
+			    touch /tmp/motd-null && fl="/tmp/motd-null"
+			fi
+		    fi
+		    if [ -f $fl ]
+		    then
+			logtoboth "> Plugin $pfx: Copy '$fl' to $assetdir/$chyp"
+			cp -a $fl $assetdir/$chyp
+		    else
+			logtoboth "? Plugin $pfx: Argument $chyp file '$fl' not found"
+		    fi
+		done
+	    fi
+	else
+	    case "$chyp" in
+		systemd-config)
+		IFS="," read -a cargs <<< "$cval"
+		for sct in "${cargs[@]}"
+		do
+		    IFS="=" read olname fname <<< "$sct"
+		    lname=${olname,,} lname=${lname%d} # Copy name and strip typo trailing 'd' if present
+		    case "$lname" in
+			login|network|resolve|system|timesync|user)
+			    logtoboth "> Plugin $pfx: Create directory $assetdir/$chyp"
+			    mkdir -p $assetdir/$chyp/$lname
+			    logtoboth "> Plugin $pfx: Copy '$fname' to $assetdir/$chyp/$lname"
+			    cp -a $fname $assetdir/$chyp/$lname
+			    ;;
+			*)
+			    logtoboth "? Plugin $pfx: systemd-config item '${olname}' is unknown"
+			    ;;
+		    esac
+		done
+		;;
+		eeprom)
+		    ! [[ "$eepromvals" =~ "$cval" ]] && logtoboth "? Plugin $pfx: eeprom value '$cval' is unknown"
+		    ;;
+	    esac
+	fi
+    done
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+    IFS="|" read -a sargs <<< "$foundkeys"
+    for c in "${sargs[@]}"
+    do
+	chyp=${c/__/-} 
+	cval="${!c}"
+	case "$chyp" in
+	    cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly)
+		dirnm="${chyp/-/.}"
+		for fl in $assetdir/$chyp/*
+		do
+		    logtoboth "> Plugin $pfx: "
+		    logtoboth "> Plugin $pfx: Copy $chyp file '$(basename $fl)' to /etc/$dirnm"
+		    cp -a $fl /etc/$dirnm
+		done
+		;;
+	    cron-systemd)
+		logtoboth "> Plugin $pfx: Switch cron to systemd timers"
+		cat > /etc/systemd/system/cron@.service <<EOF
+[Unit]
+Description=%I job for /etc/cron.%I
+RefuseManualStart=yes
+RefuseManualStop=yes
+ConditionDirectoryNotEmpty=/etc/cron.%I
+
+[Service]
+Type=oneshot
+IgnoreSIGPIPE=no
+WorkingDirectory=/
+ExecStart=/bin/run-parts --report /etc/cron.%I
+EOF
+		cat > /etc/systemd/system/cron@.timer <<EOF
+[Unit]
+Description=%I timer for /etc/cron.%I
+PartOf=crontab.target
+RefuseManualStart=yes
+RefuseManualStop=yes
+
+[Timer]
+OnCalendar=%I
+Persistent=yes
+[Install]
+WantedBy=timers.target
+EOF
+		for timeset in hourly daily monthly weekly
+		do
+		    systemctl enable cron@${timeset}.timer  > /dev/null 2>&1
+		done
+		systemctl disable cron > /dev/null 2>&1
+		systemctl mask    cron > /dev/null 2>&1
+		;;
+	    eeprom)
+		logtoboth "> Plugin $pfx: Set rpi-eeprom to '$eeprom' during FirstBoot"
+		cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
+sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
+EOF
+		;;
+	    exports)
+		for fl in $assetdir/$chyp/*
+		do
+		    logtoboth "> Plugin $pfx: Append $chyp file '$(basename $fl)' to /etc/exports"
+		    cat $fl >> /etc/exports
+		done
+		;;
+	    fstab)
+		for fl in $assetdir/$chyp/*
+		do
+		    bfn=$(basename $fl)
+		    logtoboth "> Plugin $pfx: Queue $chyp file '$bfn' to install during First Boot"
+		    printf "fstab=$assetdir/$chyp/$bfn\n" >> /etc/sdm/auto-1piboot.conf
+		done
+		;;
+	    journal)
+		case "$cval" in
+		    persistent|volatile|none)
+			logtoboth "> Plugin $pfx: Set system journal to '$journal' and disable rsyslog if installed"
+			mkdir -p /etc/systemd/journald.conf.d
+			cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
+[Journal]
+Storage=$journal
+ForwardToSyslog=no
+EOF
+			if [ -f /lib/systemd/system/rsyslog.service ]
+			then
+			    systemctl disable rsyslog > /dev/null 2>&1
+			    systemctl mask rsyslog > /dev/null 2>&1
+			fi
+			;;
+		    syslog|*)
+			# ** this should do something on Bookworm if user wants rsyslog back
+			logtoboth "> System journal configuration not modified"
+			;;
+		esac
+		;;
+	    modprobe)
+		for fl in $assetdir/$chyp/*
+		do
+		    bfn=$(basename $fl)
+		    logtoboth "> Plugin $pfx: copy $chyp file '$(basename $fl)' to /etc/modprobe.d"
+		    cp -a $fl /etc/modprobe.d
+		done
+		;;
+	    motd)
+		fl=$(compgen -G $assetdir/$chyp/*)
+		if [ "$fl" != "" ]
+		then
+		    logtoboth "> Plugin $pfx: copy $chyp file '$(basename $fl)' to /etc/motd"
+		    [ ! -f /etc/motd.orig.sdm ] && mv /etc/motd /etc/motd.orig.sdm || rm -f /etc/motd
+		    cp -a $fl /etc/motd
+		fi
+		    ;;
+	    service-disable)
+		IFS="," read -a ssvc <<< "$cval"
+		for c in "${ssvc[@]}"
+		do
+		    sed -i "/^service-enable=$c/d" /etc/sdm/auto-1piboot.conf   #Delete enables of this service
+		    if ! grep -q "service-disable=$c" /etc/sdm/auto-1piboot.conf
+		    then
+			logtoboth "> Plugin $pfx: Disable service '$c'"
+			#echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
+			systemctl disable -q $c
+		    fi
+		done
+		;;
+	    service-enable)
+		IFS="," read -a ssvc <<< "$cval"
+		for c in "${ssvc[@]}"
+		do
+		    sed -i "/^service-disable=$c/d" /etc/sdm/auto-1piboot.conf   #Delete disables of this service
+		    if ! grep -q "service-enable=$c" /etc/sdm/auto-1piboot.conf
+		    then
+			logtoboth "> Plugin $pfx: Enable service '$c'"
+			#echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
+			systemctl enable -q $c
+		    fi
+		done
+		;;
+	    swap)
+		if [ "$swap" != "" ]
+		then
+		    if [ "$swap" == "disable" ]
+		    then
+			logtoboth "> Plugin $pfx: Disable swapfile"
+			systemctl disable dphys-swapfile
+			# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
+			#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+		    else
+			# set swap size
+			swapsize=$(($swap))
+			if [ $swapsize -gt 0 ]
+			then
+			    logtoboth "> Plugin $pfx: Set swap ${swapsize}MB"
+			    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=$swapsize/" /etc/dphys-swapfile
+			    systemctl enable dphys-swapfile
+			else
+			    logtoboth "% Plugin $pfx: Swap not configured per swap '$swap'"
+			fi
+		    fi
+		fi
+		;;
+	    sysctl)
+		for fl in $assetdir/$chyp/*
+		do
+		    logtoboth "> Plugin $pfx: Copy $chyp file '$(basename $fl)' to /etc/sysctl.d"
+		    cp -a $fl /etc/sysctl.d
+		done
+		;;
+	    systemd-config)
+		for c in login network resolve system timesync user
+		do
+		    if [ -d $assetdir/$chyp/$c ]
+		    then
+			tdir=$c
+			[ "$c" != "system" -a "$c" != "user" ] && tdir="${tdir}d"
+			for fn in $assetdir/$chyp/$c/*
+			do
+			    bfn=$(basename $fn)
+			    logtoboth "> Plugin $pfx: Copy systemd '$c' config file '$fn' to /etc/systemd/$tdir.conf.d"
+			    mkdir -p /etc/systemd/$tdir.conf.d
+			    cp -a $fn /etc/systemd/$tdir.conf.d
+			    chown root:root /etc/systemd/$tdir.conf.d/$bfn
+			    chmod 644 /etc/systemd/$tdir.conf.d/$bfn
+			done
+		    fi
+		done
+		;;
+	    udev)
+		for fl in $assetdir/$chyp/*
+		do
+		    logtoboth "> Plugin $pfx: Copy $chyp file '$(basename $fl)' to /etc/udev/rules.d"
+		    cp -a $fl /etc/udev/rules.d
+		done
+		;;
+	esac
+    done
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
