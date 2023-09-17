@@ -61,7 +61,7 @@ EOF
     cat >> /etc/systemd/system/clockfake.service <<EOF
 [Unit]
 Description=Fake HW clock
-After= network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
