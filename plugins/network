@@ -31,7 +31,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
 
-vldargs="|netman|dhcpcdwait|dhcpcdappend|wpa|wifissid|wifipassword|wificountry|noipv6|nmconf|nmconn|"
+vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|wificountry|noipv6|nmconf|nmconn|"
 rqdargs=""
 
 if [ "$phase" == "0" ]
@@ -115,6 +115,11 @@ else
     #logfreespace "at start of Plugin $pfx Phase post-install"
 
     #
+    # Set ssh
+    # If ssh not specifed, default to enabled
+    #
+    [ ! -v ssh -o "$ssh" == "" ] && ssh="service"
+    dosshsetup "$ssh" network
     # Figure out wifi country. command line wpa overrides settings here atm
     [ "$wificountry" == "" ] && wificountry="$xwificountry"
     if [ "$wpaconf" == "" ]
@@ -166,7 +171,7 @@ EOF
 	logtoboth "> Plugin $pfx: Set WiFi Country '$wificountry' to be implemented during FirstBoot"
 	writeconfig    # Update config to save updated wificountry
     else
-	logtoboth "% WiFi Country not found from command line, network plugin, or wpa_supplicant.conf"
+	logtoboth "% Plugin $pfx: WiFi Country not set"
     fi
     #
     # If wifissid and wifipassword not provided but a wpa_supplicant.conf exists, find them there
