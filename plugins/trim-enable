@@ -69,7 +69,7 @@ function trimcfg() {
 			    idp=$(cat $devpath/idProduct)
 			    idv=$(cat $devpath/idVendor)
 			else
-			    logtoboth "* Plugin $pfx: ? Could not find USB path for $rawdev"
+			    logtoboth "? Plugin $pfx: Could not find USB path for $rawdev"
 			    logtoboth "               Please sudo /usr/local/bin/debug-trim-enable to gather output for maintainer"
 			    rm -f /usr/local/bin/debug-trim-enable
 			    trimlog="/root/trim-enable.log"
@@ -147,6 +147,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
+    logtoboth "> Plugin $pfx: Install sg3-utils and lsscsi"
     doaptrpterror "install sg3-utils lsscsi --yes" $showapt
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -158,8 +159,10 @@ then
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase post-install"
+    logtoboth "> Plugin $pfx: Set trim to enable during FirstBoot"
     cat > /etc/sdm/0piboot/020-trim-enable.sh <<EOF
 #!/bin/bash
+logger "FirstBoot: Enable trim"
 $sdmdir/plugins/trim-enable boot "$args"
 EOF
     logtoboth "* Plugin $pfx: Complete Phase post-install"
