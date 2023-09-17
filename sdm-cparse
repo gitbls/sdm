@@ -59,54 +59,53 @@ function bootlog() {
     logit "> FirstBoot: $1"
 }
 
-function getpwd() {
-    local tmp
-    read -s tmp
-    echo "$tmp"
-}
+#function getpwd() {
+#    local tmp
+#    read -s tmp
+#    echo "$tmp"
+#}
 
-function changepwd() {
-    # Must be in the container (Phase 1 or post-install)
-    local user="$1" upwd="$2"
-    if ! getent passwd $user > /dev/null
-    then
-	logtoboth "% Cannot change password for ${user}; user not found in /etc/passwd"
-	return
-    fi
-    if [ "$upwd" == "" ]
-    then
-        echo -n "Password for user '$user': " && read -s upwd
-        echo ""
-    fi
-    if [ "$upwd" != "" ]
-    then
-	chpasswd <<EOF
-$user:$upwd
-EOF
-    else
-	logtoboth "% Password for user '$user' not set"
-	return
-    fi
-    [ $showpwd -eq 1 ] && logtoboth "> Set password for user '$user' to '$upwd'" || logtoboth "> Set password for user '$user'"
-}
+#function changepwd() {
+#    # Must be in the container (Phase 1 or post-install)
+#    local user="$1" upwd="$2"
+#    if ! getent passwd $user > /dev/null
+#    then
+#	logtoboth "% Cannot change password for ${user}; user not found in /etc/passwd"
+#	return
+#    fi
+#    if [ "$upwd" == "" ]
+#    then
+#        echo -n "Password for user '$user': " && read -s upwd
+#        echo ""
+#    fi
+#    if [ "$upwd" != "" ]
+#    then
+#	chpasswd <<EOF
+#$user:$upwd
+#EOF
+#    else
+#	logtoboth "% Password for user '$user' not set"
+#	return
+#    fi
+#}
 
-sdm_adduser () {
-    # $1: username
-    # $2: "" or UID
-    # $3: password
-    local username=$1 luid=$2 pwd=$3 xuid=""
-    [ "$luid" != "" ] && xuid="--uid $luid"
-    useradd --create-home --home-dir /home/$username $xuid $username
-    usermod --gid users $username
-    usermod --groups $groups $username
-    changepwd "$username" "$pwd"
-    if [ ! -f /etc/sudoers.d/010_$username-nopasswd ]
-    then
-	logtoboth "> Add user '$username' to sudoers.d"
-	echo "$username ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$username-nopasswd
-	chmod 440 /etc/sudoers.d/010_$username-nopasswd
-    fi
-}
+#sdm_adduser () {
+#    # $1: username
+#    # $2: "" or UID
+#    # $3: password
+#    local username=$1 luid=$2 pwd=$3 xuid=""
+#    [ "$luid" != "" ] && xuid="--uid $luid"
+#    useradd --create-home --home-dir /home/$username $xuid $username
+#    usermod --gid users $username
+#    usermod --groups $dgroups $username
+#    changepwd "$username" "$pwd"
+#    if [ ! -f /etc/sudoers.d/010_$username-nopasswd ]
+#    then
+#	logtoboth "> Add user '$username' to sudoers.d"
+#	echo "$username ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$username-nopasswd
+#	chmod 440 /etc/sudoers.d/010_$username-nopasswd
+#    fi
+#}
 
 function askyn() {
     local ans
@@ -274,6 +273,7 @@ function doconfigitem() {
     # $1: function keyword
     # $2: value
     # $3: "" or "bootlog" (first boot) or "logtoboth" (phase1)
+    # NOTE; first boot only at the moment!
     local rpifun=$1 value=$2 msgfn=$3
     case "$rpifun" in
 	# * do_resolution still needs to be sorted out
@@ -281,14 +281,6 @@ function doconfigitem() {
 	    configitemlog "Set Serial Port to '$value'" $msgfn
 	    #SUDO_USER=${myuser:-pi} raspi-config do_serial $value nonint
 	    do_raspiconfig do_serial $value nonint
-	    ;;
-	service-enable)
-	    configitemlog "Enable Service '$value'" $msgfn
-	    systemctl enable $value
-	    ;;
-	service-disable)
-	    configitemlog "Disable Service '$value'" $msgfn
-	    systemctl disable $value
 	    ;;
 	delayed_boot_behavior)
 	    # Processed at the very end of FirstBoot
@@ -319,15 +311,15 @@ function doconfigitem() {
 	    #SUDO_USER=${myuser:-pi} raspi-config do_$rpifun $value nonint
 	    do_raspiconfig do_$rpifun $value 
 	    ;;
-	#
-	# fstab, keymap, locale, and timezone may be set via sdm --burn command
-	#
 	fstab)
 	    configitemlog "Append fstab extension '$value' to /etc/fstab" $msgfn
-	    cat /etc/sdm/assets/$value >> /etc/fstab
+	    cat $value >> /etc/fstab
 	    ;;
+	#
+	# keymap, locale, and timezone may be set via sdm --burn command
+	#
 	keymap)
-	    configitemlog "Set Keymap to '$value' (!Ignore invoke-rc.d messages)" $msgfn
+	    configitemlog "Set Keymap to '$value'" $msgfn
 	    #SUDO_USER=${myuser:-pi} raspi-config do_configure_keyboard "$value" nonint
 	    do_raspiconfig do_configure_keyboard "$value"
 	    ;;
@@ -384,18 +376,13 @@ function writeconfig() {
     rm -f $bkfile
     [ -f $paramfile ] && mv $paramfile $bkfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
-    for e in version thishost apip apssid aptcache aptdistupgrade autologin \
-		     fbatch b0script b1script bootadd bootconfig bootscripts bootsetpairs crond cronhourly \
-		     crondaily cronweekly cronmonthly cronsystemd cscript csrc datefmt debugs \
-		     dimg dimgdev dimgdevname disables domain dtoverlay dtparam ecolors eeprom \
-		     expandroot exports fdirtree fgadgetmode fstab hdmiforcehotplug hdmiignoreedid \
-		     hdmigroup hdmimode hname hostname hotspot journal keymap libfmconf loadlocal locale logwidth \
-		     lxdeconflist lxterminalconf modprobe motd groups myuid myuser nouser nowaittimesync \
-		     os fnopassword passwordpi passwordroot passwordsame passworduser pcmanfmconf pi1bootconf plugindebug plugins poptions \
-		     raspiosver rclocal reboot redact regensshkeys frenamepi renamepi noreboot rebootwait redocustomize rootpwd sdfnlogin sdfnnetwork \
-		     sdfnresolve sdfnsystem sdfntimesync sdfnuser sdmdir sdmflist showapt showpwd src ssh swapsize svcdisable \
-		     svcenable sysctl timezone udev virtmode vqemu wificountry wpaconf custom1 custom2 \
-		     custom3 custom4
+    for e in version thishost aptcache aptdistupgrade autologin fbatch b0script b1script bootscripts \
+		     cscript csrc datefmt debugs dimg dimgdev dimgdevname domain ecolors \
+		     expandroot exports fdirtree hname hostname loadlocal logwidth \
+		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
+		     raspiosver rclocal reboot fredact regensshkeys noreboot rebootwait \
+		     redocustomize sdmdir sdmflist showapt src swapsize \
+		     timezone virtmode vqemu wificountry custom1 custom2 custom3 custom4 plugins
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
@@ -419,6 +406,8 @@ function runoneplugin() {
     #
     # Run the plugin $1 for the phase specified in $2 with args in $3
     # By the time we get here plugin will be in the sdmdir hierarchy
+    #
+    # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
     local p=$(basename $1) phase=$2 pargs="$3" sts=1
     [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
@@ -447,27 +436,84 @@ function runonepluginx() {
     # $1: Plugin name and args (in $plugin format: plugin:key=value:key=value)
     # $2 phase
     #
+    # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
+    #
     local p="$1" phase=$2 pin
-    IFS=":" read pin pargs <<< "$p"
+    IFS=":" read -r pin pargs <<< "$p"
     [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
     runoneplugin $pin $phase "$pargs"
 }
 
 function runplugins() {
     #
-    # Run the plugins for the phase specified in $1
+    # Run the plugins in $1 with the phase specified in $2
+    # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
-    local mnt="$SDMPT" phase=$1
-    if [ "$plugins" != "" ]
+    local mnt="$SDMPT" theseplugs="$1" phase=$2 
+    if [ "$theseplugs" != "" ]
     then
-	logtoboth "> Run Plugins Phase '$1'"
-	IFS="~" read -a plugs <<< "$plugins"
+	logtoboth "> Run Plugins Phase '$phase'"
+	IFS="~" read -r -a plugs <<< "$theseplugs"
 	for p in "${plugs[@]}"
 	do
 	    runonepluginx "$p" $phase
 	done
     else
 	logtoboth "> No Plugins specified with --plugin"
+    fi
+}
+
+function ispluginselected() {
+    #
+    # Returns true if plugin name in $1 is on the command line
+    #
+    local thisplugin="$1" pluglist="$2"
+    IFS="~" read -r -a plugs <<< "$pluglist"
+    for p in "${plugs[@]}"
+    do  
+	IFS=":" read -r thispn args <<< "$p"
+	[ "$thispn" == "$thisplugin" ] && return 0
+    done
+    return 1
+}
+
+function getpluginargs() {
+    #
+    # Returns the args provided for the plugin on the cmd line, for all instantiations of it
+    #
+    local thisplugin="$1" pluglist="$2" arglist=""
+    IFS="~" read -r -a plugs <<< "$pluglist"
+    for p in "${plugs[@]}"
+    do  
+	IFS=":" read -r thispn args <<< "$p"
+#??? needs to append correctly
+	[ "$thispn" == "$thisplugin" ] && arglist="${arglist}${args}"
+	echo "$arglist"
+	return
+    done
+}
+
+function isarginpluginlist() {
+    #
+    # $1 is plugin name
+    # $2 is plugin list
+    # $3 is the arg name
+    local pn="$1" plist="$2" lookarg="$3"
+    args=$(getpluginargs "$pn" "$plist")
+    [[ "$args" =~ "$lookarg" ]] && return 0 || return 1
+}
+
+function getpluginargvalue() {
+    #
+    # $1 is plugin name
+    # $2 is plugin list
+    # $3 is the arg name
+    local pn="$1" plist="$2" lookarg="$3"
+    args=$(getpluginargs "$pn" "$plist")
+    if [[ "$args" =~ "$lookarg" ]]
+    then
+	# do what plugin_getargs does but only for a single arg15
+	logtoboth "?? Plugin not done yet"
     fi
 }
 
@@ -483,25 +529,32 @@ function plugin_getargs() {
     # also creates symbol foundkeys="|key1|key2|...|"
     #
     local arglist=() pfx=$1 largs="$2" validkeys="$3" rqkeys="$4" keysfound=""
-    IFS="|" read -a arglist <<< "$largs"
+    IFS="|" read -r -a arglist <<< "$largs"
     for c in "${arglist[@]}"
     do
-	# Peel off the args and put them into variables
-	while [ "$c" != "" ]
-	do
-	    IFS="=|" read key value remain <<< "$c"
-	    c="$remain"
-	    if [ "$validkeys" != "" ]
+	# Put the args into variables
+	IFS=":=" read -r key value remain <<< "$c"
+	[ "$remain" != "" ] && value="${value}=${remain}"
+	if [ "$validkeys" != "" ]
+	then
+	    if ! [[ "$validkeys" =~ "|$key|" ]]
 	    then
-		if ! [[ "$validkeys" =~ "|$key|" ]]
-		then
-		    logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$largs'"
-		fi
+		logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$largs'"
 	    fi
+	fi
+	if [ "${key#\#}" != "$key" -o "${key#\\n}" != "$key" ]
+	then
+	    # Handle a comment string that starts with '#' or '\n'. Prefix \n-led string with \n#
+	    [ "${key#\\n}" != "$key" ] && key="\n#${key#\\n}" 
+	    printf -v "comment" "%s" "$key"
+	    keysfound="${keysfound}|comment"   # Mark as 'comment' found
+	else
+	    # Turn word-word into word__word. User of the value must handle other end for display
+	    [ "$key" != "${key/-/_}" ] && key="${key/-/__}"
 	    [[ "$value" =~ "$" ]] && value=${value//$/\\$}    # Replace $ with \$
-	    [ "$key" != "" ] && eval "${key}=\"$value\""
+	    [ "$key" != "" ] && printf -v "${key}" "%s" "$value" #eval "${key}=\"$value\""
 	    keysfound="${keysfound}|$key"
-	done
+	fi
     done
     #
     # Check required keys
@@ -534,13 +587,54 @@ function plugin_printkeys() {
 	for c in "${fargs[@]}"
 	do
 	    # The construct ${!c} gets the value of the variable 'pointed to' by contents of $c
-	    logtoboth "   ${c}: ${!c}"
+	    kn="${c/__/-}"
+	    logtoboth "   ${kn}: ${!c}"
 	done
+    fi
+}
+
+function plugin_logorder() {
+    local plugins="$1" plist
+    if [ "$plugins" != "" ]
+    then
+	IFS="~" read -a plist <<< $plugins
+	logtoboth "* Plugins included:"
+	for p in "${plist[@]}"
+	do
+	    IFS=':' read fpn pargs <<< "$p"
+	    logtoboth "   * $fpn"
+	    [ "$pargs" != "" ] && logtoboth "       Args: $pargs" nosplit
+	done
+    else
+	logtoboth "% No plugins are selected"
     fi
 }
 
 function plugin_dbgprint() {
     [ $plugindebug -eq 1 ] && logtoboth "D!Plugin $pfx: $1"
+}
+
+function dosshsetup() {
+    #
+    # Set up ssh as requested
+    # Must be called in Phase 1
+    #
+    ssh="$1" pfx="$2"
+    case "$ssh" in
+	service)
+	    logtoboth "> Plugin $pfx: Enable SSH service via /boot/ssh"
+	    touch /boot/ssh
+	    ;;
+	socket)
+	    logtoboth "> Plugin $pfx: Enable SSH via ssh.socket"
+	    systemctl enable ssh.socket > /dev/null 2>&1
+	    systemctl disable sshswitch.service > /dev/null 2>&1
+	    ;;
+	none)
+	    logtoboth "> Plugin $pfx: Disable SSH"
+	    systemctl disable ssh.service > /dev/null 2>&1
+	    ;;
+    esac
 }
 
 function iswsl() {
@@ -658,14 +752,11 @@ function initvirt() {
 	    fi
 	fi
     else
-	# Not running sdm on ARM. Won't work if host is 32-bit without chroot, but just let it fail. Who runs 32-bit any more?
 	IFS="," read wamielf wamiarch rest <<< "$wami"
-	$msgrtn "% sdm will try to use systemd-nspawn on this '${wamiarch##\ }' system"
-	$msgrtn "  If this does not work please post a GitHub issue"
-	#$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
-	#$msgrtn "  * sdm will run more slowly due to qemu emulation"
-	#virtmode="chroot"
-	#[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
+	$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
+	$msgrtn "  * sdm will run more slowly due to qemu emulation"
+	virtmode="chroot"
+	[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
     fi
 }
 
@@ -823,80 +914,40 @@ function getconfstr() {
     echo "$rval"
 }
 
-function dobootadd() {
-    local bootadds="$1"
-    if [ "$bootadds" != "" ]
+function updateconfigtxt() {
+    local c="$1" value="$2" pfx="$3" inline="$4" newsection="$2"
+    if [ "$c" == "section" ]
     then
-	#if ! grep -q 'Items added by sdm --bootadd' $SDMPT/boot/config.txt
-	#then
-            logtoboth "> Add new keys to /boot/config.txt"
-            logtoboth "> Update /boot/config.txt for bootadd: $bootadds"
-            echo "# Items added by sdm --bootadd at $(thisdate)" >> $SDMPT/boot/config.txt
-            IFS="," read -a citems <<< "$bootadds"
-            for c in "${citems[@]}"
-            do
-		IFS=":=" read key value <<< "$c"
-		echo "$key=$value" >> $SDMPT/boot/config.txt
-		logtoboth "   $key=$value"
-            done
-            echo "# Above items added by sdm --bootadd" >> $SDMPT/boot/config.txt
-	#else
-        #    logtoboth "> /boot/config.txt already updated for --bootadd; skipping"
-	#fi
-    fi
-}
-
-function setbootset() {
-    #
-    # Handle --bootset, --svcdisable and --svcenable for customize and burn commands
-    # Can be called from Burn (SDMNSPAWN=~Burn) or Phase1
-    # Changes are always written to auto-1piboot
-    #
-    local mnt="$SDMPT"
-    local citems=() c key value
-    if [ "$bootsetpairs" != "" ]
-    then
-	IFS="," read -a citems <<< "$bootsetpairs"
-	for c in "${citems[@]}"
-	do
-	    IFS=":=" read key value <<< "$c"
-	    [ "$value" == "" ] && value=0
-	    # Remove any old entry for this key and write the new one
-	    if ! grep "$key=$value" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
+	logtoboth "> ${pfx}Append section '$value' to $SDMPT/boot/config.txt"
+	[ "$newsection" == "${newsection#[}" ] && newsection="[$newsection]"
+	printf "\n${newsection}\n" >> $SDMPT/boot/config.txt
+    else
+	if [ "$inline" != "" ]
+	then
+	    if grep -q "^#$c.*" $SDMPT/boot/config.txt
 	    then
-		logtoboth "> Set --bootset ${key} ${value}"
-		sed -i "/^$key=/d" $mnt/etc/sdm/auto-1piboot.conf
-		echo "$key=$value" >> $mnt/etc/sdm/auto-1piboot.conf
+		# there but commented out
+		logtoboth "> ${pfx}Uncomment and set '$c=$value' in $SDMPT/boot/config.txt"
+		sed -i "s/^#$c=.*/$c=$value/" $SDMPT/boot/config.txt
+	    else
+		if grep -q "^$c.*" $SDMPT/boot/config.txt
+		then
+		    # There and uncommented
+		    logtoboth "> ${pfx}Set '$c=$value' in $SDMPT/boot/config.txt"
+		    sed -i "s/^$c=.*/$c=$value/" $SDMPT/boot/config.txt
+		else
+		    # Not in config.txt
+		    logtoboth "> ${pfx}Append '$c=$value' to $SDMPT/boot/config.txt"
+		    printf "$c=$value\n" >> $SDMPT/boot/config.txt
+		fi
 	    fi
-	done
-    fi
-    if [ "$svcdisable" != "" ]
-    then
-	IFS="," read -a citems <<< "$svcdisable"
-	for c in "${citems[@]}"
-	do
-	    sed -i "/^service-enable=$c/d" $mnt/etc/sdm/auto-1piboot.conf   #Delete enables of this service
-	    if ! grep "service-disable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
-	    then
-		logtoboth "> Disable service '$c'"
-		#echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-		systemctl disable -q $c
-	    fi
-	done
-    fi
-    if [ "$svcenable" != "" ]
-    then
-	IFS="," read -a citems <<< "$svcenable"
-	for c in "${citems[@]}"
-	do
-	    sed -i "/^service-disable=$c/d" $mnt/etc/sdm/auto-1piboot.conf  #Delete disables of this service
-	    if ! grep "service-enable=$c" $mnt/etc/sdm/auto-1piboot.conf > /dev/null 2>&1
-	    then
-		logtoboth "> Enable service '$c'"
-		#echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-		systemctl enable -q $c
-	    fi
-	done
+	else
+	    #
+	    # Not inline, so always append
+	    #
+	    logtoboth "> ${pfx}Append '$c=$value' to $SDMPT/boot/config.txt"
+	    printf "$c=$value\n" >> $SDMPT/boot/config.txt
+	fi
     fi
 
 }
@@ -908,7 +959,7 @@ function do_raspiconfig() {
     local cmd=$1 value=$2
     if type -P raspi-config > /dev/null
     then
-	SUDO_USER=${myuser:-pi} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
+	SUDO_USER=${myuser:-nobody} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
     else
 	logtoboth "% Unable to find raspi-config for function '$cmd' with value '$value'"
     fi
@@ -952,138 +1003,6 @@ function getfinalbbh {
     #
     aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
     [ "$aval" == "" ] && echo "$1" || echo "$aval"
-}
-
-function setlightdmautologin() {
-    #
-    # $1 = "burning" if called from burn. "" otherwise
-    #
-    local burn="$1"
-    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-    if [ "$burn" != "" ]
-    then
-	sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
-	logtoboth "% Desktop Autologin setting '$bbh' will set be after First Boot"
-	echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-	do_raspiconfig do_boot_behaviour B1
-    else
-	logtoboth "% Desktop Autologin set to '$bbh'"
-	do_raspiconfig do_boot_behaviour $bbh
-    fi
-}
-
-function delaylightdmenable() {
-    #
-    # $1 = "burning" if called from burn. "" otherwise
-    #
-    local burn="$1"
-    logtoboth "> Set RasPiOS Full to 'console no login' for First Boot"
-    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-    do_raspiconfig do_boot_behaviour B1
-    systemctl set-default multi-user.target
-    if [ "$burn" != "" ]
-    then
-	sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
-	[ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-	logtoboth "% Desktop Autologin setting '$bbh' will be set after First Boot"
-	echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    else
-	if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-	then
-	    aval="$(getfinalbbh B1)"
-	    logtoboth "% 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
-	else
-	    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-	    logtoboth "% Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
-	    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-	fi
-    fi
-}
-
-function delaydmenable {
-    #
-    # Disable the display manager in $1 and set for re-enable during First Boot
-    # $2=delayed target (either B3 or B4)
-    #
-    local dm="$1" bbh="$(getfinalbbh $2)"
-    logtoboth "% Display Manager '$dm' will be disabled when the system first boots"
-    logtoboth "  The sdm FirstBoot process will re-enable it with boot_behavior '$bbh'"
-    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
-    do_raspiconfig do_boot_behaviour B1
-    systemctl set-default multi-user.target > /dev/null 2>&1
-    echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-    #then
-	#echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    #fi
-    return
-}
-
-function do_disables() {
-    # Process disables
-    # $1 has list of requested disables separated by "|" if more than one item
-    local dbls="$1|"
-    IFS="|" read -a dlist <<< "$dbls"
-    for ditem in "${dlist[@]}"
-    do
-	case "$ditem" in
-	    bluetooth)
-		fndis="/etc/sdm/0piboot/050-disable-bt.sh"
-		if [ -f $fndis ]
-		then
-		    logtoboth "% Bluetooth already disabled"
-		else
-		    logtoboth "> Set Bluetooth to disable in FirstBoot per --disable bluetooth"
-		    cat > $fndis <<EOF
-#!/bin/bash
-blfile="blacklist-sdm-bluetooth.conf"
-logger "FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
-printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
-systemctl disable hciuart
-EOF
-		fi
-		;;
-	    piwiz)
-		logtoboth "> Disable running piwiz and userconfig on first boot per --disable piwiz"
-		[ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
-		systemctl disable userconfig.service > /dev/null 2>&1
-		systemctl mask    userconfig.service > /dev/null 2>&1
-		getent passwd rpi-first-boot-wizard > /dev/null && userdel -r rpi-first-boot-wizard > /dev/null 2>&1
-		[ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ] && mv /etc/systemd/system/getty@tty1.service.d/autologin.conf /etc/systemd/system/getty@tty1.service.d/.autologin.conf.sdm
-		rm -f /etc/sudoers.d/010_wiz-nopasswd
-		rm -f /etc/xdg/autostart/deluser.desktop
-		;;
-	    swap)
-		logtoboth "> Disable swapfile per --disable swap"
-		systemctl disable dphys-swapfile
-		# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
-		#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
-		;;
-	    triggerhappy)
-		logtoboth "> Disable triggerhappy service per --disable triggerhappy"
-		systemctl disable triggerhappy.service
-		systemctl disable triggerhappy.socket
-		#Eliminate thd.socket errors from udev
-		[ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
-		[ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/thd.sdm
-		;;
-	    wifi)
-		fndis="/etc/sdm/0piboot/055-disable-wifi.sh"
-		if [ -f $fndis ]
-		then
-		    logtoboth "% WiFi already disabled"
-		else
-		    logtoboth "> Set WiFi to disable in FirstBoot per --disable wifi"
-		    cat > $fndis <<EOF
-#!/bin/bash
-blfile="blacklist-sdm-wifi.conf"
-logger "FirstBoot: Disable wlan0 using /etc/modprobe.d/\$blfile"
-printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
-EOF
-		fi
-		;;
-	esac
-    done
 }
 
 function findappfile() {
@@ -1139,6 +1058,7 @@ function getapplist() {
 	lapps="$1"
     fi
     lapps="${lapps## }"      # Del leading spaces
+    lapps="${lapps//,/ }"    # Turn commas into spaces
     echo "$lapps"
 }
 
@@ -1199,13 +1119,21 @@ function stripquotes() {
     # Remove leading/trailing single and double quotes
     # If $2 != "" then quote $ character
     #
-    local str="$1" qd="$2"
+    local str="$1" qd="$2" snolq
     [[ "$qd" != "" ]] && [[ "$str" =~ "$" ]] && str=${str//$/\\$}    # Replace $ with \$
     str="${str%"${str##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-    str="${str#\"}"     # Del opening double-quotes 
-    str="${str%\"}"     # Del closing double-quotes 
-    str="${str#\'}"     # Del opening single-quotes 
-    str="${str%\'}"     # Del closing single-quotes 
+    snolq="${str#\"}"         # Get string without open quote
+    if [ "$snolq" != "$str" ] # if lq was there, then update string and also del close quote
+    then
+	str=$snolq
+	str="${str%\"}"
+    fi
+    snolq="${str#\'}"         # Get string without open quote
+    if [ "$snolq" != "$str" ] # Ditto double quote comment
+    then
+	str=$snolq
+	str="${str%\'}"
+    fi
     echo "$str"
 }
 
@@ -1316,4 +1244,25 @@ function ckwificountry() {
 function cktimezone() {
     [ "$1" == "" ] && return 0
     [ -e /usr/share/zoneinfo/$1 ] && return 0 || return 1
+}
+
+function ckl10n() {
+    # $1: item name (keymap, locale, timezone)
+    # $2: value to check
+    local klt="$1" value="$2" sts=1
+    case "$1" in
+	keymap)
+	    ckkeymap "$value"
+	    sts=$?
+	;;
+	locale)
+	    cklocale "$value"
+	    sts=$?
+	;;
+	timezone)
+	    cktimezone "$value"
+	    sts=$?
+	;;
+    esac
+    return $sts
 }

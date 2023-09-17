@@ -6,19 +6,28 @@ function readparams() {
     #
     # Restores the global variables from /etc/sdm/cparams
     #
-    local rpifun value cf="$SDMPT/etc/sdm/cparams"
+    local rpifun value cf="$SDMPT/etc/sdm/cparams" snolq
     if [ -f $cf ]
     then
-	while IFS=":" read rpifun value
+	while IFS=":" read -r rpifun value
 	do
 	    if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
             then
+		# Cant' use stripquotes, it's in sdm-cparse, and can't source it w/o processing this first ($sdmdir)
 		#value="${value%%\#*}"    # Del EOL comments
 		value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-		value="${value#\"}"     # Del opening double-quotes 
-		value="${value%\"}"     # Del closing double-quotes 
-		value="${value#\'}"     # Del opening single-quotes 
-		value="${value%\'}"     # Del closing single-quotes 
+		snolq="${value#\"}"        # Get string without open quote
+		if [ "$snolq" != "$value" ] # if lq was there, then update string and also del close quote
+		then
+		    value=$snolq
+		    value="${value%\"}"
+		fi
+		snolq="${value#\'}"        # Get string without open quote
+		if [ "$snolq" != "$value" ] # Ditto double quote comment
+		then
+		    value=$snolq
+		    value="${value%\'}"
+		fi
 		printf -v "$rpifun" "%s" "$value"     #eval "${rpifun}=\"$value\""
 
 	    fi

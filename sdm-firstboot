@@ -13,6 +13,7 @@ function write_console() {
     # Written to /dev/console as "\n$(thisdate) FirstBoot: $1"
     echo -e "\n$(thisdate) FirstBoot: $1" > /dev/console
 }
+
 function write_console0() {
     #
     # $1 string to write
@@ -20,217 +21,8 @@ function write_console0() {
     echo -e "$1" > /dev/console
 }
 
-function waitusb() {
-    #
-    # Waits forever until a USB device found
-    # Returns the name of the USB device (/dev/sdX)
-    #
-    # Flashes the LED with UUU if we have to wait
-    #
-    local flashled=$1
-    secs=0
-    while [ 0 ]
-    do
-	for d in sda sdb sdc sdd
-	do
-	    sdx="/dev/$d"
-	    if [ -b $sdx ]
-	    then
-		if [ "$(lsblk $sdx 2>/dev/null)" != "" ]
-		then
-		    if ! grep $sdx /proc/mounts > /dev/null 2>&1
-		    then
-			echo $sdx
-			return
-		    fi
-		fi
-	    fi
-	done
-	#
-	# Wait for the USB device to be inserted but nudge every 10 iterations
-	#
-	if [ $((secs%10)) -eq 0 ]
-	then
-	    write_console "Waiting for USB Device with Local Settings File '$wifile'"
-	    write_console0 "USB Device must have the file '$wifile' in the root directory of the first partition"
-	    write_console0 "with at least 3 lines of text:"
-	    write_console0 "country=<2-Letter WiFi Country Abbreviation>"
-	    write_console0 "ssid=<your WiFi SSID>"
-	    write_console0 "password=<your WiFi Password>"
-	    write_console0 "\n...And optionally..."
-	    write_console0 "keymap=<Keymap name>"
-	    write_console0 "locale=<Locale name>"
-	    write_console0 "timezone=<Timezone>"
-	    write_console0 "NOTE: Do NOT include the angle brackets"
-	fi
-	[ $flashled -eq 1 ] && morseled "..- ..- ..-" #UUU
-	secs=$((secs+1))
-	sleep 1
-    done
-}
-function updreinsmsg() {
-    write_console0 "** Update the USB drive as needed and reinsert"
-    write_console0 "** Waiting..." 
-}
-
-function readusbcreds() {
-    #
-    # Find the credentials
-    # NOTE: Doesn't handle # character in password. What about others?
-    #
-    local tmpf=$(mktemp -q /tmp/getcred.XXXX)
-    if [ ! -f /mnt/$wifile ]
-    then
-	logger "? FirstBoot: Local Settings File '$wifile' Not Found on USB $sdx"
-	write_console "Local Settings File '$wifile' Not Found on USB device $sdx"
-	updreinsmsg
-	echo "0"
-	return
-    fi
-    uwificountry="" ; ussid="" ; upassword="" ; ukeymap="" ; ulocale="" ; utimezone="" ; udhcpwait=""
-    tr -d '\r' < /mnt/$wifile > $tmpf # Eliminate Windows line endings if present
-    while IFS=":=" read key value
-    do
-	if [[ ! $key =~ ^\ *# && -n $key ]] # skip comment and malformed lines
-	then
-            value="${value%%\#*}"    # Del EOL comments
-            value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-            value="${value#\"}"     # Del opening double-quotes 
-            value="${value%\"}"     # Del closing double-quotes 
-            value="${value#\'}"     # Del opening single-quotes 
-            value="${value%\'}"     # Del closing single-quotes 
-	    case "${key,,}" in
-		country)  uwificountry="${value^^}" ;;
-		ssid)     ussid="$value"            ;;
-		password) upassword="$value"        ;;
-		keymap)   ukeymap="$value"          ;;
-		timezone) utimezone="$value"        ;;
-		locale)   ulocale="$value"          ;;
-		dhcpwait) udhcpwait="$value"        ;;
-	    esac
-	fi
-    done < $tmpf
-    rm -f $tmpf
-    rs=1          # Assume success
-    write_console "Local Settings Read from USB ${sdx}:"
-    write_console0 "country=$uwificountry"
-    write_console0 "ssid=$ussid"
-    write_console0 "psk=$upassword"
-    bootlog "Found WiFi Country setting '$uwificountry' from USB Drive"
-    bootlog "Found WiFi SSID setting '$ussid' from USB Drive"
-    bootlog "Found WiFi Password setting '$upassword' from USB Drive"
-    [ "$ukeymap" != "" ] && write_console0 "keymap=$ukeymap" && bootlog "Found Keymap '$ukeymap' from USB Drive"
-    [ "$ulocale" != "" ] && write_console0 "locale=$ulocale" && bootlog "Found Locale '$ulocale' from USB Drive"
-    [ "$utimezone" != "" ] && write_console0 "timezone=$utimezone" && bootlog "Found Timezone '$utimezone' from USB Drive"
-    [ "$udhcpwait" != "" ] && write_console0 "dhcpwait=$udhcpwait" && bootlog "Found DHCPwait '$udhcpwait' from USB Drive"
-    [ "$ussid" == "" -o "$upassword" == "" ] && write_console0 "? Incomplete WiFi configuration settings: WiFi SSID or Password" && rs=0
-    ! (ckwificountry $uwificountry)  && write_console0 "\n? Unrecognized WiFi Country '$uwificountry'" && bootlog "? Unrecognized WiFi Country '$uwificountry'" && rs=0
-    ! ckkeymap $ukeymap && write_console0 "\n? Unrecognized keymap '$ukeymap'"&& bootlog "? Unrecognized Keymap '$ukeymap'" && rs=0
-    ! cklocale $ulocale && write_console0 "? Unrecognized locale '$ulocale'" && bootlog "? Unrecognized Locale '$ulocale'" && rs=0
-    ! cktimezone $utimezone && write_console0 "? Unrecognized Timezone '$utimezone'" && bootlog "? Unrecognized Timezone '$utimezone'" && rs=0
-    if [ $rs -eq 1 ]
-    then
-	[ "$ukeymap" != "" ]   && echo "keymap=$ukeymap" >> /etc/sdm/local-1piboot.conf
-	[ "$ulocale" != "" ]   && echo "locale=$ulocale" >> /etc/sdm/local-1piboot.conf
-	[ "$utimezone" != "" ] && echo "timezone=$utimezone" >> /etc/sdm/local-1piboot.conf
-    else
-	updreinsmsg
-    fi
-    echo "$rs:$uwificountry:$ussid:$upassword:$udhcpwait"
-    return
-}
-
-function loadusbcreds() {
-
-    local flashled=$1 ckinternet=$2
-    wifile="local-settings.txt"
-    while [ 0 ]
-    do
-	while [ 0 ]
-	do
-	    sdx=$(waitusb $flashled)
-	    mount ${sdx}1 /mnt
-	    IFS=":" read cresult uwificountry ussid upassword udhcpwait <<< $(readusbcreds)
-	    umount /mnt
-	    [ "$cresult" == "1" ] && break
-	    [ $flashled -eq 1 ] && morseled "... --- ..." #SOS
-	    sleep 10
-	done
-	[ "$udhcpwait" != "" ] && dhcpwait=$udhcpwait || dhcpwait=15
-	[ $dhcpwait -eq 0 ] && dhcpwait=15            #Make sure that it's not 0!
-	bootlog "Set WiFi Country to '$uwificountry'"
-	#SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$uwificountry" nonint
-	do_raspiconfig do_wifi_country "$uwificountry"
-	wpa="/etc/wpa_supplicant/wpa_supplicant.conf"
-#	systemctl stop wpa_supplicant > /dev/null 2>&1 # This isn't even used with dhcpcd and is disabled in sdm-phase1
-	systemctl stop dhcpcd > /dev/null 2>&1
-	sleep 5         # Don't want wpa to stomp on my nice new config file
-	bootlog "Set WiFi Credentials in $wpa"
-	[ -f $wpa ] && mv $wpa ${wpa}.original
-	cat > $wpa <<EOF
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-country=$uwificountry
-
-network={
-        ssid="$ussid"
-        psk="$upassword"
-        key_mgmt=WPA-PSK
-}
-EOF
-	write_console "WiFi Credentials Set in $wpa"
-	systemctl start dhcpcd > /dev/null 2>&1
-	bootlog "Wait up to $dhcpwait seconds for dhcpcd to get an IP Address"
-	write_console "Wait up to $dhcpwait seconds for dhcpcd to get an IP Address"
-	for (( secs=0 ; secs < $dhcpwait ; secs++ ))
-	do
-	    myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show wlan0) | (IFS='/'; read a b; echo $a))
-	    [[ ! "$myipaddr" =~ "169.254." ]] && [ "$myipaddr" != "" ] && break
-	    [ $flashled -eq 1 ] && morseled "..-. ..-. ..-." #Waiting on IP Address
-	    sleep 1
-	done
-	myipaddr=$(awk '{print $4}' <<< $(ip -o -f inet addr show wlan0) | (IFS='/'; read a b; echo $a))
-	if [[ "$myipaddr" =~ "169.254." ]] || [ "$myipaddr" == "" ]
-	then
-	    bootlog "WiFi did not connect"
-	    write_console "WiFi did not connect; Check WiFi settings and try again"
-	    [ $flashled -eq 1 ] && morseled "-- -- -- --" #MMM
-	    sleep 5
-	else
-	    bootlog "WiFi connected; IP Address $myipaddr" 
-	    write_console "WiFi connected; IP Address $myipaddr"
-	    [ $flashled -eq 1 ] && morseled "..... ..... ....." #Success for an internal address!
-	    if [ $ckinternet -eq 1 ]
-	    then
-		if iponline 1.1.1.1
-		then
-		    bootlog "Internet IS accessible"
-		    write_console "Internet IS accessible"
-		    [ $flashled -eq 1 ] && morseled ".-.-.- .-.-.- .-.-.- .-.-.-"
-		    break 2
-		else
-		    bootlog "Internet is NOT accessible"
-		    write_console "Internet is NOT accessible" 
-		    updreinsmsg
-		    [ $flashled -eq 1 ] && morseled "-.-.-. -.-.-. -.-.-. -.-.-."
-		fi
-	    else
-		break 2
-	    fi
-	fi
-    done
-return
-}
-# Flash LEDS on:
-# UUU No USB device UUU
-# SOS Error in local-settings.txt
-# -- -- -- WiFi did not get an address
-# ..... ..... .....  WiFi got IP address
-# .-.-.- .-.-.-  Internet is accessible
-# -.-.-. -.-.-.  No Internet connectivity
-# ..-. ..-. ..-. Waiting on DHCP address
-
 function set_wifi_country () {
-    SUDO_USER=${myuser:-pi} raspi-config do_wifi_country "$1" nonint
+    do_raspiconfig do_wifi_country "$1"
 }
 
 function doscripts() {
@@ -251,6 +43,7 @@ function doscripts() {
 	fi
     done
 }    
+
 function doconfig() {
     cfgfile="$1"
     [ ! -f $cfgfile ] && bootlog "? Config file $cfgfile not found...skipping" && exit
@@ -261,11 +54,7 @@ function doconfig() {
 	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
 	then
 	    value="${value%%\#*}"    # Del EOL comments
-	    value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-	    value="${value#\"}"     # Del opening double-quotes 
-	    value="${value%\"}"     # Del closing double-quotes 
-	    value="${value#\'}"     # Del opening single-quotes 
-	    value="${value%\'}"     # Del closing single-quotes 
+	    value=$(stripquotes $value)
 	    doconfigitem $rpifun $value bootlog
 	fi
     done < $cfgfile
@@ -275,7 +64,7 @@ function doconfig() {
 
 timesyncwait() {
     #
-    # Waits for time to be synced or 60 seconds
+    # Waits for time to be synced or 120 seconds
     #
     # Skip if --nowait-timesync
     #
@@ -286,19 +75,20 @@ timesyncwait() {
 	return
     fi
 
-    for (( secs=1 ; secs<=60 ; secs++))
+    swait=120
+    for (( secs=1 ; secs<=$swait ; secs++))
     do
 	[ "$(timedatectl status | grep synchronized | (IFS=' ' ; read a b c d ; echo $d))" == "yes" ] && break
-	if [ $secs -eq 60 ]
+	if [ $secs -eq $swait ]
 	then
-	    write_console "System time not synchronized after 60 second wait; Proceeding..."
-	    bootlog "System time not synchronized after 60 second wait; proceeding to regenerate SSH host keys"
+	    write_console "System time not synchronized after $swait second wait; Proceeding..."
+	    bootlog "System time not synchronized after $swait second wait; proceeding to regenerate SSH host keys"
 	    return
 	fi
 	if [ $((secs%10)) -eq 0 ]
 	then
-	    write_console "Waiting $secs/60 seconds for system time synchronization"
-	    bootlog "Waiting $secs/60 seconds for system time synchronization"
+	    write_console "Waiting $secs/$swait seconds for system time synchronization"
+	    bootlog "Waiting $secs/$swait seconds for system time synchronization"
 	fi
 	sleep 1
     done
@@ -340,6 +130,8 @@ function do_delayed_boot_behavior {
 	    then
 		configitemlog "set boot behaviour to $value" bootlog
 		do_raspiconfig do_boot_behaviour $value
+		bootlog "Set systemd default to graphical.target"
+		systemctl set-default graphical.target
 		if [ "$1" != "reboot" ]
 		then
 		    bootlog "Start lightdm"
@@ -348,12 +140,17 @@ function do_delayed_boot_behavior {
 		    bootlog "Enable lightdm"
 		    systemctl enable lightdm
 		fi
-		#sleep 3
 	    else
 		[ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
 		[ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
 		bootlog "Set systemd default to graphical.target"
 		systemctl set-default graphical.target
+	    fi
+	else
+	    if [[ "B2" =~ "$value" ]]
+	    then
+		configitemlog "set boot behaviour to $value" bootlog
+		do_raspiconfig do_boot_behaviour $value
 	    fi
 	fi
     fi
@@ -389,17 +186,17 @@ bootlog "Start sdm FirstBoot Service"
 [[ "$loadlocal" =~ "flashled" ]] && flashled=1 || flashled=0
 if [[ "$loadlocal" =~ "usb" ]]
 then
-    bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
-    [[ "$loadlocal" =~ "internet" ]] && ckinternet=1 || ckinternet=0
-    loadusbcreds $flashled $ckinternet
+    bootlog "?? Loadlocal USB NYI"
+    #bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
+    #[[ "$loadlocal" =~ "internet" ]] && ckinternet=1 || ckinternet=0
+    #loadusbcreds $flashled $ckinternet
 else
     if [ "$wificountry" != "" ]
     then
 	bootlog "Set WiFi Country to '$wificountry'"
 	set_wifi_country "$wificountry"
     fi
-    logit "> FirstBoot loadlocal: |$loadlocal|"
-    if [[ "$loadlocal" =~ "plugin" ]] || [[ "$loadlocal" =~ "wifi" ]]
+    if [[ "$loadlocal" =~ "plugin" ]]  || [[ "$loadlocal" =~ "wifi" ]]
     then
 	logit "> FirstBoot: Handling loadlocal"
 	[ "$wificountry" == "" ] && set_wifi_country US 
@@ -423,11 +220,8 @@ else
 	    else
 		logit "% FirstBoot: wificonfig plugin set but /etc/sdm/local-assets/plugin-wificonfig.sh not found"
 	    fi
-	else
-	logit "> FirstBoot: Run sdm-cportal"
-	    $sdmdir/sdm-cportal --sdm --apip $apip --apssid $apssid
+	    write_console "Captive Portal complete; Resume FirstBoot processing"
 	fi
-	write_console "Captive Portal complete; Resume FirstBoot processing"
     fi
 fi
 [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Localization Settings from Captive Portal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
@@ -470,12 +264,12 @@ if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
     wait_startup_complete "System will restart automatically after system startup has completed"
     do_delayed_boot_behavior reboot
-    write_console "System startup complete; Restarting the system in $rebootwait seconds\n"
-    bootlog "Restarting the system in $rebootwait seconds"
+    write_console "System startup complete; System will restart in $rebootwait seconds"
+    bootlog "System will restart in $rebootwait seconds"
     sleep $rebootwait
     systemctl daemon-reload
-    write_console "Restarting the system now\n" 
-    bootlog "Restarting the system now"
+    write_console "System restarting now\n"
+    bootlog "System restarting now"
     systemctl reboot
 else
     wait_startup_complete "System will continue without restarting after system startup has completed"

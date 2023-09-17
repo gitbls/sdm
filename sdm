@@ -166,27 +166,27 @@ function write_premsg() {
 
 function extendimage() {
     local ldimg=$1 limgext=$2
-    local line dsiz
+    local line
     trap "ctrlcexit" SIGINT
     dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg 
     ddsts=$?
     trap SIGINT
     [ $ddsts -ne 0 ] && errexit "? Exiting due to dd error"
-    # Get the actual size of the image file from parted
+    # Get partition 2 start and IMG size from parted and compute new partition size
     while read line ; do
-	if [[ "$line" =~ "Disk" ]] 
+	if [[ "$line" =~ "ext4" ]]
 	then
-	    if [[ ! "$line" =~ "Flags:" ]]   # Only want the Disk size line, not one with "Disk Flags"
-	    then
-                                     # Disk img-file-name.img:    nnnnMB
-		dsiz="${line##*:}"   # Get String following ":"
-		dsiz="${dsiz##\ }"   # Strip leading spaces
-		dsiz="${dsiz%%\ }"   # Strip trailing spaces
-	    fi
+	    IFS=":" read partnum partstart remains <<< $line
+	elif [[ "$line:" =~ "msdos" ]]
+	then
+	    IFS=":" read fn imgend remains <<< $line
 	fi
-    done < <(parted -s $ldimg print)
-    echo "* Resize partition 2 of '$ldimg"
-    parted $ldimg -s resizepart 2 $dsiz
+    done < <(parted -sm $ldimg print)
+    partstart=${partstart%MB}
+    imgend=${imgend%MB}
+    partsize=$((imgend-partstart))
+    echo "* Resize partition 2 of '$ldimg' to ${partsize}MB"
+    parted $ldimg -s resizepart 2 ${imgend}MB
 }
 
 function extendandresize() {
@@ -203,7 +203,7 @@ function extendandresize() {
     [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
     domount "$dimg"
     echo "* Resize the file system"
-    echo "% (Ignore on-line resizing message)"
+    echo "% (Ignore 'on-line resizing required' message)"
     resize2fs ${loopdev}p2
 }    
 
@@ -229,31 +229,6 @@ function poptcheck() {
     else
 	echo ""
     fi
-}
-
-function readl10n() {
-    #
-    # Get the L10N config from the running system
-    # Sets: locale, timezone, wificountry, keymap
-    #
-    local tz=$(realpath /etc/localtime)
-    # Keyboard
-    if [ -f /etc/default/keyboard ]
-    then
-	source /etc/default/keyboard
-    else
-	logtoboth "% /etc/default/keyboard missing; Keyboard set to 'us'"
-	XKBLAYOUT="us"
-    fi
-    keymap="$XKBLAYOUT"
-    # Locale
-    source /etc/default/locale
-    locale="$LANG"
-    # Timezone
-    timezone=${tz##/usr/share/zoneinfo/}
-    # WiFi Country
-    [ -f /etc/wpa_supplicant/wpa_supplicant.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
-    [ "$wificountry" == "" -a -f /etc/wpa_supplicant/wpa_supplicant-wlan0.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf)
 }
 
 function checkfilelist() {
@@ -297,8 +272,6 @@ Commands
  --shrink            Shrink an IMG file 
 Command Switches for --customize and --burn or as noted
  --1piboot conf-file Use alternate 1piboot.conf
- --apip IPADDR       IP Address for WiFi Captive Portal [10.1.1.1]
- --apssid ssidname   SSID name for WiFi Captive Portal [sdm]
  --apt-dist-upgrade  Use apt-get dist-upgrade instead of upgrade 
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
@@ -306,66 +279,31 @@ Command Switches for --customize and --burn or as noted
  --batch             Perform customize operation and exit
  --b0script script   Script to run after burn has completed
  --b1script script   Like --b0script, but done in nspawn (can do both b0script and b1script)
- --bootadd key:value,key:value,... Add new keys and values to /boot/config.txt
- --bootconfig key:value,key:value,... Update and uncomment items in /boot/config.txt
- --bootset key:value,key:value,.. Set boot-time device settings (see README)
  --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
  --bupdate plugin    Check and update sdm plugins on burned output; See documentation for details
- --cron-d file       Copy provided cron file to /etc/cron.d (can be used multiple times)
- --cron-daily file   Copy provided cron file to /etc/cron.daily (can be used multiple times)
- --cron-hourly file  Copy provided cron file to /etc/cron.hourly (can be used multiple times)
- --cron-monthly file Copy provided cron file to /etc/cron.monthly (can be used multiple times)
- --cron-weekly file  Copy provided cron file to /etc/cron.weekly (can be used multiple times)
- --cron-systemd      Disable cron service and enable systemd-based timers
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
  --datefmt str       Date format for logs [%Y-%m-%d %H:%M:%S]
  --ddsw str          Switches for dd command [bs=16M iflag=direct]
  --debug apt         Enable debug features. apt=do single apt install for each package list (apps)
- --disable arg,arg   Disables specific complex services (bluetooth,piwiz,swap,triggerhappy,wifi)
  --directory         sd-image-file is a directory tree rather than an IMG
  --domain name       Domain name (for use in Custom Phase Script; sdm does not use)
- --dtoverlay         Add dtoverlay=string setting to /boot/config.txt (can be used multiple times)
- --dtparam           Add dtparam=string setting to /boot/config.txt (can be used multiple times)
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
- --eeprom str        Set the Pi eeprom directory
  --expand-root       Expand the root partition after burning it to a device
- --exports file      Copy named file to /etc/exports
  --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
- --fstab file        Append file to /etc/fstab
- --gadget-mode       Configure the image for gadget mode (network over USB)
- --groups list,of,groups Use this list of groups for user created with --user
+ --groups list,of,groups Use this list of groups as the default for the user plugin
                      [dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio]
- --hdmi-force-hotplug Set hdmi_force_hotplug=1 in /boot/config.txt
- --hdmi-ignore-edid  Set hdmi_ignore_edid=0xa5000080 in /boot/config.txt
- --hdmigroup n       Set /boot/config.txt hdmigroup value
- --hdmimode n        Set /boot/config.txt hdmimode value
  --host hostname     Hostname to write onto the storage device with --burn
- --hotspot config    Configure the image with a WiFi hotspot using hostapd
- --journal type      Controls system journal (D:syslog; Or persistent, volatile, none)
- --keymap keymapname Set Keymap
- --L10n              Set Keymap, Locale, Timezone, and WiFi Country from running system
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
- --locale localename Set the Locale
  --logwidth N        Split log lines longer than N characters [Default: 96]
- --lxde-config files See README for details
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
- --modprobe file     Copy provided file to /etc/modprobe.d (can be used multiple times)
- --motd file         Use provided file as /etc/motd
- --nopassword        Do not require a password during customization
- --nouser            Do not add a new user
  --nowait-timesync   Don't wait for time to sync in sdm-firstboot
  --nspawnsw str      Additional switches for nspawn command
  --oklive            It's OK to run plugins on running system without notification
- --password-pi pwd   Set password for Pi user (will prompt if not provided)
- --password-user pwd Set password for the --user user (will prompt if not provided)
- --password-root pwd Set password for root (will prompt if not provided and --rootpwd)
- --password-same y|n Use same password for pi, --user user (if set), and root (if --rootpwd)
- --plugin pname:\"args\" Run plugin pname with the specified args (separate multiple args with '|')
+ --plugin pname:\"args\" Run plugin pname with the specified args (separate args with '|')
  --plugin-debug      Print plugin debug messages
  --poptions str      Set Phase 1 auto-run options
- --redact            Redact passwords in /etc/sdm/history and /etc/sdm/cparams when burning
  --norestart         Do not restart after first boot (use on --burn command)
  --os osname         Specify OS in the Image (D:raspios, ubuntu)
  --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
@@ -373,27 +311,10 @@ Command Switches for --customize and --burn or as noted
  --redact            Redact passwords in /etc/sdm/cparams and /etc/sdm/history
  --redo-customize    If image already customized, redo without prompting
  --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot
- --rename-pi user    Rename the user 'pi' to the new username rather than creating a new user with --user
  --restart           20 seconds after first boot has completed restart the system
- --rootpwd           Set a root password into the image
  --runonly plugins   Do no customization, ony run requested plugins
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
  --showapt           Display apt output as well as logging it
- --showpwd           Log password in /etc/sdm/history
- --ssh none|socket|service  No ssh or ssh sockets [Default: ssh service]
- --swap n            Set swap space to nMB (overrides --disable swap)
- --svcdisable svc1,svc2,... Disable the named services
- --svc-disable svc1,svc2,... Disable the named services
- --svcenable  svc1,svc2,... Enable  the named services
- --svc-enable  svc1,svc2,... Enable  the named services
- --sysctl file       Copy the named file to /etc/sysctl.d (can be used multiple times)
- --systemd-config item:file,... Provide config files for systemd functions. See README for details
- --timezone tzname   Set the Timezone
- --udev file         Copy provided udev rules file to /etc/udev/rules.d (can be used multiple times)
- --uid uid           UID for non-root user [next free]
- --user username     Create non-root user
- --wifi-country country Set WiFi Country for unblocking WiFi
- --wpa wpaconf       wpa_supplicant.conf file to use
  --xmb n             Set the --extend size in MB [2048]
  --version           Print sdm version number"
 }
@@ -402,10 +323,8 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V8.6"
+version="V9.0"
 sdmcommandline="$0 $@"      #Used in error messages
-apip="10.1.1.1"             #Default IP for the WiFi Captive Portal
-apssid="sdm"                #Default SSID for the WiFi Captive Portal
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
@@ -414,37 +333,25 @@ aptfunction=0               #1=Some apt batch function specified
 autologin=0                 #1=auto-login to console or desktop
 b0script=""                 #Customization script to run after burn
 b1script=""                 #Like b0script but done in nspawn
-bootadd=""                  #Items to add to /boot/config.txt
-bootconfig=""               #/boot/config.txt items to set
 bootscripts=0               #Run FirstBoot custom boot scripts
-bootsetpairs=""             #Keys and values from --bootet
 bupdate=""                  #--bupdate options selected
 burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
 burnfile=0                  #1=Burn image to a file
 burnfilefile=""             #Filename for --burnfile
 chroot=""                   #Set by sdm to chroot type (nspawn, arm, or aarch64)
-crond=""                    #List of cron files to copy to /etc/cron.{d,hourly,daily,weekly,monthly}
-cronhourly=""
-crondaily=""
-cronweekly=""
-cronmonthly=""
-cronsystemd=0               #1=disable cron service and enable systemd cron timers
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddpid=""                    #Holds pid of dd during IMG Extend
 ddsw="bs=16M iflag=direct"  #Switches for dd
 debugs=""                   #Debug settings
+dgroups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
+dimg=""                     #IMG Name
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
-disables=""                 #Complex services to disable
 domain=""                   #--domain name
-dtoverlay=""                #Collected --dtoverlay settings
-dtparam=""                  #Collected --dtparam settings
 ecolors="blue:gray:red"     #fg:bg:cursor
-eeprom=""                   #If set, edit /etc/default/rpi-eeprom-update
 expandroot=0                #1=Expand root after burning it to a device
-exports=""                  #If set, copy file to /etc/exports
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 fdirtree=0                  #1=source is a directory tree, not an IMG or device
@@ -452,58 +359,31 @@ fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
-fgadgetmode=0               #1=Configure image for gadget mode
-fnopassword=0               #1=Do not require a password during customization
 fppart=0                    #1=Print partition tables in an IMG
-frenamepi=0                 #1=--rename-pi selected
 frunonly=0                  #1=--runonly
 fshrink=0                   #1=Shrink the IMG
-fstab=""                    #Append this custom fstab to /etc/fstab
-groups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
-hdmiforcehotplug=0          #1=Enable hdmi_force_hotplug in /boot/config.txt
-hdmiignoreedid=0            #1=Set hdmiignoreedid=0xa5000080 in /boot/config.txt
-hdmigroup=""                #If set, edit /boot/config.txt and set
-hdmimode=""                 #If set, edit /boot/config.txt and set
 hname=""                    #Host name when using --burn
 hostname=""                 #Written to cparams during --burn
 hotspot=""                  #WiFi config file
 imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
-journal="syslog"            #Default journal (system log) setting
-keymap=""                   #Keyboard configuration
 infocmd=0                   #1=--info command
-libfmconf=""                #Config file for libfm
 loadl10n=0                  #1=Load Localization settings from running system 
 loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
-locale=""                   #Locale
 logwidth=96                 #Split log lines longer than this
 loopdev=""                  #Name of mounted loop device
-lxdeconfig=""               #Arguments to --lxde-config
-lxdeconflist="libfm pcmanfm lxterminal" #These are the configs that we process
-lxterminalconf=""           #Config file for lxterminal
 mcolors="black:LightSalmon1:blue" #fg:bg:cursor
-modprobe=""                 #List of files to copy to /etc/modprobe.d
-motd=""                     #File to place as /etc/motd
 myuser=""                   #Non-root user to create. Default is no non-root user created
-myuid=""                    #UID for non-root user if created
 noreboot=0                  #1=Do not restart system after first boot
-nouser=0                    #1=Do not require a user to be specified
 nowaittimesync=0            #1=Don't wait for time to sync in sdm-firstboot
 oklive=0                    #1=--oklive don't notify about running system
 os="raspios"                #Default OS for images
 nspawnsw=""                 #Switches for nspawn
-passwordpi=""               #Values for --password-xxx
-passwordroot=""
-passwordsame=0              #1=same password for all, -1=--password-same n, 0=not specified
-samepwd=""                  #For command parsing only. Set to value of --password-same if specified
-passworduser=""
-pcmanfmconf=""              #Config file for pcmanfm
 plugindebug=0               #1=Enable debugging output
 plugins=""                  #List of plugins to include
 poptions=""                 #Phase options
 pvers=0                     #Print version number
 raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye, 12:Bookworm)
-redact=0                    #1=redact passwords in /etc/sdm/{cparams,history}
-renamepi=""                 #Rename the user 'pi' to this
+fredact=0                   #1=redact passwords in /etc/sdm/{cparams,history}
 rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
@@ -511,40 +391,21 @@ regensshkeys=0              #1=Regenerate SSH keys at end of FirstBoot
 runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
-sdfnlogin=""                #File to augment /etc/systemd/logind.conf
-sdfnnetwork=""              #File to augment /etc/systemd/networkd.conf
-sdfnresolve=""              #File to augment /etc/systemd/resolved.conf
-sdfnsystem=""               #File to augment /etc/systemd/system.conf
-sdfntimesync=""             #File to augment /etc/systemd/timesyncd.conf
-sdfnuser=""                 #File to augment /etc/ysstemd/user.conf
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
 sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg sdm-gburn"
-showpwd=0                   #1=Log password into /etc/sdm/history
-ssh=""                      #--ssh none (no ssh) or --ssh socket (ssh via sockets)
-                            #  Default is to write /boot/ssh
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
-sysctl=""                   #Copy named file to /etc/sysctl.d
-systemdconfig=""            #Raw args to --systemd-config
-timesyncd=""                #timesynd.conf file to set into the image
-timezone=""                 #Timezone setting
-udev=""                     #Copy named udev files to /etc/udev/rules.d
-wificountry=""              #WiFi country setting
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vdebug="|apt|"              #Valid --debug settings
-vpoptions="|apps|nofirstboot|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
-vbootset="|boot_splash|boot_wait|camera|i2c|net_names|onewire|rgpio|serial|spi|blanking|overscan|pixdub|audio|pi4video|boot_behaviour|boot_behavior|overclock|boot_order|powerled|"
-vdisableopts="|bluetooth|piwiz|swap|triggerhappy|wifi|"
-vjournalopts="|persistent|syslog|volatile|none|"
-vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
+vpoptions="|apps|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
+#vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
+vloadopts="|wifi|"          #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
 vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
 vrunonlyopts="|plugin|plugins|"  #Valid options for --runonly
 vqemu=""                    # Qemu architecture to use in chroot
-rootpwd=0                   #1=Set root password as well
 showapt=0                   #1=Display apt output on terminal as well as logging
 pi1bootconf=""              #Command-line specified 1piboot.conf file to use
-wpaconf=""                  #Command-line specified wpa_supplicant.conf
 custom1=""                  #For custom use
 custom2=""                  #For custom use
 custom3=""                  #For custom use
@@ -557,19 +418,14 @@ source $src/sdm-cparse           # Get function defs
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apip:,apssid:,\
-autologin,b0script:,b1script:,batch,bootadd:,bootconfig:,bootscripts,bootset:,burn:,burnfile:,\
-cron-d:,cron-daily:,cron-hourly:,cron-monthly:,cron-weekly:,cron-systemd,\
-cscript:,csrc:,customize,datefmt:,ddsw:,debug:,directory,disable:,\
-domain:,dtoverlay:,dtparam:,ecolors:,eeprom:,explore,expand-root,exports:,extend,\
-fstab:,gadget-mode,groups:,hdmi-force-hotplug,hdmi-ignore-edid,hdmigroup:,hdmimode:,host:,hostname:,\
-hotspot:,info,journal:,keymap:,L10N,L10n,l10n,loadlocal:,locale:,logwidth:,lxde-config:,\
-mcolors:,modprobe:,motd:,mount,norestart,noreboot,nouser,nowait-timesync,nspawnsw:,oklive,os:,\
-nopassword,password-pi:,password-root:,password-same:,password-user:,plugin-debug,plugin:,plugins:,poptions:,\
-ppart,rclocal:,reboot:,redact,redo-customize,regen-ssh-host-keys,rename-pi:,restart,runonly:,\
-rootpwd,sdmdir:,showapt,showpwd,shrink,ssh:,svcdisable:,svc-disable:,svcenable:,svc-enable:,swap:,\
-sysctl:,systemd-config:,timesyncd:,timezone:,udev:,uid:,bupdate:,user:,\
-wifi-country:,wificountry:,xmb:,custom1:,custom2:,custom3:,custom4:,version,wpa:"
+longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
+autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,cscript:,csrc:,\
+customize,datefmt:,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
+groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
+mcolors:,mount,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
+plugin:,plugins:,poptions:,ppart,rclocal:,reboot:,redact,redo-customize,\
+regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
+bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
 OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
 [ $? -ne 0 ] && errexit "? $0: Unable to parse command"
@@ -580,8 +436,6 @@ do
     case "${1,,}" in
 	# 'shift 2' if switch has argument, else just 'shift'
 	--1piboot)     pi1bootconf=$2; shift 2 ;;
-	--apip)        apip=$2       ; shift 2 ;;
-	--apssid)      apssid=$2     ; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
@@ -589,20 +443,11 @@ do
 	--b0script)    b0script=$2   ; shift 2 ;;
 	--b1script)    b1script=$2   ; shift 2 ;;
 	--batch)       fbatch=1      ; shift 1 ;;
-	--bootadd)     bootadd=$2    ; shift 2 ;;
-	--bootconfig)  bootconfig=$2 ; shift 2 ;;
 	--bootscripts) bootscripts=1 ; shift 1 ;;
-	--bootset)     bootsetpairs=$(appendvalue "$bootsetpairs" "$2" ",") ; shift 2 ;;
 	--burn)        burn=1 ;
 		       burndev=$2    ; shift 2 ;;
 	--burnfile)    burnfile=1 ;
 		       burnfilefile=$2 ; shift 2 ;;
-	--cron-d)      crond=$(appendvalue "$crond" "$2" "|" ) ; shift 2 ;;
-	--cron-hourly) cronhourly=$(appendvalue "$cronhourly" "$2" "|" ) ; shift 2 ;;
-	--cron-daily)  crondaily=$(appendvalue "$crondaily" "$2" "|" ) ; shift 2 ;;
-	--cron-weekly) cronweekly=$(appendvalue "$cronweekly" "$2" "|" ) ; shift 2 ;;
-	--cron-monthly) cronmonthly=$(appendvalue "$cronmonthly" "$2" "|" ); shift 2 ;;
-	--cron-systemd) cronsystemd=1 ; shift 1 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;
@@ -610,80 +455,40 @@ do
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--debug)       debugs=$2     ; shift 2 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
-	--disable)     disables=$(appendvalue "$disables" "${2,,}" ",") ; shift 2 ;;
 	--domain)      domain=$2     ; shift 2 ;;
-	--dtoverlay)   dtoverlay=$(appendvalue "$dtoverlay" "$2" "|") ; shift 2 ;;
-	--dtparam)     dtparam=$(appendvalue "$dtparam" "$2" "|") ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
-	--eeprom)      eeprom=$2     ; shift 2 ;;
 	--expand-root) expandroot=1  ; shift 1 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
-	--exports)     exports=$2    ; shift 2 ;;
 	--extend)      fextend=1     ; shift 1 ;;
-	--fstab)       fstab=$2      ; shift 2 ;;
-	--gadget-mode) fgadgetmode=1 ; shift 1 ;;
-	--groups)      groups=$2     ; shift 2 ;;
-	--hdmi-force-hotplug) hdmiforcehotplug=1 ; shift 1 ;;
-	--hdmi-ignore-edid) hdmiignoreedid=1 ; shift 1 ;;
-	--hdmigroup)   hdmigroup=$2  ; shift 2 ;;
-	--hdmimode)    hdmimode=$2   ; shift 2 ;;
+	--groups)      dgroups=$2    ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
-	--hotspot)     hotspot=$2    ; shift 2 ;;
-	--journal)     journal="${2,,}" ; shift 2 ;;
-	--keymap)      keymap=$2     ; shift 2 ;;
-	--l10n)        loadl10n=1    ; shift 1 ;;
 	--info)        infocmd=1     ; shift 1 ;;
 	--loadlocal)   loadlocal="${2,,}" ; shift 2 ;;
-	--locale)      locale=$2     ; shift 2 ;;
 	--logwidth)    logwidth=$2   ; shift 2 ;;
-	--lxde-config) lxdeconfig=$2 ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
-	--modprobe)    modprobe=$(appendvalue "$modprobe" "$2" "|") ; shift 2 ;;
-	--motd)        motd=$2       ; shift 2 ;;
 	--mount)       fdomount=1    ; shift 1 ;;
-	--nopassword)  fnopassword=1 ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
-	--nouser) nouser=1 ; shift 1 ;;
 	--nowait-timesync) nowaittimesync=1 ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
 	--oklive)      oklive=1      ; shift 1 ;;
 	--os)          os="${2,,}"   ; shift 2 ;;
-	--password-pi) passwordpi=$2 ; shift 2 ;;
-	--password-root) passwordroot=$2 ; shift 2 ;;
-	--password-same) samepwd=$2  ; shift 2 ;;
-	--password-user) passworduser=$2 ; shift 2 ;;
 	--plugin-debug) plugindebug=1 ; shift 1 ;;
 	--plugin|--plugins) plugins=$(appendvalue "$plugins" "$2" "~") ; shift 2 ;;
 	--poptions)    poptions=$(appendvalue "$poptions" "${2,,}" ",") ; shift 2 ;;
 	--ppart)       fppart=1      ; shift 1 ;;
-	--redact)      redact=1      ; shift 1 ;;
+	--redact)      fredact=1     ; shift 1 ;;
 	--rclocal)     rclocal=$(appendvalue "$rclocal" "$2" "~") ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
 	--redo-customize) redocustomize=1 ; shift 1 ;;
 	--regen-ssh-host-keys) regensshkeys=1  ; shift 1 ;;
-	--rename-pi)   renamepi=$2 ; frenamepi=1 ; shift 2 ;;
 	--restart)     reboot=1      ; shift 1 ;;
-	--rootpwd)     rootpwd=1     ; shift 1 ;;
 	--runonly)     runonly="${2,,}" ; shift 2 ;;
 	--sdmdir)      sdmdir=$2     ; shift 2 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
-	--showpwd)     showpwd=1     ; shift 1 ;;
 	--shrink)      fshrink=1     ; shift 1 ;;
-	--ssh)         ssh="${2,,}"        ; shift 2 ;;
-	--svc*disable) svcdisable=$(appendvalue "$svcdisable" "$2" ",") ; shift 2 ;;
-	--svc*enable)  svcenable=$(appendvalue "$svcenable" "$2" ",")  ; shift 2 ;;
 	--swap)        swapsize=$2   ; shift 2 ;;
-	--sysctl)      sysctl=$(appendvalue "$sysctl" "$2" "|") ; shift 2 ;;
-	--systemd-config) systemdconfig=$2 ; shift 2 ;;
-	--timesyncd)   timesyncd=$2  ; shift 2 ;;
-	--timezone)    timezone=$2   ; shift 2 ;;
-	--udev)        udev=$(appendvalue "$udev" "$2" "|") ; shift 2 ;;
-	--uid)         myuid=$2      ; shift 2 ;;
 	--bupdate)     bupdate=$(appendvalue "$bupdate" "$2" "|") ; shift 2 ;;
-	--user)        myuser=$2     ; shift 2 ;;
-	--wifi-country|--wificountry) wificountry=${2^^} ; shift 2 ;;
-	--wpa)         wpaconf=$2    ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
 	--custom2)     custom2=$2    ; shift 2 ;;
@@ -774,16 +579,6 @@ then
     frunonly=1
     [ "$dimg" == "" ] && dimg="/" && fdirtree=1  # Default to running system if nothing specified
 fi
-if [ $fcustomize -eq 1 ]
-then
-    if [ $frenamepi -eq 1 ]
-    then
-	[ "$myuser" != "" ] && errexit "? Only one of --rename-pi and --user can be used"
-	myuser="$renamepi"
-    fi
-    [ $nouser -eq 0 -a "$myuser" == "" ] && write_premsg "% No username specified with the --user switch; Using 'pi'" && myuser="pi"
-    [ $nouser -eq 1 ] && myuser=""
-fi
 #
 # Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 
 #
@@ -799,42 +594,24 @@ fi
 [ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase Script '$cscript' not executable"
 p1bootconf="$(fndotfullpath $p1bootconf)"
 [ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
-if [ "$ssh" != "" ]
-then
-    [[ ! "|none|socket|service|" =~ "|$ssh|" ]] && errexit "? Unknown value '$ssh' for --ssh"
-fi
-[ "$ssh" == "" ] && ssh="service"
 [ "$rebootwait" != "" ] && checknumeric "$rebootwait" "--reboot"
-[ "$hdmigroup" != "" ] && checknumeric "$hdmigroup" "--hdmigroup"
-[ "$hdmimode" != "" ] && checknumeric "$hdmimode" "--hdmimode"
-[ "$myuid" != "" ] && checknumeric "$myuid" "--uid"
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
-[ "$hdmimode" != "" -a "$hdmigroup" == "" ] && errexit "? --hdmimode set but not --hdmigroup"
-[ "$hdmigroup" != "" -a "$hdmimode" == "" ] && errexit "? --hdmigroup set but not --hdmimode"
-! cktimezone $timezone && errexit "? Unknown Timezone '$timezone'"
-! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
-! cklocale $locale && errexit "? Unknown Locale '$locale'"
-! ckkeymap $keymap && errexit "? Unknown Keymap '$keymap'"
+#! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
 
 debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
 exitiferr "$debugs"
-disables=$(poptcheck "$disables" "$vdisableopts" "--disable")
-exitiferr "$disables"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--poption")
 exitiferr "$poptions"
 loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
 exitiferr "$aptmaint"
-journal=$(poptcheck "$journal" "$vjournalopts" "--journal")
-exitiferr "$journal"
 bupdate=$(poptcheck "$bupdate" "$vbupdopts" "--bupdate")
 exitiferr "$bupdate"
 runonly=$(poptcheck "$runonly" "$vrunonlyopts" "--runonly")
 exitiferr "$runonly"
 
 [ "$runonly" != "" -a "$plugins" == "" ] && errexit "? No plugins specified for --runonly plugins"
-journal=${journal#|} ; journal=${journal%|}  #Strip off the vbars
 os=$(poptcheck "$os" "$vosopts" "--os")
 exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
@@ -845,7 +622,7 @@ then
     IFS="~" read -a plugs <<< $plugins
     for p in "${plugs[@]}"
     do
-	IFS=':' read -a fpn <<< "$p"
+	IFS=':' read fpn pargs <<< "$p"
 	pf=0
 	for d in  $(dirname $fpn) $src/local-plugins $src/plugins
 	do
@@ -865,88 +642,9 @@ then
 	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$fpn'"
     done
 fi
-#
-# --systemd-config
-#
-if [ "$systemdconfig" != "" ]
-then
-    emsg=""
-    IFS="," read -a itemlist <<< "$systemdconfig"
-    for o in "${itemlist[@]}"
-    do
-	IFS=":" read olname fname <<< "$o"
-	lname=${olname,,} ; lname=${lname%d}    #Copy name and strip trailing 'd' if present (easy typo)
-	case "$lname" in
-	    login|network|resolve|system|timesync|user)
-		if [ -f $fname ]
-		then
-		    nsdfn="sdfn${lname}"
-		    printf -v "$nsdfn" "%s" "$fname"   #Update variable named sdfn${lname}
-		else
-		    [ "$emsg" != "" ] && emsg="$emsg,${olname}:${fname}" || emsg="${olname}:${fname}"
-		fi
-		;;
-	    *)
-		[ "$emsg" != "" ] && emsg="$emsg,${olname}:is-unknown" || emsg="${olname}:is-unknown"
-		;;
-	esac
-    done
-    [ "$emsg" != "" ] && errexit "? --systemd-config file(s) not found: $emsg"
-fi
-#
-# Password-related switches
-#
-if [ "$samepwd" != "" ]
-then
-    case "${samepwd,,}" in
-	y*)
-	    passwordsame=1
-	    ;;
-	n*)
-	    passwordsame=-1
-	    ;;
-	*) errexit "? Unrecognized value '$samepwd' for --password-same switch"
-    esac
-fi
-#
-# Process --lxde-config switch
-#
-if [ "$lxdeconfig" != "" ]
-then
-    IFS="," read -a citems <<< "$lxdeconfig"
-    for c in "${citems[@]}"
-    do
-        IFS=":=" read key value <<< "$c"
-	case "${key,,}" in
-	    libfm|pcmanfm|lxterminal)
-		cf="${key}conf"
-		[ ! -f $value ] && errexit "? --lxde-config $cf config file '$value' not found"
-		export $cf=$value #Copies the filename into one of libfmconf|pcmanfmconf|lxterminalconf
-		;;
-	    *) errexit "? Unknown --lxde-config key '$key'" ;;
-	esac
-    done
-fi
-#
-# Check values for --bootset
-#
-if [ "$bootsetpairs" != "" ]
-then
-    IFS="," read -a citems <<< "$bootsetpairs"
-    for c in "${citems[@]}"
-    do
-	IFS=":=" read key value <<< "$c"
-	! [[ "$vbootset" =~ "|$key|" ]] && errexit "? Unrecognized --bootset key '$key'"
-    done
-fi
-#
-# Set dtoverlay if gadget mode requested
-#
-if [ $fgadgetmode -eq 1 ]
-then
-    [ "$dtoverlay" == "" ] && dtoverlay="dwc2" || dtoverlay="$dtoverlay|dwc2"
-fi
+
 [ $fextend -eq 1 -a "$(which parted)" == "" ] && errexit "? Please 'sudo apt install parted'"
+
 #
 # Check sanity of the disk image argument
 #
@@ -976,37 +674,7 @@ elif [ $fextend -eq 1 ]
 then
     echo "% Ignoring --extend for non-file-based $dimgdevname '$dimg'" && fextend=0
 fi
-#
-# Ensure wpa is correctly configured for the request, if needed
-#
-[ "$wpaconf" != "" -a ! -f "$wpaconf" ] && errexit "? wpa_supplicant config file '$wpaconf' not found"
 
-if [ "$eeprom" != "" ]
-then
-    if [[ ! "|critical|stable|beta|" =~ "|$eeprom|" ]]
-    then
-	echo "% --eeprom value '$eeprom' is not one of the standard 'critical/stable/beta'. Continuing..."
-    fi
-fi    
-
-[ "$exports" != "" -a ! -f "$exports" ] && errexit "? --exports file '$exports' not found"
-
-for c in d hourly daily weekly monthly
-do
-    ct="cron$c"
-    cf=${!ct}     #  (eval "cf=\$$ct" alternate way)
-    [ "$cf" != "" ] && checkfilelist "$cf" "--cron-$c"
-done
-
-[ "$sysctl" != ""  ] && checkfilelist "$sysctl" "--sysctl"
-[ "$modprobe" != "" ] && checkfilelist "$modprobe" "--modprobe"
-[ "$motd" != "" -a "$motd" != "/dev/null" ] && checkfilelist "$motd" "--motd"
-[ "$udev" != "" ] && checkfilelist "$udev" "--udev"
-if [ "$hotspot" != "" ]
-then
-    [ ! -f $hotspot ] && errexit "? --hotspot file '$hotspot' not found"
-    reboot=1
-fi
 if [ "$b0script" != "" ]
 then
     [ ! -f $b0script ] && errexit "? --b0script file '$b0script' not found"
@@ -1118,17 +786,17 @@ then
 	logtoboth "* Run selected plugins on the host system"
 	declare -x SDMPT=""
 	declare -x SDMNSPAWN="Live0"
-	runplugins 0
+	runplugins "$plugins" 0
 	declare -x SDMNSPAWN="Live1"
-	runplugins 1
-	runplugins post-install
+	runplugins "$plugins" 1
+	runplugins "$plugins" post-install
     else
 	# Operating on an IMG or disk
 	declare -x SDMPT=$(makemtpt)
 	domount "$dimg"
 	initvirt write_premsg
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
-	runplugins 0
+	runplugins "$plugins" 0
 	sdm_spawn "$sdmdir/sdm-phase1 run-plugin-list 1 \"$plugins\"" "" Phase1
 	sdm_spawn "$sdmdir/sdm-phase1 run-plugin-list post-install \"$plugins\"" "" Phase1
     fi
@@ -1204,9 +872,16 @@ else
     rm -f $SDMPT/usr/local/bin/sdm
     ln -s $sdmdir/sdm $SDMPT/usr/local/bin
     mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
-    cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
-    compgen -G "$src/local-plugins/*" > /dev/null && cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
-    chmod 755 $SDMPT/$sdmdir/plugins/* $SDMPT/$sdmdir/local-plugins/*
+    if compgen -G "$src/plugins/*" > /dev/null
+    then
+	cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
+	chmod 755 $SDMPT/$sdmdir/plugins/*
+    fi
+    if compgen -G "$src/local-plugins/*" > /dev/null
+    then
+	cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
+	chmod 755 $SDMPT/$sdmdir/local-plugins/*
+    fi
     # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
@@ -1217,11 +892,6 @@ else
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
-	#if [ $bootscripts -eq 1 ]
-	#then
-	    #[ -f $SDMPT/$sdmdir/1piboot/010-disable-triggerhappy.sh ] && logtoboth "!!sdm now supports '--disable triggerhappy'; suggest removing $sdmdir/1piboot/010-disable-triggerhappy.sh"
-	    #[ -f $SDMPT/$sdmdir/1piboot/030-disable-rsyslog.sh ] && logtoboth "!!sdm now supports --journal; suggest removing $sdmdir/1piboot/030-disable-rsyslog.sh"
-	#fi
 	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
     fi
     raspiosver=$(getosver)
@@ -1233,6 +903,7 @@ else
     logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= /etc/os-release))"
     logtoboth "   sdm Version: $version"
     logtoboth "* IMG Information"
+    logtoboth "   Name: $dimg"
     logtoboth "   Date: $(getosdate)"
     logtoboth "   RasPiOS Version: $raspiosver"
     logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= $SDMPT/etc/os-release))"
@@ -1246,17 +917,19 @@ else
         done
     fi
 
+    #
+    # Fix up plugins as needed
+    #
+    if ! ispluginselected network "$plugins"
+    then
+	# If network plugin not selected, add it
+	echo "> Add unselected plugin 'network' to enable SSH"
+	plugins=$(appendvalue "$plugins" "network:ssh" "~")
+    fi
+    plugin_logorder "$plugins"
+
     logfreespace
     logtoboth "> Copy sdm to $sdmdir in the $dimgdevname"   # Yes, already done above ;)
-    if [ $loadl10n -eq 1 ]
-    then
-	readl10n
-	logtoboth "> Load Localization (L10N) settings from running system"
-	logtoboth "   Keymap:       $keymap"
-	logtoboth "   Locale:       $locale"
-	logtoboth "   Timezone:     $timezone"
-	logtoboth "   WiFi Country: $wificountry"
-    fi
     if [ "$pi1bootconf" != "" ]
     then
 	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"

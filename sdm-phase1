@@ -21,26 +21,6 @@ doapt "$1 $upg" "$2" || logapterror
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
-function dodt() {
-    #
-    # $1 = name (either "dtoverlay" or "dtparam"
-    # $2 = value(s)
-    #
-    local dtname="$1" dtvalues="$2" citems=() c
-    if [ "$dtvalues" != "" ]
-    then
-	logtoboth "> Add new $dtname settings to /boot/config.txt"
-	echo "" >> /boot/config.txt
-	echo "# $dtname items added by sdm --$dtname" >> /boot/config.txt
-	IFS="|" read -a citems <<< "$dtvalues"
-	for c in "${citems[@]}"
-	do
-	    logtoboth ">  $dtname $c"
-	    echo "$dtname=$c" >> /boot/config.txt
-	done
-    fi
-}
-
 function doctrlcp1() {
     echo "% Caught CTRL/C. Exiting Phase 1..."
     exit 1     #Can't use poweroff since no job control in either nspawn or chroot
@@ -79,40 +59,34 @@ case "$cmd" in
 	fi
 	exit 0
 	;;
-    do-disables)
-	[ "$disables" != "" ] && do_disables "$disables"
-	exit 0
-	;;
-    burn-enable-lightdm-autologin)  # Delay lightdm enable until sdm-firstboot
-	setlightdmautologin burning
-	exit 0
-	;;
     burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
-	delaylightdmenable burning
+	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning"
 	exit 0
 	;;
     run-all-plugins)  # Run Plugin phase 1 or post-install
-	phase="$2"
-	runplugins $phase
+	phase="$cmdoptions"
+	runplugins "$plugins" $phase
 	exit 0
         ;;
     run-plugin-list) # Run list of plugins phase 1 or post-install
-	phase="$2"
-	plugins="${3#\"}"         #Strip leading/trailing double quotes
-	plugins="${plugins%\"}"
-	runplugins $phase
+	phase="$cmdoptions"
+	theseplugins="${3#\"}"         #Strip leading/trailing double quotes
+	theseplugins="${plugins%\"}"
+	#logtoboth "run-plugin-list: $theseplugins"
+	runplugins "$theseplugins" $phase
+	writeconfig                    #Write updated config
 	exit 0
 	;;
     run-one-plugin)  # Run Plugin phase 1 or post-install
-	# $2: plugin name and args $3: Phase
-	p="$2"
+	# $cmdoptions: plugin name and args $3: Phase
+	p="$cmdoptions"
 	phase=$3
 	runonepluginx "$p" $phase
 	exit 0
         ;;
     run-command)  # Run a single command in phase 1 or post-install
-	# $2: Command line
-	runcmd=$(stripquotes "$2")
+	# $cmdoptions: Command line
+	runcmd=$(stripquotes "$cmdoptions")
 	#logtoboth "> Run command line: $runcmd"
 	$runcmd
 	exit 0
@@ -121,7 +95,6 @@ esac
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
 
-logtoboth "*+Phase 1 sdm configuration"
 #
 # Set up sdm-firstboot service. This service processes some settings that can only be done
 # on the first boot of the system.
@@ -147,211 +120,7 @@ EOF
 
 systemctl enable sdm-firstboot > /dev/null 2>&1
 
-logtoboth "*+Phase 1 Network/WiFi/Bluetooth configuration"
 [ "$hname" != "" ] && updatehostname $hname   # If hostname specified on customize then set it
-#
-# Set to disable bluetooth and/or wifi if requested
-#
-[[ "$disables" =~ "bluetooth" ]] && do_disables bluetooth
-[[ "$disables" =~ "wifi" ]] && do_disables wifi
-#
-# Set up ssh as requested
-#
-if [ "$ssh" == "service" ]
-then
-    logtoboth "> Enable SSH service via /boot/ssh"
-    touch /boot/ssh
-elif [ "$ssh" == "socket" ]
-then
-    logtoboth "> Enable SSH via ssh.socket per --ssh socket"
-    systemctl enable ssh.socket > /dev/null 2>&1
-    systemctl disable sshswitch.service > /dev/null 2>&1
-elif [ "$ssh" == "none" ]
-then
-    logtoboth "> Disable SSH per --ssh none"
-    systemctl disable ssh.service > /dev/null 2>&1
-fi
-if [ $fgadgetmode -eq 1 ]
-then
-    # dtoverlay=dwc2 set in sdm if gadget-mode
-    # ssh enabled by default. We don't check if user has disabled.
-    logtoboth "> Enable Gadget Mode"
-    sed -i "s/rootwait/rootwait modules-load=dwc2,g_ether/" /boot/cmdline.txt
-fi
-
-logtoboth "*+Phase 1 User configuration"
-#
-# Handle --rename-user
-#
-if [ $frenamepi -eq 1 ]
-then
-    # Replicate functionality in /lib/userconf-pi/userconf
-    firstuser="$(getent passwd 1000 | (IFS=":" read un rest ; echo $un))"
-    firstgroup="$(getent group 1000 | (IFS=":" read gn rest ; echo $gn))"
-    logtoboth "> Rename user '$firstuser' to '$myuser'"
-    if getent passwd $firstuser > /dev/null # grep -q ^pi: /etc/passwd
-    then
-	if ! getent passwd $myuser > /dev/null # ! grep -q ^$myuser: /etc/passwd
-	then
-	    usermod --login $myuser $firstuser
-	    usermod --move-home --home /home/$myuser $myuser
-	    groupmod --new-name $myuser $firstgroup
-	    for file in /etc/subuid /etc/subgid
-	    do
-		sed -i "s/^$firstuser:/$myuser:/" $file
-	    done
-	    sudofile="010_$firstuser-nopasswd"
-	    if [ -f /etc/sudoers.d/$sudofile ]
-	    then
-		chmod 755 /etc/sudoers.d/$sudofile
-		sed -i "s/^$firstuser /$myuser /" /etc/sudoers.d/$sudofile
-		chmod 440 /etc/sudoers.d/$sudofile
-		mv /etc/sudoers.d/$sudofile /etc/sudoers.d/${sudofile/$firstuser/$myuser}
-	    fi
-	else
-	    logtoboth "% Skip --rename-pi; User '$myuser' already exists"
-	fi
-    fi
-elif [ "$myuser" != "" ] # and not --rename-pi 
-then
-    [ "$myuid" != "" ] && xuid="--uid $myuid" || xuid=""
-    # Use useradd/usermod so no prompts=adduser --disabled-login --no-create-home $xuid --add_extra_groups $myuser
-    if ! getent passwd $myuser > /dev/null
-    then
-	logtoboth "> Add user '$myuser'"
-	useradd --no-create-home --home-dir /home/$myuser $xuid $myuser
-	usermod --gid users $myuser
-	usermod --groups $groups $myuser
-    else
-	if [ "$xuid" != "" ]
-	then
-	    logtoboth "> Set user '$myuser' UID to '$myid'"
-	    usermod $xuid $myuser
-	fi
-    fi
-    # Do this manually since we have to use --no-create-home (dir already created in Phase 0)
-    for f in /etc/skel/.* /etc/skel/*
-    do
-	[ -f $f ] && ( [ -f /home/$myuser/$(basename $f) ] || cp -a $f /home/$myuser )
-    done
-    [ ! -d /home/$myuser ] && mkdir /home/$myuser
-    [ "$myuser" != "pi" ] && gr="users" || gr="pi"
-    logtoboth "> Set /home/$myuser files ownership to '${myuser}:${gr}'"
-    chown -R ${myuser}:${gr} /home/$myuser
-    if [ ! -f /etc/sudoers.d/010_$myuser-nopasswd ]
-    then
-	logtoboth "> Add user '$myuser' to sudoers.d"
-	echo "$myuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$myuser-nopasswd
-	chmod 440 /etc/sudoers.d/010_$myuser-nopasswd
-    fi
-fi
-
-samepwd=""
-usesamepwd=0
-puser="'$myuser'"
-susers="user"
-if [ $fnopassword -eq 0 ]
-then
-    [ ${raspiosver} -ge 11 ] && oldpios=0 || oldpios=1
-
-    [ $oldpios -eq 1 -a "$myuser" != "pi" -a $frenamepi -eq 0 ] && puser="${puser} and 'pi'" && susers="users"        # Only ask about pi on older systems
-    [ $rootpwd -eq 1 ] && puser="${puser} and 'root'" && susers="users"
-    usesamepwd=$passwordsame
-    if [ $usesamepwd -eq 0 -a "$susers" == "users" ]
-    then
-	askyn "** Use same password for $susers $puser" "-n 1" && usesamepwd=1
-	echo ""
-    fi
-    if [ $usesamepwd -eq 1 ]
-    then
-	[ "$susers" == "users" ] && logtoboth "> Using same password for $susers $puser"
-	[ "$samepwd" == "" -a "$passworduser" != "" ] && samepwd="$passworduser" && logtoboth "> Using --password-user password for all passwords"
-	[ "$samepwd" == "" -a "$passwordroot" != "" ] && samepwd="$passwordroot" && logtoboth "> Using --password-root password for all passwords"
-	[ "$samepwd" == "" -a "$passwordpi" != "" ] && samepwd="$passwordpi" && logtoboth "> Using --password-pi '$passwordpi' for all passwords"
-    fi
-    if [ $usesamepwd -eq 1 -a "$samepwd" == "" ]
-    then
-	while [ true ]
-	do
-	    echo -n "** Enter password to use for $susers $puser: "
-	    samepwd=$(getpwd)
-	    echo ""
-	    [ "$samepwd" != "" ] && break
-	done
-    fi
-    if [ $usesamepwd -eq 0 -a "$passworduser" == "" ]
-    then
-	[ "$myuser" == "pi" -o $frenamepi -eq 1 ] && passworduser="$passwordpi"
-    fi
-    if [ "$myuser" != "" ]
-    then
-	[ "$samepwd" != "" ] && upwd="$samepwd" || upwd="$passworduser"
-	changepwd $myuser "$upwd"
-    fi
-    if [ $oldpios -eq 1 ]
-    then
-	logtoboth "> Change user 'pi' password"
-	[ "$samepwd" == "" ] && samepwd="$passwordpi"
-	changepwd pi "$samepwd"
-	logtoboth "> Set /home/pi files ownership to 'pi.pi'"
-	chown -R pi:pi /home/pi
-    fi
-    if [ $rootpwd -eq 1 ]
-    then
-	logtoboth "> Set root password"
-	[ $usesamepwd -eq 1 ] && rpwd="$samepwd" || rpwd="$passwordroot"
-	changepwd root "$rpwd"
-    else
-	logtoboth "> root password not set"
-    fi
-else
-    logtoboth "> Skip password processing per --nopassword"
-fi
-logtoboth "*+Phase 1 System and Boot Configuration"
-#
-# Handle system settings that can be done in Phase 1
-#
-setbootset
-#
-# Set HDMI configuration if requested
-#
-if [ "$hdmigroup" != "" -a "$hdmimode" != "" ]
-then
-    logtoboth "> Set 'hdmigroup=$hdmigroup' and 'hdmimode=$hdmimode' in /boot/config.txt"
-    sed -i "s/\#hdmi_group=1/hdmi_group=$hdmigroup/" /boot/config.txt
-    sed -i "s/\#hdmi_mode=1/hdmi_mode=$hdmimode/" /boot/config.txt
-fi
-if [ "$hdmiforcehotplug" == "1" ]
-then
-    logtoboth "> Set 'hdmi_force_hotplug=1' in /boot/config.txt"
-    sed -i "s/\#hdmi_force_hotplug=1/hdmi_force_hotplug=1/" /boot/config.txt
-fi
-if [ "$hdmiignoreedid" == "1" ]
-then
-    logtoboth "> Set 'hdmi_ignore_edid=0xa5000080' in /boot/config.txt"
-    sed -i '/hdmi_mode/a \\n# (sdm) Ignore EDID display data\nhdmi_ignore_edid=0xa5000080' /boot/config.txt
-fi
-#
-# Set other config.txt settings (if any)
-#
-if [ "$bootconfig" != "" ]
-then
-    logtoboth "> Update /boot/config.txt for bootconfig: $bootconfig"
-    IFS="," read -a citems <<< "$bootconfig"
-    for c in "${citems[@]}"
-    do
-	IFS=":=" read key value <<< "$c"
-	sed -i "s/\^$key=.*/$key=$value/" /boot/config.txt
-	sed -i "s/\#$key=.*/$key=$value/" /boot/config.txt
-	logtoboth ">  $key=$value"
-    done
-fi
-dobootadd "$bootadd"
-#
-# Process --dtparm and --dtoverlay settings
-#
-dodt dtoverlay "$dtoverlay"
-dodt dtparam   "$dtparam"
 #
 # Add requested command(s) to /etc/rc.local
 #
@@ -372,142 +141,18 @@ then
 fi
 
 #
-# WiFi Country is done when the system first boots by sdm-firstboot
-#
-if [ "$locale" != "" ]
-then
-    logtoboth "> Set Locale to '$locale'"
-    #raspi-config do_change_locale "$locale" nonint
-    do_raspiconfig do_change_locale "$locale"
-fi
-if [ "$keymap" != "" ]
-then
-    logtoboth "> Set Keymap to '$keymap' to be implemented during FirstBoot"
-    #[ "$virtmode" == "chroot" ] && logtoboth "% Ignore 'Running in chroot, ignoring request' message" || logtoboth "% Ignore invoke-rc.d and 'Read-only file system' messages"
-    #do_raspiconfig  do_configure_keyboard "$keymap"
-    cat > /etc/sdm/0piboot/010-configure-keyboard.sh <<EOF
-#!/bin/bash
-raspi-config do_configure_keyboard "$keymap" nonint
-EOF
-fi
-if [ "$timezone" != "" ]
-then
-    logtoboth "> Set Timezone to '$timezone'"
-    #raspi-config do_change_timezone "$timezone" nonint
-    do_raspiconfig do_change_timezone "$timezone" 
-fi
-
-if [ "$eeprom" != "" ]
-then
-    logtoboth "> Set rpi-eeprom to '$eeprom' during FirstBoot"
-    cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
-#!/bin/bash
-logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
-sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
-EOF
-fi
-
-#
 # Set up apt-cacher-ng client if requested
 #
 if [ "$aptcache" != "" ]
 then
-    $sdmdir/sdm-apt-cacher client $aptcache
     logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
+    $sdmdir/sdm-apt-cacher client $aptcache
 fi
-#
-# Disable cron service and enable cron timers if requested
-#
-if [ $cronsystemd -eq 1 ]
-then
-    logtoboth "> Switch cron to systemd timers"
-    cat > /etc/systemd/system/cron@.service <<EOF
-[Unit]
-Description=%I job for /etc/cron.%I
-RefuseManualStart=yes
-RefuseManualStop=yes
-ConditionDirectoryNotEmpty=/etc/cron.%I
-
-[Service]
-Type=oneshot
-IgnoreSIGPIPE=no
-WorkingDirectory=/
-ExecStart=/bin/run-parts --report /etc/cron.%I
-EOF
-    cat > /etc/systemd/system/cron@.timer <<EOF
-[Unit]
-Description=%I timer for /etc/cron.%I
-PartOf=crontab.target
-RefuseManualStart=yes
-RefuseManualStop=yes
-
-[Timer]
-OnCalendar=%I
-Persistent=yes
-[Install]
-WantedBy=timers.target
-EOF
-    for timeset in hourly daily monthly weekly
-    do
-	systemctl enable cron@${timeset}.timer  > /dev/null 2>&1
-    done
-    systemctl disable cron > /dev/null 2>&1
-    systemctl mask    cron > /dev/null 2>&1
-fi
-#
-# Set system journal as requested
-#
-case "$journal" in
-    persistent|volatile|none)
-	logtoboth "> Set system journal to '$journal' and disable rsyslog if installed"
-	mkdir -p /etc/systemd/journald.conf.d
-	cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
-[Journal]
-Storage=$journal
-ForwardToSyslog=no
-EOF
-	if [ -f /lib/systemd/system/rsyslog.service ]
-	then
-	    systemctl disable rsyslog > /dev/null 2>&1
-	    systemctl mask rsyslog > /dev/null 2>&1
-	fi
-	;;
-    syslog|*)
-	logtoboth "> System journal configuration not modified"
-	;;
-esac
 if [ $swapsize -gt 0 ]
 then
     logtoboth "> Set Swap Size to ${swapsize}MB"
     sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=$swapsize/" /etc/dphys-swapfile
-else
-    #
-    # Disable swap if requested
-    #
-    [[ "$disables" =~ "swap" ]] && do_disables swap
 fi
-#
-# Copy systemd config files to their locations
-#
-for c in login network resolve system timesync user
-do
-    nsdfn="sdfn${c}"
-    fn="${!nsdfn}"
-    if [ "$fn" != "" ]
-    then
-	tdir=$c
-	[ "$c" != "system" -a "$c" != "user" ] && tdir="${tdir}d"
-	logtoboth "> Copy systemd '$c' config file '$fn' from /etc/sdm/assets to /etc/systemd/$tdir.conf.d"
-	mkdir -p /etc/systemd/$tdir.conf.d
-	cp /etc/sdm/assets/$(basename $fn) /etc/systemd/$tdir.conf.d
-	chown root:root /etc/systemd/$tdir.conf.d/$(basename $fn)
-	chmod 644 /etc/systemd/$tdir.conf.d/$(basename $fn)
-    fi
-done
-#
-# Disable Triggerhappy service if requested
-#
-[[ "$disables" =~ "triggerhappy" ]] && do_disables triggerhappy
 
 if ! [[ "$poptions" =~ "noupdate" ]]
 then
@@ -530,10 +175,7 @@ fi
 #
 # Run requested plugins Phase 1
 #
-if [ "$plugins" != "" ]
-then
-    runplugins 1
-fi
+runplugins "$plugins" 1
 
 #
 # Post-install Configuration
@@ -565,10 +207,6 @@ then
 else
     logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
 fi
-#
-# Honor --disable piwiz
-#
-[[ "$disables" =~ "piwiz" ]] && do_disables piwiz
 
 logfreespace "at end of Phase 1 image customization"
 logtoboth "* Phase 1 Completed"
@@ -581,25 +219,20 @@ fi
 #
 # Run requested plugins post-install phase
 #
-if [ "$plugins" != "" ]
-then
-    runplugins post-install
-fi
+runplugins "$plugins" post-install
 #
-# Redact passwords if requested
+# Complete graphics post-install if graphics plugin not selected
+# This is a hack. Proper fix needs more thought
 #
-if [ $redact -eq 1 ]
+if ! ispluginselected graphics "$plugins"
 then
-    logtoboth "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
-    for pwd in "$passworduser" "$passwordroot" "$passwordpi"
-    do
-	if [ "$pwd" != "" ]
-	then
-	    sed -i "s/$pwd/REDACTED/" /etc/sdm/cparams
-	    sed -i "s/$pwd/REDACTED/" /etc/sdm/history
-	fi
-    done
+    logtoboth "> Run graphics post-install configuration"
+    source $sdmdir/plugins/graphics
+    gargs=$(getpluginargs graphics "$plugins")
+    [[ "$gargs" =~ "nodmconsole" ]] && nodmconsole=1 || nodmconsole=0
+    gfxcfgpostinstall yes
 fi
+
 #
 # Check for device out of space and warn if so
 #
@@ -617,7 +250,7 @@ then
     if [ -t 0 ]
     then
 	logtoboth "* Enter Shell Command Prompt"
-	logtoboth "> 'exit' to exit back to host system"
+	logtoboth "  'exit' to exit back to host system"
 	IFS=":" read efg ebg ecursor <<< $ecolors
 	stermcolors "$efg" "$ebg" "$ecursor" x1
 	bash -i
