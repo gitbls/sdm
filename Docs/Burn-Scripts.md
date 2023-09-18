@@ -36,7 +36,6 @@ These switches can be used with `--burn`. When used this way, they affect only t
 * `--b0script`
 * `--b1script`
 * `--bootscripts`
-* `--disables`
 * `--expand-root`
 * `--hostname`
 * `--noreboot`
