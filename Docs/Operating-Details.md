@@ -29,7 +29,7 @@ Once the IMG is completed (Phase 0, Phase 1, and post-install), **Phase 3** and 
 * Phase 1 &mdash; Run sdm Phase1 steps on the IMG
 * Plugins Phase 1 &mdash; Run Phase 1 for all enabled plugins in command-line order
 * Install apps &mdash; Install apps specified by `--apps`
-* Network configuration &mdash; Configure network as specified by `--netman`
+* Network configuration &mdash; Configure network as specified by `--plugin network`
 * apt upgrade &mdash; Upgrade all installed packages with available updates
 * apt autoremove &mdash; Auto remove any unnecessary packages
 * Plugins post-install &mdash; Run Phase post-install for all enabled plugins in command-line order

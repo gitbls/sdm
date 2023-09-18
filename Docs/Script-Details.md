@@ -8,16 +8,15 @@ sdm consists of a primary script sdm and several supporting scripts:
 
      *  Copy files from the running system into the IMG, as specified by command line switches, for use in Phase 1.
      
-     * If `--user` is specified, creates the user's home directory so that your Custom Phase script can copy files into it during Phase 0. The user is also enabled to use `sudo` like the user *pi*.
-
     * Calls selected Plugins and/or Custom Phase Scripts for Phase 0 if specified.
 
-    You can extend what's done in Phase 0 by using a <a href="Plugin.md">Plugin</a> or <a href="Custom-Phase-Script.md">Custom Phase Script</a>. 
+    You can extend what's done in Phase 0 by using a <a href="Plugin.md">Plugin (preferred)</a> or <a href="Custom-Phase-Script.md">Custom Phase Script</a>. 
 
-* **sdm-phase1** &mdash; Asks for and changes the password for the *pi* user. Optionally, if you used the sdm `--user` switch, creates your personal account, sets its password, directory and protections, etc. If `--aptcache` was specified, the IMG is enabled as an apt-cacher-ng client. See <a href="apt-Cacher-NG.md">apt Cacher NG</a> for details on apt-cacher-ng.
+* **sdm-phase1** &mdash; If `--aptcache` was specified, the IMG is enabled as an apt-cacher-ng client. See <a href="apt-Cacher-NG.md">apt Cacher NG</a> for details on apt-cacher-ng.
 
-    
     * App installation is accomplished using the <a href="Docs/Plugins.md#apps>`apps` plugin</a>. The `apps` plugin installs the requested apps when it is run in Phase 1.
+
+    * Similarly, other plugins can be used, and are called by sdm-phase1 at the appropriate time.
 
 * **sdm-apt** &mdash; sdm-apt is an optional script that you can use to issue apt commands when in Phase 1 or via `sdm --explore`. It logs the apt output in $SDMPT/etc/sdm/apt.log along with all the other apt operations done in by sdm in customizing your image. Refer to the script for details.
 

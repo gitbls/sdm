@@ -14,7 +14,6 @@
 
     sdm enters the nspawn container for the IMG so you can work on it. For example, you might want to do an *apt update* and *apt upgrade*, install additional packages, or make other configuration or customization changes, before you burn a new SD Card.
 
-
 This is an example that can be copied and used. Following that is an annotated version with some explanations.
 
 ```sh
@@ -28,14 +27,13 @@ sudo sdm \
      --extend --xmb 2048 \
      --plugin user:"deluser=pi" \
      --plugin user:"adduser=bls|password=mypassword|uid=3300" \
-     --plugin network:"netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \
+     --plugin network:"ssh|netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \
      --plugin system:"systemd-config=timesync=/rpi/systemd/timesyncd.conf" \
      --plugin system:"service-disable=apt-daily.timer,apt-daily-upgrade.timer|eeprom:stable|fstab=/rpi/etc/fstab.lan" \
      --plugin disables:"piwiz|triggerhappy" \
      --plugin lxde:lhmouse \
      --plugin L10n:host \
      --plugin bootconfig:"hdmi_force_hotplug=1|hdmi_ignore_edid|dtparam=sd_poll_once" \
-     --ssh service \
      --plugin apps:"apps=@myapps|name=myapps" \
      --plugin apps:"apps=@myxapps|name=myxapps" \
      --aptcache 192.168.42.4 \
@@ -53,6 +51,7 @@ sudo sdm \
      --plugin user:"deluser=pi" \                                                   # Delete user pi
      --plugin user:"adduser=bls|password=mypassword|uid=3300" \                     # Create a new user with a password using a specific UID
      --plugin network:"netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \ # Use Network Manager and set up a connection
+                                                                                        # and enable SSH, which is the default
      --plugin system:"systemd-config=timesync=/rpi/systemd/timesyncd.conf" \        # Configure systemd-timesyncd
      --plugin system:"service-disable=apt-daily.timer,apt-daily-upgrade.timer|eeprom:stable|fstab=/rpi/etc/fstab.lan" \ # Other system settings
      --plugin disables:"piwiz|triggerhappy" \                                       # Disable piwiz and triggerhappy

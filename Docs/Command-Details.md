@@ -50,7 +50,7 @@ sdm commands include:
 
 sdm has a broad set of command switches. These can be specified in any case (UPPER, lower, or MiXeD).
 
-* `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf. Note that this is less preferable than using the `--bootset` command switch.
+* `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--apt-dist-upgrade` &mdash; Some RasPiOS Bullseye images have a strange software configuration, which causes `apt-get upgrade` to fail. This switch forces sdm to use `apt-get --dist-upgrade` which updates correctly. [In the 2021-10-30 set of images, the "with Desktop" versions have a set of problematic VLC modules installed.]
 * `--autologin` &mdash; Cause the user to autologin when the system restarts
@@ -68,6 +68,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--datefmt "fmt"` &mdash; Use the specified date format instead of the default "%Y-%m-%d %H:%M:%S". See `man date` for format string details.
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, it replaces the default value.
 * `--expand-root` &mdash; Used with `--burn`. Expands the root partition on the SSD/SD Card after burning, and disables the default (quick) first boot that does this, since sdm has already expanded the partition
+* `--extend` &mdash; Used in conjunction with the `--xmb` switch to extend an image. If used without `--customize` the IMG is extended but no other action is taken. If used with `--customize` the IMG is extended before the IMG is customized.
 * `--groups` *grouplist* &mdash; Specify the groups to be added to new user created with `--user`. The default list is: `dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio`
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
 * `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See <a href="Captive-Portal.md">Captive Portal</a> for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
@@ -88,12 +89,11 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
 * `--redact` &mdash; See <a href="Passwords.md">Passwords</a> for details.
 * `--redo-customize` &mdash; Directs sdm to not prompt for confirmation to redo the customization on a target found to already be customized.
-* `--regenerate-ssh-host-keys` &mdash; The sdm FirstBoot process will regenerate the SSH host keys on the first system boot once the system time has been synchronized. The system will move ahead and regenerate the keys if the time has not been synchronized within 60 seconds.
+* `--regen-ssh-host-keys` &mdash; The sdm FirstBoot process will regenerate the SSH host keys on the first system boot once the system time has been synchronized. The system will move ahead and regenerate the keys if the time has not been synchronized within 60 seconds.
 * `--restart` &mdash; Restart the system at the end of the First Boot. The `--restart` switch and `--reboot` are synonomous except that you cannot specify an additional restart wait with the `--restart` switch.
 * `--runonly plugins` &mdash; Only run plugins. If no device or directory specified, sdm defaults to directory '/' on the running system.
 * `--showapt` &mdash; Show the output from apt (Package Manager) on the terminal in Phase 1. By default, the output is not displayed on the terminal. All apt output is captured in /etc/sdm/apt.log in the IMG.
 * `--sdmdir` */path/to* &mdash; sdm normally is in /usr/local/sdm. If you want it to be put somewhere else when you customize an image, use this switch to specify the location. To install sdm itself into a different directory, specify it as the parameter to EZsdmInstall when you first install sdm
-* `--ssh` *SSHoption* &mdash; Control how SSH is enabled in the image. If `--ssh` is not specified or if  *SSHoption* is `service`, SSH will be enabled in the image using the SSH service, just like RasPiOS. if `--ssh none` is specified SSH will not be enabled at all. If `--ssh socket` is specified SSH will be enabled using SSH sockets via systemd instead of having the SSH service hanging around all the time.
 * `--update-plugins` &mdash; Typically for sdm development use only. When plugins are used during an sdm burn, they are run from the copy in the source IMG. This switch causes sdm to look for newer updates on the host system, and update the burn target before running the plugins.
 * `--vncbase` *base* &mdash; Set the base port for VNC virtual desktops; RealVNC Console service is not changed.
 * `--wifi-country` *countryname* &mdash; Specify the name of the country to use for the WiFi Country setting. See /usr/share/zoneinfo/iso3166.tab for the complete WiFi Country code list. Also see the `--l10n` command switch which will extract the current WiFi Country setting from /etc/wpa_supplicant/wpa_supplicant.conf or /etc/wpa_supplicant/wpa_supplicant-wlan0.conf on the system on which sdm is running.

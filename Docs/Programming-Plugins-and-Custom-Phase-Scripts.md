@@ -170,7 +170,6 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--directory`         &mdash; $fdirtree=1
 * `--domain` name       &mdash; $domain
 * `--ecolors` fg:bg:cur &mdash; $ecolors
-* `--eeprom` str        &mdash; $eeprom
 * `--expand-root`       &mdash; $expandroot=1
 * `--extend`            &mdash; $fextend=1
 * `--groups` list       &mdash; $groups
@@ -193,7 +192,6 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--restart`           &mdash; $rebootwait=20, $reboot=1
 * `--sdmdir` /path/to/sdm &mdash; $sdmdir
 * `--showapt`           &mdash; $showapt=1
-* `--ssh` none|socket|service &mdash; $ssh
 * `--plugin user:"useradd=name"` &mdash; $myuser
 * `--update-plugins`    &mdash; $fupdateplugins=1
 * `--wifi-country` country &mdash; $wificountry
