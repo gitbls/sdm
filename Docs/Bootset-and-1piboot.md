@@ -1,9 +1,9 @@
 # Bootconfig and 1piboot
-## raspi-config control using 1piboot.conf and the `bootconfig` plugin
+## raspi-config control using 1piboot.conf and the `raspiconfig` plugin
 
 1piboot/1piboot.conf is a configuration file that describes RasPiOS-related configuration settings to be made in your image. Configuration settings are made when the system first boots. All of these settings use raspi-config to make the actual changes to the system. sdm does not syntax check the settings.
 
-The settings in 1piboot.conf can be controlled by editing the config file, or via the `bootconfig` plugin. For instance, you can set `serial=0` in 1piboot.conf or you can use the `--plugin bootconfig:"serial=0"` command switch. In addition, you can use the `bootconfig` plugin when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file. To set multiple values, separate them with a comma: `--plugin bootconfig:"serial=0,boot_behaviour=B4,camera=0"`
+The settings in 1piboot.conf can be controlled by editing the config file, or via the `raspiconfig` plugin. For instance, you can set `serial=0` in 1piboot.conf or you can use the `--plugin raspiconfig:"serial=0"` command switch. In addition, you can use the `raspiconfig` plugin when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file. To set multiple values, separate them with a comma: `--plugin raspiconfig:"serial=0,boot_behaviour=B4,camera=0"`
 
 ## First Boot configuration settings
 
@@ -25,7 +25,7 @@ The following can only be set in the context of a running system, so are set dur
 * **pi4video** &mdash; Set the Pi4 video mode. Valid settings are: **V1**:4Kp60, **V2**:Analog TV out, **V3**:Disable both 4Kp60 and Analog
 * **boot_behaviour** &mdash; Set the boot behavior. Valid settings are: **B1**:Text console no autologin, **B2**:Text console with autologin, **B3**:Graphical Desktop no autologin, and **B4**:Graphical Desktop with autologin.
 
-  **NOTE:** If `--user` was specified, autologin will be set for that user. If not, user "pi" is enabled.
+  **NOTE:** If `--plugin user` was specified with the `setpassword` or `adduser` arugment, autologin will be set for the first such user.
 
 * **boot_order** &mdash; Set the boot order. Valid settings are: **B1**:Boot from SD Card if available else boot from USB, **B2**:Boot from USB USB if available else boot from SD Card, **B3**: Network boot if SD Card boot fails. See the "Boot Order" section below.
 * **overclock** &mdash; Enable overclocking. Valid settings are: **None**, **Modest**, **Medium**, **High**, **Turbo**. This setting is for Pi 1 and 2 only and will silently fail on all other Pi models.
@@ -34,7 +34,7 @@ The following can only be set in the context of a running system, so are set dur
 
 ## Boot Order
 
-The *boot_order* configuration setting is different than other settings, in that in modifies the Raspberry Pi eeprom so that boot from USB disk or boot from Network are enabled. If your Pi already has a current system on it, you can use the command `sudo raspi-config do_boot_order XX` to set the boot_order to B1 (Boot from SD Card if available else USB device), B2 (Boot from USB if available else SD Card) or B3 (Boot from Network if SD Card boot fails).
+The *boot_order* configuration setting is different than other settings, in that in modifies the Raspberry Pi eeprom so that boot from USB disk or boot from Network are enabled. If your Pi already has a current system on it, you can use the command `sudo raspi-config do_boot_order XX nonint` to set the boot_order to B1 (Boot from SD Card if available else USB device), B2 (Boot from USB if available else SD Card) or B3 (Boot from Network if SD Card boot fails).
 
 If the target system doesn't have a current system on it, you can update the eeprom with sdm by setting up a separate image that is enabled with boot_order, and has all updates installed. Burn that image to an SD card and boot up the target Pi hardware. The system will use raspi-config to change the boot_order setting, and the restart again.
 
