@@ -314,7 +314,7 @@ function sdm_burndevfile() {
 	then
 	    sdm_runspawn run-plugin-list 1 "$bplugins" Burn1
 	    sdm_runspawn run-plugin-list post-install "$bplugins" Burn1
-	    source /etc/sdm/sdm-readparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
+	    source $SDMPT/etc/sdm/sdm-readparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
 	fi
 	#
 	# If there were bplugins, update the config appropriately
