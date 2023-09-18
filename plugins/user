@@ -62,10 +62,13 @@ function loguseraction() {
     local action="$1" user="$2" pswd="$3" prompt="$4" homedir="$5" uid="$6" nohomedir="$7" agroups="$8" nosudo="$9" samba="${10}" smbpasswd="${11}" noskel="${12}" nochown="${13}" pgroup="${14}" shell="${15}" groupadd="${16}" rootpwd="${17}"
     local imgorhost="" agroups grpname gid settings settings2
 
-    if [ "$action" == "add" -a "$myuser" == "" ] # If myuser has not been set up yet, set it up with this first user
+    if [ "$myuser" == "" ]  # If myuser has not been set up yet, set it up with this first identified user
     then
-	myuser="$user"
-	writeconfig
+	if [ "$action" == "add" -o "$action" == "setpassword" ]
+	   then
+	       myuser="$user"
+	       writeconfig
+	fi
     fi
 
     if [ "$log" != "" ]
@@ -105,7 +108,7 @@ function loguseraction() {
 		;;
 	    setpassword)
 		printf "\n%-19s %-16s %-16s%s\n" "$(date +'%Y-%m-%d %H:%M:%S')"  "Set Password" "$user" "$imgorhost">> $log
-		printf "%-19s %s\n" " " "password:$pswd" >> $log
+		# printf "%-19s %s\n" " " "password:$pswd" >> $log
 		;;
 	    addgroup)
 		IFS="," read grpname gid <<< "$user"
