@@ -81,7 +81,7 @@ else
     if [ "$dstuser" == "" ]
     then
 	logtoboth "% Plugin $pfx: No users created with user plugin"
-	return
+	exit
     fi
     #logfreespace "at start of Plugin $pfx Phase post-install"
 
