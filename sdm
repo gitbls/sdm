@@ -250,6 +250,8 @@ Usage:
    Customize an SD Card image or SSD/SD Card
  sudo $0 --explore sd-image-file
    Explore an SD Card image or SSD/SD Card
+ sudo $0 --extend sd-image-file
+   Extend an SD Card image without any customization
  sudo $0 --burn /dev/sdx --host target-hostname sd-image-file
    Burn the SD Card image to the burn device
  sudo $0 --shrink sd-image-file
@@ -323,7 +325,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.0"
+version="V9.0.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
