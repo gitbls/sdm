@@ -2,7 +2,7 @@
 
 <a href="apt-Cacher-NG.md">apt-cacher-ng</a>
 <br><a href="BatchBurn-SSD-SDs-with-sdm-gburn.md">Batch Burn SSDs/SDs with sdm-gburn</a>
-<br><a href="Bootset-and-1piboot.md">Bootset and 1piboot</a>
+<br><a href="Bootconfig-and-1piboot.md">Bootconfig and 1piboot</a>
 <br><a href="Burn-Scripts.md">Burn Scripts</a>
 <br><a href="Captive-Portal.md">Captive Portal</a>
 <br><a href="Command-Details.md">Detailed command and switches description</a>
@@ -11,7 +11,6 @@
 <br><a href="Custom-Phase-Script.md">Custom Phase Script</a>
 <br><a href="Description.md">Description of sdm</a>
 <br><a href="Example-Burn-Multiple-Hosts-From-Single-IMG.md">Example: Burn Multiple Hosts from a Single IMG</a>
-<br><a href="Example-Burn-Scripts.md">Example: Burn Scripts</a>
 <br><a href="Example-Commands.md">Example: Commands</a>
 <br><a href="Example-Custom-Phase-Script.md">Example: Custom Phase Script</a>
 <br><a href="Example-Plugin.md">Example: Plugin</a>

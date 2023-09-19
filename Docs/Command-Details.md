@@ -20,7 +20,7 @@ sdm commands include:
 
     `sudo sdm --explore /dev/sdX`
 
-    Uses systemd-nspawn to *go into* the IMG file (first example) or SD Card (second example) to explore and/or make manual changes to the image. When using `--explore` there is no access to the files in the running system.
+    Uses systemd-nspawn to enter the IMG file (first example) or SD Card (second example) container to explore and/or make manual changes to the image. When using `--explore` there is no access to the files in the host system.
 
 * `sudo sdm --extend [--xmb nnn] raspios-image.img`
 

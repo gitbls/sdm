@@ -19,7 +19,7 @@ Burning RasPiOS Lite with --expand-root to an SSD and booting it:
 * 00:02:52 System automatically reboots via sdm FirstBoot script
 * 00:03:26 System at command prompt ready to login
 
-You read that correctly...In less than 20 minutes, you can go from a "stock" RasPiOS IMG to having your own customized system booted and ready to go. 
+You read that correctly...In just a few minutes you can go from a "stock" RasPiOS IMG to having your own customized system booted and ready to go. 
 
 And, if you keep your customized image around, you can have another freshly-made system booted and ready to go in less than 5 minutes. With all your customizations already in place. How sweet is that?
 <br>

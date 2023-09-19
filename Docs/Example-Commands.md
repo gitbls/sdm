@@ -64,6 +64,7 @@ sudo sdm \
      --reboot 20                                              
 
 ```
+
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">

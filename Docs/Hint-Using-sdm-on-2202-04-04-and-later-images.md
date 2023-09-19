@@ -1,7 +1,7 @@
 # Hint: Using sdm on 2202-04-04 and Later IMGs
 
 sdm works fine on RasPiOS 2022-04-04 images (and presumably later). Key considerations for using sdm on these images:
-* Add `--plugin disables:piwiz` to the sdm command line if you have fully configured the image using sdm using:
+* Add `--plugin disables:piwiz` to the sdm command line if you have fully configured the image with sdm using:
   * Use the `user` plugin to add, delete, or modify users as appropriate
   * Use the `L10n` plugin to configure the system keymap, locale, and timezone
 

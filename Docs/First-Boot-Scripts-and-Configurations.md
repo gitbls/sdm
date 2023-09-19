@@ -4,7 +4,7 @@ This document collects together everything you need to know about first boot scr
 
 ## Statically-built boot scripts
 
-Scripts placed in `/usr/local/sdm/1piboot/0*-*.sh` will be run automatically at system First Boot if `--bootscripts` is specified. These scripts are static in that they are defined copied from the host system into the IMG during customization, and sdm provides no way to update the file once it's customized into an IMG. It does, however, provide one way to implement your customization functionality.
+Scripts placed in `/usr/local/sdm/1piboot/0*-*.sh` will be run automatically at system First Boot if `--bootscripts` is specified. These scripts are static in that they are copied from the host system into the IMG during customization, and sdm provides no way to update the file once it's customized into an IMG. It does, however, provide one way to implement your customization functionality.
 
 Another way to run scripts at First system boot is via executable scripts placed in `/etc/sdm/0piboot/0*-*.sh` These scripts are run regardless of the `--bootscripts` state. These are typically used by Plugins and Custom Phase Scripts to delay running something until First system boot, rather than during customization. See <a href="Programming-Plugins-and-Custom-Phase-Scripts.md#handling-plugin-deferred-actions">Handling plugin deferred actions</a> for an example.
 

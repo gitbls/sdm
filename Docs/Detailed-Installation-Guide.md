@@ -1,15 +1,47 @@
 # Detailed Installation Guide
 
-Installation is simple. sdm must be installed in and uses the path `/usr/local/sdm` both on your running system and within images that it manages. **The simplest way to install sdm is to use EZsdmInstaller**, which performs the commands listed in *the really long way*:
+## Simple install
+
+To install sdm into /usr/local/sdm from the latest branch use
 
     curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 
-**Or, download the Installer script to examine it before running:**
+## Flexible install
 
-    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o ./EZsdmInstaller
-    chmod 755 ./EZsdmInstaller
+Alternatively, if you want to install a specific branch or use a directory other than /usr/local/sdm:
+
+    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o /path/to/EZsdmInstaller
+    chmod 755 /path/to/EZsdmInstaller
     # Inspect the EZsdmInstaller script if desired
-    sudo ./EZsdmInstaller
+    sudo /path/to/EZsdmInstaller
+
+## EZsdmInstaller command line
+
+Full command syntax:
+
+```
+/path/to/EZsdmInstaller branch hostdir
+```
+Where:
+
+* `branch` is the name of the release branch install [Default: latest]
+* `hostdir` is the full path to where sdm should be installed [Default: /usr/local/sdm]
+
+Both arguments are optional and will use the above defaults.
+
+### Examples
+
+Install the latest released branch into the default directory (/usr/local/sdm)
+
+	sudo /path/to/EZsdmInstaller
+
+Install a specific branch into the default directory
+
+	sudo /path/to/EZsdmInstaller V9.0.1
+
+Install the latest released branch into a specific directory
+
+	sudo /path/to/EZsdmInstaller "" /usr/local/zsdm
 
 <br>
 <form>
