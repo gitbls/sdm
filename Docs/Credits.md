@@ -6,6 +6,8 @@ The sdm documentation reorg inspired by feedback from github user @mcguirepr89.
 
 Thanks to @dshaw619 and @tiefenauer for their wonderful suggestions and patience.
 
+Thanks to @tinker2much for his in-depth Doc reviews and testing of the new plugins.
+
 And thanks to the many other users who have provided constructive feedback and patiently worked with me to resolve problems.
 
 Thanks!
