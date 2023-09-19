@@ -257,7 +257,7 @@ function add_user() {
 		[ -f $f ] && ( [ -f $uhomedir/$(basename $f) ] || cp -a $f $uhomedir )
 	    done
 	else
-	    plugin_dbgprint "> Plugin $pfx: Skip skel copy for user '$user'"
+	    plugin_dbgprin t"> Plugin $pfx: Skip skel copy for user '$user'"
 	fi
 	IFS=":" read xuser xpw xuid gx rest <<< $(getent passwd $user)
 	IFS=":" read gxnm xpw xgx rest <<< $(getent group $gx)
@@ -373,6 +373,12 @@ function do_userlist() {
     exec {FD}<&-
 }
 
+function user_plugin_printkeys() {
+
+    [[ $fredact -eq 0 ]] || [[ "$redact" != "" ]] && redactargs=""
+    plugin_printkeys "$redactargs"
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -382,6 +388,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|addgroup|adduser|deluser|gid|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|samba|shell|smbpasswd|userlist|log|"
+redactargs="password"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/user"
 [[ "$args" =~ "groups=" ]] && args="${args/groups=/ugroups=}"
@@ -395,7 +402,7 @@ case "$phase" in
 	#
 	# Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
 	#
-	plugin_printkeys
+	user_plugin_printkeys
 	mkdir -p $assetdir
 	if [ "$userlist" != "" ]
 	then
@@ -443,6 +450,7 @@ case "$phase" in
 	#
 	logtoboth "* Plugin $pfx: Start Phase post-install"
 	plugin_getargs $pfx "$args" "$vldargs"
+	converty
 	#plugin_printkeys
 	if [ -f $assetdir/smbpasswords ]
 	then
@@ -463,7 +471,7 @@ case "$phase" in
 	    fi
 	    # ** rm -f $assetdir/smbpasswords
 	fi
-	if [ "$fredact" == "1" -o -v redact ]
+	if [ $fredact -eq 1 -o "$redact" != "" ]
 	then
 	    redact_passwords
 	fi
@@ -471,9 +479,9 @@ case "$phase" in
 	;;
     redact)
 	plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-	plugin_printkeys
+	user_plugin_printkeys
 
-	if [ "$fredact" == "1" -o -v redact ]
+	if [ $fredact -eq 1 -o "$redact" != "" ]
 	then
 	    redact_passwords
 	fi
