@@ -6,7 +6,7 @@ Plugins are a modular way to extend sdm capabilities. Plugins are similar to <a 
 
 It makes sense to include some plugins into the IMG you're creating (e.g., postfix, samba) so they are installed onto every system burned from that IMG, but some are typically installed once per network (e.g., apt-cacher-ng), or not needed on every system. In that case you can use the plugin when burning the SSD/SD for that specific system.
 
-The set of plugins provided with sdm includes: apt-cacher-ng, apt-file, btwifiset, clockfake, imon, pistrong, postfix, rxapp, samba, vnc, wificonfig, and wsdd.
+The set of plugins provided with sdm are documented here.
 
 Other plugins are planned. If there are any specific plugins you're interested in, let me know!
 
@@ -71,6 +71,10 @@ apt-cacher-ng installs the RasPiOS apt-cacher-ng service into the IMG or onto th
 * **proxy** &mdash;TBH not sure what this does. If you figure it out, let me know ;)
 
 The default apt-cacher-ng server install uses port 3142. apt-cacher-ng will be enabled by sdm FirstBoot and ready to process requests after the FirstBoot process completes.
+
+NOTE: The apt-cacher-ng plugin installs the apt-cacher-ng *server*. The `--aptcache` command line switch configures the IMG to be an apt-cacher-ng client and use the specified apt-cacher-ng server.
+
+The plugin configures apt as a client to use itself as the apt caching server. This is typically not what you want on every system, so consider using `--plugin apt-cacher-ng` on the `--burn` command line for those systems that will be actually be deployed as apt caching servers.
 
 ### apt-file
 
@@ -170,7 +174,7 @@ The disables plugin makes it easy to disable a few *complex* functions.
 #### Arguments
 
 * **bluetooth** &mdash; Disables bluetooth via a blacklist file in /etc/modprobe.d
-* **piwiz** &mdash; Disables piwiz during the first system boot. You must set up everything that piwiz does or you may not like the results: User, Password, Keymap, Locale, and Timezone. This is equivalent to the `graphics` plugin `nopiwiz` argument
+* **piwiz** &mdash; Disables piwiz during the first system boot. You must set up everything with sdm that piwiz does or you may not like the results: User, Password, Keymap, Locale, and Timezone.
 * **triggerhappy** &mdash; Disable the triggerhappy service. If you're not using it, this will eliminate the log spew it creates
 * **wifi** &mdash; Disables WiFi via a blacklist file in /etc/modprobe.d
 
@@ -186,7 +190,6 @@ The graphics plugin configures various graphics-related settings. It doesn't do 
 
 * **graphics** &mdash; Supported values for the graphics keyword are `wayland` and `X11`. At the present time `wayland` does very little. If graphics is set to `X11`, the Core X11 packages (xserver-xorg, xserver-xorg-core, and xserver-common) are installed if not already installed. In the post-install phase, the plugin will look for a known Display Manager (lightdm, xdm, or wdm), and make appropriate adjustments (see below)
 * **nodmconsole** &mdash; If `graphics=X11`, `nodmconsole` directs sdm to NOT start the Display Manager on the console, if the Display Manager is lightdm, wdm, or xdm.
-* **nopiwiz** &mdash; Do no run piwiz or userconfig services at FirstBoot. This is the same as `--plugin disables:piwiz`
 * **videomode** &mdash; Specifies the string to add to the video= argument in cmdline.txt. See below for an example.
 
 wayland is the Default graphics subsystem on Bookworm with Desktop images, so `graphics=wayland` is ignored on those images. The plugin currently will not install wayland on a Bookworm Lite IMG. Wayland is not supported by sdm on releases prior to Bookworm.
@@ -207,7 +210,7 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 imon installs an <a href="https://github.com/gitbls/imon">Internet Monitor</a> that can monitor:
 
 * **Dynamic DNS (DDNS) Monitor** &mdash; Monitors your external IP address. If it changes changes, your action script is called to take whatever you'd like, such as update your ddns IP address.
-* **Network Failover Monitor** &mdash; If your system has two connections to the internet, internet-monotor can provide a higher availability internet connection using a primary/secondary standby model.
+* **Network Failover Monitor** &mdash; If your system has two connections to the internet, imon can provide a higher availability internet connection using a primary/secondary standby model.
 * **Ping monitor** &mdash; Retrieve ping statistics resulting from pinging an IP address at regular intervals.
 * **Up/down IP Address Monitor** &mdash; Monitors a specified IP address, and logs outages.
 
