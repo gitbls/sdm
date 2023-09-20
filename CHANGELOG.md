@@ -1,22 +1,24 @@
 # Changelog
 
-## V9.0
+## V9.1
 
+* sdm in-line code restructured into plugins, grouping similar functions together, and related code together
 * Many Command-Line Switches replaced by plugins, and switches removed from sdm command line
-  * See the <a href="Docs/9Migration.md">complete switch migration guide here</a>
-  * New or updated plugins: L10n, system, user, bootconfig, graphics, lxde, raspiconfig
+  * If you run sdm from a script, you'll need to make some very straightforward updates to it
+  * See the <a href="Docs/9Upgrade-Notes.md">complete switch migration guide here</a>
+  * New or updated plugins: L10n, system, user, graphics, lxde, bootconfig, and raspiconfig
   * The `adduser` and `burnpwd` plugins are removed and replaced by an enhanced `user` plugin
 * Improvements
+  * sdm on github now has prior releases available. v8.6 is the first. See <a href="Docs/Detailed-Installation-Guide.md">installing sdm</a> for details
   * List selected plugins at top of /etc/sdm/history for easy review
-  * By moving all of the above into plugins, they can now all be used during customization and burning
+  * Since the (former) command line switches are now in plugins, they can now all be used during both customization and burning
   * Plugin keys can now contain a hyphen. Internally hyphens are changed to `__`, plugins are responsible for handling this (see `system` plugin, for instance)
-  * Time sync wait extended to 2 mins (120 seconds) in sdm-firstboot to accomodate slower processors and more heavyweight Network Manager
-* Regressions
+  * Time sync wait extended to 2 mins (120 seconds) in sdm-firstboot to accomodate slower processors and more heavyweight Network Manager (guess?)
 * Bug fixes
   * Correct `--extend` operation
   * At start of customize don't try to re-protect local-plugins if there aren't any 
   * Re-enable using chroot in certain instances. systemd-nspawn not qemu-capable yet on some distros
-  * Handle --autologin for CLI (only) system
+  * Handle --autologin for CLI only system
   * Repair broken 'exit' in copyfile plugin
   * Correct `apt-cacher-ng` plugin `bindaddress` handling
 

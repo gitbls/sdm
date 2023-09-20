@@ -20,7 +20,7 @@ Alternatively, if you want to install a specific branch or use a directory other
 Full command syntax:
 
 ```
-/path/to/EZsdmInstaller branch hostdir
+sudo /path/to/EZsdmInstaller branch hostdir
 ```
 Where:
 
@@ -35,13 +35,18 @@ Install the latest released branch into the default directory (/usr/local/sdm)
 
 	sudo /path/to/EZsdmInstaller
 
-Install a specific branch into the default directory
-
-	sudo /path/to/EZsdmInstaller V9.0.1
-
 Install the latest released branch into a specific directory
 
 	sudo /path/to/EZsdmInstaller "" /usr/local/zsdm
+
+Install a specific branch into the default directory
+
+	sudo /path/to/EZsdmInstaller V9.1
+
+Install a specific branch into a specific directory
+
+	sudo /path/to/EZsdmInstaller v9.1 /usr/local/zsdm
+
 
 <br>
 <form>

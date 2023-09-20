@@ -30,6 +30,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
+assetdir="$SDMPT/etc/sdm/assets/network"
 
 vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|wificountry|noipv6|nmconf|nmconn|"
 rqdargs=""
@@ -42,6 +43,7 @@ then
     #logtoboth "* Plugin $pfx: Start Phase 0"
 
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    mkdir -p $assetdir
     netman=$(getdefnm "$netman")
 
     case "${netman}" in
@@ -50,8 +52,8 @@ then
 	    then
 		if [ -f $dhcpcdappend ]
 		then
-		    logtoboth "> Plugin $pfx: Copy dhcpcdappend file '$dhcpcdappend' to /etc/sdm/assets/dhcpcd-append.conf"
-		    cp $dhcpcdappend $SDMPT/etc/sdm/assets/dhcpcd-append.conf
+		    logtoboth "> Plugin $pfx: Copy dhcpcdappend file '$dhcpcdappend' to $assetdir/dhcpcd-append.conf"
+		    cp $dhcpcdappend $assetdir/dhcpcd-append.conf
 		else
 		    logtoboth "? Plugin $pfx: dhcpcdappend file '$dhcpcdappend' not found"
 		fi
@@ -60,8 +62,8 @@ then
 	    then
 		if [ -f $wpa ]
 		then
-		    logtoboth "> Plugin $pfx: Copy wpa_supplicant config file '$wpa' to /etc/sdm/assets/dhcpcd-wpa"
-		    tr -d '\r' < $wpa > $SDMPT/etc/sdm/assets/dhcpcd-wpa
+		    logtoboth "> Plugin $pfx: Copy wpa_supplicant config file '$wpa' to $assetdir/dhcpcd-wpa"
+		    tr -d '\r' < $wpa > $assetdir/dhcpcd-wpa
 		else
 		    logtoboth "? Plugin $pfx: wpa file '$wpa' not found"
 		fi
@@ -78,8 +80,8 @@ then
 			if [ -f $c ]
 			then
 			    cbn=$(basename $c)
-			    logtoboth "> Plugin $pfx: Copy $conf '$c' to /etc/sdm/assets"
-			    cp $c $SDMPT/etc/sdm/assets/$conf-$cbn
+			    logtoboth "> Plugin $pfx: Copy $conf '$c' to $assetdir"
+			    cp $c $assetdir/$conf-$cbn
 			else
 			    logtoboth "% Plugin $pfx: $conf file '$c' not found"
 			fi
@@ -128,13 +130,13 @@ else
 	then
 	    if [ "$wpa" != "" ]
 	    then
-		if [ -f /etc/sdm/assets/dhcpcd-wpa ]
+		if [ -f $assetdir/dhcpcd-wpa ]
 		then
-		    logtoboth "> Plugin $pfx: Copy /etc/sdm/assets/dhcpcd-wpa to /etc/wpa-supplicant.conf"
-		    cp /etc/sdm/assets/dhcpcd-wpa /etc/wpa_supplicant/wpa_supplicant.conf
+		    logtoboth "> Plugin $pfx: Copy $assetdir/dhcpcd-wpa to /etc/wpa-supplicant.conf"
+		    cp $assetdir/dhcpcd-wpa /etc/wpa_supplicant/wpa_supplicant.conf
 		    setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf
 		else
-		    logtoboth "? Cannot find /etc/sdm/assets/dhcpcd-wpa":
+		    logtoboth "? Cannot find $assetdir/dhcpcd-wpa":
 		fi
 	    fi
 	else
@@ -198,10 +200,10 @@ EOF
 	    [ "$raspiosver" -ge 12 ] && pkg="dhcpcd" || pkg="dhcpcd5"
 	    ! ispkginstalled $pkg && doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
 	    systemctl disable NetworkManager > /dev/null 2>&1
-	    if [ -f /etc/sdm/assets/dhcpcd-append.conf ]
+	    if [ -f $assetdir/dhcpcd-append.conf ]
 	    then
-		logtoboth "> Plugin $pfx: Append /etc/sdm/assets/dhcpcd-append.conf to /etc/dhcpcd.conf"
-		cat /etc/sdm/assets/dhcpcd-append.conf >> /etc/dhcpcd.conf
+		logtoboth "> Plugin $pfx: Append $assetdir/dhcpcd-append.conf to /etc/dhcpcd.conf"
+		cat $assetdir/dhcpcd-append.conf >> /etc/dhcpcd.conf
 		[ -v noipv6 ] && echo "noipv6" >> /etc/dhcpcd.conf
 	    fi
 	    #
@@ -259,14 +261,14 @@ EOF
 	    fi
 	    for conf in nmconf nmconn
 	    do
-		if compgen -G "/etc/sdm/assets/${conf}-*" > /dev/null
+		if compgen -G "$assetdir/${conf}-*" > /dev/null
 		then
 		    [ "$conf" == "nmconf" ] && tgt="conf.d" || tgt="system-connections"
-		    for c in /etc/sdm/assets/${conf}-*
+		    for c in $assetdir/${conf}-*
 		    do
 			cbn=$(basename $c)
 			sbn=${cbn#${conf}-}
-			logtoboth "> Plugin $pfx: Copy ${conf} '$sbn' from /etc/sdm/assets to /etc/NetworkManager/$tgt"
+			logtoboth "> Plugin $pfx: Copy ${conf} '$sbn' from $assetdir to /etc/NetworkManager/$tgt"
 			cp $c /etc/NetworkManager/$tgt/$sbn
 		    done
 		fi

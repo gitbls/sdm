@@ -197,7 +197,6 @@ function sdm_burndevfile() {
 	#
 	xsettings="autologin b0script b1script bootscripts domain expandroot exports hname fredact myuser noreboot"
 	xsettings="$xsettings nowaittimesync plugindebug plugins rclocal reboot rebootwait regensshkeys"
-	#xsettings="$xsettings wificountry"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
 	for e in $xsettings
@@ -214,7 +213,6 @@ function sdm_burndevfile() {
 	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
 	[ $bbootscripts -eq 1 ] && bootscripts="$bbootscripts"
 	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
-	#[ "$bwificountry" != "" ] && wificountry="$bwificountry"
 	[ "$bhname" != "" ] && hname="$bhname"
 	splugins="$plugins"
 	plugins="$bplugins"
@@ -327,8 +325,6 @@ function sdm_burndevfile() {
 	if [[ $bfredact -eq 1 ]]
 	then
 	    logtoboth "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
-	    #runplugins "user:redact" redact
-	    #runonepluginx "user:redact" redact
 	    runoneplugin user redact "redact"
 	fi
 	if [ $regensshkeys -eq 1 ]

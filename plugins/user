@@ -53,8 +53,11 @@ function redact_passwords() {
 	    sed -i "s/$pswd/REDACTED/" $SDMPT/etc/sdm/cparams
 	    sed -i "s/$pswd/REDACTED/" $SDMPT/etc/sdm/history
 	done < $assetdir/redact-passwords
+    else
+	logtoboth "% Plugin $pfx: No saved passwords found to redact"
     fi
-    rm -f $assetdir/redact-passwords $assetdir/userlist-*
+    logtoboth "> Plugin $pfx: Redact any userlists in $assetdir"
+    #rm -f $assetdir/redact-passwords $assetdir/userlist-*
 }
 
 function loguseraction() {
@@ -145,6 +148,7 @@ function setpassword_user() {
 		logtoboth "% Plugin $pfx: Blank password and prompt not enabled for user '$user'"
 	    fi
 	fi
+	printf "${pswd}\n" >> $assetdir/redact-passwords  # Save for redaction
 	logtoboth "> Plugin $pfx: Update password for user '$user'"
 	chpasswd <<EOF
 $user:$pswd
@@ -375,7 +379,7 @@ function do_userlist() {
 
 function user_plugin_printkeys() {
 
-    [[ $fredact -eq 0 ]] || [[ "$redact" != "" ]] && redactargs=""
+    #[[ $fredact -eq 0 ]] || [[ "$redact" == "" ]] && redactargs=""
     plugin_printkeys "$redactargs"
 }
 

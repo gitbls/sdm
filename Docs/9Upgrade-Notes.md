@@ -6,11 +6,7 @@ This page should answer most questions about switching from sdm v8 or earlier to
 
 As sdm has acquired functionality, the number of switches grew without bound, which creates user adoption issues (wow! there are so many switches), as well as adding complexity to adding new features. In the non-plugin model, at least 3, and sometimes more scripts required modification to add a new feature.
 
-Now, all the functionality for a particular plugin is encapsulated in a single script. This simplifies usage code, and documentation.
-
-My decision to move all these switches into plugins was not made lightly. Most importantly, there is the impact on you, an sdm user, since your sdm scripts likely require updates. I apologize for that, but future pertubations will be drastically reduced.
-
-It was also a fair amount of code slinging! Hopefully after you've converted you'll agree it was a worthwhile investment.
+Now, all the functionality for a particular plugin is encapsulated in a single script. This simplifies usage, code, documentation, and future improvements.
 
 ## What plugin is this switch in?
 

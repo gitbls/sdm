@@ -411,7 +411,7 @@ function runoneplugin() {
     #
     local p=$(basename $1) phase=$2 pargs="$3" sts=1
     [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
-    [ $fredact -eq 1 ] && argstr=""
+    #[ $fredact -eq 1 ] && argstr=""
     for d in $SDMPT$sdmdir/local-plugins $SDMPT$sdmdir/plugins
     do
         if [ -f $d/$p ]
@@ -580,9 +580,9 @@ function plugin_printkeys() {
     #
     # Print the keys found. plugin_getargs returns the list of found keys in $foundkeys
     # Assumes $pfx:plugin name, $foundkeys:list of keys found, keys set up from plugin_getargs
-    # $1: List of keys to redact each separated by vbar
+    # $1: List of keys to redact each separated by vbar [disabled]
     #
-    redactkeys="|$1|"
+    #redactkeys="|$1|"
     if [ "$foundkeys" != "" ]
     then
 	logtoboth "> Plugin $pfx: Keys/values found:"
@@ -592,7 +592,7 @@ function plugin_printkeys() {
 	    # The construct ${!c} gets the value of the variable 'pointed to' by contents of $c
 	    kn="${c/__/-}"
 	    kval="${!c}"
-	    [[ "$redactkeys" =~ "$c" ]] && kval="REDACTED"
+	    #[[ "$redactkeys" =~ "$c" ]] && kval="REDACTED"
 	    logtoboth "   ${kn}: $kval"
 	done
     fi
@@ -608,7 +608,7 @@ function plugin_logorder() {
 	do
 	    IFS=':' read fpn pargs <<< "$p"
 	    logtoboth "   * $fpn"
-	    [ $fredact -eq 1 ] && pargs=""
+	    #[ $fredact -eq 1 ] && pargs=""
 	    [ "$pargs" != "" ] && logtoboth "       Args: $pargs" nosplit
 	done
     else
