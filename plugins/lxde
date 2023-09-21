@@ -94,7 +94,7 @@ else
 	if [ -d /etc/wayfire ]
 	then
 	    cp /etc/wayfire/template.ini /home/$dstuser/.config/wayfire.ini
-	    setfileownmmode /home/$dstuser/.config/wayfire.ini 644 $dstuser:$gx
+	    setfileownmode /home/$dstuser/.config/wayfire.ini 644 $dstuser:$gx
 	    [ "$keymap" != "" ] && sed -i "s/xkb_layout.*=.*/xkb_layout=$keymap/" /home/$dstuser/.config/wayfire.ini
 	fi
 	# Set left-handed mouse if requested
