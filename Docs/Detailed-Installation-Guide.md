@@ -2,7 +2,7 @@
 
 ## Simple install
 
-To install sdm into /usr/local/sdm from the latest branch use
+To install sdm into /usr/local/sdm from the latest release use
 
     curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
 
@@ -10,12 +10,19 @@ To install sdm into /usr/local/sdm from the latest branch use
 
 Alternatively, if you want to install a specific branch or use a directory other than /usr/local/sdm:
 
-    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller -o /path/to/EZsdmInstaller
+    curl -L https://raw.githubusercontent.com/gitbls/sdm/<branch-name>/EZsdmInstaller -o /path/to/EZsdmInstaller
     chmod 755 /path/to/EZsdmInstaller
     # Inspect the EZsdmInstaller script if desired
     sudo /path/to/EZsdmInstaller
 
-## EZsdmInstaller command line
+For instance, to install the V8.6 version:
+
+    curl -L https://raw.githubusercontent.com/gitbls/sdm/V8.6/EZsdmInstaller -o /path/to/EZsdmInstaller
+    chmod 755 /path/to/EZsdmInstaller
+    # Inspect the EZsdmInstaller script if desired
+    sudo /path/to/EZsdmInstaller V8.6
+
+## EZsdmInstaller command line documentation
 
 Full command syntax:
 
@@ -31,11 +38,11 @@ Both arguments are optional and will use the above defaults.
 
 ### Examples
 
-Install the latest released branch into the default directory (/usr/local/sdm)
+Install the latest release into the default directory (/usr/local/sdm)
 
 	sudo /path/to/EZsdmInstaller
 
-Install the latest released branch into a specific directory
+Install the latest release into a specific directory
 
 	sudo /path/to/EZsdmInstaller "" /usr/local/zsdm
 
@@ -45,8 +52,13 @@ Install a specific branch into the default directory
 
 Install a specific branch into a specific directory
 
-	sudo /path/to/EZsdmInstaller v9.1 /usr/local/zsdm
+	sudo /path/to/EZsdmInstaller V9.1 /usr/local/zsdm
 
+
+**NOTE:** In order to install a version other than the latest release, be sure to use the EZsdmInstaller for that version. To pick up, for instance, the V8.6 EZsdmInstaller, use:
+
+
+    curl -L https://raw.githubusercontent.com/gitbls/sdm/V8.6/EZsdmInstaller -o /path/to/EZsdmInstaller
 
 <br>
 <form>
