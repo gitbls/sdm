@@ -23,24 +23,25 @@ function getdefnm() {
     fi
 }
 
-function cfgdhcpwifi() {
+function cfgdhcpcdwifi() {
     #
     # call this after any wpa has been copied into $assetdir
+    # Does checks required for dhcpcd (only)
     #
     if [ "$wpa" != "" ]
     then
-	if [ -f $assetdir/dhcpcd-wpa ]
+	if [ -f $assetdir/wpa.conf ]
 	then
-            IFS="=" read a wificountry <<< $(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
+            IFS="=" read a wificountry <<< $(grep 'country=' $assetdir/wpa.conf | head -n 1)
 	else
-	    logtoboth "? Plugin $pfx: Cannot find $assetdir/dhcpcd-wpa"
+	    logtoboth "? Plugin $pfx: Cannot find $assetdir/wpa.conf"
 	fi
     else
 	if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
 	then
-	    logtoboth "> Plugin $pfx: Create /etc/wpa_supplicant/wpa_supplicant.conf"
+	    logtoboth "> Plugin $pfx: Create $assetdir/wpa.conf"
 	    logtoboth "  with SSID: $wifissid Password: $wifipassword WiFi Country: $wificountry"
-	    cat > $assetdir/dhcpcd-wpa <<EOF
+	    cat > $assetdir/wpa.conf <<EOF
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 country=$wificountry
 update_config=1
@@ -65,11 +66,13 @@ EOF
 }
 
 function getwififromwpa() {
-    if [ -f $assetdir/dhcpcd-wpa ]
+    if [ -f $assetdir/wpa.conf ]
     then
-	[ "$wifissid" == "" ] && IFS="=" read a wifissid <<< $(grep 'ssid==' $assetdir/dhcpcd-wpa)
-	[ "$wifipassword" == "" ] && IFS="=" read a wifipassword <<< $(grep 'password=' $assetdir/dhcpcd-wpa)
-	[ "$wificountry" == "" ] && IFS="=" read a wificountry <<< $(grep 'country=' $assetdir/dhcpcd-wpa)
+	[ "$wifissid" == "" ] && IFS="=" read a wifissid <<< $(grep 'ssid=' $assetdir/wpa.conf | head -n 1)
+	wifissid=$(stripquotes $wifissid qq)
+	[ "$wifipassword" == "" ] && IFS="=" read a wifipassword <<< $(grep 'psk=' $assetdir/wpa.conf | head -n 1)
+	wifipassword=$(stripquotes $wifipassword qq)
+	[ "$wificountry" == "" ] && IFS="=" read a wificountry <<< $(grep 'country=' $assetdir/wpa.conf | head -n 1)
     fi
 }
 
@@ -104,8 +107,8 @@ then
     then
 	if [ -f $wpa ]
 	then
-	    logtoboth "> Plugin $pfx: Copy wpa_supplicant config file '$wpa' to $assetdir/dhcpcd-wpa"
-	    tr -d '\r' < $wpa > $assetdir/dhcpcd-wpa
+	    logtoboth "> Plugin $pfx: Copy wpa_supplicant config file '$wpa' to $assetdir/wpa.conf"
+	    tr -d '\r' < $wpa > $assetdir/wpa.conf
 	else
 	    logtoboth "? Plugin $pfx: wpa file '$wpa' not found"
 	fi
@@ -122,18 +125,12 @@ then
 		    logtoboth "? Plugin $pfx: dhcpcdappend file '$dhcpcdappend' not found"
 		fi
 	    fi
-	    cfgdhcpwifi
+	    cfgdhcpcdwifi
 	    ;;
 	nm|network-manager)
-	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
-	    if [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ]
-	    then
-		if [ "$nowifi" != "y" ]
-		then
-		    logtoboth "% Plugin $pfx: Network Manager requires explicit WiFi configuration via arguments: wifissid wifipassword wificountry"
-		    logtoboth "  If you did not configure WiFi via 'nmconn' the WiFi network will not connect"
-		fi
-	    fi
+	    #
+	    # Copy nmconf and nmconn files into IMG
+	    #
 	    for conf in nmconf nmconn
 	    do
 		if [ "${!conf}" != "" ]
@@ -143,15 +140,35 @@ then
 		    do
 			if [ -f $c ]
 			then
-			    cbn=$(basename $c)
-			    logtoboth "> Plugin $pfx: Copy $conf '$c' to $assetdir"
-			    cp $c $assetdir/$conf-$cbn
+			    mkdir -p $assetdir/$conf
+			    logtoboth "> Plugin $pfx: Copy $conf '$c' to $assetdir/conf"
+			    cp $c $assetdir/$conf
 			else
 			    logtoboth "% Plugin $pfx: $conf file '$c' not found"
 			fi
 		    done
 		fi
 	    done
+	    #
+	    # Check for WiFi defined somehow and report if it appears to not be defined
+	    #
+	    nmwifi=0
+	    if [ -d $assetdir/nmconn ]
+	    then
+		# Did any of the nm connection definitions define a wifi connection?
+		grep -qs type=wifi $assetdir/nmconn/* > /dev/null && nmwifi=1
+	    fi
+	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
+	    if [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ]
+	    then
+		# If still don't have wifi config and no wifi .nmconnections and not 'nowifi', inform wifi issue
+		if [ "$nowifi" != "y" -a $nmwifi -eq 0 ]
+		then
+		    logtoboth "% Plugin $pfx: Network Manager requires either a .nmconnection file for WiFi"
+		    logtoboth "  or explicit WiFi configuration via arguments: wifissid wifipassword wificountry"
+		    logtoboth "  Found neither; WiFi likely will not connect"
+		fi
+	    fi
 	    ;;
     esac
     
@@ -183,7 +200,7 @@ else
     plugin_printkeys
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    # Set ssh
+    # Set up ssh
     # If ssh not specifed, default to enabled
     #
     [ ! -v ssh -o "$ssh" == "" ] && ssh="service"
@@ -191,17 +208,20 @@ else
 
     case "${netman}" in
 	dhcpcd)
-	    logtoboth "> Plugin $pfx: Set network management to dhcpcd and disable NetworkManager"
 	    [ "$raspiosver" -ge 12 ] && pkg="dhcpcd" || pkg="dhcpcd5"
-	    ! ispkginstalled $pkg && doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
-	    systemctl disable NetworkManager > /dev/null 2>&1
-	    if [ -f $assetdir/dhcpcd-wpa ]
+	    if ! ispkginstalled $pkg
 	    then
-		logtoboth "> Plugin $pfx: Copy $assetdir/dhcpcd-wpa to /etc/wpa_supplicant/wpa-supplicant.conf"
-		cp $assetdir/dhcpcd-wpa /etc/wpa_supplicant/wpa_supplicant.conf
+		logtoboth "> Plugin $pfx: Install $pkg"
+		doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
+	    fi
+	    systemctl disable NetworkManager > /dev/null 2>&1
+	    if [ -f $assetdir/wpa.conf ]
+	    then
+		logtoboth "> Plugin $pfx: Copy $assetdir/wpa.conf to /etc/wpa_supplicant/wpa-supplicant.conf"
+		cp $assetdir/wpa.conf /etc/wpa_supplicant/wpa_supplicant.conf
 		setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf
 	    else
-		logtoboth "? Cannot find $assetdir/dhcpcd-wpa":
+		logtoboth "? Cannot find $assetdir/wpa.conf"
 	    fi
 	    if [ -f $assetdir/dhcpcd-append.conf ]
 	    then
@@ -242,38 +262,46 @@ EOF
 	    ;;
 
 	nm|network-manager)
-	    logtoboth "> Plugin $pfx: Set network manager to NetworkManager"
-	    ! ispkginstalled network-manager && doaptrpterror "install --no-install-recommends --yes network-manager" $showapt
+	    if ! ispkginstalled network-manager
+	    then
+		logtoboth "> Plugin $pfx: Install Network Manager"
+		doaptrpterror "install --no-install-recommends --yes network-manager" $showapt
+	    fi
 	    systemctl -q enable NetworkManager > /dev/null 2>&1
 	    systemctl -q disable dhcpcd > /dev/null 2>&1
 	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
 	    if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
 	    then
 		logtoboth "> Plugin $pfx: Create NetworkManager WiFi configuration"
-		logtoboth "               with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
+		logtoboth "  with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
 		wificname=${wifissid,,}
-		cat >> /etc/sdm/0piboot/060-nm-config.sh <<EOF
+		# Defer to FirstBoot since nmcli --offline not supported in Bullseye
+		nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
+		mkdir -p /etc/sdm/xpiboot
+		cat >> $nmdcfg <<EOF
 #!/bin/bash
 nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
 nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
 EOF
 		if [ -v noipv6 ]
 		then
-		    echo "nmcli c modify $wificname ipv6.method disabled" >> /etc/sdm/0piboot/060-nm-config.sh
-		    echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> /etc/sdm/0piboot/060-nm-config.sh
+		    echo "nmcli c modify $wificname ipv6.method disabled" >> $nmdcfg
 		fi
+	    fi
+	    if [ -v noipv6 ]
+	    then
+		echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> $nmdcfg
 	    fi
 	    for conf in nmconf nmconn
 	    do
-		if compgen -G "$assetdir/${conf}-*" > /dev/null
+		if compgen -G "$assetdir/$conf/*" > /dev/null
 		then
 		    [ "$conf" == "nmconf" ] && tgt="conf.d" || tgt="system-connections"
-		    for c in $assetdir/${conf}-*
+		    for c in $assetdir/$conf/*
 		    do
 			cbn=$(basename $c)
-			sbn=${cbn#${conf}-}
-			logtoboth "> Plugin $pfx: Copy ${conf} '$sbn' from $assetdir to /etc/NetworkManager/$tgt"
-			cp $c /etc/NetworkManager/$tgt/$sbn
+			logtoboth "> Plugin $pfx: Copy $conf '$cbn' from $assetdir/$conf to /etc/NetworkManager/$tgt"
+			cp $c /etc/NetworkManager/$tgt
 		    done
 		fi
 	    done
