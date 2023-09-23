@@ -325,7 +325,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.1"
+version="V9.1.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -919,15 +919,6 @@ else
         done
     fi
 
-    #
-    # Fix up plugins as needed
-    #
-    if ! ispluginselected network "$plugins"
-    then
-	# If network plugin not selected, add it
-	echo "> Add unselected plugin 'network' to enable SSH"
-	plugins=$(appendvalue "$plugins" "network:ssh" "~")
-    fi
     plugin_logorder "$plugins"
 
     logfreespace
