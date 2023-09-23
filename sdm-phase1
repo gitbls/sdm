@@ -233,6 +233,11 @@ then
     gfxcfgpostinstall yes
 fi
 
+if ! ispluginselected network "$plugins"
+then
+    logtoboth "> Enable SSH"
+    dosshsetup service phase1
+fi
 #
 # Check for device out of space and warn if so
 #
