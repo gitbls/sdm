@@ -1,6 +1,6 @@
 # Changelog
 
-## V9.1
+## V9.1.1
 
 * sdm in-line code restructured into plugins, grouping similar functions together, and related code together
 * Many Command-Line Switches replaced by plugins, and switches removed from sdm command line
