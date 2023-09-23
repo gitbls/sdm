@@ -178,8 +178,17 @@ write_console "Start sdm FirstBoot Service"
 bootlog "Start sdm FirstBoot Service"
 [ $regensshkeys -eq 1 ] && touch /etc/ssh/sshd_not_to_be_run    #Don't let ssh service start before host keys generated
 
+#
+# Run any scripts that are must run ASAP (like network configuration)
+#
+if [ -d /etc/sdm/xpiboot ]
+then
+    chmod 755  /etc/sdm/xpiboot/0*-*.sh  #Ensure all executable
+    doscripts "/etc/sdm/xpiboot/0*-*.sh" "Generated FirstBoot"
+fi
 
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
+
 #
 # Set WiFi Country or load WiFi credentials
 #
@@ -224,17 +233,7 @@ else
 	fi
     fi
 fi
-#
-# Run any scripts that are must run ASAP (like network configuration)
-#
-if [ -d /etc/sdm/xpiboot ]
-then
-    chmod 755  /etc/sdm/xpiboot/0*-*.sh  #Ensure all executable
-    doscripts "/etc/sdm/xpiboot/0*-*.sh" "Generated FirstBoot"
-fi
-
 [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Localization Settings from Captive Portal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
-
 #
 # Wait for network online
 #
@@ -267,9 +266,8 @@ then
     do
 	sleep 1
     done
-    rm -f /etc/ssh/sshd_not_to_be_run
-    [ "$(systemctl is-enabled sshd)" == "enabled" -a $reboot -ne 1 ] && systemctl start sshd
 fi
+rm -f /etc/ssh/sshd_not_to_be_run
 
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
@@ -283,6 +281,7 @@ then
     bootlog "System restarting now"
     systemctl reboot
 else
+    [ "$(systemctl is-enabled ssh)" == "enabled" -a $reboot -ne 1 ] && systemctl start ssh
     wait_startup_complete "System will continue without restarting after system startup has completed"
     do_delayed_boot_behavior noreboot
     write_console "System startup complete"
