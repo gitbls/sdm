@@ -57,7 +57,7 @@ function redact_passwords() {
 	logtoboth "% Plugin $pfx: No saved passwords found to redact"
     fi
     logtoboth "> Plugin $pfx: Redact any userlists in $assetdir"
-    #rm -f $assetdir/redact-passwords $assetdir/userlist-*
+    rm -f $assetdir/redact-passwords $assetdir/userlist-*
 }
 
 function loguseraction() {
