@@ -124,7 +124,7 @@ then
 		if [ -f $dhcpcdappend ]
 		then
 		    logtoboth "> Plugin $pfx: Copy dhcpcdappend file '$dhcpcdappend' to $assetdir/dhcpcd-append.conf"
-		    cp $dhcpcdappend $assetdir/dhcpcd-append.conf
+		    cp -a $dhcpcdappend $assetdir/dhcpcd-append.conf
 		else
 		    logtoboth "? Plugin $pfx: dhcpcdappend file '$dhcpcdappend' not found"
 		fi
@@ -146,7 +146,7 @@ then
 			then
 			    mkdir -p $assetdir/$conf
 			    logtoboth "> Plugin $pfx: Copy $conf '$c' to $assetdir/conf"
-			    cp $c $assetdir/$conf
+			    cp -a $c $assetdir/$conf
 			else
 			    logtoboth "% Plugin $pfx: $conf file '$c' not found"
 			fi
@@ -214,7 +214,7 @@ then
     if [ -f $assetdir/wpa.conf ]
     then
 	logtoboth "> Plugin $pfx: Copy $assetdir/wpa.conf to /etc/wpa_supplicant/wpa-supplicant.conf"
-	cp $assetdir/wpa.conf /etc/wpa_supplicant/wpa_supplicant.conf
+	cp -a $assetdir/wpa.conf /etc/wpa_supplicant/wpa_supplicant.conf
 	setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf
     fi
     case "${netman}" in
@@ -286,7 +286,6 @@ EOF
 		wificname=${wifissid,,}
 		# Defer to FirstBoot since nmcli --offline not supported in Bullseye
 		nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
-		mkdir -p /etc/sdm/xpiboot
 		cat >> $nmdcfg <<EOF
 #!/bin/bash
 nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
@@ -310,10 +309,11 @@ EOF
 		    do
 			cbn=$(basename $c)
 			logtoboth "> Plugin $pfx: Copy $conf '$cbn' from $assetdir/$conf to /etc/NetworkManager/$tgt"
-			cp $c /etc/NetworkManager/$tgt
+			cp -a $c /etc/NetworkManager/$tgt
 		    done
 		fi
 	    done
+	    compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null && chmod 600 /etc/NetworkManager/system-connections/*
 	    ;;
     esac
     # Don't think this is needed, but keeping jic
