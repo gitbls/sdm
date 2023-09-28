@@ -205,6 +205,44 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 * `--plugin graphics:"graphics=X11|nodmconsole` &mdash; Installs the X11 core components and disables the Display Manager on the console
 * `--plugin graphics:"videomode=HDMI-A-1:1920x1280@60D"` &mdash; Sets the specified video mode in /boot/cmdline.txt
 
+### hotspot
+
+The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and earlier the hotspot is implemented with hostapd/dnsmasq. On Bookworm it's implemented using Network Manager.
+
+#### Arguments
+
+* **channel** &mdash; Channel to use (hostapd/dnsmasq only) [D:36]
+* **config** &mdash; Config file with all the arguments (see Example)
+* **country** &mdash; Country code [D:US]
+* **device** &mdash; WiFi device name [D:wlan0]
+* **dhcprange** &mdash; DHCP range to use for connected devices (hostapd/dnsmasq only) [D:192.168.4.2,192.168.4.32,255.255.255.0]
+* **domain** &mdash; Domain name (hostapd/dnsmasq only) [D:wlan.net]
+* **enable** &mdash; If **enable=true** set the hotspot to enable as part of system boot [D:true]
+* **hwmode** &mdash; WiFi mode (hostapd/dnsmasq only) [D:a]
+* **leastime** &mdash; DHCP lease time (hostapd/dnsmasq only) [D:24h]
+* **passphrase** &mdash; WiFi hotspot passphrase [D:password]
+* **ssid** &mdash; WiFi hotspot SSID [D:MyPiNet]
+* **wlanip** &mdash; IP address of the WiFi hotspot [D:192.168.4.1]
+* **type** &mdash; Type of hotspot (*routed* or *bridged*) [D:routed]
+
+**Notes:**
+* The Network Manager support is complete enough to be functional, but not all the `hotspot` plugin arguments are supported yet.
+* `type=local` hotspot is supported with hostapd/dnsmasq.
+
+#### Examples
+
+* `--plugin hotspot:"type=routed|wlanip=192.168.4.1|hwmode=a"`
+* `--plugin hotspot:"config=/path/to/config-file"`
+
+The Config file consists of the above arguments (except for `config`), one per line. e.g.,
+```
+channel=10
+device=wlan0
+enable=true
+wlanip=192.168.10.1
+type=bridged
+```
+
 ### imon
 
 imon installs an <a href="https://github.com/gitbls/imon">Internet Monitor</a> that can monitor:
@@ -242,6 +280,8 @@ sudo sdm --info timezone   # Displays list of valid timezones
 * **locale** &mdash; Specify the locale for the system
 * **timezone** &mdash; Specify the timezone
 * **host** &mdash; Get the above settings from the host sysetm on which sdm is running
+
+**NOTE:** To disable the RasPiOS initial boot query for these configuration items, add `--plugin disables:piwiz` to your customize or burn command line. This works for both Desktop and Lite IMGs.
 
 #### Examples
 
