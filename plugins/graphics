@@ -27,12 +27,6 @@ function delaydmenable() {
     do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
     setdelayedbbh $bbh
-    #echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    #if (! grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-    #then
-	#echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-    #fi
-    return
 }
 
 function delaylightdmenable() {
@@ -44,27 +38,14 @@ function delaylightdmenable() {
     do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
     [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-    aval=$((grep ^delayed_boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
+    aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
+    [ "$aval" == "" ] && aval=$bbh
     if [ "$bbh" != "$aval" ]
     then
-	if [ "$burn" != "" ]
-	then
-	    logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be set after First Boot"
-	    setdelayedbbh $bbh
-	    #sed -i "/^delayed_boot_behavior=.*/d" /etc/sdm/auto-1piboot.conf
-	    #echo "delayed_boot_behavior=$bbh" >> /etc/sdm/auto-1piboot.conf
-	else
-	    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
-	    then
-		aval="$(getfinalbbh B1)"
-		logtoboth "% Plugin $pfx: 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
-	    else
-		logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be re-enabled after First Boot"
-		setdelayedbbh $bbh
-	    fi
-	fi
-    #else
-	#logtoboth "> Plugin $pfx: lightdm delayed boot behavior already set to '$bbh'"
+	logtoboth "% Plugin $pfx: Display Manager lightdm default boot behavior overridden by explicit setting '$aval'"
+    else
+	logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be set after First Boot"
+	setdelayedbbh $bbh
     fi
 }
 
