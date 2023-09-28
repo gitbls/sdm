@@ -12,7 +12,7 @@ function loadparams() {
 function readl10n() {
     #
     # Get the L10N config from the running system
-    # Sets: locale, timezone, wificountry, keymap
+    # Sets: locale, timezone, and keymap
     #
     local tz=$(realpath /etc/localtime)
     # Keyboard
@@ -29,6 +29,9 @@ function readl10n() {
     locale="$LANG"
     # Timezone
     timezone=${tz##/usr/share/zoneinfo/}
+    # WiFi Country
+    [ -f /etc/wpa_supplicant/wpa_supplicant.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
+    [ "$wificountry" == "" -a -f /etc/wpa_supplicant/wpa_supplicant-wlan0.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf)
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -64,6 +67,7 @@ then
 	logtoboth "> Plugin $pfx:   Keymap:       $keymap"
 	logtoboth "> Plugin $pfx:   Locale:       $locale"
 	logtoboth "> Plugin $pfx:   Timezone:     $timezone"
+	logtoboth "> Plugin $pfx:   WiFi Country: $wificountry"
     fi
     logtoboth "> Plugin $pfx: Save L10n configuration"
     for kn in keymap locale timezone
@@ -79,6 +83,7 @@ then
 	    fi
 	fi
     done
+    [ "$wificountry" != "" ] && writeconfig
 	
     logtoboth "* Plugin $pfx: Complete Phase 0"
     
