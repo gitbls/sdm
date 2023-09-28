@@ -59,53 +59,19 @@ function bootlog() {
     logit "> FirstBoot: $1"
 }
 
-#function getpwd() {
-#    local tmp
-#    read -s tmp
-#    echo "$tmp"
-#}
+function write_console() {
+    #
+    # $1 string to write
+    # Written to /dev/console as "\n$(thisdate) FirstBoot: $1"
+    echo -e "\n$(thisdate) FirstBoot: $1" > /dev/console
+}
 
-#function changepwd() {
-#    # Must be in the container (Phase 1 or post-install)
-#    local user="$1" upwd="$2"
-#    if ! getent passwd $user > /dev/null
-#    then
-#	logtoboth "% Cannot change password for ${user}; user not found in /etc/passwd"
-#	return
-#    fi
-#    if [ "$upwd" == "" ]
-#    then
-#        echo -n "Password for user '$user': " && read -s upwd
-#        echo ""
-#    fi
-#    if [ "$upwd" != "" ]
-#    then
-#	chpasswd <<EOF
-#$user:$upwd
-#EOF
-#    else
-#	logtoboth "% Password for user '$user' not set"
-#	return
-#    fi
-#}
-
-#sdm_adduser () {
-#    # $1: username
-#    # $2: "" or UID
-#    # $3: password
-#    local username=$1 luid=$2 pwd=$3 xuid=""
-#    [ "$luid" != "" ] && xuid="--uid $luid"
-#    useradd --create-home --home-dir /home/$username $xuid $username
-#    usermod --gid users $username
-#    usermod --groups $dgroups $username
-#    changepwd "$username" "$pwd"
-#    if [ ! -f /etc/sudoers.d/010_$username-nopasswd ]
-#    then
-#	logtoboth "> Add user '$username' to sudoers.d"
-#	echo "$username ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$username-nopasswd
-#	chmod 440 /etc/sudoers.d/010_$username-nopasswd
-#    fi
-#}
+function write_console0() {
+    #
+    # $1 string to write
+    # Written to /dev/console as "$1"
+    echo -e "$1" > /dev/console
+}
 
 function askyn() {
     local ans
@@ -921,38 +887,69 @@ function getconfstr() {
 }
 
 function updateconfigtxt() {
-    local c="$1" value="$2" pfx="$3" inline="$4" newsection="$2"
+    local c="$1" value="$2" pfx="$3" inline="$4" newsection="$2" dnm drest dsep sname sval
     if [ "$c" == "section" ]
     then
 	logtoboth "> ${pfx}Append section '$value' to $SDMPT/boot/config.txt"
 	[ "$newsection" == "${newsection#[}" ] && newsection="[$newsection]"
 	printf "\n${newsection}\n" >> $SDMPT/boot/config.txt
     else
+	# assume not dtoverlay/dtparam
+	sname="$c"
+	sval="$value"
+	dsep="="
+	if [[ "dtoverlay|dtparam" =~ "$c" ]]
+	then
+	    # dtoverlay/dtparam. Pick apart further
+	    # We search for 'dtxxx=dtname' instead of just 'dtxxx'
+	    if [ "$value" != "" ]
+	    then
+		#dsep="="  # default set above
+		dnm=${value%%=*}
+		drest=${value#*=}
+		if [[ "$dnm" == "$value" ]] || [[ "$drest" =~ "," ]]
+		then
+		    # Not dtxxx=dnm=xx see if dtxxx=dnm,something
+		    # or it could be dtxxx=dnm,foobar=12 (comma in $drest)
+		    dsep=","
+		    dnm=${value%%,*}
+		    drest=${value#*,}
+		fi
+	    else
+		logtoboth "? ${pfx}Error detected in updateconfigtxt. Please report error along with command line on GitHub"
+		logtoboth "  Details: c:|$c| value:|$value|"
+		return
+	    fi
+	    sname="${c}=${dnm}"
+	    sval="${drest}"
+	fi
 	if [ "$inline" != "" ]
 	then
-	    if grep -q "^#$c.*" $SDMPT/boot/config.txt
+	    if grep -q "^#$sname.*" $SDMPT/boot/config.txt
 	    then
 		# there but commented out
-		logtoboth "> ${pfx}Uncomment and set '$c=$value' in $SDMPT/boot/config.txt"
-		sed -i "s/^#$c=.*/$c=$value/" $SDMPT/boot/config.txt
+		logtoboth "> ${pfx}Adding '${sname}${dsep}${sval}' below already commented line in $SDMPT/boot/config.txt"
+		sed -i "/^#$sname=.*/a $sname${dsep}$sval" $SDMPT/boot/config.txt
+		#sed -i "s/^#$sname=.*/$sname=$sval/" $SDMPT/boot/config.txt
 	    else
-		if grep -q "^$c.*" $SDMPT/boot/config.txt
+		if grep -q "^$sname.*" $SDMPT/boot/config.txt
 		then
 		    # There and uncommented
-		    logtoboth "> ${pfx}Set '$c=$value' in $SDMPT/boot/config.txt"
-		    sed -i "s/^$c=.*/$c=$value/" $SDMPT/boot/config.txt
+		    logtoboth "> ${pfx}Add '${sname}${dsep}${sval}' below newly commented line it replaces $SDMPT/boot/config.txt"
+		    sed -i "s/^${sname}${dsep}/#sdm: $sname${dsep}/" $SDMPT/boot/config.txt
+		    sed -i "/^#sdm: $sname${dsep}.*/ a $sname${dsep}$sval" $SDMPT/boot/config.txt
 		else
 		    # Not in config.txt
-		    logtoboth "> ${pfx}Append '$c=$value' to $SDMPT/boot/config.txt"
-		    printf "$c=$value\n" >> $SDMPT/boot/config.txt
+		    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $SDMPT/boot/config.txt"
+		    printf "${sname}${dsep}${sval}\n" >> $SDMPT/boot/config.txt
 		fi
 	    fi
 	else
 	    #
 	    # Not inline, so always append
 	    #
-	    logtoboth "> ${pfx}Append '$c=$value' to $SDMPT/boot/config.txt"
-	    printf "$c=$value\n" >> $SDMPT/boot/config.txt
+	    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $SDMPT/boot/config.txt"
+	    printf "${sname}${dsep}${sval}\n" >> $SDMPT/boot/config.txt
 	fi
     fi
 
