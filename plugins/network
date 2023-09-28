@@ -221,7 +221,7 @@ then
     then
 	logtoboth "> Plugin $pfx: Copy $assetdir/wpa.conf to /etc/wpa_supplicant/wpa-supplicant.conf"
 	cp -a $assetdir/wpa.conf /etc/wpa_supplicant/wpa_supplicant.conf
-	setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf
+	setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf 644
     fi
     case "${netman}" in
 	dhcpcd)
@@ -320,7 +320,8 @@ EOF
 		    done
 		fi
 	    done
-	    compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null && chmod 600 /etc/NetworkManager/system-connections/*
+	    compgen -G "/etc/NetworkManager/conf.d/*" > /dev/null && setfileownmode "/etc/NetworkManager/conf.d/*" 644
+	    compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null && setfileownmode "/etc/NetworkManager/system-connections/*" 600
 	    ;;
     esac
     # Don't think this is needed, but keeping jic
