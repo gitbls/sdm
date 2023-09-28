@@ -200,9 +200,15 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     [ -v nowifi ] && nowifi=y
     netman=$(getdefnm "$netman")
-    # If no wificountry in plugin args, use previous setting
-    [ "$wificountry" == "" ] && wificountry="$xwificountry"
     plugin_printkeys
+    # If no wificountry in plugin args, use previous setting
+    if [ "$wificountry" == "" ]
+    then
+	wificountry="$xwificountry"
+    else
+	logtoboth "> Plugin $pfx: Set WiFi Country '$wificountry' for FirstBoot"
+	writeconfig  # Update config to save updated wificountry
+    fi
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
     # Set up ssh
@@ -288,6 +294,7 @@ EOF
 		nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
 		cat >> $nmdcfg <<EOF
 #!/bin/bash
+logger "FirstBoot: Configure Network Manager WiFi connection '$wificname' with SSID $wifissid"
 nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
 nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
 EOF
