@@ -56,7 +56,7 @@ function expandpartition() {
     local fulldevname=$1 pname=$2
     local dev=${fulldevname##/dev/}
     local part="${dev}${pname}"           # RasPiOS Ext 4 partition is always partition 2
-    local gb=$((1024*1024*1024)) gib=$((1000*1000*1000))
+    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))
 
     while read line
     do
@@ -99,6 +99,7 @@ function expandpartition() {
 
 function sdm_burndevfile() {
 
+    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))
     # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
@@ -121,8 +122,12 @@ function sdm_burndevfile() {
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
-	write_burnmsg "* Burn '$dimg' to '$burndev'..."
+	bsize=$(stat --printf %s $dimg)
+	pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gb, 2)))")
+	pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gib, 2)))")
+	write_burnmsg "* Burn '$dimg' (${pgbytes} GB, ${pgibytes} GiB) to '$burndev'..."
 	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
+	#write_burnmsg "> IMG '$dimg' size: ${pgbytes}GB (${pgibytes}GiB)"
 	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
 	# Burn the IMG to the device
@@ -298,7 +303,7 @@ function sdm_burndevfile() {
 	    runplugins "$bplugins" 0
 	fi
 
-	[ -d $SDMPT/etc/lightdm ] && sdm_runspawn burn-enable-lightdm-delay "" Burn1
+	[ -d $SDMPT/etc/lightdm ] && xldm=1 || xldm=0
 
 	if [ "$b1script" != "" ]
 	then
@@ -312,6 +317,8 @@ function sdm_burndevfile() {
 	then
 	    sdm_runspawn run-plugin-list 1 "$bplugins" Burn1
 	    sdm_runspawn run-plugin-list post-install "$bplugins" Burn1
+	    # Set lightdm burn enable delay if it was installed as part of burning
+	    [ -d $SDMPT/etc/lightdm -a $xldm -eq 0 ] && sdm_runspawn burn-enable-lightdm-delay "" Burn1
 	    source $SDMPT/etc/sdm/sdm-readparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
 	fi
 	#
@@ -331,6 +338,7 @@ function sdm_burndevfile() {
 	then
 	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
 	    sdm_runspawn run-command "systemctl disable regenerate_ssh_host_keys" Burn1
+	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
 
 	declare -x SDMNSPAWN="Burn0"
@@ -360,7 +368,7 @@ sdm_ppart() {
 # Shrink IMG file
 #
 sdm_shrink() {
-    local gb=$((1024*1024*1024)) gib=$((1000*1000*1000))
+    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))
 
     [ $dimgdev -eq 1 ] && errexit "? --shrink only operates on IMG files"
     loopdev=""
