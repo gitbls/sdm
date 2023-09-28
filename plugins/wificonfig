@@ -22,6 +22,7 @@ args="$2"
 vldargs="|apssid|apip|country|defaults|facility|retries|timeout|wifilog|"
 rqdargs=""
 loadparams
+assetdir="$SDMPT/etc/sdm/wificonfig"
 
 if [ "$phase" == "0" ]
 then
@@ -35,12 +36,13 @@ then
     #
     plugin_printkeys
     # Check keys validity: defaults, country, retries, timeout
+    mkdir -p $assetdir
     if [ "$defaults" != "" ]
     then
 	if [ -f $defaults ]
 	then
-	    logtoboth "> Plugin $pfx: Copy defaults file '$defaults' to IMG /etc/sdm/assets/wificonfig-defaults"
-	    cp $defaults $SDMPT/etc/sdm/assets/wificonfig-defaults
+	    logtoboth "> Plugin $pfx: Copy defaults file '$defaults' to IMG $assetdir/wificonfig-defaults"
+	    cp $defaults $assetdir/wificonfig-defaults
 	else
 	    logtoboth "% Plugin $pfx: Defaults file '$defaults' not found; ignoring"
 	fi
@@ -59,7 +61,6 @@ then
 	[ "$((timeout))" == 0 ] && logtoboth "% Plugin $pfx: Invalid timeout key value '$timeout'" && mustfix=1
     fi
     [ $mustfix -eq 1 ] && logtoboth "? Plugin $pfx: Above key value errors MUST be corrected to ensure proper operation"
-    #plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
@@ -89,21 +90,31 @@ else
     [ "$country" != "" ] && switches="$switches --country $country"
     if [ "$defaults" != "" ]
     then
-	[ -f /etc/sdm/assets/wificonfig-defaults ] && switches="$switches --defaults /etc/sdm/assets/wificonfig-defaults"
+	[ -f $assetdir/wificonfig-defaults ] && switches="$switches --defaults $assetdir/wificonfig-defaults"
     fi
     [ "$facility" != "" ] && switches="$switches --facility $facility"
     [ "$retries" != "" ] && switches="$switches --retries $retries"
     [ "$timeout" != "" ] && switches="$switches --timeout $timeout"
-    [ "$wifilog" == "" ] && wifilog="/etc/sdm/wifi-config.log"
+    [ "$wifilog" == "" ] && wifilog="$assetdir/wifi-config.log"
     [ "$wifilog" != "" ] && dbgout=">$wifilog 2>&1" || dbgout=""
-    loadlocal="plugin"
+    #loadlocal="plugin"
     writeconfig
-    cat > /etc/sdm/local-assets/plugin-wificonfig.sh <<EOF
+    #cat > $assetdir/plugin-wificonfig.sh <<EOF
+    cat > /etc/sdm/xpiboot/020-plugin-wificonfig.sh <<EOF
 #!/bin/bash
+source /etc/sdm/sdm-readparams
 logger "FirstBoot: Run plugin-configured Captive Portal"
+rfkill unblock wlan
+bootlog "Start Captive Portal to obtain WiFi SSID and Password"
+write_console "Start Captive Portal to obtain WiFi SSID and Password"
+write_console0 ""
+write_console0 "Watch the ACT light"
+write_console0 "   ----  Access Point not started"
+write_console0 "   -.--  Access Point started"
+write_console0 "   --.-  WiFi connection test in progress"
+write_console0 "   ....  Connection test results ready"
+write_console0 "   ...-  Restoring network configuration to exit"
 $sdmdir/sdm-cportal --sdm $switches $dbgout
 EOF
-    logtoboth "plugin-wificonfig: $(cat /etc/sdm/local-assets/plugin-wificonfig.sh)"
-    #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
