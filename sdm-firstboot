@@ -2,28 +2,6 @@
 #
 # This script runs at first boot to perform desired configuration
 #
-# Processed at first boot: wifi-country, enable/disable service, custom scripts, and automatic reboot
-#                          sdm --burn may write locale, keymap, and/or timezone into 1piboot.conf (NYI)
-#                            if they are specified on the burn command line, so they will be processed as well
-#                          ...plus a bunch of other infrequently used device settings
-#
-function write_console() {
-    #
-    # $1 string to write
-    # Written to /dev/console as "\n$(thisdate) FirstBoot: $1"
-    echo -e "\n$(thisdate) FirstBoot: $1" > /dev/console
-}
-
-function write_console0() {
-    #
-    # $1 string to write
-    # Written to /dev/console as "$1"
-    echo -e "$1" > /dev/console
-}
-
-function set_wifi_country () {
-    do_raspiconfig do_wifi_country "$1"
-}
 
 function doscripts() {
     #
@@ -147,7 +125,7 @@ function do_delayed_boot_behavior {
 		systemctl set-default graphical.target
 	    fi
 	else
-	    if [[ "B2" =~ "$value" ]]
+	    if [[ "B1B2" =~ "$value" ]]
 	    then
 		configitemlog "set boot behaviour to $value" bootlog
 		do_raspiconfig do_boot_behaviour $value
@@ -176,63 +154,25 @@ source /etc/sdm/sdm-readparams
 
 write_console "Start sdm FirstBoot Service"
 bootlog "Start sdm FirstBoot Service"
-[ $regensshkeys -eq 1 ] && touch /etc/ssh/sshd_not_to_be_run    #Don't let ssh service start before host keys generated
 
 #
 # Run any scripts that are must run ASAP (like network configuration)
 #
 if [ -d /etc/sdm/xpiboot ]
 then
-    chmod 755  /etc/sdm/xpiboot/0*-*.sh  #Ensure all executable
-    doscripts "/etc/sdm/xpiboot/0*-*.sh" "Generated FirstBoot"
+    if compgen -G "/etc/sdm/xpiboot/*" > /dev/null
+    then
+	chmod 755  /etc/sdm/xpiboot/0*-*.sh  #Ensure all executable
+	doscripts "/etc/sdm/xpiboot/0*-*.sh" "Generated FirstBoot"
+    fi
 fi
 
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
 
-#
-# Set WiFi Country or load WiFi credentials
-#
-[[ "$loadlocal" =~ "flashled" ]] && flashled=1 || flashled=0
-if [[ "$loadlocal" =~ "usb" ]]
-then
-    bootlog "?? Loadlocal USB NYI"
-    #bootlog "Loading Local Settings and WiFi Credentials from a USB drive"
-    #[[ "$loadlocal" =~ "internet" ]] && ckinternet=1 || ckinternet=0
-    #loadusbcreds $flashled $ckinternet
-else
-    if [ "$wificountry" != "" ]
-    then
-	bootlog "Set WiFi Country to '$wificountry'"
-	set_wifi_country "$wificountry"
-    fi
-    if [[ "$loadlocal" =~ "plugin" ]]  || [[ "$loadlocal" =~ "wifi" ]]
-    then
-	logit "> FirstBoot: Handling loadlocal"
-	[ "$wificountry" == "" ] && set_wifi_country US 
-	bootlog "Start Captive Portal to obtain WiFi SSID and Password"
-	write_console "Start Captive Portal to obtain WiFi SSID and Password"
-	write_console0 ""
-	write_console0 "Watch the ACT light"
-	write_console0 "   ----  Access Point not started"
-	write_console0 "   -.--  Access Point started"
-	write_console0 "   --.-  WiFi connection test in progress"
-	write_console0 "   ....  Connection test results ready"
-	write_console0 "   ...-  Restoring network configuration to exit"
-	#write_console0 ""
-	if [[ "$loadlocal" =~ "plugin" ]]
-	then
-	    if [ -f /etc/sdm/local-assets/plugin-wificonfig.sh ]
-	    then
-		logit "> FirstBoot: Run plugin-wificonfig.sh"
-		/etc/sdm/local-assets/plugin-wificonfig.sh
-		mv /etc/sdm/local-assets/plugin-wificonfig.sh /etc/sdm/local-assets/.sdm.done.plugin-wificonfig.sh
-	    else
-		logit "% FirstBoot: wificonfig plugin set but /etc/sdm/local-assets/plugin-wificonfig.sh not found"
-	    fi
-	    write_console "Captive Portal complete; Resume FirstBoot processing"
-	fi
-    fi
-fi
+[ "$wificountry" == "" ] && wificountry="US"
+bootlog "Set WiFi Country to '$wificountry'"
+do_raspiconfig do_wifi_country "$wificountry"
+
 [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Localization Settings from Captive Portal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
 #
 # Wait for network online
