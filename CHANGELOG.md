@@ -1,5 +1,19 @@
 # Changelog
 
+## V9.2
+
+* New Features
+  * `hotspot` plugin is available in Beta &mdash; Supports bridged and routed hotspots. See <a href="Docs/Plugins.md#hotspot">Hotspot plugin</a> for details. Your feedback is greatly appreciated.
+  * `wificonfig` plugin is available (also Beta) &mdash; `wificonfig` runs a captive portal to get WiFi config information via a WiFi-served web page at FirstBoot
+* Improvements
+  * Print size in GB and GiB when starting a `--burn` (IMG size) or `--extend` (extend size)
+* Bug Fixes
+  * Correct boot_behavior, er, behaviour
+  * Network plugin now sets /etc/NetworkManager/system-connections/*.* protection to 600
+  * `bootconfig` plugin correctly handles `dtoverlay` and `dtparam`
+  * `L10n` plugin picks up `wificountry` from host if `host` argument specified and it's available
+  * `network` plugin correctly saves `wificountry`, rescuing it from walkabout.
+
 ## V9.1.1
 
 * sdm in-line code restructured into plugins, grouping similar functions together, and related code together
