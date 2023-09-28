@@ -194,7 +194,13 @@ function extendandresize() {
     # IMG must not be mounted
     # Leaves IMG mounted on completion
     #
-    echo "* Extend $dimgdevname by ${imgext}MB..."
+    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000)) pgbytes pgibytes
+    local extbytes=$(($imgext*1024*1024))
+
+    pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($extbytes/$gb, 2)))")
+    pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($extbytes/$gib, 2)))")
+
+    echo "* Extend $dimgdevname by ${imgext}MB (${pgbytes}GB, ${pgibytes}GiB)..."
     extendimage "$dimg" "$imgext"
     #
     # Mount the image file into a loop device and resize the file system
@@ -325,7 +331,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.1.1"
+version="V9.2"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -862,7 +868,7 @@ else
     #
     # Create and populate $sdmdir tree
     #
-    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/assets $SDMPT/etc/sdm/0piboot $SDMPT/etc/sdm/local-assets
+    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/assets $SDMPT/etc/sdm/0piboot $SDMPT/etc/sdm/xpiboot $SDMPT/etc/sdm/local-assets
     touch $SDMPT/etc/sdm/history
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
