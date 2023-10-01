@@ -207,7 +207,7 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 ### hotspot
 
-The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and earlier the hotspot is implemented with hostapd/dnsmasq. On Bookworm it's implemented using Network Manager.
+The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and earlier the hotspot is implemented with hostapd/dnsmasq. On Bookworm it's implemented using Network Manager (nm).
 
 #### Arguments
 
@@ -227,7 +227,8 @@ The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and e
 
 **Notes:**
 * The Network Manager support is complete enough to be functional, but not all the `hotspot` plugin arguments are supported yet.
-* `type=local` hotspot is supported with hostapd/dnsmasq.
+* The best way to use nm in my opinion is to have pre-created .nmconf and .nmconn files, and then simply dump them into the appropriate nm directories by providing them as `nmconf` and `nmconn` arguments to the `network` plugin.
+* FWIW `type=local` hotspot is supported with hostapd/dnsmasq, but not for nm
 
 #### Examples
 
