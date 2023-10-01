@@ -56,7 +56,6 @@ function expandpartition() {
     local fulldevname=$1 pname=$2
     local dev=${fulldevname##/dev/}
     local part="${dev}${pname}"           # RasPiOS Ext 4 partition is always partition 2
-    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))
 
     while read line
     do
@@ -85,11 +84,7 @@ function expandpartition() {
 
     pbytes=$((partsize*512))
     nbytes=$(((devsize*512)-$partend+$pbytes))
-    pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($pbytes/$gb, 2)))")
-    pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($pbytes/$gib, 2)))")
-    ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
-    ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
-    write_burnmsg "> Expand Root: Expand partition '$part' on device '$fulldevname' from ${pgbytes}GB (${pgibytes}GiB) to ${ngbytes}GB (${ngibytes}GiB)"
+    write_burnmsg "> Expand Root: Expand partition '$part' on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     parted -m /dev/$dev u s resizepart 2 $newsize
     errifrc $? "? parted resizepart failed with status"
     #echo ",+" | sfdisk -N 2 $fulldevname
@@ -99,7 +94,6 @@ function expandpartition() {
 
 function sdm_burndevfile() {
 
-    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))
     # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
@@ -123,11 +117,8 @@ function sdm_burndevfile() {
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
 	bsize=$(stat --printf %s $dimg)
-	pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gb, 2)))")
-	pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gib, 2)))")
-	write_burnmsg "* Burn '$dimg' (${pgbytes} GB, ${pgibytes} GiB) to '$burndev'..."
+	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
 	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
-	#write_burnmsg "> IMG '$dimg' size: ${pgbytes}GB (${pgibytes}GiB)"
 	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
 	# Burn the IMG to the device
@@ -160,7 +151,8 @@ function sdm_burndevfile() {
 	#
 	[ "$burnfilefile" == "" ] && errexit "? No Output IMG file specified"
 	[ -f $burnfilefile ] && errexit "? Output IMG file '$burnfilefile' exists"
-	write_burnmsg "* Burn '$dimg' to Output IMG '$burnfilefile'..."
+	bsize=$(stat --printf %s $dimg)
+	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to Output IMG '$burnfilefile'..."
 	burnmsg+=("$(thisdate) > Burn IMG command line: $cmdline")
 	ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
@@ -257,7 +249,7 @@ function sdm_burndevfile() {
 		then
 		    logtoboth "> Copy '$b1script' to /etc/sdm/assets"
 		    cp -a $b1script $SDMPT/etc/sdm/assets
-		    chmod 755 $SDMPT/etc/sdm/assets/$(basename $b1script)
+		    setfileownmode $SDMPT/etc/sdm/assets/$(basename $b1script) 755
 		fi
 	    else
 		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b1script) ]
@@ -368,7 +360,6 @@ sdm_ppart() {
 # Shrink IMG file
 #
 sdm_shrink() {
-    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))
 
     [ $dimgdev -eq 1 ] && errexit "? --shrink only operates on IMG files"
     loopdev=""
@@ -488,10 +479,6 @@ sdm_shrink() {
     errifrc $? "? Truncate failed with status "
     echo "* Shrink complete"
     asize=$(stat --printf %s $dimg)
-    pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gb, 2)))")
-    pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($bsize/$gib, 2)))")
-    ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($asize/$gb, 2)))")
-    ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($asize/$gib, 2)))")
-    echo "  IMG '$dimg' was ${pgbytes}GB (${pgibytes}GiB) now ${ngbytes}GB (${ngibytes}GiB)"
+    echo "  IMG '$dimg' was $(getgbstr $bsize) now $(getgbstr $asize)"
     return
 }
