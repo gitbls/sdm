@@ -1,5 +1,14 @@
 # Changelog
 
+## V9.3
+
+* New Features
+* Improvements
+  * Update Install Guide
+  * Update (minor) Network Manager hints based on learnings
+* Bug Fixes
+  * Be more careful with file ownership/protection
+
 ## V9.2
 
 * New Features
