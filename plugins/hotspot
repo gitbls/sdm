@@ -26,46 +26,37 @@ function saveorig() {
     return
 }
 
-function cfgdhcpcd() {
 
-    if [ "$type" == "bridged" ]
-    then
-	saveorig /etc/dhcpcd.conf 1
-	sed -i '1 i\denyinterfaces wlan0 eth0' /etc/dhcpcd.conf
-	echo -e "\n# sdm bridged network configuration $(thisdate)" >> /etc/dhcpcd.conf
-	echo 'interface br0' >> /etc/dhcpcd.conf
-    else
-	# update dhcpcd config for local or routed hotspot
-	logtoboth "> Plugin $pfx: Disable wpa_supplicant configuration for $device in dhcpcd"
-	cat >> /etc/dhcpcd.conf <<EOF
-# sdm hotspot network configuration $(thisdate)
-interface $device
-    static ip_address=$wlanip/24
-    nohook wpa_supplicant
-EOF
-    fi
+function writehsconfig() {
+    rm -f $assetdir/config
+    IFS="|" read -r -a optlist <<< "${vldargs#|}"
+    for a in "${optlist[@]}"
+    do
+	av="${!a}"
+	[ "$av" != "" ] && printf "%s=%s\n" $a "$av" >> $assetdir/config
+    done
 }
 
-function cfgnm() {
-    logtoboth "??? network manager nyi"
-    # nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
-    # "nmcli c modify $wificname ipv6.method disabled
-    # ipv4.{dns, addresses, gateway, routes}
-    #
-    # If Bridged, disable use of both wlan0 and eth0, and use the bridge
-    # If not bridged, disable wpa_supplicant and set the wifi IP to $wlanip
-}
+function parsehsconfig() {
+    local fhotspot="$1"
 
-cfgnetman() {
-    #
-    # Need to determine which is actually being used, not just on the system
-    #
-    if [ "$hsmode" == "hostapd" ]
-    then
-	cfgdhcpcd
-#    else
-#	cfgnm
-    fi
+    while IFS=":=" read rpifun value
+    do
+	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
+	then
+	    value="${value%%\#*}"    # Del EOL comments
+	    value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	    value=$(stripquotes "$value" qd)
+	    case "${rpifun,,}" in
+		channel|country|device|dhcprange|domain|enable|hwmode|leasetime|passphrase|ssid|type|wlanip|hostapd|hsmode)
+		    printf -v "$rpifun" "%s" "$value"
+		    ;;
+		*)
+		    logtoboth "? Plugin $pfx: Unrecognized hotspot option '$rpifun' in '$fhotspot'"
+		    ;;
+	    esac
+	fi
+    done < $fhotspot
 }
 
 function writehostapd() {
@@ -232,44 +223,117 @@ EOF
     fi
 }
 
-function parseconfig() {
-    local fhotspot="$1"
-
-    while IFS=":=" read rpifun value
-    do
-	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
-	then
-	    value="${value%%\#*}"    # Del EOL comments
-	    value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-	    value=$(stripquotes "$value" qd)
-	    case "${rpifun,,}" in
-		channel|country|device|dhcprange|domain|enable|hwmode|leasetime|passphrase|ssid|type|wlanip|hostapd|hsmode)
-		    printf -v "$rpifun" "%s" "$value"
-		    ;;
-		*)
-		    logtoboth "? Plugin $pfx: Unrecognized hotspot option '$rpifun' in '$fhotspot'"
-		    ;;
-	    esac
-	fi
-    done < $fhotspot
+function dodefault() {
+    #
+    # $1: setting name
+    # $2: value
+    #
+    local sname=$1 sval=$2
+    logtoboth "$(printf "   %-60s [Default]" "$(printf "%s: %s" $sname $sval)")"
+    printf -v "$sname" "%s" "$sval"
 }
 
-function makeconfig() {
-    parseconfig $assetdir/config
-    if [ "$hsmode" == "hostapd" ]
-    then
-	logtoboth "> Prefix $pfx: Configure hotspot with hostpad and dhcpcd"
-	writehostapd
-	writednsmasq
-	enablerouting
-	createbridge
-	enablesvcs
-    else
-	logtoboth "> Prefix $pfx: Configure hotspot 'Hotspot' with Network Manager"
-	[ "$enable" == "true" ] && acsts="yes" || acsts="no"
-	if [ "$type" == "routed" ]
+function fillupcfg() {
+    #
+    # Default any missing arguments
+    #
+    IFS="|" read -r -a optlist <<< "${vldargs#|}"
+    for a in "${optlist[@]}"
+    do
+	if [ "${!a}" == "" ]
 	then
-	    cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-routed.sh <<EOF
+	    case "$a" in
+		#
+		# Default for missing args
+		#
+		channel)
+		    dodefault channel 36
+		    ;;
+		country)
+		    dodefault country US
+		    ;;
+		device)
+		    dodefault device wlan0
+		    ;;
+		dhcprange)
+		    dodefault dhcprange "192.168.4.2,192.168.4.32,255.255.255.0"
+		    ;;
+		domain)
+		    dodefault domain "wlan.net"
+		    ;;
+		enable)
+		    dodefault enable true
+		    ;;
+		hsmode)
+		    if [ ${raspiosver} -ge 12 ]
+		    then
+			dodefault hsmode nm
+		    else
+			dodefault hsmode hostapd
+		    fi
+		    ;;
+		hwmode)
+		    dodefault hwmode a
+		    ;;
+		leasetime)
+		    dodefault leasetime 24h
+		    ;;
+		passphrase)
+		    dodefault passphrase password
+		    ;;
+		ssid)
+		    dodefault ssid MyPiNet
+		    ;;
+		type)
+		    dodefault type routed
+		    ;;
+		wlanip)
+		    dodefault wlanip "192.168.4.1"
+		    ;;
+	    esac
+	else
+	    logtoboth "   $a: ${!a}"
+	fi
+    done
+}
+
+function cfgdhcpcd() {
+    logtoboth "> Prefix $pfx: Configure hotspot with hostpad and dhcpcd"
+    writehostapd
+    writednsmasq
+    enablerouting
+    createbridge
+    enablesvcs
+    if [ "$type" == "bridged" ]
+    then
+	saveorig /etc/dhcpcd.conf 1
+	sed -i '1 i\denyinterfaces wlan0 eth0' /etc/dhcpcd.conf
+	echo -e "\n# sdm bridged network configuration $(thisdate)" >> /etc/dhcpcd.conf
+	echo 'interface br0' >> /etc/dhcpcd.conf
+    else
+	# update dhcpcd config for local or routed hotspot
+	logtoboth "> Plugin $pfx: Disable wpa_supplicant configuration for $device in dhcpcd"
+	cat >> /etc/dhcpcd.conf <<EOF
+# sdm hotspot network configuration $(thisdate)
+interface $device
+    static ip_address=$wlanip/24
+    nohook wpa_supplicant
+EOF
+    fi
+}
+
+# channel 802-11-wireless.channel
+# dhcprange chosen from IP address (routed)
+# domain ???
+# hwmode
+# leasetime
+
+function cfgnm() {
+    logtoboth "> Prefix $pfx: Configure hotspot 'Hotspot' with Network Manager"
+    [ "$enable" == "true" ] && acsts="yes" || acsts="no"
+    if [ "$type" == "routed" ]
+    then
+	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-routed.sh <<EOF
 #!/bin/bash
 rfkill unblock wlan
 nmcli device wifi hotspot ifname $device con-name Hotspot ssid $ssid band bg password "$passphrase"
@@ -277,8 +341,8 @@ nmcli c down Hotspot
 nmcli c modify Hotspot ipv4.method shared ipv6.method disabled ipv4.addresses $wlanip/24
 nmcli c modify Hotspot autoconnect $acsts
 EOF
-	else
-	    cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-bridged.sh <<EOF
+    else
+	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-bridged.sh <<EOF
 #!/bin/bash
 rfkill unblock wlan
 
@@ -299,7 +363,15 @@ nmcli c modify Hotspot slave-type bridge master br0 wifi-sec.key-mgmt wpa-psk 80
 nmcli c modify Hotspot autoconnect $acsts
 nmcli c modify br0 autoconnect $acsts
 EOF
-	fi
+    fi
+}
+
+function cfgnetman() {
+    if [ "$hsmode" == "hostapd" ]
+    then
+	cfgdhcpcd
+    else
+	cfgnm
     fi
 }
 
@@ -333,8 +405,11 @@ then
     then
 	if [ -f $config ]
 	then
-	    logtoboth "> Plugin $pfx: Copy config file '$config' to $assetdir/config"
-	    cp $config $assetdir/config
+	    logtoboth "> Plugin $pfx: Read hotspot config '$config' and update missing with defaults:"
+	    parsehsconfig $config
+	    fillupcfg
+	    logtoboth "> Plugin $pfx: Write hotspot config to $assetdir/config"
+	    writehsconfig
 	else
 	    logtoboth "% Plugin $pfx: Config file '$config' not found"
 	    exit
@@ -342,58 +417,8 @@ then
 
     else
 	# config file not provided. Make one from what we were given
-	logtoboth "% Plugin $pfx: Argument 'config' not provided; Generate one from defaults"
-	IFS="|" read -r -a optlist <<< "${vldargs#|}"
-	for a in "${optlist[@]}"
-	do
-	    if [ ! -v "$a" ]
-	    then
-		case "$a" in
-		    #
-		    # Default for missing args
-		    #
-		    channel)
-			channel="36"
-			;;
-		    country)
-			country="US"
-			;;
-		    device)
-			device="wlan0"
-			;;
-		    dhcprange)
-			dhcprange="192.168.4.2,192.168.4.32,255.255.255.0"
-			;;
-		    domain)
-			domain="wlan.net"
-			;;
-		    enable)
-			enable="true"
-			;;
-		    hsmode)
-			[ ${raspiosver} -ge 12 ] && hsmode="nm" || hsmode="hostapd"
-			;;
-		    hwmode)
-			hwmode="a"
-			;;
-		    leasetime)
-			leasetime="24h"
-			;;
-		    passphrase)
-			passphrase="password"
-			;;
-		    ssid)
-			ssid="MyPiNet"
-			;;
-		    type)
-			type="routed"
-			;;
-		    wlanip)
-			wlanip="192.168.4.1"
-			;;
-		esac
-	    fi
-	done
+	logtoboth "% Plugin $pfx: No 'config' provided; Generate config from arguments and defaults:"
+	fillupcfg
 	if [ ${raspiosver} -lt 12 ]
 	then
 	    if [ "$hsmode" == "nm" ]
@@ -405,15 +430,10 @@ then
 	    if [ "$hsmode" == "hostapd" ]
 	    then
 		logtoboth "? Plugin $pfx: Only Network Manager supported for hotspot on Bookworm or later"
-		hsmode="hostapd"
+		hsmode="nm"
 	    fi
 	fi
-	IFS="|" read -r -a optlist <<< "${vldargs#|}"
-	for a in "${optlist[@]}"
-	do
-	    av="${!a}"
-	    [ "$av" != "" ] && printf "%s=%s\n" $a "$av" >> $assetdir/config
-	done
+	writehsconfig
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
@@ -424,9 +444,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    #logfreespace "at start of Plugin $pfx Phase 1"
-    #
-    # install hostapd and dnsmasq
+    parsehsconfig $assetdir/config
     if [ "$hsmode" == "hostapd" ]
     then
 	svcs="'hostapd'"
@@ -442,7 +460,7 @@ then
 	    systemctl disable dnsmasq
 	fi
     else
-	! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doapt "install --no-install-recommends --yes dnsmasq" "$showapt"
+	! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doapt "install --no-install-recommends --yes network-manager" "$showapt"
     fi
     if [ "$enable" == "true" ]
     then
@@ -451,7 +469,6 @@ then
 	logtoboth "% Plugin $pfx: Hotspot will not be enabled by FirstBoot"
     fi
     #
-    #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
@@ -459,16 +476,12 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    #logfreespace "at start of Plugin $pfx Phase post-install"
-    #
     if [ -f $assetdir/config ]
     then
-	makeconfig $assetdir/config
+	parsehsconfig $assetdir/config
 	cfgnetman
     else
 	logtoboth "? Plugin $pfx: Hotspot config file '$assetdir/config' not found"
     fi
-    #
-    #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
