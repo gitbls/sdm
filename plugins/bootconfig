@@ -64,6 +64,7 @@ then
 			    [ ! -f $SDMPT/boot/config.txt.sdm ] && mv $SDMPT/boot/config.txt $SDMPT/boot/config.txt.sdm
 			    rm -f $SDMPT/boot/config.txt
 			    cp -a $reset $SDMPT/boot/config.txt
+			    setfileownmode $SDMPT/boot/config.txt 755
 			else
 			    logtoboth "? Plugin $pfx: /boot/config.txt reset file '$reset' not found"
 			fi
