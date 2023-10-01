@@ -72,6 +72,7 @@ else
 	    tfn="${fn##*chronyd-$id-}"
 	    logtoboth "> Plugin $pfx: Copy chronyd file '$tfn' to $dstdir"
 	    cp -a $fn $dstdir/$(basename $tfn)
+	    setfileownmode $dstdir/$(basename $tfn) 644
 	done
     done
     logtoboth "* Plugin $pfx: Complete Phase post-install"

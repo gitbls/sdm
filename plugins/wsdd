@@ -43,6 +43,7 @@ then
     then
 	logtoboth "> Plugin $pfx: Copy wsdd from '$localsrc'"
 	cp -a $localsrc/wsdd.py $SDMPT/usr/bin/wsdd
+	setfileownmode $SDMPT/usr/bin/wsdd 755
 	cp -a $localsrc/wsdd.8 $SDMPT/usr/share/man/man8/wsdd.i
 	cp -a $localsrc/wsdd.defaults $SDMPT/etc/default/wsdd
 	cp -a $localsrc/wsdd.service $SDMPT/etc/systemd/system/wsdd.service

@@ -80,6 +80,7 @@ then
 	    logtoboth "> Plugin $pfx: Replace /etc/samba/smb.conf with /etc/sdm/assets/samba-$(basename $smbconf)"
 	    mv /etc/samba/smb.conf /etc/samba/smb.conf.sdm-smbconf
 	    cp -a /etc/sdm/assets/samba-$(basename $smbconf) /etc/samba/smb.conf
+	    setfileownmode /etc/samba/smb.conf 600
 	fi
     fi
     if [ "$shares" != "" ]
@@ -88,6 +89,7 @@ then
 	then
 	    logtoboth "> Plugin $pfx: Append shares from /etc/sdm/assets/samba-$(basename $shares) to /etc/samba/smb.conf"
 	    cp -a /etc/samba/smb.conf /etc/samba/smb.conf.sdm-shares
+	    setfileownmode /etc/samba/smb.conf.sdm-shares 600
 	    cat >> /etc/samba/smb.conf <<EOF 
 
 #** Following share definitions added by sdm samba plugin from $shares

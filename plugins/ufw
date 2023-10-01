@@ -39,7 +39,7 @@ then
 		bnc=$(basename $c)
 		logtoboth "> Plugin $pfx: copy ufw script $c to /etc/sdm/assets/ufw-$bnc"
 		cp -a $c $SDMPT/etc/sdm/assets/ufw-$bnc
-		chmod 755 $SDMPT/etc/sdm/assets/ufw-$bnc
+		setfileownmode $SDMPT/etc/sdm/assets/ufw-$bnc 755   # We'll run these during firstboot
 		if [ "$savescriptdir" == "" ]
 		then
 		    logtoboth "> Plugin $pfx: $c will be saved to /usr/local/bin"
@@ -48,7 +48,7 @@ then
 		    logtoboth "> Plugin $pfx: $c will be saved to $savescriptdir"
 		fi
 		cp -a $c $SDMPT/$savescriptdir/$bnc
-		chmod 755 $SDMPT/$savescriptdir/$bnc
+		setfileownmode $SDMPT/$savescriptdir/$bnc 755      # We'll run these during firstboot
 	    else
 		logtoboth "> Plugin $pfx: Cannot find ufwscript '$c'"
 	    fi

@@ -97,9 +97,7 @@ else
     [ "$timeout" != "" ] && switches="$switches --timeout $timeout"
     [ "$wifilog" == "" ] && wifilog="$assetdir/wifi-config.log"
     [ "$wifilog" != "" ] && dbgout=">$wifilog 2>&1" || dbgout=""
-    #loadlocal="plugin"
     writeconfig
-    #cat > $assetdir/plugin-wificonfig.sh <<EOF
     cat > /etc/sdm/xpiboot/020-plugin-wificonfig.sh <<EOF
 #!/bin/bash
 source /etc/sdm/sdm-readparams

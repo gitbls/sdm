@@ -131,6 +131,7 @@ else
 		    logtoboth "> Plugin $pfx: "
 		    logtoboth "> Plugin $pfx: Copy $chyp file '$(basename $fl)' to /etc/$dirnm"
 		    cp -a $fl /etc/$dirnm
+		    setfileownmode /etc/$dirnm/$(basename $fl) 755
 		done
 		;;
 	    cron-systemd)
@@ -219,6 +220,7 @@ EOF
 		    bfn=$(basename $fl)
 		    logtoboth "> Plugin $pfx: copy $chyp file '$(basename $fl)' to /etc/modprobe.d"
 		    cp -a $fl /etc/modprobe.d
+		    setfileownmode /etc/modprobe.d/$(basename $fl) 644
 		done
 		;;
 	    motd)
@@ -228,6 +230,7 @@ EOF
 		    logtoboth "> Plugin $pfx: copy $chyp file '$(basename $fl)' to /etc/motd"
 		    [ ! -f /etc/motd.orig.sdm ] && mv /etc/motd /etc/motd.orig.sdm || rm -f /etc/motd
 		    cp -a $fl /etc/motd
+		    setfileownmode /etc/motd 644
 		fi
 		    ;;
 	    service-disable)
@@ -284,6 +287,7 @@ EOF
 		do
 		    logtoboth "> Plugin $pfx: Copy $chyp file '$(basename $fl)' to /etc/sysctl.d"
 		    cp -a $fl /etc/sysctl.d
+		    setfileownmode /etc/sysctl.d/$(basename $fl) 644
 		done
 		;;
 	    systemd-config)
@@ -299,8 +303,7 @@ EOF
 			    logtoboth "> Plugin $pfx: Copy systemd '$c' config file '$fn' to /etc/systemd/$tdir.conf.d"
 			    mkdir -p /etc/systemd/$tdir.conf.d
 			    cp -a $fn /etc/systemd/$tdir.conf.d
-			    chown root:root /etc/systemd/$tdir.conf.d/$bfn
-			    chmod 644 /etc/systemd/$tdir.conf.d/$bfn
+			    setfileownmode /etc/systemd/$tdir.conf.d/$bfn 644
 			done
 		    fi
 		done
@@ -310,6 +313,7 @@ EOF
 		do
 		    logtoboth "> Plugin $pfx: Copy $chyp file '$(basename $fl)' to /etc/udev/rules.d"
 		    cp -a $fl /etc/udev/rules.d
+		    setfileownmode /etc/udev/rules.d/$(basename $fl) 644
 		done
 		;;
 	esac
