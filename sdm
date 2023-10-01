@@ -194,13 +194,9 @@ function extendandresize() {
     # IMG must not be mounted
     # Leaves IMG mounted on completion
     #
-    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000)) pgbytes pgibytes
     local extbytes=$(($imgext*1024*1024))
 
-    pgbytes=$(python3 -c "print(\"{:.1f}\".format(round($extbytes/$gb, 2)))")
-    pgibytes=$(python3 -c "print(\"{:.1f}\".format(round($extbytes/$gib, 2)))")
-
-    echo "* Extend $dimgdevname by ${imgext}MB (${pgbytes}GB, ${pgibytes}GiB)..."
+    echo "* Extend $dimgdevname by ${imgext}MB $(getgbstr $extbytes)..."
     extendimage "$dimg" "$imgext"
     #
     # Mount the image file into a loop device and resize the file system
@@ -331,7 +327,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.2"
+version="V9.3"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -876,6 +872,7 @@ else
     for f in $sdmflist
     do
 	cp -a $src/$f $SDMPT/$sdmdir
+	setfileownmode $SDMPT/$sdmdir/$f 755
     done
     rm -f $SDMPT/usr/local/bin/sdm
     ln -s $sdmdir/sdm $SDMPT/usr/local/bin
@@ -883,24 +880,24 @@ else
     if compgen -G "$src/plugins/*" > /dev/null
     then
 	cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
-	chmod 755 $SDMPT/$sdmdir/plugins/*
+	setfileownmode "$SDMPT/$sdmdir/plugins/*" 755
     fi
     if compgen -G "$src/local-plugins/*" > /dev/null
     then
 	cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
-	chmod 755 $SDMPT/$sdmdir/local-plugins/*
+	setfileownmode "$SDMPT/$sdmdir/local-plugins/*" 755
     fi
     # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
-    chmod 755 $SDMPT/$sdmdir/*
+    setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
     chown -R root:root $SDMPT/$sdmdir
-    [ "${appfile:0:1}" == "@" ]  && cp -a -f ${appfile:1:999}  $SDMPT/$sdmdir
+    [ "${appfile:0:1}" == "@" ]  && cp -a -f ${appfile:1:999}  $SDMPT/$sdmdir && setfileownmode $SDMPT/$sdmdir/${appfile:1:999} 644
     logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
-	chmod 755 $SDMPT/$sdmdir/1piboot/*.sh
+	setfileownmode $SDMPT/$sdmdir/1piboot/*.sh 755
     fi
     raspiosver=$(getosver)
     logtoboth "> Command Line: $cmdline"
@@ -933,12 +930,16 @@ else
     then
 	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"
 	cp -a $pi1bootconf $SDMPT/etc/sdm/1piboot.conf
+	setfileownmode $SDMPT/etc/sdm/1piboot.conf 644
 	cp -a $pi1bootconf $SDMPT/$sdmdir/1piboot                                         #Drop a copy in $sdmdir in the IMG
+	setfileownmode $SDMPT/etc/sdm/1piboot/$(basename $pi1bootconf) 644
     else
 	if [ -d $src/1piboot -a -f $src/1piboot/1piboot.conf ]
 	then
 	    cp -a $src/1piboot/1piboot.conf $SDMPT/etc/sdm/
+	    setfileownmode $SDMPT/etc/sdm/1piboot.conf 644
 	    cp -a $src/1piboot/1piboot.conf $SDMPT/$sdmdir/1piboot
+	    setfileownmode $SDMPT/$sdmdir/1piboot/1piboot.conf 644
 	fi
     fi
     [ -f $SDMPT/etc/sdm/1piboot.conf ] && chmod 644 $SDMPT/etc/sdm/1piboot.conf
@@ -946,6 +947,7 @@ else
     then
 	logtoboth "> Copy Custom Phase Script '$cscript' to $sdmdir in the $dimgdevname"
 	cp -a $cscript $SDMPT/$sdmdir
+	setfileownmode $SDMPT/$sdmdir/$(basename $cscript) 755
     fi
     #
     # Write the config settings into the IMG
