@@ -32,8 +32,11 @@ function writehsconfig() {
     IFS="|" read -r -a optlist <<< "${vldargs#|}"
     for a in "${optlist[@]}"
     do
-	av="${!a}"
-	[ "$av" != "" ] && printf "%s=%s\n" $a "$av" >> $assetdir/config
+	if [ "$a" != "config" ]
+	then
+	    av="${!a}"
+	    [ "$av" != "" ] && printf "%s=%s\n" $a "$av" >> $assetdir/config
+	fi
     done
 }
 
@@ -201,20 +204,22 @@ EOF
 }
 
 function enablesvcs() {
+    local now=""
     if [ "$enable" == "true" -o "$enable" == "y" ]
     then
 	logtoboth "> Plugin $pfx: FirstBoot will enable services 'hostapd' and 'dnsmasq'"
+	[ $reboot -eq 0 ] && now="--now"
 	cat > /etc/sdm/0piboot/040-hotspot-enable.sh <<EOF
 #!/bin/bash
 #source /etc/sdm/sdm-readparams  #Not needed at the moment
 logger "FirstBoot: Enable hostapd"
 rfkill unblock wlan
-systemctl enable hostapd
+systemctl enable $now hostapd
 EOF
 	if [ "$type" != "bridged" ]
 	then
 	    echo "logger \"FirstBoot: Enable dnsmasq\"" >> /etc/sdm/0piboot/040-hotspot-enable.sh
-	    echo "systemctl enable dnsmasq" >> /etc/sdm/0piboot/040-hotspot-enable.sh
+	    echo "systemctl enable $now dnsmasq" >> /etc/sdm/0piboot/040-hotspot-enable.sh
 	fi
     else
 	se="sudo systemctl enable hostapd"
@@ -292,7 +297,7 @@ function fillupcfg() {
 		    ;;
 	    esac
 	else
-	    logtoboth "   $a: ${!a}"
+	    [ "$a" != "config" ] && logtoboth "   $a: ${!a}"
 	fi
     done
 }
