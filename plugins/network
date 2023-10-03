@@ -278,35 +278,6 @@ EOF
 	    fi
 	    systemctl -q enable NetworkManager > /dev/null 2>&1
 	    systemctl -q disable dhcpcd > /dev/null 2>&1
-	    if [ "$wpa" != "" ]
-	    then
-		logtoboth "> Plugin $pfx: wpa_supplicant.conf is not used by Network Manager"
-		logtoboth "  If your wpa_supplicant.conf contained multiple network connections"
-		logtoboth "  only the first one will be defined in Network Manager"
-	    fi
-	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
-	    if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
-	    then
-		logtoboth "> Plugin $pfx: Create NetworkManager WiFi configuration"
-		logtoboth "  with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
-		wificname=${wifissid,,}
-		# Defer to FirstBoot since nmcli --offline not supported in Bullseye
-		nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
-		cat >> $nmdcfg <<EOF
-#!/bin/bash
-logger "FirstBoot: Configure Network Manager WiFi connection '$wificname' with SSID $wifissid"
-nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
-nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
-EOF
-		if [ -v noipv6 ]
-		then
-		    echo "nmcli c modify $wificname ipv6.method disabled" >> $nmdcfg
-		fi
-	    fi
-	    if [ -v noipv6 ]
-	    then
-		echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> $nmdcfg
-	    fi
 	    for conf in nmconf nmconn
 	    do
 		if compgen -G "$assetdir/$conf/*" > /dev/null
@@ -320,6 +291,39 @@ EOF
 		    done
 		fi
 	    done
+	    # If no .nmconnections provided via nmconn fabricate something if possible
+	    if ! compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null
+	    then
+		if [ "$wpa" != "" ]
+		then
+		    logtoboth "> Plugin $pfx: wpa_supplicant.conf is not used by Network Manager"
+		    logtoboth "  If your wpa_supplicant.conf contained multiple network connections"
+		    logtoboth "  only the first one will be defined in Network Manager"
+		fi
+		[ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
+		if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
+		then
+		    logtoboth "> Plugin $pfx: Create NetworkManager WiFi configuration"
+		    logtoboth "  with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
+		    wificname=${wifissid,,}
+		    # Defer to FirstBoot since nmcli --offline not supported in Bullseye
+		    nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
+		    cat >> $nmdcfg <<EOF
+#!/bin/bash
+logger "FirstBoot: Configure Network Manager WiFi connection '$wificname' with SSID $wifissid"
+nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
+nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
+EOF
+		    if [ -v noipv6 ]
+		    then
+			echo "nmcli c modify $wificname ipv6.method disabled" >> $nmdcfg
+		    fi
+		fi
+		if [ -v noipv6 ]
+		then
+		    echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> $nmdcfg
+		fi
+	    fi
 	    compgen -G "/etc/NetworkManager/conf.d/*" > /dev/null && setfileownmode "/etc/NetworkManager/conf.d/*" 644
 	    compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null && setfileownmode "/etc/NetworkManager/system-connections/*" 600
 	    ;;
