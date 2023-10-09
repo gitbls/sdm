@@ -191,9 +191,9 @@ function getgbstr() {
     # Returns the string "(nn.nnGB, mm.mmGiB)"
 
     local nbytes=$1
-    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))  # Not super-efficient but meh
-    ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
-    ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
+    local gb=1000000000 gib=1073741824
+    ngbytes=$(printf %.2f "$((100 * $nbytes / $gb))e-2")
+    ngibytes=$(printf %.2f "$((100 * $nbytes / $gib))e-2")
     echo "(${ngbytes}GB, ${ngibytes}GiB)"
     return
 }
