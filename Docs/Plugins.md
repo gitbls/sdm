@@ -480,6 +480,7 @@ The `system` plugin is a collection of system-related configuration settings. Yo
     * `none`: There is no system journal
 * **modprobe** &mdash; Comma-separated list of files to copy to /etc/modprobe.d
 * **motd** &mdash; Single /path/to/file to use for /etc/motd. /dev/null results in an empty motd
+* **rclocal** &mdash; Comma-separated list of ordered commands to add to /etc/rc.local. An item starting with '@' is interpeted as a file whose contents will be included.
 * **service-disable** &mdash; Comma-separated list of services to disable
 * **service-enable** &mdash; Comma-separated list of services to enable
 * **swap** &mdash; **disable** or integer swapsize in MB to set

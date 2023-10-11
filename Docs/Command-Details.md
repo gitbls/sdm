@@ -62,6 +62,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
     * Best to not include it always unless you know what you're doing
     * `--bupdate` is only honored on a burn command, and is not inspected during a customize command
     * This is very handy when you're in the process of developing a new plugin or updating an existing plugin
+* `--chroot` &mdash; By default sdm uses `systemd-nspawn` to enter the container in Phase 1/post-install phases. Some (likely older) host OSes may have issues with that. If `systemd-nspawn` fails with an `execve` error, retry the command and add `--chroot`.
 * `--cscript` *scriptname* &mdash; Specifies the path to your Custom Phase Script, which will be run as described in the Custom Phase Script section below.
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.
@@ -85,7 +86,6 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 
     Enter multiple values as a single string separated by commas. For example `--poptions noupdate,noupgrade`
 
-* `--rclocal` *command* &mdash; Add the specified command to /etc/rc.local. Multiple `--rclocal` switches can be specified, and the commands are added in the order specified on the command line.
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
 * `--redact` &mdash; See <a href="Passwords.md">Passwords</a> for details.
 * `--redo-customize` &mdash; Directs sdm to not prompt for confirmation to redo the customization on a target found to already be customized.

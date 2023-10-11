@@ -34,6 +34,12 @@ Once the IMG is completed (Phase 0, Phase 1, and post-install), **Phase 3** and 
 * apt autoremove &mdash; Auto remove any unnecessary packages
 * Plugins post-install &mdash; Run Phase post-install for all enabled plugins in command-line order
 
+## sdm customization and /etc/resolv.conf
+
+In order to use the network during customization for updates, upgrades, etc, the file /etc/resolv.conf must be set up. `systemd-nspawn`, which is used by sdm for Phase 1 and post-install, copies the /etc/resolv.conf from the host into the IMG being customized.
+
+If you need to use `--chroot` for any reason, sdm will add a default /etc/resolv.conf.
+
 <form>
 <input type="button" value="Back" onclick="history.back()">
 </form>

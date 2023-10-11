@@ -29,6 +29,7 @@ These switches have relocated to the `system` plugin <a href="Plugins.md#system"
 * `--journal`  
 * `--modprobe`  
 * `--motd` 
+* `--rclocal`
 * `--sysctl`  
 * `--systemd-config`  
 * `--swap`  
