@@ -191,9 +191,10 @@ function getgbstr() {
     # Returns the string "(nn.nnGB, mm.mmGiB)"
 
     local nbytes=$1
-    local gib=$((1024*1024*1024)) gb=$((1000*1000*1000))  # Not super-efficient but meh
-    ngbytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gb, 2)))")
-    ngibytes=$(python3 -c "print(\"{:.1f}\".format(round($nbytes/$gib, 2)))")
+    local gb=1000000000 gib=1073741824 gb2=500000000 gi2=536870912
+    local ngbytes ngibytes 
+     ngbytes=$(printf %.1f "$(( ((10 * $nbytes)+$gb2) / $gb ))e-1")
+    ngibytes=$(printf %.1f "$(( ((10 * $nbytes)+$gi2) / $gib))e-1")
     echo "(${ngbytes}GB, ${ngibytes}GiB)"
     return
 }
@@ -234,6 +235,19 @@ function cklogfreespace() {
     fi
 }
     
+function do_raspiconfig() {
+    #
+    # $1=command
+    # $2=value
+    local cmd=$1 value=$2
+    if type -P raspi-config > /dev/null
+    then
+	SUDO_USER=${myuser:-nobody} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
+    else
+	logtoboth "% Unable to find raspi-config for function '$cmd' with value '$value'"
+    fi
+}
+
 function configitemlog() {
     # $1: Message
     # $2: function to call
@@ -360,9 +374,9 @@ function writeconfig() {
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     for e in version thishost aptcache aptdistupgrade autologin fbatch b0script b1script bootscripts \
 		     cscript csrc datefmt debugs dimg dimgdev dimgdevname domain ecolors \
-		     expandroot exports fdirtree hname hostname loadlocal logwidth \
+		     expandroot exports fchroot fdirtree hname hostname loadlocal logwidth \
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
-		     raspiosver rclocal reboot fredact regensshkeys noreboot rebootwait \
+		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
 		     redocustomize sdmdir sdmflist showapt src swapsize \
 		     timezone virtmode vqemu wificountry custom1 custom2 custom3 custom4 plugins
     do
@@ -738,19 +752,31 @@ function initvirt() {
 		qf="/usr/bin/qemu-aarch64-static"
 		bfs=":qemu-aarch64:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:$qf:"
 	    fi
+	elif [ $fchroot -eq 1 ]
+	then
+	    $msgrtn "% sdm using chroot per --chroot"
+	    virtmode="chroot"
+	    [[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
 	fi
     else
 	IFS="," read wamielf wamiarch rest <<< "$wami"
-	$msgrtn "% Configure chroot for sdm on your '${wamiarch##\ }' computer"
-	$msgrtn "  * sdm will run more slowly due to qemu emulation"
-	virtmode="chroot"
-	[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
+	if [ $fchroot -eq 0 ]
+	then
+	    $msgrtn "% sdm will use systemd-nspawn on this '${wamiarch##\ }' host"
+	    $msgrtn "  Retry the command with --chroot if this fails"
+	else
+	    $msgrtn "% sdm will use chroot per --chroot on this '${wamiarch##\ }' host"
+	    virtmode="chroot"
+	    [[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
+	fi
+	$msgrtn "  sdm will run more slowly due to qemu emulation"
     fi
 }
 
 function chroot_cleanup() {
     if [ "$SDMPT" != "" ]
     then
+	grep -q 'sdm-generated' $SDMPT/etc/resolv.conf && rm -f $SDMPT/etc/resolv.conf
 	[ "$qemu" != "" ] && rm -f $SDMPT/usr/bin/$qemu
 	umount $SDMPT/{dev/pts,dev,proc,sys}
     else
@@ -818,7 +844,7 @@ function sdm_spawn() {
 		    [ -f $fn ] && ubf=$fn && break
 		done
 		[ ! $? ] && errexit "? Cannot find update-binfmts; try 'sudo apt install binfmt-support'"
-		logtoboth "% Run 'update-binfmts --enable' to enable chroot"
+		#logtoboth "% Run 'update-binfmts --enable' to enable chroot"
 		$ubf --enable
 		if [ "$bfs" != "" -a ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
 		then
@@ -832,6 +858,9 @@ function sdm_spawn() {
 	[ "$qemu" != "" ] && cp $qemu $SDMPT/usr/bin
 	declare -x OLDSDMPT="$SDMPT"
 	declare -x OLDSDMNSPAWN="$SDMNSPAWN"
+	#
+	# If there is no /etc/resolv.conf, fabricate one
+	[ -f $SDMPT/etc/resolv.conf ] || printf "# sdm-generated \nnameserver 1.1.1.1\n" > $SDMPT/etc/resolv.conf
 	trap "ctrlchroot" SIGINT
 	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
 	declare -x SDMPT=""
@@ -863,43 +892,6 @@ logger "FirstBoot: Install qemu-user-static"
 doapt "install --yes --no-install-recommends qemu-user-static" $showapt
 EOF
     fi
-}
-
-function getconfbool() {
-    #
-    # Grab one entry (name in $1) from cparams safely
-    #
-    local mnt="$SDMPT" pname="$1"
-    paramfile="/etc/sdm/cparams"
-    if [ -f $paramfile ]
-    then
-        pval=$((grep ${pname}: $paramfile) | (IFS=":" read kn kv ; echo $kv))
-    else
-        pval=0
-    fi
-    # del enclosing quotes on value read from cparams
-    pval="${pval#\"}"
-    pval="${pval%\"}"
-    cmval=${!pname}
-    rval=$((pval|cmval))
-    echo "$rval"
-}
-
-function getconfstr() {
-    #
-    # Grab one entry string (name in $1) from cparams safely
-    #
-    local mnt="$SDMPT" pname="$1"
-    paramfile="/etc/sdm/cparams"
-    if [ -f $paramfile ]
-    then
-        pval=$((grep ${pname}: $paramfile) | (IFS=":" read kn kv ; echo $kv))
-    else
-        pval=0
-    fi
-    cmval=${!pname}
-    [ "$cmval" != "" ] && rval=$cmval || rval=$pval
-    echo "$rval"
 }
 
 function updateconfigtxt() {
@@ -969,19 +961,6 @@ function updateconfigtxt() {
 	fi
     fi
 
-}
-
-function do_raspiconfig() {
-    #
-    # $1=command
-    # $2=value
-    local cmd=$1 value=$2
-    if type -P raspi-config > /dev/null
-    then
-	SUDO_USER=${myuser:-nobody} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
-    else
-	logtoboth "% Unable to find raspi-config for function '$cmd' with value '$value'"
-    fi
 }
 
 function copyifnewer() {

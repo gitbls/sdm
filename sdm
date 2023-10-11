@@ -285,6 +285,7 @@ Command Switches for --customize and --burn or as noted
  --b1script script   Like --b0script, but done in nspawn (can do both b0script and b1script)
  --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
  --bupdate plugin    Check and update sdm plugins on burned output; See documentation for details
+ --chroot            Use chroot rather than systemd-nspawn (for use on certain host OSes)
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -310,7 +311,6 @@ Command Switches for --customize and --burn or as noted
  --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot (use on --burn command)
  --os osname         Specify OS in the Image (D:raspios, ubuntu)
- --rclocal string    Add string as a command in /etc/rc.local (can be used multiple times)
  --reboot n          n seconds after first boot has completed restart the system
  --redact            Redact passwords in /etc/sdm/cparams and /etc/sdm/history
  --redo-customize    If image already customized, redo without prompting
@@ -327,7 +327,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.3"
+version="V9.4"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -356,6 +356,7 @@ dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determi
 domain=""                   #--domain name
 ecolors="blue:gray:red"     #fg:bg:cursor
 expandroot=0                #1=Expand root after burning it to a device
+fchroot=0                   #1=Use chroot instead of systemd-nspawn
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 fdirtree=0                  #1=source is a directory tree, not an IMG or device
@@ -388,7 +389,6 @@ poptions=""                 #Phase options
 pvers=0                     #Print version number
 raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye, 12:Bookworm)
 fredact=0                   #1=redact passwords in /etc/sdm/{cparams,history}
-rclocal=""                  #Command(s) to add to /etc/rc.local
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 regensshkeys=0              #1=Regenerate SSH keys at end of FirstBoot
@@ -396,7 +396,7 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-hotspot sdm-cportal sdm-logmsg sdm-gburn"
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
@@ -423,11 +423,11 @@ source $src/sdm-cparse           # Get function defs
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
-autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,cscript:,csrc:,\
+autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,chroot,cscript:,csrc:,\
 customize,datefmt:,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
 groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
-plugin:,plugins:,poptions:,ppart,rclocal:,reboot:,redact,redo-customize,\
+plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
 bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
@@ -452,6 +452,7 @@ do
 		       burndev=$2    ; shift 2 ;;
 	--burnfile)    burnfile=1 ;
 		       burnfilefile=$2 ; shift 2 ;;
+	--chroot)      fchroot=1     ; shift 1 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;
@@ -481,7 +482,6 @@ do
 	--poptions)    poptions=$(appendvalue "$poptions" "${2,,}" ",") ; shift 2 ;;
 	--ppart)       fppart=1      ; shift 1 ;;
 	--redact)      fredact=1     ; shift 1 ;;
-	--rclocal)     rclocal=$(appendvalue "$rclocal" "$2" "~") ; shift 2 ;;
 	--reboot)      rebootwait=$2 ;
 		       reboot=1      ; shift 2 ;;
 	--redo-customize) redocustomize=1 ; shift 1 ;;
@@ -809,7 +809,7 @@ fi
 # Not --extend (only). Other steps need IMG mounted
 declare -x SDMPT=$(makemtpt)
 domount "$dimg"
-initvirt write_premsg
+[ $fexplore -eq 0 ] && initvirt write_premsg || initvirt echo
 #
 # Handle commands --aptmaint, --customize, and --explore
 #

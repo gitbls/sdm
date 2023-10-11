@@ -121,24 +121,6 @@ EOF
 systemctl enable sdm-firstboot > /dev/null 2>&1
 
 [ "$hname" != "" ] && updatehostname $hname   # If hostname specified on customize then set it
-#
-# Add requested command(s) to /etc/rc.local
-#
-if [ "$rclocal" != "" ]
-then
-    logtoboth "> Add commands to /etc/rc.local"
-    grep -v 'exit 0' /etc/rc.local > /tmp/rc.local
-    IFS="~" read -a citems <<< "$rclocal"
-    for c in "${citems[@]}"
-    do
-	logtoboth "   $c"
-	echo "$c" >> /tmp/rc.local
-    done
-    echo "exit 0" >> /tmp/rc.local
-    mv /etc/rc.local /etc/rc.local.sdm
-    mv /tmp/rc.local /etc
-    chmod 755 /etc/rc.local
-fi
 
 #
 # Set up apt-cacher-ng client if requested

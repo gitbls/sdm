@@ -192,8 +192,8 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="autologin b0script b1script bootscripts domain expandroot exports hname fredact myuser noreboot"
-	xsettings="$xsettings nowaittimesync plugindebug plugins rclocal reboot rebootwait regensshkeys"
+	xsettings="autologin b0script b1script bootscripts domain expandroot exports fchroot hname fredact myuser noreboot"
+	xsettings="$xsettings nowaittimesync plugindebug plugins reboot rebootwait regensshkeys"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
 	for e in $xsettings
@@ -201,7 +201,6 @@ function sdm_burndevfile() {
 	    eval b$e=\${!e}
 	done
 	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
-	initvirt logtoboth
 	# Update settings with settings from cmd line as appropriate
 	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
 	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
@@ -215,9 +214,11 @@ function sdm_burndevfile() {
 	plugins="$bplugins"
 	[ $bautologin -eq 1 ] && autologin=1
 	expandroot=$((bexpandroot|expandroot))
+	fchroot=$((bfchroot|fchroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
+	initvirt logtoboth  # Must be done after fchroot is set
 	# --bupdate must specified on the burn command line
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
@@ -258,22 +259,6 @@ function sdm_burndevfile() {
 		   b1script=""
 		fi
 	    fi
-	fi
-	if [ "$brclocal" != "" ]
-	then
-	    logtoboth "> Add commands to /etc/rc.local per --rclocal"
-	    grep -v 'exit 0' $SDMPT/etc/rc.local > $SDMPT/tmp/rc.local
-	    IFS="~" read -a citems <<< "$brclocal"
-	    for c in "${citems[@]}"
-	    do
-		logtoboth "   $c"
-		echo "$c" >> $SDMPT/tmp/rc.local
-	    done
-	    echo "exit 0" >> $SDMPT/tmp/rc.local
-	    mv $SDMPT/etc/rc.local $SDMPT/etc/rc.local.sdm.burn
-	    mv $SDMPT/tmp/rc.local $SDMPT/etc
-	    chmod 755 $SDMPT/etc/rc.local
-	    [ "$rclocal" == "" ] && rclocal="$brclocal" || rclocal="${rclocal}|$brclocal"
 	fi
 	hostname="$hname"         # So it gets written to updated params on SD card
 	[ $bootscripts -eq 1 ] && state="enabled" || state="disabled"
