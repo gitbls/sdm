@@ -1,5 +1,13 @@
 # Changelog
 
+## V9.4
+
+* Move `--rclocal` from command line to `system` plugin. This should be the last switch that gets pluginated
+* sdm will always use `systemd-nspawn`. If this fails with an execve the command switch `--chroot` can be added to your command line
+  * ALSO, if systemd-nspawn fails for you please open an issue on this GitHub. I'd like to do some testing, but I'm having trouble finding one that fails!
+* And, if using chroot, set up temporary /etc/resolv.conf
+* Improve GiB/GB printing code. Thanks @origonn!
+
 ## V9.3
 
 * New Features
