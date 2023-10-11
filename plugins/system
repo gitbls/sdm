@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|modprobe|motd|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|modprobe|motd|rclocal|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
 rqdargs=""
 argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
 assetdir="$SDMPT/etc/sdm/assets/system"
@@ -73,26 +73,48 @@ then
 	else
 	    case "$chyp" in
 		systemd-config)
-		IFS="," read -a cargs <<< "$cval"
-		for sct in "${cargs[@]}"
-		do
-		    IFS="=" read olname fname <<< "$sct"
-		    lname=${olname,,} lname=${lname%d} # Copy name and strip typo trailing 'd' if present
-		    case "$lname" in
-			login|network|resolve|system|timesync|user)
-			    logtoboth "> Plugin $pfx: Create directory $assetdir/$chyp"
-			    mkdir -p $assetdir/$chyp/$lname
-			    logtoboth "> Plugin $pfx: Copy '$fname' to $assetdir/$chyp/$lname"
-			    cp -a $fname $assetdir/$chyp/$lname
-			    ;;
-			*)
-			    logtoboth "? Plugin $pfx: systemd-config item '${olname}' is unknown"
-			    ;;
-		    esac
-		done
-		;;
+		    IFS="," read -a cargs <<< "$cval"
+		    for sct in "${cargs[@]}"
+		    do
+			IFS="=" read olname fname <<< "$sct"
+			lname=${olname,,} lname=${lname%d} # Copy name and strip typo trailing 'd' if present
+			case "$lname" in
+			    login|network|resolve|system|timesync|user)
+				logtoboth "> Plugin $pfx: Create directory $assetdir/$chyp"
+				mkdir -p $assetdir/$chyp/$lname
+				logtoboth "> Plugin $pfx: Copy '$fname' to $assetdir/$chyp/$lname"
+				cp -a $fname $assetdir/$chyp/$lname
+				;;
+			    *)
+				logtoboth "? Plugin $pfx: systemd-config item '${olname}' is unknown"
+				;;
+			esac
+		    done
+		    ;;
 		eeprom)
 		    ! [[ "$eepromvals" =~ "$cval" ]] && logtoboth "? Plugin $pfx: eeprom value '$cval' is unknown"
+		    ;;
+		rclocal)
+		    mkdir $assetdir/rclocal
+		    [ -f $assetdir/rclocal/addcmds ] && echo "" >> $assetdir/rclocal/addcmds  # Add blank line if this isn't first time
+		    echo "# Commands added by sdm system plugin rclocal $(thisdate)" >> $assetdir/rclocal/addcmds
+		    IFS="," read -a cargs <<< "$cval"
+		    for rcarg in "${cargs[@]}"
+		    do
+			if [ "${rcarg:0:1}" == "@" ]
+			then
+			    fn="${rcarg:1:999}"
+			    if [ -f $fn ]
+			    then
+				echo "# File '$fn' contents added by sdm system plugin rclocal $(thisdate)" >> $assetdir/rclocal/addcmds
+				cat $fn >> $assetdir/rclocal/addcmds
+			    else
+				logtoboth "? Plugin $pfx: Argument rclocal file '$fn' not found"
+			    fi
+			else
+			    echo "$rcarg" >> $assetdir/rclocal/addcmds
+			fi
+		    done
 		    ;;
 	    esac
 	fi
@@ -233,6 +255,19 @@ EOF
 		    setfileownmode /etc/motd 644
 		fi
 		    ;;
+	    rclocal)
+		if [ -f $assetdir/rclocal/addcmds ]
+		then
+		    grep -v 'exit 0' /etc/rc.local > /tmp/rc.local
+		    cat $assetdir/rclocal/addcmds >> /tmp/rc.local
+		    echo "exit 0" >> /tmp/rc.local
+		    mv /etc/rc.local /etc/rc.local.sdm
+		    mv /tmp/rc.local /etc
+		    setfileownmode /etc/rc.local 755
+		else
+		    logtoboth "% Plugin $pfx: Expected to find '$assetdir/rclocal/addcmds' but it's not there"
+		fi
+		;;
 	    service-disable)
 		IFS="," read -a ssvc <<< "$cval"
 		for c in "${ssvc[@]}"
