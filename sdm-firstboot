@@ -88,7 +88,6 @@ function wait_startup_complete {
 	   write_console "$msg"
 	   lc=1
 	fi
-	[ $flashled -eq 0 ] && morseled "-..- -..-"
 	sleep 1
     done
 }
