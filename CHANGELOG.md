@@ -1,5 +1,11 @@
 # Changelog
 
+## V9.5
+
+* Update strongSwan modules loaded in pistrong plugin
+* Correct `dtoverlay=something`
+* Make sure that generated new disk ids are always valid
+
 ## V9.4
 
 * Move `--rclocal` from command line to `system` plugin. This should be the last switch that gets pluginated
