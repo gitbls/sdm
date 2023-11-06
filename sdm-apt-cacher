@@ -39,7 +39,7 @@ fi
 #
 # No need to do it regularly unless disk space or other issues
 #
-# sudo stop apt-cacher-ng
+# sudo systemctl stop apt-cacher-ng
 # sudo rm -rf /var/cache/apt-cacher-ng
 # sudo mkdir -p /var/cache/apt-cacher-ng
 # sudo chown -R apt-cacher-ng:apt-cacher-ng /var/cache/apt-cacher-ng
