@@ -17,25 +17,37 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
+maxsys=32                #Max number times system plugin can be invoked
 loadparams
-vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|modprobe|motd|rclocal|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|modprobe|motd|name|rclocal|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
 rqdargs=""
 argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
-assetdir="$SDMPT/etc/sdm/assets/system"
 eepromvals="|critical|stable|beta|"
+
+logtoboth "* Plugin $pfx: Start Phase $phase"
+plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+# Set name of assetdir based on 'name' argument
+if [ "$name" == "" ]
+then
+    assetdir="$SDMPT/etc/sdm/assets/system"
+else
+    assetdir="$SDMPT/etc/sdm/assets/system-$name"
+fi
+
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
-    logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    #
-    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
-    #
     plugin_printkeys
-    logtoboth "> Plugin $pfx: Create directory $assetdir"
-    mkdir -p $assetdir
+    if [ -d $assetdir ]
+    then
+	logtoboth "% Plugin $pfx: Warning: '$assetdir' already exists; Add argument 'name=somename' to this system plugin invocation"
+    else
+	logtoboth "> Plugin $pfx: Create directory $assetdir"
+	mkdir -p $assetdir
+    fi
+
     IFS="|" read -a sargs <<< "$foundkeys"
     for c in "${sargs[@]}"
     do
@@ -126,9 +138,7 @@ then
     #
     # Phase 1 (in nspawn)
     #
-    logtoboth "* Plugin $pfx: Start Phase 1"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    #logfreespace "at start of Plugin $pfx Phase 1"
+    #logtoboth "* Plugin $pfx: Start Phase 1"
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -136,9 +146,7 @@ else
     #
     # Plugin Post-install edits
     #
-    logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #logtoboth "* Plugin $pfx: Start Phase post-install"
     #
     IFS="|" read -a sargs <<< "$foundkeys"
     for c in "${sargs[@]}"
