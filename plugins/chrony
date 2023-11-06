@@ -18,8 +18,9 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|conf|conf2|conf3|source|source2|source3|"
+vldargs="|conf|conf2|conf3|sources|sources2|sources3|nodistsources|"
 rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/chrony"
 
 if [ "$phase" == "0" ]
 then
@@ -35,16 +36,20 @@ then
     #
     # Copy files into the IMG
     #
-    for id in conf conf2 conf3 source source2 source3
+    for id in conf conf2 conf3 sources sources2 sources3
     do
 	idf="${!id}"
 	if [ "$idf" != "" ]
 	then
-	    idfn="$(basename $idf)"
-	    [[ "$id" =~ "conf" ]] && idfext=".conf" || idfext=".source"
-	    logtoboth "> Plugin $pfx: Copy '$id' config file '$idf' to /etc/sdm/assets"
-	    dstfn=$(basename ${idf%%$idfext}$idfext)
-	    cp -a $idf $SDMPT/etc/sdm/assets/chronyd-$id-$dstfn
+	    if [ -f $idf ]
+	    then
+		did="${id%%[0-9]}"    #Strip digits for assets subdir name
+		logtoboth "> Plugin $pfx: Copy '$id' config file '$idf' to $assetdir/$did"
+		mkdir -p $assetdir/$did
+		cp -a $idf $assetdir/$did
+	    else
+		logtoboth "% Plugin $pfx: '$id' config file '$idf' not found"
+	    fi
 	fi
     done
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -56,6 +61,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs"
+    logtoboth "> Plugin $pfx: Install chrony"
     doaptrpterror "install --no-install-recommends --yes chrony" $showapt
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
@@ -64,16 +70,27 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs"
-    for id in conf conf2 conf3 source source2 source3
+    for id in conf sources
     do
-	for fn in /etc/sdm/assets/chronyd-$id-*
-	do
-	    [[ "$id" =~ "chronyd-conf-" ]] && dstdir="/etc/chrony/conf.d" || dstdir="/etc/chrony/sources.d"
-	    tfn="${fn##*chronyd-$id-}"
-	    logtoboth "> Plugin $pfx: Copy chronyd file '$tfn' to $dstdir"
-	    cp -a $fn $dstdir/$(basename $tfn)
-	    setfileownmode $dstdir/$(basename $tfn) 644
-	done
+	if compgen -G "$assetdir/$id/*.$id" > /dev/null
+	then
+	    logtoboth "> Prefix $pfx: Copy $id config files to /etc/chrony/$id.d"
+	    cp -a $assetdir/$id/*.$id /etc/chrony/$id.d
+	fi
     done
+
+    if [ -v nodistsources ]
+    then
+	if compgen -G "$assetdir/sources/*.sources" > /dev/null
+	then
+	    logtoboth "> Plugin $pfx: Disable time servers defined in /etc/chrony.conf after FirstBoot"
+	    cat > /etc/sdm/0piboot/085-nodistro-timers.sh <<EOF
+#!/bin/bash
+cp -a /etc/chrony/chrony.conf /etc/chrony/chrony.conf.sdm
+sed -i "s/^pool/#pool/" /etc/chrony/chrony.conf
+EOF
+	fi
+    fi
+
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
