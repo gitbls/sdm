@@ -364,17 +364,29 @@ function israspios() {
     return 0
 }
 
+function is64bit() {
+    #
+    # Look at /bin/ls to decide the arch
+    # Return 0 if is64 else 1
+    #
+    local wtf wtfelf wtfarch rest
+    wtf=$(file $SDMPT/bin/ls)
+    IFS="," read wtfelf wtfarch rest <<< "$wtf"
+    [[ "$wtfarch" =~ "aarch64" ]] && return 0 || return 1
+}
+
 function writeconfig() {
     #
     # Write config parameters into the image
     #
-    local paramfile="$SDMPT/etc/sdm/cparams" bkfile="${paramfile}.old" orgfile="${paramfile}.orig"
+    local paramfile="$SDMPT/etc/sdm/cparams"
+    local bkfile="${paramfile}.old" orgfile="${paramfile}.orig"
     rm -f $bkfile
     [ -f $paramfile ] && mv $paramfile $bkfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     for e in version thishost aptcache aptdistupgrade autologin fbatch b0script b1script bootscripts \
 		     cscript csrc datefmt debugs dimg dimgdev dimgdevname domain ecolors \
-		     expandroot exports fchroot fdirtree hname hostname loadlocal logwidth \
+		     expandroot exports fchroot fdirtree fnoexpandroot hname hostname loadlocal logwidth \
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
 		     redocustomize sdmdir sdmflist showapt src swapsize \
@@ -820,6 +832,7 @@ function sdm_spawn() {
     # SDMPT redefined to be "" during Phase 1 nspawn/chroot. [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
     local cmd="$1" nspawnsw="$2" nsp="$3"
+    local wtf wtfelf wtfarch rest sts hostarch hostpagesz
     if [[ "$virtmode" =~ "nspawn" ]]
     then
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
@@ -827,9 +840,36 @@ function sdm_spawn() {
 	[[ "$vers" -lt "242" ]] && cmode=""
 	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
 	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd
+	sts=$?
+	if [ $sts -eq 127 ]
+	then
+	    #systemd-nspawn exit status 127 means that systemd-nspawn couldn't find the bash command
+	    #We assume it indicates a 4K/16K pagesize incompatibility and report it as such
+	    #Typical error: -bash: error while loading shared libraries: libtinfo.so.6: ELF load command address/offset not page-aligned
+	    wtf=$(file $SDMPT/bin/ls)
+	    IFS="," read wtfelf wtfarch rest <<< "$wtf"
+	    rest=${wtfelf##*/bin/ls: }
+	    hostarch=$(uname -m)
+	    hostpagesz=$(getconf PAGE_SIZE)
+	    if [[ $hostpagesz -eq 16384 ]] && [[ "$rest" == "ELF 32-bit LSB executable" ]]
+	    then
+		logtoboth "?! systemd-nspawn failed on this IMG"
+		logtoboth "   Host system architecture: $hostarch with $hostpagesz byte pages"
+		logtoboth "   IMG binaries: $rest"
+		logtoboth "   Correct this error on this host by:"
+		logtoboth "    * sudoedit /boot/config.txt"
+		logtoboth "    * Add the following line:"
+		logtoboth "    * kernel=kernel8.img"
+		logtoboth "    * Reboot and rerun the sdm command"
+		logtoboth "   Details: https://github.com/raspberrypi/bookworm-feedback/issues/120"
+	    else
+		logtoboth "?! Unrecognized error from systemd-nspawn"
+		logtoboth "   Please open an issue at https://github.com/bitbls/sdm"
+	    fi
+	fi
     else
 	#
-	# Copy appropriate qemu-${chroot}-static into the IMG
+	# Copy appropriate qemu-${vqemu}-static into the IMG
 	# $bfs and $vqemu set in initvirt
 	#
 	qemu=""
