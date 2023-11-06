@@ -1,5 +1,27 @@
 # Changelog
 
+## V9.6
+
+* Add `--no-expand-root` command line switch
+  * Forces `--regen-ssh-host-keys`, does not expand the root partition after burn, and...
+  * Disables the RasPiOS firstboot service that expands the root partition
+  * Net result: Root partition does not expand to fill the disk, so you can add additional partitions
+* Enable `system` plugin to be correctly invoked multiple times
+  * Use `name=` argument for 2nd-subsequent invocations
+  * See <a href="Docs/Plugins.md#system">system plugin</a> for details
+  * Best practice to avoid problems is to always include the `name=` argument
+* Log IMG architecture (32-bit vs 64-bit) in /etc/sdm/history at start of customization
+* Don't check for plugin in current directory unless explicitly specified
+* Correct typo in sdm-apt-cacher
+* Updates to `chrony` plugin
+  * Correct plugin operation and rename argument `source` to `sources` to improve code
+  * Add `nodistsources` argument that comments out the Debian vendor zone pool (in case you don't want it)
+* If systemd-nspawn fails running on 64-bit system and IMG is 32-bit, report host/IMG pagesize issue with suggested fix
+  * Problem exists b/c not all programs and shared libraries are linked to 16Kb alignment on 32bit RasPiOS
+  * See <a href="https://github.com/gitbls/sdm/issues/123">this issue</a> for details and a link to the RasPiOS bug
+* The `pistrong` plugin now disables the strongswan service after apt install
+* sdm-firstboot can now check for time synchronization with chrony in addition to systemd-timesyncd
+
 ## V9.5
 
 * Update strongSwan modules loaded in pistrong plugin
