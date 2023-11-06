@@ -124,13 +124,18 @@ Chrony installs the chronyd time service.
 * **conf** &mdash; /full/path/to/confname.conf that will be placed into /etc/chrony/conf.d
 * **conf2** &mdash; /full/path/to/confname2.conf that will be placed into /etc/chrony/conf.d
 * **conf3** &mdash; /full/path/to/confname3.conf that will be placed into /etc/chrony/conf.d
-* **source** &mdash; /full/path/to/sourcename.conf that will be placed into /etc/chrony/sources.d
-* **source2** &mdash; /full/path/to/sourcename2.conf that will be placed into /etc/chrony/sources.d
-* **source3** &mdash; /full/path/to/sourcename3.conf that will be placed into /etc/chrony/sources.d
+* **sources** &mdash; /full/path/to/sourcename.conf that will be placed into /etc/chrony/sources.d
+* **sources2** &mdash; /full/path/to/sourcename2.conf that will be placed into /etc/chrony/sources.d
+* **sources3** &mdash; /full/path/to/sourcename3.conf that will be placed into /etc/chrony/sources.d
+* **nodistsources** &mdash; Removes the Debian vendor zone pool from chrony.conf
 
 Chrony processes the files in the conf.d and sources.d directories on startup. Having 3 provides flexibility in how these are structured. See `man chrony.conf` for details.
 
 A RasPiOS system should only have one time service enabled. It's up to you to disable others. For instance, on a standard RasPiOS IMG you should add `--svc-disable systemd-timesyncd` to disable the in-built time service, which is enabled by default.
+
+NOTES:
+* At least on Bookworm (didn't check earlier versions) installing chrony causes systemd-timesyncd to be removed.
+* Adding `iburst` to a `server` or `pool` statement in a sources file seems to result in chrony syncing the time much more quickly
 
 ### clockfake
 
@@ -463,6 +468,8 @@ There are no `--plugin` arguments for rxapp
 
 The `system` plugin is a collection of system-related configuration settings. You are responsible for using correct file types expected by each function (e.g., .conf, .rules, etc). The plugin does no checking/modification of file types.
 
+If the system plugin is invoked more than once in an IMG, either on customize or burn, you must include the `name=somename` argument for correct operation.
+
 #### Arguments
 
 * **cron-d** &mdash; Comma-separated list of files to copy to /etc/cron.d
@@ -480,6 +487,7 @@ The `system` plugin is a collection of system-related configuration settings. Yo
     * `none`: There is no system journal
 * **modprobe** &mdash; Comma-separated list of files to copy to /etc/modprobe.d
 * **motd** &mdash; Single /path/to/file to use for /etc/motd. /dev/null results in an empty motd
+* **name** &mdash; Name of this invocation. This **must** be included if the `system` plugin is invoked more than once in an IMG, including between customize and burn. Best practice to avoid problems is to give each and every invocation a name.
 * **rclocal** &mdash; Comma-separated list of ordered commands to add to /etc/rc.local. An item starting with '@' is interpeted as a file whose contents will be included.
 * **service-disable** &mdash; Comma-separated list of services to disable
 * **service-enable** &mdash; Comma-separated list of services to enable
@@ -492,6 +500,7 @@ The `system` plugin is a collection of system-related configuration settings. Yo
 
 * `--plugin system:"cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2"`
 * `--plugin system:"systemd-config=timesync=/path/to/timesync.conf,user=/path/to/user.conf|service-disable=svc1,svc2"`
+* `--plugin system:"name=s1|cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2" --plugin system:"name=s2|fstab=myfstab`
 
 ### trim-enable
 
