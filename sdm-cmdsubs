@@ -192,7 +192,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="autologin b0script b1script bootscripts domain expandroot exports fchroot hname fredact myuser noreboot"
+	xsettings="autologin b0script b1script bootscripts domain expandroot exports fchroot hname fredact fnoexpandroot myuser noreboot"
 	xsettings="$xsettings nowaittimesync plugindebug plugins reboot rebootwait regensshkeys"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -215,18 +215,30 @@ function sdm_burndevfile() {
 	[ $bautologin -eq 1 ] && autologin=1
 	expandroot=$((bexpandroot|expandroot))
 	fchroot=$((bfchroot|fchroot))
+	fnoexpandroot=$((bfnoexpandroot|fnoexpandroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
 	initvirt logtoboth  # Must be done after fchroot is set
 	# --bupdate must specified on the burn command line
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
-	if [ $expandroot -eq 1 -a $regensshkeys -eq 1 ]
+	if [ $fnoexpandroot -eq 1 ]
 	then
-	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt; both --expand-root and --regen-ssh-host-keys set"
+	    logtoboth "> Force --regen-ssh-host-keys for --no-expand-root"
+	    regensshkeys=1
+	fi
+	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
+	then
+	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt"
 	    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
 	else
 	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
+	fi
+	if [ $regensshkeys -eq 1 ]
+	then
+	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
+	    sdm_runspawn run-command "systemctl disable regenerate_ssh_host_keys" Burn1
+	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
 	#
 	# Set hostname into the image
@@ -310,12 +322,6 @@ function sdm_burndevfile() {
 	then
 	    logtoboth "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
 	    runoneplugin user redact "redact"
-	fi
-	if [ $regensshkeys -eq 1 ]
-	then
-	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
-	    sdm_runspawn run-command "systemctl disable regenerate_ssh_host_keys" Burn1
-	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
 
 	declare -x SDMNSPAWN="Burn0"

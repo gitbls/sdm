@@ -303,6 +303,7 @@ Command Switches for --customize and --burn or as noted
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
  --logwidth N        Split log lines longer than N characters [Default: 96]
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
+ --noexpand-root     Don't expand root partition and don't let RasPiOS do it either
  --nowait-timesync   Don't wait for time to sync in sdm-firstboot
  --nspawnsw str      Additional switches for nspawn command
  --oklive            It's OK to run plugins on running system without notification
@@ -327,7 +328,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.5"
+version="V9.6"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -364,6 +365,7 @@ fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
+fnoexpandroot=0             #1=Don't expand root partition and don't let RasPiOS do it either
 fppart=0                    #1=Print partition tables in an IMG
 frunonly=0                  #1=--runonly
 fshrink=0                   #1=Shrink the IMG
@@ -426,7 +428,7 @@ longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,chroot,cscript:,csrc:,\
 customize,datefmt:,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
 groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
-mcolors:,mount,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
+mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
 bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
@@ -472,6 +474,7 @@ do
 	--logwidth)    logwidth=$2   ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
 	--mount)       fdomount=1    ; shift 1 ;;
+	--no-expand-root) fnoexpandroot=1 ; shift 1 ;;
 	--norestart|--noreboot) noreboot=1 ; shift 1 ;;
 	--nowait-timesync) nowaittimesync=1 ; shift 1 ;;
 	--nspawnsw)    nspawnsw=$2   ; shift 2 ;;
@@ -628,19 +631,24 @@ then
     do
 	IFS=':' read fpn pargs <<< "$p"
 	pf=0
-	for d in  $(dirname $fpn) $src/local-plugins $src/plugins
+	dfpn=$(dirname $fpn)
+	for d in  $dfpn $src/local-plugins $src/plugins
 	do
 	    pn=$(basename $fpn)
-	    if [ -f $d/$pn ]
+	    # Don't look in current directory unless explicit './' provided
+            if  [[ "$d" != "." ]] || [[ "$fpn" == "./$pn" ]]
 	    then
-		[ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
-		# if plugin found outside of sdm hierarchy copy it in
-		if [ "$d" == "$(dirname $fpn)" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
+		if [ -f $d/$pn ]
 		then
-		    copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
+		    [ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
+		    # if plugin found outside of sdm hierarchy copy it in
+		    if [ "$d" == "$dfpn" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
+		    then
+			copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
+		    fi
+		    pf=1
+		    break
 		fi
-		pf=1
-		break
 	    fi
 	done
 	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$fpn'"
@@ -899,6 +907,7 @@ else
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
 	setfileownmode $SDMPT/$sdmdir/1piboot/*.sh 755
     fi
+    is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
     raspiosver=$(getosver)
     logtoboth "> Command Line: $cmdline"
     logtoboth "* Host Information"
@@ -911,6 +920,7 @@ else
     logtoboth "   Name: $dimg"
     logtoboth "   Date: $(getosdate)"
     logtoboth "   RasPiOS Version: $raspiosver"
+    logtoboth "   RasPiOS Architecture: $hostarch"
     logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= $SDMPT/etc/os-release))"
 
     # Flush accumulated messages
