@@ -40,7 +40,47 @@ function doconfig() {
     bootlog "Configuration with configuration file '$cfgfile' Completed"
 }
 
-timesyncwait() {
+function waitreport() {
+    svc=$1
+    if [ $((secs%10)) -eq 0 ]
+    then
+        logger "$servicename: $svc service not yet started"
+    fi
+}
+
+function waitcheck() {
+    local sts
+    if [ "$(systemctl show -p UnitFileState systemd-timesyncd --value)" == "enabled" ]
+    then
+        if [[ "$(systemctl show -p ActiveState  systemd-timesyncd --value)" == "active" ]]
+        then
+            [ "$(timedatectl status | grep synchronized | (IFS=' ' ; read a b c d ; echo $d))" == "yes" ] && return 0 || return 1
+        else
+            waitreport systemd-timesyncd
+            return 1
+        fi
+    elif [ "$(systemctl show -p UnitFileState chrony --value)" == "enabled" ]
+    then
+        if [[ "$(systemctl show -p ActiveState  chrony --value)" == "active" ]]
+        then
+            sts="$(chronyc tracking | grep Reference)"
+            #logger "FirstBoot: chronyc tracking: $sts"
+            [[ "$sts" =~ "00000000" ]] || [[ "$sts" == "" ]] && return 1
+            return 0
+        else
+            waitreport chrony
+            return 1
+        fi
+    else
+        if [ $((secs%10)) -eq 0 ]
+        then
+            logger "$servicename: Unable to identify time sync service; Neither systemd-timesyncd or chronyd are active"
+        fi
+        return 1
+    fi
+}
+
+function timesyncwait() {
     #
     # Waits for time to be synced or 120 seconds
     #
@@ -54,9 +94,9 @@ timesyncwait() {
     fi
 
     swait=120
-    for (( secs=1 ; secs<=$swait ; secs++))
+    for (( secs=1 ; secs<=$swait ; secs++ ))
     do
-	[ "$(timedatectl status | grep synchronized | (IFS=' ' ; read a b c d ; echo $d))" == "yes" ] && break
+	waitcheck && break
 	if [ $secs -eq $swait ]
 	then
 	    write_console "System time not synchronized after $swait second wait; Proceeding..."
