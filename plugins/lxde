@@ -28,7 +28,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
     [ "$user" != "" ] && username=$user || username="default"
     if [ "$lxde__config" != "" ]
@@ -46,9 +46,11 @@ then
 			cp -a $lxfname $assetdir/$lxname/$username
 		    else
 			logtoboth "? Plugin $pfx: lxde-config type '$lxname' file '$lxfname' not found"
+			exit 1
 		    fi
 		    ;;
-		*) logtoboth "% Plugin $pfx: lxde-config item '$lxname' is unknown"
+		*) logtoboth "? Plugin $pfx: lxde-config item '$lxname' is unknown"
+		   exit 1
 		   ;;
 	    esac
 	done
@@ -81,7 +83,7 @@ else
     if [ "$dstuser" == "" ]
     then
 	logtoboth "% Plugin $pfx: No users created with user plugin"
-	exit
+	exit 1
     fi
     #logfreespace "at start of Plugin $pfx Phase post-install"
 
