@@ -30,7 +30,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
