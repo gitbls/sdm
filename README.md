@@ -45,7 +45,7 @@ curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bas
 
 ## Customize the image with sdm
 ```sh
-sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disable:piwiz --regen-ssh-host-keys --restart 2023-05-03-raspios-bullseye-arm64.img
+sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disables:piwiz --regen-ssh-host-keys --restart 2023-05-03-raspios-bullseye-arm64.img
 ```
 
 sdm will make the following changes to your IMG file:
@@ -117,4 +117,4 @@ Here are a few examples:
 
 ## Complete sdm Documentation
 
-Need more details? You'll find complete details on sdm in the <a href="Docs/Index.md">online documentation</a>. You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a>
+Need more details? You'll find complete details on sdm in the <a href="Docs/Index.md">online documentation</a>. You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a> NOTE: It's an slightly old video and doesn't use plugins, but will give you a good idea of how sdm works.
