@@ -1,22 +1,4 @@
 #!/bin/bash
-#
-# Copies personalization files into an SD card image
-#
-
-function copycufiles() {
-    #
-    # $1 has list of "|"-separated files to copy
-    # $2 has destination directory
-    #
-    local citems=() fl
-    IFS="|" read -a citems <<< "$1"
-    for fl in "${citems[@]}"
-    do
-	logtoboth "> Copy file '$fl' to $2"
-	cp $fl $2
-	setfileownmode $2/$(basename $fl)
-    done
-}
 
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
@@ -24,18 +6,28 @@ function copycufiles() {
 source $SDMPT/etc/sdm/sdm-readparams
 
 logtoboth "* Start Phase 0 image customization"
-#
-# These are ordered by: sdm, network, user, system, pi-hardware
-# And then alphabetically within each group
-#
 
+#
+# Copy b1script into the IMG if specified
+#
 if [ "$b1script" != "" ]
 then
     logtoboth "> Copy --b1script '$b1script' to $SDMPT/etc/sdm/assets"
     cp $b1script $SDMPT/etc/sdm/assets
     setfileownmode $SDMPT/etc/sdm/assets/$(basename $b1script)
 fi
-
-runplugins "$plugins" 0
+#
+# Run custom Phase script Phase 0
+#
+if [ "$cscript" != "" ]
+then
+    csfn="$SDMPT${sdmdir}/$(basename $cscript)"
+    logtoboth "> Run Custom Phase Script '$csfn' Phase 0"
+    $csfn 0
+fi
+#
+# Run plugins Phase 0
+#
+runplugins "$plugins" 0 || exit
 
 logtoboth "* Phase 0 Completed"
