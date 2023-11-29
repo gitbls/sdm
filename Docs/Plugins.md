@@ -24,7 +24,19 @@ sdm --plugin samba:"args" --plugin postfix:"args" . . .
 
 Multiple `--plugin` switches can be used on the command line. This includes specifying the same plugin multiple times (the `apps` plugin, for example).
 
-Plugins are run in the order they appear on the command line.
+Another way to specify plugins is via the `--plugin @/path/to/filelist`, where `filelist` consists of plugin invocations, one per line, without the `--plugin` switch. For example:
+```
+user:userlist=/rpi/etc/sdm/bls-users
+system:name=0|systemd-config=timesyncd=/rpi/systemd/timesyncd.conf|eeprom=stable|sysctl=/rpi/etc/sysctl.d/01-disable-ipv6.conf|fstab=/rpi/etc/fstab.lan|motd=/dev/null
+system:name=1||service-disable=apt-daily.timer,apt-daily-upgrade.timer,wpa_supplicant,avahi-daemon,avahi-daemon.socket,ModemManager,rsync,mdadm-shutdown
+network:nmconn=/rpi/etc/NetworkManager/system-connections/eth0.nmconnection,/rpi/etc/NetworkManager/system-connections/homewifi.nmconnection|wifissid=myhomewifif|wifipassword=homewifipassword|wificountry=US
+disables:triggerhappy|wifi|bluetooth|piwiz
+quietness:consoleblank=300|noquiet=keep|nosplash=keep|noplymouth
+L10n:host
+
+```
+
+Plugins are run in the order they are encountered on the command line or the plugin @file,
 
 The complete plugin switch format is:
 ```sh
@@ -144,6 +156,19 @@ The fake-hwclock provided with RasPiOS runs hourly as a cron job. clockfake does
 #### Arguments
 
 * **interval** &mdash; Interval in minutes between fake hardware clock updates
+
+### copydir
+
+Copy a directory tree from the host system into the IMG
+
+#### Arguments
+* **from** &mdash; /full/path/to/sourcedir
+* **to** &mdash; /full/path/to/destdir
+* **nodirect** &mdash; If `nodirect` is specified, the files are staged into the IMG via /etc/sdm/assets. Useful for destination directories that aren't created until later in the customization. Without nodirect the source directory is copied directly to the destination directory.
+* **rsyncopts** &mdash; Additional switches for the `rsync` command. By default, the plugin uses `-a`
+* **tee** &mdash; /path/to/file where the output from the rsync command is tee'd to
+
+The copydir plugin behavior is dependent on whether the `from` file contains a trailing slash, just like the rsync command. **The rsync man page states:** A trailing  slash on the source changes this behavior to avoid creating an additional directory level at the destination.  You can think of a trailing / on a source as meaning "copy the contents of this directory" as opposed to "copy the directory by name", but in both cases the attributes of the containing  directory are transferred to the containing directory on the destination. 
 
 ### copyfile
 
@@ -308,6 +333,22 @@ Use the `lxde` plugin to establish your preferred settings, such as left-handed 
 
 * `--plugin lxde:"lxde-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
 * `--plugin lxde:"lhmouse|user=someuser"`
+
+### mkdir
+
+Create the specified directory and optionally set directory owner and protection
+
+#### Arguments
+
+* **dir** &mdash; Full path of the directory to create
+* **chmod** &mdash; Directory protection
+* **chown** &mdash; Directory owner:group
+
+#### Examples
+
+* `--plugin mkdir:"dir=/usr/local/foobar|chown=bls:users|chmod=740"`
+
+NOTE: The directory is created in Phase 0, so it is available as early as during customization. The owner and protection are not set until the post-install phase, since it's possible that the owner account may not be created until Phase 1.
 
 ### network
 
