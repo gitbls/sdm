@@ -19,6 +19,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|relayhost|main_mailer_type|mailname|maincf|domain|rootmail|"
 loadparams
+assetdir="$SDMPT/etc/sdm/assets/postfix"
 
 if [ "$phase" == "0" ]
 then
@@ -27,17 +28,20 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
 
-    plugin_getargs $pfx "$args" "$vldargs"
+    plugin_getargs $pfx "$args" "$vldargs" || exit
     plugin_printkeys
+
+    mkdir -p $assetdir
 
     if [ "$maincf" != "" ]
     then
 	if [ -f $maincf ]
 	then
-	    logtoboth "> Plugin $pfx: Copy postfix maincf file '$maincf' into IMG /etc/sdm/assets/postfix-$(basename $maincf)"
-	    cp -a $maincf $SDMPT/etc/sdm/assets/postfix-$(basename $maincf)
+	    logtoboth "> Plugin $pfx: Copy postfix maincf file '$maincf' into IMG $assetdir/$(basename $maincf)"
+	    cp -a $maincf $assetdir/$(basename $maincf)
 	else
-	    logtoboth "%%Plugin $pfx: Cannot find maincf file '$maincf'; ignoring"
+	    logtoboth "? Plugin $pfx: Cannot find maincf file '$maincf'"
+	    exit 1
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -76,11 +80,11 @@ else
     cp -a /etc/postfix/main.cf /etc/postfix/main.cf.orig
     if [ "$maincf" != "" ]
     then
-	if [ -f /etc/sdm/assets/postfix-$(basename $maincf) ]
+	if [ -f $assetdir/$(basename $maincf) ]
 	then
-	    logtoboth "> Plugin $pfx: Replace /etc/postfix/main.cf with /etc/sdm/assets/postfix-$(basename $maincf)"
+	    logtoboth "> Plugin $pfx: Replace /etc/postfix/main.cf with $assetdir/$(basename $maincf)"
 	    mv /etc/postfix/main.cf /etc/postfix/main.cf.sdm
-	    cp -a /etc/sdm/assets/postfix-$(basename $maincf) /etc/postfix/main.cf
+	    cp -a $assetdir/$(basename $maincf) /etc/postfix/main.cf
 	    setfileownmode /etc/postfix/main.cf 644
 	fi
     else
@@ -116,19 +120,22 @@ EOF
     if [ "$maincf" == "" ]
     then
 	systemctl disable postfix > /dev/null 2>&1
-	logtoboth "* Plugin $pfx:  You WILL need to modify /etc/postfix/main.cf once you burn and boot"
-	logtoboth "* Plugin $pfx:  The hostname in /etc/postfix/main.cf will be modified when known, during sdm FirstBoot"
-	logtoboth ""
-	logtoboth "* Plugin $pfx:  Tip: Once postfix working correctly:"
-	logtoboth "* Plugin $pfx:   Save /etc/postfix.main.cf and use it with option maincf to this plugin"
-	logtoboth ""
-	logtoboth "* Plugin $pfx:  Tip: Make sure that your email clients always use 'send from' the email service account you're routing through"
-	logtoboth "* Plugin $pfx:  (e.g., myaccount@gmail.com, myaccount@outlook.com, etc.)"
+	plugin_addnote ""
+	plugin_addnote "*** postfix service notes ***"
+	plugin_addnote ""
+	plugin_addnote " * You WILL need to modify /etc/postfix/main.cf once you burn and boot"
+	plugin_addnote "   The hostname in /etc/postfix/main.cf will be modified when known, during sdm FirstBoot"
+	plugin_addnote ""
+	plugin_addnote " * Tip: Once postfix working correctly:"
+	plugin_addnote "   Save /etc/postfix.main.cf and use it with option maincf to this plugin"
+	plugin_addnote ""
+	plugin_addnote " * Tip: Make sure that your email clients always use 'send from' the email service account you're routing through"
+	plugin_addnote "   (e.g., myaccount@gmail.com, myaccount@outlook.com, etc.)"
     fi
 
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  Use 'sudo systemctl enable --now postfix' to enable/start the service when complete"
-    logtoboth ""
+    plugin_addnote ""
+    plugin_addnote "* If needed use 'sudo systemctl enable [--now] postfix' to enable/start the service"
+    plugin_addnote ""
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
