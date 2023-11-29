@@ -39,7 +39,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vargs"
+    plugin_getargs $pfx "$args" "$vargs" || exit
     plugin_printkeys
     logtoboth "> Plugin $pfx: download pistrong components from GitHub"
     logtoboth "> Plugin $pfx: curl -L https://github.com/gitbls/pistrong/raw/master/InstallPiStrong -o $SDMPT/usr/local/bin/InstallPiStrong"
@@ -77,10 +77,10 @@ else
     [ "$ipforward" == "" ] && ipforward="no"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     logtoboth  "> Plugin $pfx: Create /etc/swanctl/pistrong directories..."
-    [ ! -d /etc/swanctl/conf.d ]   && mkdir /etc/swanctl/conf.d
-    [ ! -d /etc/swanctl/pistrong ] && mkdir -p /etc/swanctl/pistrong/{client-assets,server-assets,VPNClients,backup}
+    mkdir -p /etc/swanctl/conf.d
+    mkdir -p /etc/swanctl/pistrong/{client-assets,server-assets,VPNClients,backup}
     chmod 700 /etc/swanctl/pistrong/{client-assets,server-assets}
-    [ ! -d "/etc/swanctl/p12" ] && mkdir /etc/swanctl/p12 && chmod 750 /etc/swanctl/p12
+    mkdir -p /etc/swanctl/p12 && chmod 750 /etc/swanctl/p12
 
     if [[ "|yes|true|" =~ "$ipforward" ]]
     then
@@ -129,34 +129,34 @@ EOF
 	logtoboth "% Plugin $pfx: Could not find the strongSwan systemd service"
 	logtoboth "% Set it with 'sudo pistrong config --service servicename.service'"
     fi
-    logtoboth ""
-    logtoboth "> Plugin $pfx: *** pistrong/strongswan service notes ***"
-    logtoboth "* Plugin $pfx:  * Complete configuration details: https://github.com/gitbls/pistrong"
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  * Configure a VPN Server:"
-    logtoboth "* Plugin $pfx:    * Configure your CA. Use /usr/local/bin/makeMyCA to configure a CA"
-    logtoboth "* Plugin $pfx:      supporting Android/iOS/MacOS/Linux/Windows clients"
-    logtoboth "* Plugin $pfx:    * Configure email settings via pistrong if you intend to email certs (See 'Sending email' in the README)"
-    logtoboth "* Plugin $pfx:    * Configure iptables. See https://github.com/gitbls/pistrong/blob/master/README.md#firewall-considerations"
-    logtoboth "* Plugin $pfx:    * Configure strongSwan service to automatically start if desired"
-    logtoboth "* Plugin $pfx:    * Add port forwards on your router to this system for UDP ports 500 and 4500"
-    logtoboth "* Plugin $pfx:    * Set up dynamic DNS (or use a static External IP Address) for best results"
-    logtoboth "* Plugin $pfx:    * Add user Certs (See pistrong help and pistrong add --help for command details)"
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  * Configure a VPN Client:"
-    logtoboth "* Plugin $pfx:    * Once you receive the VPN Cert Pack from the VPN Server manager"
-    logtoboth "* Plugin $pfx:      install it with 'sudo pistrong client install'"
-    logtoboth "* Plugin $pfx:    * Then:"
-    logtoboth "* Plugin $pfx:      * 'sudo systemctl enable [--now] strongswan' to enable the strongSwan service"
-    logtoboth "* Plugin $pfx:      * --now is optional and starts the service in addition to enabling it"
-    logtoboth "* Plugin $pfx:  * When you have completed all these steps, reboot the system and make sure everything works"
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  * Configure a Site-to-Site or Host-to-Host Tunnel:"
-    logtoboth "* Plugin $pfx:    * See /usr/local/bin/makeTunnel"
-    logtoboth "* Plugin $pfx:    * Quick video of makeTunnel in action: https://www.youtube.com/watch?v=mUitM2JeKRc"
-    #logfreespace "at end of $pfx Custom Phase post-install"
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  * pistrong documentation: https://github.com/gitbls/pistrong"
-    logtoboth ""
-    logtoboth "* Plugin $pfx: Complete Phase post-install"
+    plugin_addnote ""
+    plugin_addnote "*** pistrong/strongswan service notes ***"
+    plugin_addnote ""
+    plugin_addnote " * Complete configuration details: https://github.com/gitbls/pistrong"
+    plugin_addnote ""
+    plugin_addnote " * Configure a VPN Server:"
+    plugin_addnote "   * Configure your CA. Use /usr/local/bin/makeMyCA to configure a CA"
+    plugin_addnote "     supporting Android/iOS/MacOS/Linux/Windows clients"
+    plugin_addnote "   * Configure email settings via pistrong if you intend to email certs (See 'Sending email' in the README)"
+    plugin_addnote "   * Configure iptables. See https://github.com/gitbls/pistrong/blob/master/README.md#firewall-considerations"
+    plugin_addnote "   * Configure strongSwan service to automatically start if desired"
+    plugin_addnote "   * Add port forwards on your router to this system for UDP ports 500 and 4500"
+    plugin_addnote "   * Set up dynamic DNS (or use a static External IP Address) for best results"
+    plugin_addnote "   * Add user Certs (See pistrong help and pistrong add --help for command details)"
+    plugin_addnote ""
+    plugin_addnote " * Configure a VPN Client:"
+    plugin_addnote "   * Once you receive the VPN Cert Pack from the VPN Server manager"
+    plugin_addnote "     install it with 'sudo pistrong client install'"
+    plugin_addnote "   * Then:"
+    plugin_addnote "     * 'sudo systemctl enable [--now] strongswan' to enable the strongSwan service"
+    plugin_addnote "     * --now is optional and starts the service in addition to enabling it"
+    plugin_addnote " * When you have completed all these steps, reboot the system and make sure everything works"
+    plugin_addnote ""
+    plugin_addnote " * Configure a Site-to-Site or Host-to-Host Tunnel:"
+    plugin_addnote "   * See /usr/local/bin/makeTunnel"
+    plugin_addnote "   * Quick video of makeTunnel in action: https://www.youtube.com/watch?v=mUitM2JeKRc"
+    plugin_addnote ""
+    plugin_addnote " * pistrong documentation: https://github.com/gitbls/pistrong"
+    plugin_addnote ""
+    plugin_addnote " Complete Phase post-install"
 fi
