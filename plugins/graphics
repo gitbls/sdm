@@ -131,14 +131,14 @@ args="$2"
 loadparams
 vldargs="|graphics|nodmconsole|nopiwiz|videomode|runfunction|runargs|"
 rqdargs=""
-assetdir="$SDMPT/etc/sdm/assets"
+assetdir="$SDMPT/etc/sdm/assets/graphics"
 
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
 elif [ "$phase" == "1" ]
 then
