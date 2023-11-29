@@ -35,6 +35,7 @@ function cfgdhcpcdwifi() {
             IFS="=" read a wificountry <<< $(grep 'country=' $assetdir/wpa.conf | head -n 1)
 	else
 	    logtoboth "? Plugin $pfx: Cannot find $assetdir/wpa.conf"
+	    exit 1
 	fi
     else
 	if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
@@ -101,7 +102,7 @@ then
     #
     #logtoboth "* Plugin $pfx: Start Phase 0"
 
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     [ -v nowifi ] && nowifi=y
     mkdir -p $assetdir
     netman=$(getdefnm "$netman")
@@ -115,6 +116,7 @@ then
 	    tr -d '\r' < $wpa > $assetdir/wpa.conf
 	else
 	    logtoboth "? Plugin $pfx: wpa file '$wpa' not found"
+	    exit 1
 	fi
     fi
     case "${netman}" in
@@ -127,6 +129,7 @@ then
 		    cp -a $dhcpcdappend $assetdir/dhcpcd-append.conf
 		else
 		    logtoboth "? Plugin $pfx: dhcpcdappend file '$dhcpcdappend' not found"
+		    exit 1
 		fi
 	    fi
 	    cfgdhcpcdwifi
@@ -149,6 +152,7 @@ then
 			    cp -a $c $assetdir/$conf
 			else
 			    logtoboth "% Plugin $pfx: $conf file '$c' not found"
+			    exit 1
 			fi
 		    done
 		fi
