@@ -17,7 +17,7 @@ cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
 }
 EOF
 [ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
-doapt "$1 $upg" "$2" || logapterror
+doaptrpterror "$1 $upg" "$2"
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
@@ -31,7 +31,8 @@ function doctrlcp1() {
 source /etc/sdm/sdm-readparams
 
 #
-# If --apt just do those and exit
+# Handle commands which are run in the context of the container. They are here as a matter of
+# programming convenience ;)
 #
 cmd="$1"
 cmdoptions="$2"
@@ -41,10 +42,10 @@ case "$cmd" in
     apt)
 	logtoboth "* Start apt maintenance"
 	logfreespace "at start of 'apt $cmdoptions'"
-	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && (doapt "--yes update"  0 || logapterror)
-	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt $upg'" && upgkeepconf --yes 0 $aptdistupgrade
-	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && (doapt "--yes autoremove" 0 || logapterror)
-	cklogfreespace "at end of 'apt $cmdoptions'"
+	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0
+	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade
+	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0
+	logfreespace "at end of 'apt $cmdoptions'"
 	logtoboth "* apt maintenance Completed"
 	exit 0
 	;;
@@ -61,19 +62,19 @@ case "$cmd" in
 	;;
     burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
 	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning"
-	exit 0
+	exit
 	;;
     run-all-plugins)  # Run Plugin phase 1 or post-install
 	phase="$cmdoptions"
 	runplugins "$plugins" $phase
-	exit 0
+	exit
         ;;
     run-plugin-list) # Run list of plugins phase 1 or post-install
 	phase="$cmdoptions"
-	theseplugins="${3#\"}"         #Strip leading/trailing double quotes
-	theseplugins="${plugins%\"}"
-	#logtoboth "run-plugin-list: $theseplugins"
-	runplugins "$theseplugins" $phase
+	theseplugins="$3"
+	#theseplugins="${3#\"}"         #Strip leading/trailing double quotes
+	#theseplugins="${theseplugins%\"}"
+	runplugins "$theseplugins" $phase || exit
 	writeconfig                    #Write updated config
 	exit 0
 	;;
@@ -82,14 +83,20 @@ case "$cmd" in
 	p="$cmdoptions"
 	phase=$3
 	runonepluginx "$p" $phase
-	exit 0
+	exit
         ;;
     run-command)  # Run a single command in phase 1 or post-install
-	# $cmdoptions: Command line
-	runcmd=$(stripquotes "$cmdoptions")
-	#logtoboth "> Run command line: $runcmd"
+	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
+	#logtoboth "> Run command: $runcmd"
 	$runcmd
-	exit 0
+	exit
+        ;;
+    run-command-quietly)  # Run a single command in phase 1 or post-install
+	# $cmdoptions: Command line
+	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
+	#logtoboth "> Run command quietly: $runcmd"
+	$runcmd > /dev/null 2>&1
+	exit
         ;;
 esac
 logtoboth "* Start Phase 1 image customization"
@@ -140,7 +147,7 @@ if ! [[ "$poptions" =~ "noupdate" ]]
 then
     logtoboth "> Start 'apt update'"
     logfreespace "at start of 'apt update'"
-    doapt "update" $showapt || logapterror
+    doaptrpterror "update" $showapt
     logfreespace "at end of 'apt update'"
 else
     logtoboth "> Skip 'apt update' per --poption noupdate"
@@ -157,17 +164,12 @@ fi
 #
 # Run requested plugins Phase 1
 #
-runplugins "$plugins" 1
+runplugins "$plugins" 1 || exit
 
 #
 # Post-install Configuration
 #
 logtoboth "* Phase 1 post-app installation/configuration"
-
-if [ "$hotspot" != "" ]
-then
-    $sdmdir/sdm-hotspot
-fi
 
 if ! [[ "$poptions" =~ "noupgrade" ]]
 then
@@ -184,7 +186,7 @@ if [[ ! "$poptions" =~ "noautoremove" ]]
 then
     logtoboth "> Start 'apt autoremove'"
     logfreespace "at start of 'apt autoremove'"
-    doapt "--yes autoremove" $showapt || logapterror
+    doaptrpterror "--yes autoremove" $showapt
     logfreespace "at end of 'apt autoremove'"
 else
     logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
@@ -201,7 +203,7 @@ fi
 #
 # Run requested plugins post-install phase
 #
-runplugins "$plugins" post-install
+runplugins "$plugins" post-install || exit
 #
 # Complete graphics post-install if graphics plugin not selected
 # This is a hack. Proper fix needs more thought
@@ -220,10 +222,13 @@ then
     logtoboth "> Enable SSH"
     dosshsetup service phase1
 fi
-#
-# Check for device out of space and warn if so
-#
-cklogfreespace "at end of image customization"
+
+resetpluginlist
+
+logfreespace "at end of image customization"
+
+printnotes
+
 #
 # Check for apt errors in the apt log
 #
