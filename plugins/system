@@ -25,7 +25,7 @@ argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|f
 eepromvals="|critical|stable|beta|"
 
 logtoboth "* Plugin $pfx: Start Phase $phase"
-plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
 # Set name of assetdir based on 'name' argument
 if [ "$name" == "" ]
 then
@@ -42,7 +42,8 @@ then
     plugin_printkeys
     if [ -d $assetdir ]
     then
-	logtoboth "% Plugin $pfx: Warning: '$assetdir' already exists; Add argument 'name=somename' to this system plugin invocation"
+	logtoboth "? Plugin $pfx: '$assetdir' already exists; Add argument 'name=somename' to this system plugin invocation"
+	exit 1
     else
 	logtoboth "> Plugin $pfx: Create directory $assetdir"
 	mkdir -p $assetdir
@@ -58,6 +59,7 @@ then
 	    if [ "$cval" == "" ]
 	    then
 		logtoboth "? Plugin $pfx: Key '$chyp' requires a value but none provided"
+		exit 1
 	    else
 		#logtoboth "> Plugin $pfx: key '$chyp' has value '$cval"
 		IFS="," read -a flist <<< "${cval}"
@@ -79,6 +81,7 @@ then
 			cp -a $fl $assetdir/$chyp
 		    else
 			logtoboth "? Plugin $pfx: Argument $chyp file '$fl' not found"
+			exit 1
 		    fi
 		done
 	    fi
@@ -99,6 +102,7 @@ then
 				;;
 			    *)
 				logtoboth "? Plugin $pfx: systemd-config item '${olname}' is unknown"
+				exit 1
 				;;
 			esac
 		    done
@@ -107,7 +111,7 @@ then
 		    ! [[ "$eepromvals" =~ "$cval" ]] && logtoboth "? Plugin $pfx: eeprom value '$cval' is unknown"
 		    ;;
 		rclocal)
-		    mkdir $assetdir/rclocal
+		    mkdir -p $assetdir/rclocal
 		    [ -f $assetdir/rclocal/addcmds ] && echo "" >> $assetdir/rclocal/addcmds  # Add blank line if this isn't first time
 		    echo "# Commands added by sdm system plugin rclocal $(thisdate)" >> $assetdir/rclocal/addcmds
 		    IFS="," read -a cargs <<< "$cval"
@@ -122,6 +126,7 @@ then
 				cat $fn >> $assetdir/rclocal/addcmds
 			    else
 				logtoboth "? Plugin $pfx: Argument rclocal file '$fn' not found"
+				exit 1
 			    fi
 			else
 			    echo "$rcarg" >> $assetdir/rclocal/addcmds
@@ -273,7 +278,8 @@ EOF
 		    mv /tmp/rc.local /etc
 		    setfileownmode /etc/rc.local 755
 		else
-		    logtoboth "% Plugin $pfx: Expected to find '$assetdir/rclocal/addcmds' but it's not there"
+		    logtoboth "? Plugin $pfx: Expected to find '$assetdir/rclocal/addcmds' but it's not there"
+		    exit 1
 		fi
 		;;
 	    service-disable)
@@ -285,7 +291,7 @@ EOF
 		    then
 			logtoboth "> Plugin $pfx: Disable service '$c'"
 			#echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-			systemctl disable -q $c
+			systemctl disable -q $c > /dev/null 2>&1
 		    fi
 		done
 		;;
