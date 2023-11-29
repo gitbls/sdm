@@ -31,12 +31,14 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
 
     wsddswitches=""
-    plugin_getargs $pfx "$args" "$vargs"
+    plugin_getargs $pfx "$args" "$vargs" || exit
     plugin_printkeys
 
     if [ ${raspiosver} -ge 12 ]
     then
 	logtoboth "% Plugin $pfx: wsdd is available via apt in this RasPiOS release"
+	logtoboth "  This plugin will install it in Phase 1"
+	exit 0
     fi
 
     if [ "$localsrc" != "" ]
@@ -73,12 +75,19 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
-    logtoboth "* Plugin $pfx: Add unprivileged user 'wsdd' in group 'wsdd'"
-    groupadd --system wsdd
-    useradd --no-create-home --system --gid wsdd wsdd
-    logtoboth "* Plugin $pfx: Enable wsdd service"
-    systemctl enable wsdd > /dev/null 2>&1
-    logtoboth "* Plugin $pfx: Complete Phase 1"
+    if [ ${raspiosver} -ge 12 ]
+    then
+	logtoboth "> Plugin $pfx: Install wsdd"
+	doaptrpterror "install --no-install-recommends --yes wsdd" $showapt
+	exit 0
+    else
+	logtoboth "* Plugin $pfx: Add unprivileged user 'wsdd' in group 'wsdd'"
+	groupadd --system wsdd
+	useradd --no-create-home --system --gid wsdd wsdd
+	logtoboth "* Plugin $pfx: Enable wsdd service"
+	systemctl enable wsdd > /dev/null 2>&1
+	logtoboth "* Plugin $pfx: Complete Phase 1"
+    fi
 else
     #
     # Plugin Post-install edits
