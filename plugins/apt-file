@@ -53,9 +53,10 @@ else
     logtoboth "> Plugin $pfx: Generate apt-file database"
     if type -P apt-file > /dev/null
     then
-	doapt update $showapt apt-file
+	doapt update $showapt apt-file || logapterror
     else
 	logtoboth "? Plugin $pfx: apt-file appears to not be installed"
+	exit 1
     fi
 
     #
