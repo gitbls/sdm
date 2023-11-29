@@ -77,7 +77,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--norestart` or `--noreboot` &mdash; Do not restart the system after the First Boot. This is useful if you set `--restart` when you build the image, but want to disable the automatic restart for a particular SD Card when you burn it.
 * `--nowait-timesync` &mdash; Don't wait for the system time to sync in sdm FirstBoot
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
-* `--plugin plugin-name:"arguments"` &mdash; Include the named plugin with its arguments. See <a href="Plugins.md">Plugins</a> for complete plugin details
+* `--plugin plugin-name:"arguments"` &mdash; Include the named plugin with its arguments. sdm interprets a plugin name that starts with **"@"** as a file containing a list of plugins to include See <a href="Plugins.md">Plugins</a> for complete plugin details
 * `--plugin-debug` &mdash; Enable additional debug printout in plugins (useful for plugin development)
 * `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
     * **noautoremove** &mdash; do not do an `apt autoremove`
