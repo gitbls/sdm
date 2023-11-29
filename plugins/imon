@@ -48,20 +48,24 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
 
-    logtoboth "> Plugin $pfx: pip install icmplib"
-    [ "$(which pip)" == "" ] && doaptrpterror "install --no-install-recommends --yes python3-pip" $showapt
-    pip install icmplib
+    #logtoboth "> Plugin $pfx: pip install icmplib"
+    #[ "$(which pip)" == "" ] && doaptrpterror "install --no-install-recommends --yes python3-pip" $showapt
+    #pip install icmplib
+    logtoboth "> Plugin $pfx: Install python3-icmplib"
+    doaptrpterror "install --no-install-recommends --yes python3-icmplib" $showapt
 
-    logtoboth "> Plugin $pfx: *** imon service notes ***"
-    logtoboth "* Plugin $pfx:  * Use imon-configure to configure imon's service parameters"
-    logtoboth "* Plugin $pfx:  * Then use sudo systemctl enable --now imon@instancename"
-    logtoboth "* Plugin $pfx:    where 'instancename' is the name you created in imon-configure"
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  * See /usr/local/bin/imon-action.sample for a sample imon action script"
-    logtoboth "* Plugin $pfx:    to customize event actions"
-    logtoboth ""
-    logtoboth "* Plugin $pfx:  * For complete details: https://github.com/gitbls/imon"
-    logtoboth ""
+    plugin_addnote ""
+    plugin_addnote "*** imon service notes ***"
+    plugin_addnote ""
+    plugin_addnote " * Use imon-configure to configure imon's service parameters"
+    plugin_addnote " * Then use sudo systemctl enable --now imon@instancename"
+    plugin_addnote "   where 'instancename' is the name you created in imon-configure"
+    plugin_addnote ""
+    plugin_addnote " * See /usr/local/bin/imon-action.sample for a sample imon action script"
+    plugin_addnote "   to customize event actions"
+    plugin_addnote ""
+    plugin_addnote " * For complete details: https://github.com/gitbls/imon"
+    plugin_addnote ""
 
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
