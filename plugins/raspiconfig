@@ -35,7 +35,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
