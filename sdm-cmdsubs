@@ -99,7 +99,7 @@ function sdm_burndevfile() {
     declare -a burnmsg
     declare -x SDMPT=$(makemtpt)
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
-    [ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
+    #[ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
 	#
@@ -131,7 +131,7 @@ function sdm_burndevfile() {
 	trap SIGINT
 	burnmsg+=("$(thisdate) > dd Copy completed")
 	# Prevent mount errors
-	sync ; sync ; sleep 1
+	sync ; sleep 1 ; sync
 	p1="1" ; p2="2"
 	[[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	if [ $expandroot -eq 1 ]
@@ -141,7 +141,7 @@ function sdm_burndevfile() {
 	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
 	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
 	setdiskid $burndev $newdiskid
-	sync ; sync ; sleep 1
+	sync ; sleep 1 ; sync
 	mount -v ${burndev}${p2} $SDMPT
 	mount -v ${burndev}${p1} $SDMPT/boot
 	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
@@ -154,21 +154,31 @@ function sdm_burndevfile() {
 	bsize=$(stat --printf %s $dimg)
 	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to Output IMG '$burnfilefile'..."
 	burnmsg+=("$(thisdate) > Burn IMG command line: $cmdline")
-	ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
-	burnmsg+=("$(thisdate) > dd command: $ddcmd")
-	# Burn the IMG to the file
-	echo "$ddcmd"
-	trap "ddctrlc" SIGINT
-	$ddcmd &
-	ddpid=$!
-	wait $ddpid > /dev/null 2>&1
-	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
-	trap SIGINT
-	burnmsg+=("$(thisdate) > Image copy completed")
+	# cp will fail if not on a COW (btrfs) file system
+	cp --reflink=always $dimg $burnfilefile 2>/dev/null
+	if [ $? -eq 0 ]
+	then
+	    burnmsg+=("$(thisdate) > Burn IMG using 'cp' on copy-on-write file system")
+	else
+	    ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
+	    burnmsg+=("$(thisdate) > dd command: $ddcmd")
+	    # Burn the IMG to the file
+	    echo "$ddcmd"
+	    trap "ddctrlc" SIGINT
+	    $ddcmd &
+	    ddpid=$!
+	    wait $ddpid > /dev/null 2>&1
+	    [ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	    trap SIGINT
+	    burnmsg+=("$(thisdate) > Image copy completed")
+	fi
 	olddiskid="$((blkid -o value $burnfilefile) | (read id ; echo $id))"
 	loopdev=$(losetup --show -P -f $burnfilefile)
+	sync ; sleep 1 ; sync
+	write_burnmsg "> Set new disk ID '$newdiskid' on '$burnfilefile'"
 	setdiskid $loopdev $newdiskid
 	losetup -d $loopdev
+	sync ; sleep 1 ; sync
 	domount "$burnfilefile"
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
@@ -210,7 +220,6 @@ function sdm_burndevfile() {
 	[ $bbootscripts -eq 1 ] && bootscripts="$bbootscripts"
 	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
 	[ "$bhname" != "" ] && hname="$bhname"
-	splugins="$plugins"
 	plugins="$bplugins"
 	[ $bautologin -eq 1 ] && autologin=1
 	expandroot=$((bexpandroot|expandroot))
@@ -219,8 +228,9 @@ function sdm_burndevfile() {
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
-	initvirt logtoboth  # Must be done after fchroot is set
+	[ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
 	# --bupdate must specified on the burn command line
+	initvirt logtoboth  # Must be done after fchroot is set
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	if [ $fnoexpandroot -eq 1 ]
 	then
@@ -237,7 +247,7 @@ function sdm_burndevfile() {
 	if [ $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
-	    sdm_runspawn run-command "systemctl disable regenerate_ssh_host_keys" Burn1
+	    sdm_runspawncmd Burn1 run-command-quietly "systemctl disable regenerate_ssh_host_keys"
 	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
 	#
@@ -286,10 +296,10 @@ function sdm_burndevfile() {
 	    ftype=$(type -t do_b0script)
 	    [ "$ftype" == "function" ] && do_b0script || logtoboth "% Function 'do_b0script' not found in '$b0script'; Skipping..."
 	fi
-	if [ "$bplugins" != "" ]
+	if [ "$plugins" != "" ]
 	then
-	    plugin_logorder "$bplugins"
-	    runplugins "$bplugins" 0
+	    plugin_logorder "$plugins"
+	    runplugins_exit "$plugins" 0
 	fi
 
 	[ -d $SDMPT/etc/lightdm ] && xldm=1 || xldm=0
@@ -297,24 +307,22 @@ function sdm_burndevfile() {
 	if [ "$b1script" != "" ]
 	then
 	    logtoboth "> Run --b1script '$b1script'"
-	    sdm_runspawn b1script "$b1script" Burn1
+	    sdm_runspawncmd Burn1 b1script "$b1script"
 	fi
 
 	cmyuser="$myuser"
 	    
-	if [ "$bplugins" != "" ]
+	if [ "$plugins" != "" ]
 	then
-	    sdm_runspawn run-plugin-list 1 "$bplugins" Burn1
-	    sdm_runspawn run-plugin-list post-install "$bplugins" Burn1
+	    sdm_runspawncmd Burn1 run-plugin-list 1 "$plugins" || exit
+	    sdm_runspawncmd Burn1 run-plugin-list post-install "$plugins" || exit
 	    # Set lightdm burn enable delay if it was installed as part of burning
-	    [ -d $SDMPT/etc/lightdm -a $xldm -eq 0 ] && sdm_runspawn burn-enable-lightdm-delay "" Burn1
+	    [ -d $SDMPT/etc/lightdm -a $xldm -eq 0 ] && sdm_runspawncmd Burn1 burn-enable-lightdm-delay
 	    source $SDMPT/etc/sdm/sdm-readparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
+	    plugins="$bplugins"
 	fi
-	#
-	# If there were bplugins, update the config appropriately
-	plugins=$splugins
-	[ "$bplugins" != "" ] && plugins=$(appendvalue "$plugins" "$bplugins" "~")
-	[ "$plugins" != "$splugins" ] && writeconfig
+
+	resetpluginlist
 	#
 	# Redact passwords if requested
 	#
