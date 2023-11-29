@@ -19,6 +19,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
 vldargs="|config|localsrc|"
+assetdir="$SDMPT/etc/sdm/assets/knockd"
 
 if [ "$phase" == "0" ]
 then
@@ -26,7 +27,8 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" ""
+    plugin_getargs $pfx "$args" "$vldargs" "" || exit
+    mkdir -p $assetdir
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
@@ -38,36 +40,35 @@ then
     srcurl="https://raw.githubusercontent.com/gitbls/pktables/master"
     if [ "$config" != "" ]
     then
-	logtoboth "> Plugin $pfx: Copy knockd config from $localsrc to /etc/sdm/assets"
-	[ -f $config ] && cp -a $config $SDMPT/etc/sdm/assets/knockd.conf
-	[ -f "$localsrc/pktables" ] && cp -a $localsrc/pktables $SDMPT/etc/sdm/assets
+	logtoboth "> Plugin $pfx: Copy knockd config from $localsrc to $assetdir"
+	[ -f $config ] && cp -a $config $assetdir/knockd.conf
     fi
     if [ "$localsrc" != "" ]
     then
 	#
 	# Copy the appropriate files from local stash into the IMG
 	#
-	logtoboth "> Plugin $pfx: Copy pktables and knockd-helper from $localsrc to /etc/sdm/assets"
-	[ -f "$localsrc/pktables" ] && cp -a $localsrc/pktables $SDMPT/etc/sdm/assets/pktables
-	[ -f "$localsrc/knockd-helper" ] && cp -a $localsrc/knockd-helper $SDMPT/etc/sdm/assets
-	[ -f "$localsrc/knockd.service" ] && cp -a $localsrc/knockd.service $SDMPT/etc/sdm/assets/knockd.service
+	logtoboth "> Plugin $pfx: Copy pktables and knockd-helper from $localsrc to $assetdir"
+	[ -f "$localsrc/pktables" ] && cp -a $localsrc/pktables $assetdir
+	[ -f "$localsrc/knockd-helper" ] && cp -a $localsrc/knockd-helper $assetdir
+	[ -f "$localsrc/knockd.service" ] && cp -a $localsrc/knockd.service $assetdir
 	if [ "$config" == "" ]
 	then
-	    logtoboth "> Plugin $pfx: Copy knockd.conf from $localsrc to /etc/sdm/assets"
-	    [ -f "$localsrc/knockd.conf" ] && cp -a $localsrc/knockd.conf $SDMPT/etc/sdm/assets
+	    logtoboth "> Plugin $pfx: Copy knockd.conf from $localsrc to $assetdir"
+	    [ -f "$localsrc/knockd.conf" ] && cp -a $localsrc/knockd.conf $assetdir
 	fi
     else
 	logtoboth "> Plugin $pfx: Download pktables from GitHub..."
 	gsts=0
 	for f in pktables knockd-helper knockd.service
 	do
-	    wget $srcurl/$f --output-document=$SDMPT/etc/sdm/assets/$f
+	    wget $srcurl/$f --output-document=$assetdir/$f
 	    [ $? -ne 0 ] && gsts=1
 	done
 	if [  $gsts -ne 0 ]
 	then
 	    logtoboth "? Plugin $pfx: Unable to download pktables from $srcurl"
-	    exit
+	    exit 1
 	fi
     fi
 elif [ "$phase" == "1" ]
@@ -92,34 +93,35 @@ else
     plugin_getargs $pfx "$args" "$vldargs" ""
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    [ -f /etc/sdm/assets/pktables ] && cp -a /etc/sdm/assets/pktables /usr/local/bin && setfileownmode /usr/local/bin/pktables 755
-    [ -f /etc/sdm/assets/knockd-helper ] && cp -a /etc/sdm/assets/knockd-helper /usr/local/bin && setfileownmode /usr/local/bin/knockd-helper 755
-    if [ -f /etc/sdm/assets/knockd.conf ]
+    [ -f $assetdir/pktables ] && cp -a $assetdir/pktables /usr/local/bin && setfileownmode /usr/local/bin/pktables 755
+    [ -f $assetdir/knockd-helper ] && cp -a $assetdir/knockd-helper /usr/local/bin && setfileownmode /usr/local/bin/knockd-helper 755
+    if [ -f $assetdir/knockd.conf ]
     then
 	[ -f /etc/knockd.conf ] && mv /etc/knockd.conf /etc/knockd.conf.sdm
-	cp -a /etc/sdm/assets/knockd.conf /etc
+	cp -a $assetdir/knockd.conf /etc
 	setfileownmode /etc/knockd.conf 644
     fi
-    if [ -f /etc/sdm/assets/knockd.service ]
+    if [ -f $assetdir/knockd.service ]
     then
-	cp -a /etc/sdm/assets/knockd.service /etc/systemd/system
+	cp -a $assetdir/knockd.service /etc/systemd/system
 	setfileownmode /etc/systemd/system/knockd.service 644
-	systemctl daemon-reload
+	systemctl daemon-reload > /dev/null 2>&1
     fi
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
-    logtoboth ""
-    logtoboth "Plugin $pfx: *** knockd Configuration Notes ***"
-    logtoboth "Plugin $pfx: * sudoedit /etc/knockd.conf and configure your port knocking"
-    logtoboth "Plugin $pfx: * sudoedit /usr/local/bin/knockd-helper"
-    logtoboth "Plugin $pfx:   and add 'pktables init' commands for each service in your knockd.conf "
-    logtoboth "Plugin $pfx: * sudo systemctl enable knockd"
-    logtoboth "Plugin $pfx: * Reboot"
-    logtoboth "Plugin $pfx: * Check for errors: sudo journalctl -b"
-    logtoboth "Plugin $pfx: * Make sure port forwards for ALL your knock sequences are set in your router"
-    logtoboth ""
-    logtoboth "Plugin $pfx: * pktables documentation: https://github.com/gitbls/pktables"
-    logtoboth "Plugin $pfx: * knockd and knockd.conf documentation: man knockd"
-    logtoboth "Plugin $pfx: "
-    logtoboth "* Plugin $pfx: Complete Phase post-install"
+    plugin_addnote ""
+    plugin_addnote "*** knockd Configuration Notes ***"
+    plugin_addnote ""
+    plugin_addnote " * sudoedit /etc/knockd.conf and configure your port knocking"
+    plugin_addnote " * sudoedit /usr/local/bin/knockd-helper"
+    plugin_addnote "   and add 'pktables init' commands for each service in your knockd.conf "
+    plugin_addnote " * sudo systemctl enable knockd"
+    plugin_addnote " * Reboot"
+    plugin_addnote " * Check for errors: sudo journalctl -b"
+    plugin_addnote " * Make sure port forwards for ALL your knock sequences are set in your router"
+    plugin_addnote ""
+    plugin_addnote " * pktables documentation: https://github.com/gitbls/pktables"
+    plugin_addnote " * knockd and knockd.conf documentation: man knockd"
+    plugin_addnote ""
+    plugin_addnote " * Complete Phase post-install"
 fi
