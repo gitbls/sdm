@@ -1,5 +1,37 @@
 # Changelog
 
+## V10.0
+
+* New Features
+  * New plugins
+    * `copydir` &mdash; Copy a directory from the host into the IMG using rsync
+    * `mkdir` &mdash; Create a directory and optionally set owner and protection
+  * Eliminate `--plugin` command line explosion
+    * sdm interprets a plugin name starting with **@** as the name of a file containing a list of plugins
+    * Each file contains plugins, one per line. For example: user:useradd=pi. The string `--plugin` is not acceptable in the file    * Reduces sdm command line clutter
+    * See <a href="Docs//Plugins.md#invoking-a-plugin-on-the-sdm-command-line">Plugins </a> for details
+  * Stop customization and exit sdm if:
+    * A plugin returns failure (non-zero) status
+    * An apt command fails
+    * IMG root partition is full (checked at points where remaining size is checked and printed)
+  * Add `plugin_addnote` function for plugins to add notes to log (/etc/sdm/history)
+    * Collected during the run and appended to the log at run completion
+    * Useful for reminders, guidance, etc
+    * See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md"> Programming Plugins </a> for details and plugins `pistrong` and `postfix` for usage examples
+* Improvements
+  * *Dramatically* speed up extending an IMG by using qemu-img (Thanks @carriba)
+    * EZsdmInstaller also installs `qemu-utils`. You'll need to install this manually if not using the Installer
+  * Dramatically speed up `--burnfile` on btrfs and other copy-on-write file systems (Thanks @1stcall)
+  * Increase apt usage consistency in sdm and plugins (code quality)
+  * Add additional information about host and IMG in /etc/sdm/history
+* Bug fixes
+  * Fix rare "IMG already attached to a loop device" race condition
+  * Ensure that parted always prints in MB during extend
+  * copyfile plugin corrections
+    * Eliminate case where file is copied multiple times
+    * Eliminate redundant 'directory created' messages
+    * Log when setting chown and chmod
+
 ## V9.6
 
 * Add `--no-expand-root` command line switch
