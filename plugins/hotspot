@@ -56,6 +56,7 @@ function parsehsconfig() {
 		    ;;
 		*)
 		    logtoboth "? Plugin $pfx: Unrecognized hotspot option '$rpifun' in '$fhotspot'"
+		    exit 1
 		    ;;
 	    esac
 	fi
@@ -400,7 +401,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
     unset domain # Unset sdm's domain setting
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
@@ -428,7 +429,7 @@ then
 	then
 	    if [ "$hsmode" == "nm" ]
 	    then
-		logtoboth "? Plugin $pfx: Network Manager hotspot support requires Bookworm or later"
+		logtoboth "? Plugin $pfx: Network Manager hotspot support requires Bookworm or later; Using hostapd"
 		hsmode="hostapd"
 	    fi
 	else
@@ -454,18 +455,18 @@ then
     then
 	svcs="'hostapd'"
 	logtoboth "> Plugin $pfx: Install 'hostapd' and install 'iptables'"
-	doapt "install --no-install-recommends --yes hostapd iptables" "$showapt"
+	doaptrpterror "install --no-install-recommends --yes hostapd iptables" "$showapt"
 	systemctl unmask hostapd
 	systemctl disable hostapd
 	if [ "$type" != "bridged" ]
 	then
 	    logtoboth "> Plugin $pfx: Install dnsmasq"
 	    svcs="'hostapd' and 'dnsmasq'"
-	    doapt "install --no-install-recommends --yes dnsmasq" "$showapt"
+	    doaptrpterror "install --no-install-recommends --yes dnsmasq" "$showapt"
 	    systemctl disable dnsmasq
 	fi
     else
-	! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doapt "install --no-install-recommends --yes network-manager" "$showapt"
+	! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doaptrpterror "install --no-install-recommends --yes network-manager" "$showapt"
     fi
     if [ "$enable" == "true" ]
     then
