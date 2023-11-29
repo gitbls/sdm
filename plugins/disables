@@ -27,12 +27,11 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
-    plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
@@ -41,7 +40,7 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
     #
