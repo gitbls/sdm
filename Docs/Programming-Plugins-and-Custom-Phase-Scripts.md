@@ -44,6 +44,21 @@ Take a copy of sdm-plugin-template, rename it to your plugin's name, and edit th
 
 The code in the template for Phase 0 is sample code to show how to parse the arguments and print them out. Other than that, you can write bash code to implement your plugin.
 
+### plugin_addnote
+
+plugin_addnote provides a way for plugins to create a set of messages that are output at the end of a customization to both the console and /etc/sdm/history. For example, if a plugin needs to tell or remind you about additional steps that need to be done to fully configure the service, this would be a way to communicate that information.
+
+Several of the plugins now use this, including imon, knockd, pistrong, postfix, and samba.
+
+#### Arguments
+```
+plugin_addnote string
+```
+
+Where:
+
+* **string** is the text of the string to add to the notes. plugin_addnote does no formatting, so the format and readability are up to the plugin author.
+
 ### plugin_getargs
 
 plugin_getargs parses the plugin arguments and returns them in bash variables. For instance, for `--plugin foo:"key1=abc|key2=def"` plugin_getargs will create the bash variable *key1* with the value *abc*, and the bash variable *key2* with the value *def*.
