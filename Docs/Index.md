@@ -16,12 +16,12 @@
 <br><a href="First-Boot-Service.md">First Boot Service</a>
 <br><a href="First-Boot-Scripts-and-Configurations.md">First Boot Script and Configuration Information</a>
 <br><a href="fstab.md">fstab</a>
+<br><a href="Hints-Commands.md">Hints: sdm Commands</a>
 <br><a href="Hints-NetworkManager.md">Hints: Configuring Network Manager</a>
 <br><a href="Hint-Using-sdm-on-2022-04-04-and-later-images.md">Hint: Using sdm on 2022-04-04 and Later IMGs</a>
 <br><a href="Hotspot.md">Hotspot</a>
 <br><a href="Detailed-Installation-Guide.md">Installing and Removing sdm</a>
 <br><a href="Known-Issues.md">Known Issues</a>
-<br><a href="LED-flashing.md">LED Flashing</a>
 <br><a href="Operating-Details.md">Operating Details</a>
 <br><a href="Passwords.md">Passwords</a>
 <br><a href="Performance-How-Fast-is-sdm.md">Performance: How Fast is sdm</a>
