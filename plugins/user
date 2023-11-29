@@ -145,7 +145,8 @@ function setpassword_user() {
 		getpassword $user
 		pswd="$userpwd"
 	    else
-		logtoboth "% Plugin $pfx: Blank password and prompt not enabled for user '$user'"
+		logtoboth "? Plugin $pfx: Blank password and prompt not enabled for user '$user'"
+		exit 1
 	    fi
 	fi
 	printf "${pswd}\n" >> $assetdir/redact-passwords  # Save for redaction
@@ -154,7 +155,8 @@ function setpassword_user() {
 $user:$pswd
 EOF
     else
-	logtoboth "% Plugin $pfx: User '$user' not found for setpassword"
+	logtoboth "? Plugin $pfx: User '$user' not found for setpassword"
+	exit 1
     fi
 }
 
@@ -261,7 +263,7 @@ function add_user() {
 		[ -f $f ] && ( [ -f $uhomedir/$(basename $f) ] || cp -a $f $uhomedir )
 	    done
 	else
-	    plugin_dbgprin t"> Plugin $pfx: Skip skel copy for user '$user'"
+	    plugin_dbgprint "> Plugin $pfx: Skip skel copy for user '$user'"
 	fi
 	IFS=":" read xuser xpw xuid gx rest <<< $(getent passwd $user)
 	IFS=":" read gxnm xpw xgx rest <<< $(getent group $gx)
@@ -309,7 +311,8 @@ function addp0user() {
 	    then
 		loguseraction setpassword root "$password" "$prompt"
 	    else
-		logtoboth "% Plugin $pfx: Root password not set: user '$adduser' has blank password and prompt not enabled"
+		logtoboth "? Plugin $pfx: Root password not set: user '$adduser' has blank password and prompt not enabled"
+		exit 1
 	    fi
 	fi
     elif [ "$deluser" != "" ]
@@ -368,7 +371,7 @@ function do_userlist() {
 	    [[ "$line" =~ "groups=" ]] && line="${line/groups=/ugroups=}"
 	    unset addgroup adduser deluser gid homedir uid password nohomedir noskel nochown Group groupadd ugroups prompt rootpwd setpassword redact nosudo samba shell smbpasswd userlist
 	    logtoboth "> Plugin $pfx: Line:  $line"
-	    plugin_getargs $pfx "$line" "$vldargs"
+	    plugin_getargs $pfx "$line" "$vldargs" || exit
 	    plugin_printkeys
 	    converty
 	    $dofn
@@ -402,7 +405,7 @@ case "$phase" in
 	# In Phase 0 all references to directories in the image must be preceded by $SDMPT
 	#
 	logtoboth "* Plugin $pfx: Start Phase 0"
-	plugin_getargs $pfx "$args" "$vldargs"
+	plugin_getargs $pfx "$args" "$vldargs" || exit
 	#
 	# Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
 	#
@@ -441,6 +444,7 @@ case "$phase" in
 		do_userlist $ul addp1user
 	    else
 		logtoboth "? Plugin $pfx: Cannot find userlist file '$ul'"
+		exit 1
 	    fi
 	else
 	    converty
@@ -492,5 +496,6 @@ case "$phase" in
 	;;
     *)
 	logtoboth "? Plugin $pfx: Unrecognized phase '$phase'"
+	exit 1
 	;;
 esac
