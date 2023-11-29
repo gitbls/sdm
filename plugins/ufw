@@ -20,6 +20,7 @@ args="$2"
 loadparams
 vldargs="|ufwscript|savescriptdir|"
 rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/ufw"
 
 if [ "$phase" == "0" ]
 then
@@ -27,8 +28,9 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
+    mkdir -p $assetdir
     if [ "$ufwscript" != "" ]
     then
 	IFS="," read -a citems <<< "$ufwscript"
@@ -37,20 +39,16 @@ then
 	    if [ -f $c ]
 	    then
 		bnc=$(basename $c)
-		logtoboth "> Plugin $pfx: copy ufw script $c to /etc/sdm/assets/ufw-$bnc"
-		cp -a $c $SDMPT/etc/sdm/assets/ufw-$bnc
-		setfileownmode $SDMPT/etc/sdm/assets/ufw-$bnc 755   # We'll run these during firstboot
-		if [ "$savescriptdir" == "" ]
-		then
-		    logtoboth "> Plugin $pfx: $c will be saved to /usr/local/bin"
-		    savescriptdir="/usr/local/bin"
-		else
-		    logtoboth "> Plugin $pfx: $c will be saved to $savescriptdir"
-		fi
+		logtoboth "> Plugin $pfx: copy ufwscript $c to $assetdir/$bnc"
+		cp -a $c $assetdir/$bnc
+		setfileownmode $assetdir/$bnc 755   # We'll run these during firstboot
+		[ "$savescriptdir" == "" ] && savescriptdir="/usr/local/bin"
+		logtoboth "> Plugin $pfx: Save ufwscript $c in $savescriptdir for normal use"
 		cp -a $c $SDMPT/$savescriptdir/$bnc
-		setfileownmode $SDMPT/$savescriptdir/$bnc 755      # We'll run these during firstboot
+		setfileownmode $SDMPT/$savescriptdir/$bnc 755
 	    else
-		logtoboth "> Plugin $pfx: Cannot find ufwscript '$c'"
+		logtoboth "? Plugin $pfx: Cannot find ufwscript '$c'"
+		exit 1
 	    fi
 	done
     else
@@ -60,10 +58,11 @@ then
     cat > $SDMPT/etc/sdm/0piboot/090-ufw.sh <<EOF
 #!/bin/bash
 logger "FirstBoot: Configure and Enable ufw"
-if compgen -G "/etc/sdm/assets/ufw-*" > /dev/null
+if compgen -G "/etc/sdm/assets/ufw/*" > /dev/null
 then
-    for cufw in /etc/sdm/assets/ufw-*
+    for cufw in /etc/sdm/assets/ufw/*
     do
+        logger "FirstBoot: Run ufwscript \$cufw"
         \$cufw
     done
 fi
