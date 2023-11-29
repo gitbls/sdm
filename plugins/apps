@@ -20,28 +20,30 @@ args="$2"
 loadparams
 vldargs="|apps|name|"
 rqdargs="|apps|"
-
+assetdir="$SDMPT/etc/sdm/assets/apps"
 if [ "$phase" == "0" ]
 then
     #
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
 
-    if [[ -f $SDMPT/etc/sdm/assets/apps-default ]] && [[ "$name" == "" ]]
+    if [[ -f $assetdir/default ]] && [[ "$name" == "" ]]
     then
-	logtoboth "? Plugin $pfx: Default apps list already set; subsequent plugins must provide 'name' argument"
+	logtoboth "? Plugin $pfx: Default apps list already set; this and subsequent apps plugins must provide 'name' argument"
+	exit 1
     else
 	[ "$name" == "" ] && name="default"
         appfile=$(findappfile "$apps")
         exitiferr "$appfile"
 	apps=$(getapplist "$appfile")
-	echo "$apps" > $SDMPT/etc/sdm/assets/apps-${name}
+	mkdir -p $assetdir
+	echo "$apps" > $assetdir/$name
         logtoboth "> Plugin $pfx [$name]: Saved apps list: $apps"
     fi
 
@@ -56,7 +58,7 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     [ "$name" == "" ] && name="default"
     logfreespace "at start of [$name] Application Installs"
-    read svapps < /etc/sdm/assets/apps-$name
+    read svapps < $assetdir/$name
     if [[ "$virtmode" == "chroot" ]] && [[ "$svapps" =~ "qemu-user-static" ]]
     then
         svapps=${svapps/qemu-user-static}
