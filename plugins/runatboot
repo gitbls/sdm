@@ -20,6 +20,7 @@ allargs="$2"
 loadparams
 vldargs="|script|user|sudoswitches|args|output|error|"
 rqdargs="|script|"
+assetdir="$SDMPT/etc/sdm/assets/runatboot"
 
 if [ "$phase" == "0" ]
 then
@@ -27,12 +28,13 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$allargs" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$allargs" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
+    mkdir -p $assetdir
     if [ -f $script ]
     then
 	sbn=$(basename $script)
-	cp -a $script $SDMPT/etc/sdm/assets/runatboot-${sbn}
+	cp -a $script $assetdir/${sbn}
 	sfn="$SDMPT/etc/sdm/0piboot/060-runatboot.sh"
 	if [ ! -f $sfn ]
 	then
@@ -45,13 +47,13 @@ EOF
 	[ "$error" == "" ] && error="2>&1" || error="2>$error"
 	if [ "$user" != "" ]
 	then
-	    xdo="sudo -u $user $sudoswitches"
+	    xdo="sudo -u $user $sudoswitches "
 	    xstr=" as user '$user'"
 	else
 	    xdo=""
 	    xstr=""
 	fi
-	logtoboth "> Plugin $pfx: Set plugin '$sbn' in '$sfn' to run at first system boot${xstr}"
+	logtoboth "> Plugin $pfx: Set script '$sbn' in '$sfn' to run at first system boot${xstr}"
 	cat >> $sfn <<EOF
 if [ "$xdo" != "" ]
 then
@@ -60,19 +62,20 @@ then
         logger "FirstBoot: User '$user' for runatboot plugin script '$sbn' does not exist"
         exit
     fi
-    logger "FirstBoot: Copy runatboot script /etc/sdm/assets/runatboot-${sbn} to /tmp to run${xstr}"
-    cp /etc/sdm/assets/runatboot-${sbn} /tmp
-    chown $user /tmp/runatboot-${sbn}
-    runfile="/tmp/runatboot-${sbn}"
+    logger "FirstBoot: Copy runatboot script /etc/sdm/assets/runatboot/${sbn} to /tmp to run${xstr}"
+    cp /etc/sdm/assets/runatboot/${sbn} /tmp
+    chown $user /tmp/${sbn}
+    runfile="/tmp/${sbn}"
 else
-    runfile="/etc/sdm/assets/runatboot-${sbn}"
+    runfile="/etc/sdm/assets/runatboot/${sbn}"
 fi
 logger "FirstBoot: Run runatboot script '${sbn}'${xstr}: \$runfile $args $output $error"
 chmod 755 \$runfile
-$xdo \$runfile $args $output $error
+${xdo}\$runfile $args $output $error
 EOF
     else
 	logtoboth "% Plugin $pfx: Script file '$script' not found'"
+	exit 1
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
