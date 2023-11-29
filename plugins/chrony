@@ -28,7 +28,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs"
+    plugin_getargs $pfx "$args" "$vldargs" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
@@ -48,7 +48,8 @@ then
 		mkdir -p $assetdir/$did
 		cp -a $idf $assetdir/$did
 	    else
-		logtoboth "% Plugin $pfx: '$id' config file '$idf' not found"
+		logtoboth "? Plugin $pfx: '$id' config file '$idf' not found"
+		exit 1
 	    fi
 	fi
     done
@@ -84,7 +85,7 @@ else
 	if compgen -G "$assetdir/sources/*.sources" > /dev/null
 	then
 	    logtoboth "> Plugin $pfx: Disable time servers defined in /etc/chrony.conf after FirstBoot"
-	    cat > /etc/sdm/0piboot/085-nodistro-timers.sh <<EOF
+	    cat > /etc/sdm/0piboot/085-nodistro-time-servers.sh <<EOF
 #!/bin/bash
 cp -a /etc/chrony/chrony.conf /etc/chrony/chrony.conf.sdm
 sed -i "s/^pool/#pool/" /etc/chrony/chrony.conf
