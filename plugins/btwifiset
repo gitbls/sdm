@@ -28,7 +28,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|"
+    plugin_getargs $pfx "$args" "$vldargs" "|country|" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
@@ -78,14 +78,16 @@ then
     # V Assumes Python versions in the form of nn.nn.nn (which they all seem to be)
     pyver=$((python3 --version) | (read p version junk ; echo ${version%.*}))
     doaptrpterror "install python3-gi libdbus-glib-1-dev python3-pip libpython${pyver}-dev --yes" $showapt 
-    logtoboth "> Plugin $pfx: Install Python dbus module using python pip"
-    cat >> /etc/sdm/apt.log <<EOF
-
-$(thisdate) pip install dbus-python
-
-EOF
-    pip install dbus-python >> /etc/sdm/apt.log 2>&1
-    [ ! $? ] && logtoboth "% Plugin $pfx: Error returned from 'pip install dbus-python'; Review /etc/sdm/apt.log"
+    logtoboth "> Plugin $pfx: Install python3-dbus"
+    doaptrpterror "install python3-dbus --no-install-recommends --yes" $showapt
+#    logtoboth "> Plugin $pfx: Install Python dbus module using python pip"
+#    cat >> /etc/sdm/apt.log <<EOF
+#
+#$(thisdate) pip install dbus-python
+#
+#EOF
+#    pip install dbus-python >> /etc/sdm/apt.log 2>&1
+#    [ ! $? ] && logtoboth "% Plugin $pfx: Error returned from 'pip install dbus-python'; Review /etc/sdm/apt.log"
 
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
