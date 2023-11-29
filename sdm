@@ -99,13 +99,9 @@ function islooped() {
     #
     # Returns true if file in $1 is already looped
     #
-    local fn=$(realpath $1) fl=1
-    while read line
-    do
-        [[ "$line" =~ "$fn" ]] && fl=0
-    done < <(losetup -a)
-
-    return $fl
+    local fn=$(realpath $1) line
+    line=$(losetup --all --list --noheadings)
+    [[ "$line" =~ "$fn" ]] && return 0 || return 1
 }
 
 function domount() {
@@ -167,11 +163,14 @@ function write_premsg() {
 function extendimage() {
     local ldimg=$1 limgext=$2
     local line
-    trap "ctrlcexit" SIGINT
-    dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg 
-    ddsts=$?
-    trap SIGINT
-    [ $ddsts -ne 0 ] && errexit "? Exiting due to dd error"
+    if [ $ddextend -eq 1 ]
+    then
+	trap "ctrlcexit" SIGINT
+	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error"
+	trap SIGINT
+    else
+	qemu-img resize -f raw $ldimg +${limgext}M || errexit "? Exiting due to qemu-img resize error"
+    fi
     # Get partition 2 start and IMG size from parted and compute new partition size
     while read line ; do
 	if [[ "$line" =~ "ext4" ]]
@@ -181,7 +180,7 @@ function extendimage() {
 	then
 	    IFS=":" read fn imgend remains <<< $line
 	fi
-    done < <(parted -sm $ldimg print)
+    done < <(parted -sm $ldimg unit MB print)
     partstart=${partstart%MB}
     imgend=${imgend%MB}
     partsize=$((imgend-partstart))
@@ -328,7 +327,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V9.6"
+version="V10.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -349,6 +348,7 @@ csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddpid=""                    #Holds pid of dd during IMG Extend
+ddextend=0                  #1=use dd for extend instead of qemu-img
 ddsw="bs=16M iflag=direct"  #Switches for dd
 debugs=""                   #Debug settings
 dgroups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
@@ -387,6 +387,8 @@ os="raspios"                #Default OS for images
 nspawnsw=""                 #Switches for nspawn
 plugindebug=0               #1=Enable debugging output
 plugins=""                  #List of plugins to include
+pluglistlist=""             #List of plugin @listofplugins files
+allplugins=""               #List of all plugins that have been run
 poptions=""                 #Phase options
 pvers=0                     #Print version number
 raspiosver=""               #RasPiOS Debian version # (10:Buster, 11:Bullseye, 12:Bookworm)
@@ -426,7 +428,7 @@ source $src/sdm-cparse           # Get function defs
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,chroot,cscript:,csrc:,\
-customize,datefmt:,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
+customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
 groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
@@ -459,6 +461,7 @@ do
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;
 	--datefmt)     datefmt=$2    ; shift 2 ;;
+	--ddextend)    ddextend=1    ; shift 1 ;;
 	--ddsw)        ddsw=$2       ; shift 2 ;;
 	--debug)       debugs=$2     ; shift 2 ;;
         --directory)   fdirtree=1    ; shift 1 ;;
@@ -624,6 +627,38 @@ exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
 [ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
 [ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
+
+if [ "$plugins" != "" ]
+then
+    splugins="$plugins"
+    plugins=""
+    IFS="~" read -a plugs <<< $splugins
+    for p in "${plugs[@]}"
+    do
+	if [ "${p:0:1}" == "@" ]
+	then
+	    pluglist=${p:1:999}
+	    if [ -f $pluglist ]
+	    then
+		while read line
+		do
+		    IFS=":" read -r p pargs <<< "$line"
+		    # Strip quotes surrounding the arg list
+		    pargs=$(stripquotes $pargs)
+		    [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
+		    [ "$pargs" == "" ] && line=$p || line="${p}:${pargs}"
+		    plugins=$(appendvalue "$plugins" "$line" "~") 
+		done < $pluglist
+		pluglistlist=$(appendvalue "$pluglistlist" "$pluglist" "~")
+	    else
+		errexit "? Plugin list file '$pluglist' not found"
+	    fi
+	else
+	    plugins=$(appendvalue "$plugins" "$p" "~")
+	fi
+    done
+fi
+
 if [ "$plugins" != "" ]
 then
     IFS="~" read -a plugs <<< $plugins
@@ -656,6 +691,7 @@ then
 fi
 
 [ $fextend -eq 1 -a "$(which parted)" == "" ] && errexit "? Please 'sudo apt install parted'"
+[ $fextend -eq 1 -a "$(which qemu-img)" == "" ] && errexit "? Please 'sudo apt install qemu-utils'"
 
 #
 # Check sanity of the disk image argument
@@ -798,19 +834,19 @@ then
 	logtoboth "* Run selected plugins on the host system"
 	declare -x SDMPT=""
 	declare -x SDMNSPAWN="Live0"
-	runplugins "$plugins" 0
+	runplugins_exit "$plugins" 0
 	declare -x SDMNSPAWN="Live1"
-	runplugins "$plugins" 1
-	runplugins "$plugins" post-install
+	runplugins_exit "$plugins" 1
+	runplugins_exit "$plugins" post-install
     else
 	# Operating on an IMG or disk
 	declare -x SDMPT=$(makemtpt)
 	domount "$dimg"
 	initvirt write_premsg
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
-	runplugins "$plugins" 0
-	sdm_spawn "$sdmdir/sdm-phase1 run-plugin-list 1 \"$plugins\"" "" Phase1
-	sdm_spawn "$sdmdir/sdm-phase1 run-plugin-list post-install \"$plugins\"" "" Phase1
+	runplugins_exit "$plugins" 0
+	sdm_runspawncmd Phase1 run-plugin-list 1 "$plugins" || exit
+	sdm_runspawncmd Phase1 run-plugin-list post-install "$plugins" || exit
     fi
     exit 0
 fi
@@ -863,7 +899,6 @@ else
     if [ $fextend -eq 1 ]
     then
 	echo "* Unmount $dimgdevname for --extend"
-	savesdmpt=$SDMPT
 	docleanup keep
 	extendandresize   # Remounts IMG afterward
     fi
@@ -899,29 +934,44 @@ else
     sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
     setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
+
     chown -R root:root $SDMPT/$sdmdir
     [ "${appfile:0:1}" == "@" ]  && cp -a -f ${appfile:1:999}  $SDMPT/$sdmdir && setfileownmode $SDMPT/$sdmdir/${appfile:1:999} 644
-    logtoboth "* Start Configuration"                         # Make possible triggerhappy/journal messages more visible
+    logtoboth "* Start Configuration"
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
 	setfileownmode $SDMPT/$sdmdir/1piboot/*.sh 755
     fi
     is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
-    raspiosver=$(getosver)
+    raspiosver="$(getosinfo VERSION_ID $SDMPT)"
     logtoboth "> Command Line: $cmdline"
     logtoboth "* Host Information"
     logtoboth "   Hostname: $(hostname)"
     logtoboth "   uname: $(uname -a)"
-    logtoboth "   os-release Name: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^NAME= /etc/os-release))"
-    logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= /etc/os-release))"
+    os_name="$(getosinfo PRETTY_NAME)"
+    [ "$os_name" == "" ] && os_name="$(getosinfo NAME)"
+    logtoboth "   os-release Name: $os_name"
+    os_version="$(getosinfo VERSION)"
+    os_codename="$(getosinfo VERSION_CODENAME)"
+    if [ "$os_codename" != "" ]
+    then
+	[[ "$os_version" =~ "$os_codename" ]] || os_version="$os_version ($os_codename)"
+    fi
+    logtoboth "   Version: $os_version"
+    os_like="$(getosinfo ID_LIKE)"
+    if [ "$os_like" != "" ]
+    then
+	#[ "$os_like" != "debian" ] && logtoboth "   Like OS: $os_like"
+	logtoboth "   Like OS: $os_like"
+    fi
     logtoboth "   sdm Version: $version"
     logtoboth "* IMG Information"
     logtoboth "   Name: $dimg"
     logtoboth "   Date: $(getosdate)"
     logtoboth "   RasPiOS Version: $raspiosver"
     logtoboth "   RasPiOS Architecture: $hostarch"
-    logtoboth "   os-release Version: $( { IFS="=" read id name ; echo $name ;} <<< $(grep ^VERSION= $SDMPT/etc/os-release))"
+    logtoboth "   os-release Version: $(getosinfo VERSION $SDMPT)"
 
     # Flush accumulated messages
     if [ ${#cmsgs[@]} -gt 0 ]
@@ -959,6 +1009,18 @@ else
 	cp -a $cscript $SDMPT/$sdmdir
 	setfileownmode $SDMPT/$sdmdir/$(basename $cscript) 755
     fi
+
+    if [ "$pluglistlist" != "" ]
+    then
+	logtoboth "> Copy --plugin @file(s) to $SDMPT/etc/sdm/assets/pluglist"
+	mkdir -p $SDMPT/etc/sdm/assets/pluglist
+	IFS="~" read -a pfiles <<< "$pluglistlist"
+	for pf in "${pfiles[@]}"
+	do
+	    logtoboth "  $pf"
+	    cp -a $pf $SDMPT/etc/sdm/assets/pluglist
+	done
+    fi
     #
     # Write the config settings into the IMG
     #
@@ -967,7 +1029,7 @@ else
     # Perform Phase 0 on the image
     #
     declare -x SDMNSPAWN="Phase0"
-    $SDMPT/$sdmdir/sdm-phase0
+    $SDMPT/$sdmdir/sdm-phase0 || exit
     touch $sdmdone
     
     echo "* Enter image '$dimg' for Phase 1"
@@ -976,7 +1038,8 @@ fi
 
 [ $icolors -eq 1 -a -t 0 -a "$spawncmd" == "" ] || icolors=0
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
-sdm_spawn "$spawncmd" "$nspawnsw" Phase1
+[ "$spawncmd" == "" ] && spawncmd="/bin/bash"
+sdm_spawn "$nspawnsw" Phase1 $spawncmd
 [ $icolors -eq 1 ] && resetcolors xt
 
 exit 0
