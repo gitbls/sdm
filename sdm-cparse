@@ -38,7 +38,7 @@ function logtoboth() {
     #
     local msg="$1"
     local str=() i spc=""
-    if [ ${#msg} -le $logwidth -o "$2" == "nosplit" ]
+    if [[ ${#msg} -le $logwidth ]] || [[ "$2" == "nosplit" ]]
     then
 	logit "$msg"
 	echo "$msg"
@@ -103,6 +103,7 @@ function outlong () {
 
 function logapterror() {
     logtoboth "? apt returned an error; review /etc/sdm/apt.log"
+    exit 1
 }
 
 function doapt() {
@@ -211,30 +212,23 @@ function logfreespace() {
     #
     # Logs the current free space on $dimg
     #
-    local dev="/" extramsg="$1" free1k freeby
+    local dev="/" extramsg="$1" free1k freeby dused
     [ "$SDMPT" != "" ] && dev="$SDMPT"
     free1k=$(getfsdf $dev avail) 
     freeby=$(($free1k*1024))
     logtoboth "> $dimgdevname '$dimg' has $free1k 1K-blocks $(getgbstr $freeby) free $extramsg" nosplit
-}
-
-function cklogfreespace() {
-    #
-    # Report if IMG looks full. If not, just log free space
-    #
-    local dused=$(getfsdf / pcent) extramsg="$1"
+    dused=$(getfsdf / pcent)
     if [ $dused -ge 98 ]
     then
-	logtoboth "%%%"
-	logtoboth "% $dimgdevname '$dimg' is ${dused}% full ($(getfsdf / avail) 1K-blocks free)" nosplit
-	logtoboth "% Review /etc/sdm/apt.log in the image for insufficient disk space errors" nosplit
-	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space" nosplit
-	logtoboth "%%%"
-    else
-	logfreespace "$extramsg"
+	logtoboth "!!!"
+	logtoboth "% $dimgdevname '$dimg' is ${dused}% full" nosplit
+	logtoboth "% Review /etc/sdm/apt.log in the IMG for insufficient disk space errors" nosplit
+	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space in the IMG" nosplit
+	logtoboth "!!!"
+	exit 1
     fi
 }
-    
+
 function do_raspiconfig() {
     #
     # $1=command
@@ -337,12 +331,14 @@ function doconfigitem() {
 
 }
 
-function getosver() {
+function getosinfo() {
     #
-    # Returns the OS version from /etc/os-release
+    # extract an element from /etc/os-release
     #
-    echo $(grep VERSION_ID $SDMPT/etc/os-release | (IFS="=" read v id ; id=${id%\"} ; echo ${id#\"}))
-    return
+    local item="$1" where="$2"
+    str="$( { IFS="=" read id name ; echo $name ;} <<< $(grep ^$item= $where/etc/os-release))"
+    str=$(stripquotes $str)
+    echo $str
 }
 
 function getosdate() {
@@ -390,11 +386,20 @@ function writeconfig() {
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
 		     redocustomize sdmdir sdmflist showapt src swapsize \
-		     timezone virtmode vqemu wificountry custom1 custom2 custom3 custom4 plugins
+		     timezone virtmode vqemu wificountry custom1 custom2 custom3 custom4 plugins allplugins
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
     [ -f $orgfile ] || cp -a $paramfile $orgfile
+}
+
+function resetpluginlist() {
+#
+# Juggle plugin list in cparams
+#
+[ "$plugins" != "" ] && allplugins="${allplugins}~${plugins}"
+plugins=""
+writeconfig
 }
 
 function updatehostname() {
@@ -417,7 +422,7 @@ function runoneplugin() {
     #
     # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
-    local p=$(basename $1) phase=$2 pargs="$3" sts=1
+    local p=$(basename $1) phase=$2 pargs="$3" sts=1 xsts=1
     [ "$pargs" != "" ] && argstr="with arguments: '$pargs'" || argstr="with no arguments"
     #[ $fredact -eq 1 ] && argstr=""
     for d in $SDMPT$sdmdir/local-plugins $SDMPT$sdmdir/plugins
@@ -428,6 +433,7 @@ function runoneplugin() {
 	    if [ -x $d/$p ]
 	    then
 		$d/$p "$phase" "$pargs"
+		xsts=$?
 		sts=0
 		break
 	    else
@@ -438,6 +444,7 @@ function runoneplugin() {
 	fi
     done
     [ $sts -eq 1 ] && logtoboth "? Unable to find Plugin '$p'"
+    return $xsts
 }
 
 function runonepluginx() {
@@ -458,18 +465,34 @@ function runplugins() {
     # Run the plugins in $1 with the phase specified in $2
     # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
-    local mnt="$SDMPT" theseplugs="$1" phase=$2 
+    local mnt="$SDMPT" theseplugs="$1" phase=$2 p pin pargs
+
     if [ "$theseplugs" != "" ]
     then
 	logtoboth "> Run Plugins Phase '$phase'"
 	IFS="~" read -r -a plugs <<< "$theseplugs"
 	for p in "${plugs[@]}"
 	do
-	    runonepluginx "$p" $phase
+	    if [ "$p" != "" ]
+	    then
+		IFS=":" read -r pin pargs <<< "$p"
+		runonepluginx "$p" $phase || { logtoboth "? Plugin '$pin' exited with failure" && return 1 ; }
+	    fi
 	done
-    else
-	logtoboth "> No Plugins specified with --plugin"
     fi
+    return 0
+}
+
+function runplugins_exit() {
+    #
+    # Run plugins. Exit if there is an error
+    #
+    # $1: list of plugins
+    # $2: Phase
+    #
+    local plugins="$1" phase="$2"
+    [ "$plugins" == "" ] && return
+    runplugins "$1" $phase && return || exit
 }
 
 function ispluginselected() {
@@ -542,13 +565,14 @@ function plugin_getargs() {
     for c in "${arglist[@]}"
     do
 	# Put the args into variables
-	IFS=":=" read -r key value remain <<< "$c"
+	IFS="=" read -r key value remain <<< "$c"
 	[ "$remain" != "" ] && value="${value}=${remain}"
 	if [ "$validkeys" != "" ]
 	then
 	    if ! [[ "$validkeys" =~ "|$key|" ]]
 	    then
-		logtoboth "% Plugin $pfx: Unrecognized key '$key' in argument list '$largs'"
+		logtoboth "? Plugin $pfx: Unrecognized key '$key' in argument list '$largs'"
+		return 1
 	    fi
 	fi
 	if [ "${key#\#}" != "$key" -o "${key#\\n}" != "$key" ]
@@ -577,11 +601,13 @@ function plugin_getargs() {
 	    if ! [[ "${keysfound}|" =~ "|$c|" ]]
 	    then
 		logtoboth "% Plugin $pfx: Required key '$c' missing from argument list '$largs'"
+		return 1
 	    fi
 	done
     fi
     # Strip leading "|" to avoid null string on subsequent splitting, but put one on the end
     [ "$keysfound" == "" ] && eval "foundkeys=\"\"" || eval "foundkeys=\"${keysfound#|}|\""
+    return 0
 }
 
 function plugin_printkeys() {
@@ -626,6 +652,32 @@ function plugin_logorder() {
 
 function plugin_dbgprint() {
     [ $plugindebug -eq 1 ] && logtoboth "D!Plugin $pfx: $1"
+}
+
+function plugin_addnote() {
+    #
+    # Adds a line of text to the notes file for the run
+    # The notes file is appended to the console and log at end of run
+    #
+    # $1: Line of text to write
+    #
+    msg="$1"
+    echo "Plugin $pfx: $msg" >> $SDMPT/etc/sdm/rnotes
+}
+
+function printnotes() {
+
+    if [ -f $SDMPT/etc/sdm/rnotes ]
+    then
+	logtoboth ""
+	logtoboth "*** Plugin Notes ***"
+	logtoboth ""
+	while read line
+	do
+	    logtoboth " $line" nosplit
+	done < $SDMPT/etc/sdm/rnotes
+	rm -f $SDMPT/etc/sdm/rnotes
+    fi
 }
 
 function dosshsetup() {
@@ -804,34 +856,36 @@ function ctrlchroot() {
     exit 1
 }
 
-function sdm_runspawn() {
+function sdm_runspawncmd() {
     #
     # Run (relatively) short-lived command in container context (see sdm-phase1 for the commands)
-    # $1 - command
-    # $2 - command arguments (quote if needed)
-    # $3 - optional setting for SDMNSPAWN [d:Burn1]
+    # $1: SDMNSPAWN setting in nspawn
+    # $2: command (supported by sdm-phase1)
+    # $3-$8: arguments
     #
-    # Always runs phase1 with $1 as the command
-    # $SDMPT points to correct img (mounted)
+    # $SDMPT must point to correct img, which is mounted
     #
-    local cmd="$1" cmdargs="$2" nsp="$3"
-    cmode="--console pipe"
-    read s vers junk <<< $(systemctl --version)
-    [[ "$vers" -lt "242" ]] && cmode=""
-    [ "$nsp" == "" ] && nsp="Burn1"
-    nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
-    systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $sdmdir/sdm-phase1 $cmd "$cmdargs"
+    # Commands are processed in sdm-phase1. See there.
+    #
+    local nspwn="$1" cmd="$2"
+    #logtoboth "DD sdm-runspawncmd: cmd=|$cmd| 3=|$3| 4=|$4| 5=|$5|"
+    sdm_spawn "" "$nspwn" $sdmdir/sdm-phase1 "$cmd" $3 $4 $5 $6 $7 $8
     return
 }
+
 function sdm_spawn() {
     #
-    # $1 - command
-    # $2 - nspawn switches
-    # $3 - setting for SDMNSPAWN
-    # Already mounted on $SDMPT
-    # SDMPT redefined to be "" during Phase 1 nspawn/chroot. [[ -z "${SDMPT+z}" ]] test will work since it is defined
+    # $1 - nspawn switches
+    # $2 - setting for SDMNSPAWN
+    # $3 - command
+    # $4-$8: arguments
     #
-    local cmd="$1" nspawnsw="$2" nsp="$3"
+    # SDMPT must point to mounted img
+    # SDMPT will be redefined to be "" during Phase 1 nspawn/chroot.
+    #    [[ -z "${SDMPT+z}" ]] test will work since it is defined
+    #
+    local nspawnsw="$1" nsp="$2" cmd="$3" args="$4 $5 $6 $7 $8"
+    #logtoboth "DD sdm-spawn: cmd=|$cmd| 4=|$4| 5=|$5|"
     local wtf wtfelf wtfarch rest sts hostarch hostpagesz
     if [[ "$virtmode" =~ "nspawn" ]]
     then
@@ -839,7 +893,7 @@ function sdm_spawn() {
 	read s vers junk <<< $(systemctl --version)
 	[[ "$vers" -lt "242" ]] && cmode=""
 	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
-	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd
+	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode "$cmd" $args
 	sts=$?
 	if [ $sts -eq 127 ]
 	then
@@ -864,9 +918,10 @@ function sdm_spawn() {
 		logtoboth "   Details: https://github.com/raspberrypi/bookworm-feedback/issues/120"
 	    else
 		logtoboth "?! Unrecognized error from systemd-nspawn"
-		logtoboth "   Please open an issue at https://github.com/bitbls/sdm"
+		logtoboth "   Please open an issue at https://github.com/gitbls/sdm"
 	    fi
 	fi
+	return $sts
     else
 	#
 	# Copy appropriate qemu-${vqemu}-static into the IMG
@@ -906,12 +961,13 @@ function sdm_spawn() {
 	declare -x SDMPT=""
 	declare -x SDMNSPAWN="$nsp"
 	chroot $OLDSDMPT $qemu /bin/bash $cmd
+	sts=$?
 	declare -x SDMPT="$OLDSDMPT"
 	declare -x SDMNSPAWN="$OLDSDMNSPAWN"
 	trap SIGINT
 	chroot_cleanup
+	return $sts
     fi
-    return
 }
 
 function deferqemu() {
@@ -929,7 +985,7 @@ function deferqemu() {
 #
 source /etc/sdm/sdm-readparams
 logger "FirstBoot: Install qemu-user-static"
-doapt "install --yes --no-install-recommends qemu-user-static" $showapt
+doaptrpterror "install --yes --no-install-recommends qemu-user-static" $showapt
 EOF
     fi
 }
