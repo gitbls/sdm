@@ -9,6 +9,14 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function geninstance() {
+    #
+    # make a unique instance name for the run-files
+    #
+    [ "$from" != "" ] && instance="$from-$to" || instance="$filelist"
+    instance=${instance//\/}    # Remove slashes
+}
+
 function p0copyfile() {
     #
     # Handle the Phase 0 part of copying a file
@@ -19,6 +27,7 @@ function p0copyfile() {
     local src=$1 dest=$2 owner=$3 mode=$4 mkdirif=$5 phase=$6
     local bn=$(basename $src)
     local dbn="$dest/$bn"
+    local dirflag
     local dok
     [ "$phase" == "" ] && phase="phase1"
     logtoboth "> Plugin $pfx: Add '$src' to files to copy"
@@ -28,30 +37,56 @@ function p0copyfile() {
 	if [ -f $dest ]
 	then
 	    logtoboth "? Plugin $pfx: Destination '$dest' is a file but must be a directory"
-	    dok=0
+	    exit 1
+	    dok=0   # Keep in case we decide to continue on this error
 	else
 	    if [ "$mkdirif" != "" ]
 	    then
-		logtoboth "> Plugin $pfx: Directory '$dest' will be created"
+		dirflag="mkdir-${dest//\/}"   # strip slashes to make a nice flag file name
+		if [ ! -f $assetdir/$dirflag ]
+		then
+		    logtoboth "> Plugin $pfx: Directory '$dest' will be created"
+		    touch $assetdir/$dirflag
+		fi
 	    else
 		logtoboth "? Plugin $pfx: Destination directory '$dest' does not exist and mkdirif not specified"
+		exit 1
 		dok=0
 	    fi
 	fi
     fi
 	
-    cp -a $src $SDMPT/etc/sdm/assets/copyfile/$bn
+    cp -a $src $assetdir/$bn
     if [ $dok -eq 1 ]
     then
-	runfile="$SDMPT/etc/sdm/assets/copyfile/run-$phase"
+	runfile="$assetdir/run-$phase-$instance"
 	cat >> $runfile <<EOF
 logtoboth "> Plugin $pfx: Copy '$bn' from /etc/sdm/assets/copyfile to '$dest'"
 [ "$mkdirif" != "" ] && mkdir -p $dest
 cp -a /etc/sdm/assets/copyfile/$bn $dest
 EOF
-	[ "$owner" != "" ] && echo "chown $owner $dbn" >> $runfile
-	[ "$mode" != ""  ]  && echo "chmod $mode $dbn"  >> $runfile
+	if [ "$owner" != "" ]
+	then
+	    cat >> $runfile <<EOF
+if [ -f $dbn ]
+then
+    logtoboth "> Plugin $pfx: Set owner '$owner' on file '$dbn'"
+    chown $owner $dbn
+fi
+EOF
+	fi
+	if [ "$mode" != ""  ]
+	then
+	    cat >> $runfile <<EOF
+if [ -f $dbn ]
+then
+    logtoboth "> Plugin $pfx: Set mode '$mode' on file '$dbn'"
+    chmod $mode $dbn
+fi
+EOF
+	fi
     else
+	# atm won't hit this b/c we exit in the above paragraph
 	logtoboth "? Plugin $pfx: This MUST be corrected for proper operation"
 	cat >> $runfile <<EOF
 logtoboth "% Plugin $pfx: Skip copy '$bn' from /etc/sdm/assets/copyfile to '$dest' per prior error"
@@ -70,6 +105,8 @@ args="$2"
 loadparams
 vldargs="|from|to|filelist|chown|chmod|mkdirif|runphase|"
 rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/copyfile"
+instance=""
 
 # either from+to OR list needs to be provided. Both is also supported
 # Copy file(s) to assets/copyfile during phase 0 and build a script (assets/copyfile/run_x) to copy/chown/chmod them later
@@ -81,25 +118,27 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
     if [ "$filelist" == "" ]
     then
-	[ "$from" == "" -o "$to" == "" ] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided" && exit
+	[[ "$from" == "" ]] || [[ "$to" == "" ]] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided" && exit 1
     fi
     if [ "$runphase" != "" ]
     then
+	runphase="${runphase,,}"
 	if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
 	then
 	    logtoboth "% Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
 	    runphase="phase1"
 	fi
     fi
-    logtoboth "> Plugin $pfx: Create directory $SDMPT/etc/sdm/assets/copyfile"
-    mkdir -p $SDMPT/etc/sdm/assets/copyfile
+    #logtoboth "> Plugin $pfx: Create directory $assetdir"
+    mkdir -p $assetdir
+    geninstance
     for fn in phase1 postinstall
     do
-	runfile="$SDMPT/etc/sdm/assets/copyfile/run-$fn"
+	runfile="$assetdir/run-$fn-$instance"
 	if [ ! -f $runfile ]
 	then
 	    cat > $runfile <<EOF
@@ -109,17 +148,17 @@ EOF
 	    chmod 755 $runfile
 	fi
     done
-    if [ "$from" != "" -a "$to" != "" ]
+    if [[ "$from" != "" ]] && [[ "$to" != "" ]]
     then
 	[ -v mkdirif ] && mkdirif="yes"
-	p0copyfile "$from" "$to" "$chown" "$chmod" $mkdirif "${runphase,,}"
+	p0copyfile "$from" "$to" "$chown" "$chmod" $mkdirif $runphase
     fi
     if [ "$filelist" != "" ]
     then
 	if [ -f $filelist ]
 	then
 	    logtoboth "> Plugin $pfx: Process filelist '$filelist'"
-	    cp $filelist $SDMPT/etc/sdm/assets/copyfile/filelist-$(basename $filelist)
+	    cp $filelist $assetdir/filelist-$(basename $filelist)
 	    # read the file and add each specified file to the list
 	    while read line
 	    do
@@ -127,18 +166,20 @@ EOF
 		plugin_getargs $pfx "$line" "$vldargs" "|from|to|"
 		if [ "$runphase" != "" ]
 		then
+		    runphase="${runphase,,}"
 		    if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
 		    then
-			logtoboth "? Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
+			logtoboth "% Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
 			runphase="phase1"
 		    fi
 		fi
 		[ -v mkdirif ] && mkdirif="yes"
-		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" "${runphase,,}"
+		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" $runphase
 		from="" ; to="" ; chown="" ; chmod=""
 	    done < $filelist
 	else
 	    logtoboth "? Plugin $pfx: File for filelist '$filelist' not found"
+	    exit 1
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -152,7 +193,8 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
-    [ -f /etc/sdm/assets/copyfile/run-phase1 ] && /etc/sdm/assets/copyfile/run-phase1
+    geninstance
+    [ -f $assetdir/run-phase1-$instance ] && $assetdir/run-phase1-$instance
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -164,7 +206,8 @@ else
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    [ -f /etc/sdm/assets/copyfile/run-postinstall ] && /etc/sdm/assets/copyfile/run-postinstall
+    geninstance
+    [ -f $assetdir/run-postinstall-$instance ] && $assetdir/run-postinstall-$instance
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
