@@ -88,9 +88,9 @@ dlerrors=0
 for f in sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-cmdsubs sdm-readparams \
 	     sdm-firstboot sdm-apt-cacher sdm-apt sdm-customphase sdm-apps-example sdm-xapps-example \
 	     sdm-cportal sdm-logmsg sdm-gburn plugins/apps plugins/apt-cacher-ng plugins/apt-file \
-	     plugins/bootconfig plugins/btwifiset plugins/chrony plugins/clockfake plugins/copyfile \
+	     plugins/bootconfig plugins/btwifiset plugins/chrony plugins/clockfake plugins/copydir plugins/copyfile \
 	     plugins/disables plugins/graphics plugins/hotspot plugins/imon plugins/knockd plugins/L10n plugins/lxde \
-	     plugins/network plugins/pistrong plugins/postfix plugins/quietness plugins/raspiconfig \
+	     plugins/mkdir plugins/network plugins/pistrong plugins/postfix plugins/quietness plugins/raspiconfig \
 	     plugins/runatboot plugins/rxapp plugins/samba plugins/sdm-plugin-template plugins/system \
 	     plugins/trim-enable plugins/ufw plugins/user plugins/vnc plugins/wificonfig plugins/wsdd \
 	     1piboot/1piboot.conf
@@ -123,9 +123,9 @@ $sudo sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$dir\"#" $dir/sdm-gburn
 
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
-echo "* Ensure required packages are installed: systemd-container qemu-user-static binfmt-support parted"
+echo "* Ensure required packages are installed: systemd-container qemu-user-static qemu-utils binfmt-support parted"
 [[ $EUID -ne 0 ]] && sudo="sudo"
-$sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static binfmt-support file parted
+$sudo apt-get install --yes --no-install-recommends systemd-container qemu-user-static qemu-utils binfmt-support file parted
 
 echo ""
 if [ "$dir" == "/usr/local/sdm" -a "$(which sdm)" != "" ]
