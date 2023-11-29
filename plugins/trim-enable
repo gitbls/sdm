@@ -100,9 +100,11 @@ EOF
 		    logtoboth "* Plugin $pfx:  with contents: $(cat $udevrule)"
 		else
 		    logtoboth "? Plugin $pfx: Did not find idProduct and idVendor for $diskname"
+		    exit 1
 		fi
 	    else
-		logtoboth "% Plugin $pfx: Device $diskname does not support trim"
+		logtoboth "? Plugin $pfx: Device $diskname does not support trim"
+		exit 1
 	    fi
 	fi
     done < <(lsscsi --brief)
@@ -122,7 +124,6 @@ loadparams
 # To run as boot-time: $1:boot $2:argument list
 
 vldargs="|disks|"
-#rqdargs="|list|of|required|args|or|nullstring|"
 rqdargs=""
 
 if [ "$phase" == "0" ]
@@ -131,7 +132,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
