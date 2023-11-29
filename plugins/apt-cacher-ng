@@ -18,6 +18,8 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
+vldargs="|gentargetmode|bindaddress|cachedir|port|tunnelenable|proxy|"
+rqdargs=""
 loadparams
 
 if [ "$phase" == "0" ]
@@ -26,6 +28,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
 
 # INSERT Plugin Phase 0 code here
     
@@ -78,7 +81,7 @@ else
     logtoboth "* Plugin $pfx: Start Phase post-install"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    plugin_getargs $pfx "$args" "|gentargetmode|bindaddress|cachedir|port|tunnelenable|proxy|"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     plugin_printkeys
 
     #  Possible choices FOR gentargetmode: Set up once, Set up now and update later, No automated setup
