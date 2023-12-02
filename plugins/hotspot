@@ -117,7 +117,7 @@ logger_stdout=-1
 logger_stdout_level=1
 
 EOF
-#    # Cat the include file to the end of hostpad.conf if specified
+#    # Cat the include file to the end of hostapd.conf if specified
 #    [ "$hotinclude" != "" ] && cat $hotinclude >> /etc/hostapd/hostapd.conf
 
 }
@@ -304,7 +304,7 @@ function fillupcfg() {
 }
 
 function cfgdhcpcd() {
-    logtoboth "> Prefix $pfx: Configure hotspot with hostpad and dhcpcd"
+    logtoboth "> Prefix $pfx: Configure hotspot with hostapd and dhcpcd"
     writehostapd
     writednsmasq
     enablerouting
