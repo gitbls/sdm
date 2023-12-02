@@ -1,5 +1,14 @@
 # Changelog
 
+## V10.1
+
+* Improvements
+  * Change to the `copydir` plugin
+    * If `rsyncopts` is specified, ALL desired rsync switches must be included. If `rsyncopts` is NOT provided, plugin will use the default `-a`
+* Bug fixes
+  * URGENT: Correctly handle /boot/firmware. See <a href="https://github.com/gitbls/sdm/issues/144">this bug report</a> for details
+  * Correctly check for and handle `redact` in the `user` plugin
+
 ## V10.0
 
 * New Features
