@@ -143,7 +143,12 @@ function sdm_burndevfile() {
 	setdiskid $burndev $newdiskid
 	sync ; sleep 1 ; sync
 	mount -v ${burndev}${p2} $SDMPT
-	mount -v ${burndev}${p1} $SDMPT/boot
+        if [ -d $SDMPT/boot/firmware ]
+        then
+            mount -v ${burndev}${p1} $SDMPT/boot/firmware
+        else
+            mount -v ${burndev}${p1} $SDMPT/boot
+        fi
 	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
     else
 	#
@@ -184,10 +189,19 @@ function sdm_burndevfile() {
     fi
     write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
     sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
-    # init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
-    sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
-    sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
-    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
+    if [ -f $SDMPT/boot/cmdline.txt ]
+    then
+	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
+	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
+	# init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
+	sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
+    fi
+    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
+    then
+	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/firmware/cmdline.txt
+	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
+	# init_resize disappeared in 2022-09-06 build, not in systems with /boot/firmware
+    fi
     #
     # Write out the accumulated messages into mounted image if image has been customized
     #
@@ -240,7 +254,8 @@ function sdm_burndevfile() {
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt"
-	    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
+	    [ -f $SDMPT/boot/cmdline.txt ] && sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
+	    [ -f $SDMPT/boot/firmware/cmdline.txt ] && sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
 	else
 	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
 	fi

@@ -600,7 +600,7 @@ function plugin_getargs() {
 	do
 	    if ! [[ "${keysfound}|" =~ "|$c|" ]]
 	    then
-		logtoboth "% Plugin $pfx: Required key '$c' missing from argument list '$largs'"
+		logtoboth "? Plugin $pfx: Required key '$c' missing from argument list '$largs'"
 		return 1
 	    fi
 	done
@@ -1112,6 +1112,128 @@ function doinstalls() {
     else
 	logtoboth "> Skip $2 per empty package list"
     fi
+}
+
+function ismounted() {
+    #
+    # Trailing space to distinguish "/mnt/sdm" from "/mnt/sdm.44443"
+    #
+    if grep -qs "$1 " /proc/mounts
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+
+function notmounted() {
+    if grep -qs $1 /proc/mounts
+    then
+	return 1
+    else
+	return 0
+    fi
+}
+
+function getmtpt() {
+    if ! ismounted /mnt/sdm
+    then
+	echo "/mnt/sdm"
+    else
+	if ismounted /mnt/sdm.${BASHPID}
+	then
+	    errexit "? Alternate mount point /mnt/sdm.${BASHPID} in use"
+	fi
+	echo "/mnt/sdm.${BASHPID}"
+    fi
+}
+
+function makemtpt() {
+    local sdmpt=$(getmtpt)
+    [ ! -d $sdmpt ] && mkdir -p $sdmpt
+    echo $sdmpt
+}
+
+function islooped() {
+    #
+    # Returns true if file in $1 is already looped
+    #
+    local fn=$(realpath $1) line
+    line=$(losetup --all --list --noheadings)
+    [[ "$line" =~ "$fn" ]] && return 0 || return 1
+}
+
+function domount() {
+    #
+    # Before calling domount:
+    #      declare -x SDMPT=$(makemtpt)
+    #
+    local p1="1" p2="2"
+    local mimg=$1
+
+    [ ! -d $SDMPT ] && mkdir $SDMPT
+    if [ $fdirtree -eq 1 ]
+    then
+	ismounted $(realpath $dimg) && errexit "? Directory '$dimg' is already mounted"
+	mount --bind $dimg $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting --bind '$dimg'"
+	mount --bind $dimg/boot $SDMPT/boot
+	notmounted $SDMPT/boot && errexit "? Error mounting --bind '$dimg'"
+    elif [ $dimgdev -eq 0 ]
+    then
+	islooped $mimg && errexit "? IMG '$mimg' already attached to a loop device"
+	echo "* Mount IMG '$mimg'"
+	loopdev=$(losetup --show -P -f $mimg)
+	mount -v ${loopdev}p2 $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting IMG '$mimg'"
+	if [ -d $SDMPT/boot/firmware ]
+	then
+	    mount -v ${loopdev}p1 $SDMPT/boot/firmware
+	else
+	    mount -v ${loopdev}p1 $SDMPT/boot
+	fi
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$mimg'"
+    else
+	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
+	ismounted $dimg${p1} && errexit "? Device $dimg is already mounted"
+	ismounted $dimg${p2} && errexit "? Device $dimg is already mounted"
+	echo "* Mount device '$dimg'"
+	mount -v ${dimg}${p2} $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
+	if [ -d $SDMPT/boot/firmware ]
+	then
+	    mount -v ${dimg}${p1} $SDMPT/boot/firmware
+	else
+	    mount -v ${dimg}${p1} $SDMPT/boot
+	fi
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dimg'"
+	loopdev=""
+    fi
+}
+
+function docleanup() {
+    #
+    # $1: if 'keep' (don't unset SDMPT)
+    local mnt=$SDMPT
+    [ "$mnt" == "" ] && mnt=/mnt/sdm
+    ismounted $mnt/boot/firmware && umount -v $mnt/boot/firmware
+    ismounted $mnt/boot && umount -v $mnt/boot
+    ismounted $mnt && umount -v $mnt
+    if [ "$1" != "keep" ]
+    then
+	[ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
+	unset SDMPT
+    fi
+    [ "$loopdev" != "" ] && losetup -d $loopdev && loopdev=""
+    sync
+}
+
+function checknumeric() {
+    #
+    # Exit with error if $1 is not numeric
+    #
+    [[ "$1" = *[^0-9]* ]] && errexit "? Value '$1' for command switch '$2' is not numeric"
+    return
 }
 
 function fndotfullpath() {

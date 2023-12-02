@@ -51,13 +51,22 @@ EOF
     then
 	[ "$consoleblank" == "" ] && consoleblank=300
 	logtoboth "> Plugin $pfx: Set console blank timeout to $consoleblank seconds"
-	sed -i "s/root=/consoleblank=$consoleblank root=/" /boot/cmdline.txt
+	[ -f /boot/cmdline.txt ] && sed -i "s/root=/consoleblank=$consoleblank root=/" /boot/cmdline.txt
+	[ -f /boot/firmware/cmdline.txt ] && sed -i "s/root=/consoleblank=$consoleblank root=/" /boot/firmware/cmdline.txt
     fi
     if [ -v quiet ]
     then
 	logtoboth "> Plugin $pfx: Enable quiet in /boot/cmdline.txt"
-	sed -i "s/ quiet//g" /boot/cmdline.txt
-	sed -i "s/rootwait/rootwait quiet/g" /boot/cmdline.txt
+	if [ -f /boot/cmdline.txt ]
+	then
+	    sed -i "s/ quiet//g" /boot/cmdline.txt
+	    sed -i "s/rootwait/rootwait quiet/g" /boot/cmdline.txt
+	fi
+	if [ -f /boot/firmware/cmdline.txt ]
+	then
+	    sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
+	    sed -i "s/rootwait/rootwait quiet/g" /boot/firmware/cmdline.txt
+	fi
     fi
     
     if [ -v noquiet ]
@@ -65,13 +74,16 @@ EOF
 	if grep -qs quiet /boot/cmdline.txt
 	then
 	    logtoboth "> Plugin $pfx: Disable quiet in /boot/cmdline.txt"
-	    sed -i "s/ quiet//g" /boot/cmdline.txt
+	    [ -f /boot/cmdline.txt ] && sed -i "s/ quiet//g" /boot/cmdline.txt
+	    [ -f /boot/firmware/cmdline.txt ] && sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
 	    if [ "$noquiet" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 logger "FirstBoot: Re-add 'quiet' to /boot/cmdline.txt"
-sed -i "s/ quiet//g" /boot/cmdline.txt
-sed -i "s/rootwait/rootwait quiet/g" /boot/cmdline.txt
+[ -f /boot/cmdline.txt ] && sed -i "s/ quiet//g" /boot/cmdline.txt
+[ -f /boot/cmdline.txt ] && sed -i "s/rootwait/rootwait quiet/g" /boot/cmdline.txt
+[ -f /boot/firmware/cmdline.txt ] && sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
+[ -f /boot/firmware/cmdline.txt ] && sed -i "s/rootwait/rootwait quiet/g" /boot/firmware/cmdline.txt
 EOF
 	    fi
 	fi
@@ -80,8 +92,16 @@ EOF
     if [ -v splash ]
     then
 	logtoboth "> Plugin $pfx: Enable splash in /boot/cmdline.txt"
-	sed -i "s/splash //g" /boot/cmdline.txt
-	sed -i "s/rootwait/rootwait splash/g" /boot/cmdline.txt
+	if [ -f /boot/cmdline.txt ]
+	then
+	    sed -i "s/splash //g" /boot/cmdline.txt
+	    sed -i "s/rootwait/rootwait splash/g" /boot/cmdline.txt
+	fi
+	if [ -f /boot/firmware/cmdline.txt ]
+	then
+	    sed -i "s/splash //g" /boot/firmware/cmdline.txt
+	    sed -i "s/rootwait/rootwait splash/g" /boot/firmware/cmdline.txt
+	fi
     fi
     
     if [ -v nosplash ]
@@ -89,13 +109,16 @@ EOF
 	if grep -qs splash /boot/cmdline.txt
 	then
 	    logtoboth "> Plugin $pfx: Disable splash in /boot/cmdline.txt"
-	    sed -i "s/splash //g" /boot/cmdline.txt
+	    [ -f /boot/cmdline.txt ] && sed -i "s/splash //g" /boot/cmdline.txt
+	    [ -f /boot/firmware/cmdline.txt ] && sed -i "s/splash //g" /boot/firmware/cmdline.txt
 	    if [ "$nosplash" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 logger "Re-add 'splash' to /boot/cmdline.txt"
-sed -i "s/ splash//g" /boot/cmdline.txt
-sed -i "s/rootwait/rootwait splash/g" /boot/cmdline.txt
+[ -f /boot/cmdline.txt ] && sed -i "s/ splash//g" /boot/cmdline.txt
+[ -f /boot/cmdline.txt ] && sed -i "s/rootwait/rootwait splash/g" /boot/cmdline.txt
+[ -f /boot/firmware/cmdline.txt ] && sed -i "s/ splash//g" /boot/firmware/cmdline.txt
+[ -f /boot/firmware/cmdline.txt ] && sed -i "s/rootwait/rootwait splash/g" /boot/firmware/cmdline.txt
 EOF
 	    fi
 	fi

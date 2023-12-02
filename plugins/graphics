@@ -178,7 +178,8 @@ then
     if [ "$videomode" != "" ]
     then
 	logtoboth "> Add cmdline video mode 'video=$videomode' to /boot/cmdline.txt"
-	sed -i "1 s/^/video=$videomode /" /boot/cmdline.txt
+	[ -f /boot/cmdline.txt ] && sed -i "1 s/^/video=$videomode /" /boot/cmdline.txt
+	[ -f /boot/firmware/cmdline.txt ] && sed -i "1 s/^/video=$videomode /" /boot/firmware/cmdline.txt
     fi
     if [ -v nopiwiz ]
     then
