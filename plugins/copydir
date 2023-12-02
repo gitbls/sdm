@@ -24,12 +24,13 @@ function runrsync() {
     # $3: rsyncopts
     # $4: tee file
     local from=$1 to=$2 rsyncopts=$3 teeout="$4"
-    logtoboth "Plugin $pfx: rsync -a $rsyncopts $from $to"
+    [ "$rsyncopts" == "" ] && aa="-a" || aa=""
+    logtoboth "Plugin $pfx: rsync $aa $rsyncopts $from $to"
     if [ "$teeout" == "" ]
     then
-	rsync -a $rsyncopts $from $to
+	rsync $aa $rsyncopts $from $to
     else
-	rsync -a $rsyncopts $from $to | tee $teeout
+	rsync $aa $rsyncopts $from $to | tee $teeout
     fi
 }
 
