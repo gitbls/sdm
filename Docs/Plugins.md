@@ -165,7 +165,7 @@ Copy a directory tree from the host system into the IMG
 * **from** &mdash; /full/path/to/sourcedir
 * **to** &mdash; /full/path/to/destdir
 * **nodirect** &mdash; If `nodirect` is specified, the files are staged into the IMG via /etc/sdm/assets. Useful for destination directories that aren't created until later in the customization. Without nodirect the source directory is copied directly to the destination directory.
-* **rsyncopts** &mdash; Additional switches for the `rsync` command. By default, the plugin uses `-a`
+* **rsyncopts** &mdash; Additional switches for the `rsync` command. If `rsyncopts` is specified, ALL desired rsync switches must be included. If `rsyncopts` is NOT provided, the default switch `-a` is used
 * **tee** &mdash; /path/to/file where the output from the rsync command is tee'd to
 
 The copydir plugin behavior is dependent on whether the `from` file contains a trailing slash, just like the rsync command. **The rsync man page states:** A trailing  slash on the source changes this behavior to avoid creating an additional directory level at the destination.  You can think of a trailing / on a source as meaning "copy the contents of this directory" as opposed to "copy the directory by name", but in both cases the attributes of the containing  directory are transferred to the containing directory on the destination. 
