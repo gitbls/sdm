@@ -33,7 +33,6 @@ then
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
-    logtoboth "* Plugin $pfx: Complete Phase 0"
     #
     # Copy pktables and knockd.conf files
     #
@@ -71,6 +70,7 @@ then
 	    exit 1
 	fi
     fi
+    logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
     #
