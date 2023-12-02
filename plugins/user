@@ -488,6 +488,7 @@ case "$phase" in
     redact)
 	plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
 	user_plugin_printkeys
+	converty
 
 	if [ $fredact -eq 1 -o "$redact" != "" ]
 	then
