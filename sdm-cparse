@@ -689,7 +689,8 @@ function dosshsetup() {
     case "$ssh" in
 	service)
 	    logtoboth "> Plugin $pfx: Enable SSH service via /boot/ssh"
-	    touch /boot/ssh
+	    touch /boot/ssh                 # In case the OS changes its mind again ;)
+	    [ -d /boot/firmware ] && touch /boot/firmware/ssh
 	    ;;
 	socket)
 	    logtoboth "> Plugin $pfx: Enable SSH via ssh.socket"
@@ -724,7 +725,7 @@ function obupdplugins() {
 	IFS="~" read -a plugs <<< "$plugins"
         for p in "${plugs[@]}"
         do
-	    p="${p%:*}"
+	    p="${p%%:*}"
 	    pn="$(basename $p)"
             if [ "$p" != "$pn" ]
 	    then
@@ -869,7 +870,7 @@ function sdm_runspawncmd() {
     #
     local nspwn="$1" cmd="$2"
     #logtoboth "DD sdm-runspawncmd: cmd=|$cmd| 3=|$3| 4=|$4| 5=|$5|"
-    sdm_spawn "" "$nspwn" $sdmdir/sdm-phase1 "$cmd" $3 $4 $5 $6 $7 $8
+    sdm_spawn "" "$nspwn" $sdmdir/sdm-phase1 "$cmd" "$3" "$4" "$5" "$6" "$7" "$8"
     return
 }
 
@@ -884,8 +885,7 @@ function sdm_spawn() {
     # SDMPT will be redefined to be "" during Phase 1 nspawn/chroot.
     #    [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
-    local nspawnsw="$1" nsp="$2" cmd="$3" args="$4 $5 $6 $7 $8"
-    #logtoboth "DD sdm-spawn: cmd=|$cmd| 4=|$4| 5=|$5|"
+    local nspawnsw="$1" nsp="$2" cmd="$3" args="" ta
     local wtf wtfelf wtfarch rest sts hostarch hostpagesz
     if [[ "$virtmode" =~ "nspawn" ]]
     then
@@ -893,7 +893,14 @@ function sdm_spawn() {
 	read s vers junk <<< $(systemctl --version)
 	[[ "$vers" -lt "242" ]] && cmode=""
 	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
-	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode "$cmd" $args
+	for i in 4 5 6 7 8
+	do
+	    ta="${!i}"
+	    #echo "$i | $ta "
+	    [ "$ta" != "" ] && args="${args}\"$ta\" "
+	done
+	#logtoboth "DD sdm-spawn: cmd=|$cmd| 4=|$4| 5=|$5| args=|$args| nspawnsw=|$nspawnsw| cmode=|$cmode|"
+	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $args
 	sts=$?
 	if [ $sts -eq 127 ]
 	then
@@ -1272,13 +1279,13 @@ function stripquotes() {
     snolq="${str#\"}"         # Get string without open quote
     if [ "$snolq" != "$str" ] # if lq was there, then update string and also del close quote
     then
-	str=$snolq
+	str="$snolq"
 	str="${str%\"}"
     fi
     snolq="${str#\'}"         # Get string without open quote
     if [ "$snolq" != "$str" ] # Ditto double quote comment
     then
-	str=$snolq
+	str="$snolq"
 	str="${str%\'}"
     fi
     echo "$str"
