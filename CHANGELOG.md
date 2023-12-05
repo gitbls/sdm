@@ -1,5 +1,12 @@
 # Changelog
 
+## V10.2
+
+* Bug fixes
+  * If /boot/firmrware exists, touch /boot/firmware/ssh in addition to /boot/ssh
+  * Improve some quoted parameter handling. A bug with spaces in plugin argument strings still remains
+  * Correct erroneous colon handling in code that checks for newer plugins on host than in IMG
+
 ## V10.1
 
 * Improvements
