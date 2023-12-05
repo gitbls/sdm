@@ -34,8 +34,8 @@ source /etc/sdm/sdm-readparams
 # Handle commands which are run in the context of the container. They are here as a matter of
 # programming convenience ;)
 #
-cmd="$1"
-cmdoptions="$2"
+cmd="$(stripquotes "$1")"
+cmdoptions="$(stripquotes "$2")"
 # case stmt falls through if not processed within
 trap "doctrlcp1" SIGINT
 case "$cmd" in
@@ -65,15 +65,13 @@ case "$cmd" in
 	exit
 	;;
     run-all-plugins)  # Run Plugin phase 1 or post-install
-	phase="$cmdoptions"
+	phase=$cmdoptions
 	runplugins "$plugins" $phase
 	exit
         ;;
     run-plugin-list) # Run list of plugins phase 1 or post-install
-	phase="$cmdoptions"
-	theseplugins="$3"
-	#theseplugins="${3#\"}"         #Strip leading/trailing double quotes
-	#theseplugins="${theseplugins%\"}"
+	phase=$cmdoptions
+	theseplugins="$(stripquotes "$3")"
 	runplugins "$theseplugins" $phase || exit
 	writeconfig                    #Write updated config
 	exit 0
@@ -81,20 +79,18 @@ case "$cmd" in
     run-one-plugin)  # Run Plugin phase 1 or post-install
 	# $cmdoptions: plugin name and args $3: Phase
 	p="$cmdoptions"
-	phase=$3
+	phase="$(stripquotes $3)"
 	runonepluginx "$p" $phase
 	exit
         ;;
     run-command)  # Run a single command in phase 1 or post-install
 	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
-	#logtoboth "> Run command: $runcmd"
 	$runcmd
 	exit
         ;;
     run-command-quietly)  # Run a single command in phase 1 or post-install
 	# $cmdoptions: Command line
 	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
-	#logtoboth "> Run command quietly: $runcmd"
 	$runcmd > /dev/null 2>&1
 	exit
         ;;
