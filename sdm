@@ -527,17 +527,17 @@ then
 	if [ "${p:0:1}" == "@" ]
 	then
 	    pluglist=${p:1:999}
-	    if [ -f $pluglist ]
+	    if [ -f "$pluglist" ]
 	    then
 		while read line
 		do
 		    IFS=":" read -r p pargs <<< "$line"
 		    # Strip quotes surrounding the arg list
-		    pargs=$(stripquotes $pargs)
+		    pargs=$(stripquotes "$pargs")
 		    [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
 		    [ "$pargs" == "" ] && line=$p || line="${p}:${pargs}"
 		    plugins=$(appendvalue "$plugins" "$line" "~") 
-		done < $pluglist
+		done < "$pluglist"
 		pluglistlist=$(appendvalue "$pluglistlist" "$pluglist" "~")
 	    else
 		errexit "? Plugin list file '$pluglist' not found"
