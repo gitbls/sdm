@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|lhmouse|lxde-config|user|"
+vldargs="|lhmouse|lxde-config|user|wayfire-ini|wf-panel-pi|"
 rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/lxde"
 
@@ -54,6 +54,30 @@ then
 		   ;;
 	    esac
 	done
+    fi
+    if [ "$wayfire__ini" != "" ]
+    then
+	if [ -f $wayfire__ini ]
+	then
+	    mkdir -p $assetdir/wayfire-ini/$username
+	    logtoboth "> Plugin $pfx: copy '$wayfire__ini' to $assetdir/wayfire-ini/$username"
+	    cp -a $wayfire__ini $assetdir/wayfire-ini/$username/wayfire.ini
+	else
+	    logtoboth "? Plugin $pfx: wayfire-ini file '$wayfire__ini' not found"
+	    exit 1
+	fi
+    fi
+    if [ "$wf__panel__pi" != "" ]
+    then
+	if [ -f $wf__panel__pi ]
+	then
+	    mkdir -p $assetdir/wf-panel-pi/$username
+	    logtoboth "> Plugin $pfx: copy '$wf__panel__pi' to $assetdir/wf-panel-pi/$username"
+	    cp -a $wf__panel__pi $assetdir/wf-panel-pi/$username/wf-panel-pi.ini
+	else
+	    logtoboth "? Plugin $pfx: wf-panel-pi file '$wf__panel__pi' not found"
+	    exit 1
+	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
@@ -93,11 +117,30 @@ else
 	gx=$(stat -c '%G' /home/$dstuser)
 	[ "$gx" == "" ] && gx=users
 	mkdir -p /home/$dstuser/.config
-	if [ -d /etc/wayfire ]
+	if [ -f $assetdir/wf-panel-pi/$srcuser/wf-panel-pi.ini ]
+	then
+	    logtoboth "> Plugin $pfx: Copy $assetdir/wf-panel-pi/$srcuser/wf-panel-pi.ini to /home/$dstuser/.config"
+	    cp -a $assetdir/wf-panel-pi/$srcuser/wf-panel-pi.ini /home/$dstuser/.config
+	    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi.ini"
+	    setfileownmode /home/$dstuser/.config/wf-panel-pi.ini 644 $dstuser:$gx
+	fi
+	if [ -f $assetdir/wayfire-ini/$srcuser/wayfire.ini ]
+	then
+	    logtoboth "> Plugin $pfx: Copy $assetdir/wayfire-ini/$srcuser/wayfire.ini to /home/$dstuser/.config"
+	    cp -a $assetdir/wayfire-ini/$srcuser/wayfire.ini /home/$dstuser/.config
+	elif [ -d /etc/wayfire ]
 	then
 	    cp /etc/wayfire/template.ini /home/$dstuser/.config/wayfire.ini
+	fi
+	if [ -f /home/$dstuser/.config/wayfire.ini ]
+	then
+	    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wayfire.ini"
 	    setfileownmode /home/$dstuser/.config/wayfire.ini 644 $dstuser:$gx
-	    [ "$keymap" != "" ] && sed -i "s/xkb_layout.*=.*/xkb_layout=$keymap/" /home/$dstuser/.config/wayfire.ini
+	    if [ "$keymap" != "" ]
+	    then
+		logtoboth "> Plugin $pfx: Set keymap '$keymap' in /home/$dstuser/.config/wayfire.ini"
+		sed -i "s/xkb_layout.*=.*/xkb_layout=$keymap/" /home/$dstuser/.config/wayfire.ini
+	    fi
 	fi
 	# Set left-handed mouse if requested
 	if [ -v lhmouse ]
