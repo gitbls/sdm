@@ -92,6 +92,14 @@ The output from plugin_getargs looks like this in /etc/sdm/history:
 2022-11-01 19:32:24    rootmail: myemail@somedomain.com
 ```
 
+#### Special handling of hyphens in arguments
+
+Argument names can contain hyphens, but hyphen is not a valid character for bash symbol names. So, `plugin_getargs` uses two underscores `__` to represent a hyphen.
+
+So, the bash symbol for the keyword `my-favorite-keyword` would be `$my__favorite__keyword`. You are responsible for doing any conversion if needed. This may be helpful:
+
+* `key="my__favorite__keyword" ; echo ${key//__/-}` prints `my-favorite-keyword`
+
 ### plugin_dbgprint
 
 plugin_dbgprint is like logtoboth, but with two exceptions:
