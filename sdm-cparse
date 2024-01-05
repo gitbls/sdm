@@ -20,6 +20,10 @@ function exitiferr() {
     [ "${1:0:1}" == "?" ] && errexit "$1"
 }
 
+errifrc() {
+    [ $1 -ne 0 ] && errexit "$2 $1"
+}
+
 function logit {
     #
     # Writes message to /etc/sdm/history
@@ -268,6 +272,7 @@ function doconfigitem() {
     case "$rpifun" in
 	# * do_resolution still needs to be sorted out
 	serial)
+	    logtoboth "% Consider using the sdm 'serial' plugin to control the serial configuration"
 	    configitemlog "Set Serial Port to '$value'" $msgfn
 	    #SUDO_USER=${myuser:-pi} raspi-config do_serial $value nonint
 	    do_raspiconfig do_serial $value nonint
@@ -337,7 +342,7 @@ function getosinfo() {
     #
     local item="$1" where="$2"
     str="$( { IFS="=" read id name ; echo $name ;} <<< $(grep ^$item= $where/etc/os-release))"
-    str=$(stripquotes $str)
+    str=$(stripquotes "$str")
     echo $str
 }
 
@@ -381,7 +386,7 @@ function writeconfig() {
     [ -f $paramfile ] && mv $paramfile $bkfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     for e in version thishost aptcache aptdistupgrade autologin fbatch b0script b1script bootscripts \
-		     cscript csrc datefmt debugs dimg dimgdev dimgdevname domain ecolors \
+		     burnplugins cscript csrc datefmt debugs dimg dimgdev dimgdevname domain ecolors \
 		     expandroot exports fchroot fdirtree fnoexpandroot hname hostname loadlocal logwidth \
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
@@ -451,21 +456,27 @@ function runonepluginx() {
     #
     # $1: Plugin name and args (in $plugin format: plugin:key=value:key=value)
     # $2 phase
+    # If specified, $3 is a string to append to the plugin args (argname=value)
     #
     # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
-    local p="$1" phase=$2 pin
+    local p="$1" phase=$2 xargv="$3" in
     IFS=":" read -r pin pargs <<< "$p"
     [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
+    if [ "$xargv" != "" ]
+    then
+	[ "$pargs" == "" ] && pargs="$xargv" || pargs="$pargs|$xargv"
+    fi
     runoneplugin $pin $phase "$pargs"
 }
 
 function runplugins() {
     #
     # Run the plugins in $1 with the phase specified in $2
+    # If specified, $3 is a string to append to the plugin args (argname=value)
     # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
-    local mnt="$SDMPT" theseplugs="$1" phase=$2 p pin pargs
+    local mnt="$SDMPT" theseplugs="$1" phase=$2 xargv="$3" p pin pargs
 
     if [ "$theseplugs" != "" ]
     then
@@ -476,7 +487,7 @@ function runplugins() {
 	    if [ "$p" != "" ]
 	    then
 		IFS=":" read -r pin pargs <<< "$p"
-		runonepluginx "$p" $phase || { logtoboth "? Plugin '$pin' exited with failure" && return 1 ; }
+		runonepluginx "$p" $phase "$xargv" || { logtoboth "? Plugin '$pin' exited with failure" && return 1 ; }
 	    fi
 	done
     fi
@@ -489,10 +500,11 @@ function runplugins_exit() {
     #
     # $1: list of plugins
     # $2: Phase
+    # If specified, $3 is a string to append to the plugin args (argname=value)
     #
-    local plugins="$1" phase="$2"
+    local plugins="$1" phase="$2" xargv="$3"
     [ "$plugins" == "" ] && return
-    runplugins "$1" $phase && return || exit
+    runplugins "$1" $phase "$xargv" && return || exit
 }
 
 function ispluginselected() {
@@ -583,7 +595,7 @@ function plugin_getargs() {
 	    keysfound="${keysfound}|comment"   # Mark as 'comment' found
 	else
 	    # Turn word-word into word__word. User of the value must handle other end for display
-	    [ "$key" != "${key/-/_}" ] && key="${key/-/__}"
+	    [ "$key" != "${key/-/_}" ] && key="${key//-/__}"
 	    [[ "$value" =~ "$" ]] && value=${value//$/\\$}    # Replace $ with \$
 	    [ "$key" != "" ] && printf -v "${key}" "%s" "$value" #eval "${key}=\"$value\""
 	    keysfound="${keysfound}|$key"
@@ -624,7 +636,7 @@ function plugin_printkeys() {
 	for c in "${fargs[@]}"
 	do
 	    # The construct ${!c} gets the value of the variable 'pointed to' by contents of $c
-	    kn="${c/__/-}"
+	    kn="${c//__/-}"
 	    kval="${!c}"
 	    #[[ "$redactkeys" =~ "$c" ]] && kval="REDACTED"
 	    logtoboth "   ${kn}: $kval"
@@ -634,10 +646,10 @@ function plugin_printkeys() {
 
 function plugin_logorder() {
     local plugins="$1" plist
+    logtoboth "* Plugins selected:"
     if [ "$plugins" != "" ]
     then
 	IFS="~" read -a plist <<< $plugins
-	logtoboth "* Plugins included:"
 	for p in "${plist[@]}"
 	do
 	    IFS=':' read fpn pargs <<< "$p"
@@ -646,7 +658,7 @@ function plugin_logorder() {
 	    [ "$pargs" != "" ] && logtoboth "       Args: $pargs" nosplit
 	done
     else
-	logtoboth "% No plugins are selected"
+	logtoboth "   * No plugins are selected"
     fi
 }
 
@@ -678,6 +690,46 @@ function printnotes() {
 	done < $SDMPT/etc/sdm/rnotes
 	rm -f $SDMPT/etc/sdm/rnotes
     fi
+}
+
+function checkpluginsx() {
+    #
+    # $1: Plugin list
+    # $2: y if shoud copyifnewer
+    #
+    local plugins="$1" cif=$2
+    local p plugs fpn pargs pf dfpn d
+    
+if [ "$plugins" != "" ]
+then
+    IFS="~" read -a plugs <<< $plugins
+    for p in "${plugs[@]}"
+    do
+	IFS=':' read fpn pargs <<< "$p"
+	pf=0
+	dfpn=$(dirname $fpn)
+	for d in  $dfpn $src/local-plugins $src/plugins
+	do
+	    pn=$(basename $fpn)
+	    # Don't look in current directory unless explicit './' provided
+            if  [[ "$d" != "." ]] || [[ "$fpn" == "./$pn" ]]
+	    then
+		if [ -f $d/$pn ]
+		then
+		    [ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
+		    # if plugin found outside of sdm hierarchy copy it in
+		    if [ "$d" == "$dfpn" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
+		    then
+			[ "$cif" == "y" ] && copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
+		    fi
+		    pf=1
+		    break
+		fi
+	    fi
+	done
+	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$fpn'"
+    done
+fi
 }
 
 function dosshsetup() {
@@ -730,7 +782,7 @@ function obupdplugins() {
             if [ "$p" != "$pn" ]
 	    then
 		# plugin with path specified; copy into IMG if newer regardless of --bupdate
-		copyifnewer $p $SDMPT/$sdmdir/local-plugins && logtoboth "% Update (or add) Plugin '$p' to $sdmdir/local-plugins"
+		copyifnewer $p $SDMPT/$sdmdir/local-plugins && logtoboth "% sdm: Adding/Updating Plugin '$p' to $sdmdir/local-plugins"
 	    else
 		# no path on plugin. if find in plugins or local-plugins copy into img if --bupdate plugin else mention
 		# this code doesn't report if plugin not found. That will happen later when it gets run
@@ -740,14 +792,14 @@ function obupdplugins() {
 		    then
 			case "$copt" in
 			    check)
-				checkifnewer $d/$pn $SDMPT/$d/$pn && logtoboth "% Plugin '$p' on the host is newer"
+				checkifnewer $d/$pn $SDMPT/$d/$pn && logtoboth "% sdm: Plugin '$p' on the host is newer"
 				;;
 			    update)
 				if [[ "$bup" =~ "plugin" ]]
 				then
-				    copyifnewer $d/$pn $SDMPT/$sdmdir/local-plugins && logtoboth "% Update Plugin '$pn' from '$d/$pn' to '$sdmdir/local-plugins'"
+				    copyifnewer $d/$pn $SDMPT/$sdmdir/local-plugins && logtoboth "% sdm: Updating Plugin '$pn' from '$d/$pn' to '$sdmdir/local-plugins'"
 				else
-				    logtoboth "% Plugin '$pn' on the host is newer"
+				    logtoboth "% sdm: Plugin '$pn' on the host is newer"
 				fi
 				;;
 			esac
@@ -777,10 +829,10 @@ function checkupdsdm() {
 	do
 	    case "$copt" in
 		check)
-		    checkifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% sdm file '$fsdm' on host is newer"
+		    checkifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% sdm: File '$fsdm' on host is newer"
 		    ;;
 		update)
-		    [[ "$bup" =~ "sdm" ]] && copyifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% Update sdm module '$fsdm' from host to '$SDMPT$sdmdir"
+		    [[ "$bup" =~ "sdm" ]] && copyifnewer $sdmdir/$fsdm $SDMPT/$sdmdir/$fsdm && logtoboth "% sdm: Updatinge sdm module '$fsdm' from host to '$SDMPT$sdmdir"
 		    ;;
 	    esac
 	done
@@ -885,7 +937,7 @@ function sdm_spawn() {
     # SDMPT will be redefined to be "" during Phase 1 nspawn/chroot.
     #    [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
-    local nspawnsw="$1" nsp="$2" cmd="$3" args="" ta
+    local nspawnsw="$1" nsp="$2" cmd="$3" spcmd="$4" args="" ta
     local wtf wtfelf wtfarch rest sts hostarch hostpagesz
     if [[ "$virtmode" =~ "nspawn" ]]
     then
@@ -893,14 +945,15 @@ function sdm_spawn() {
 	read s vers junk <<< $(systemctl --version)
 	[[ "$vers" -lt "242" ]] && cmode=""
 	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
-	for i in 4 5 6 7 8
+	for i in 5 6 7 8
 	do
 	    ta="${!i}"
 	    #echo "$i | $ta "
-	    [ "$ta" != "" ] && args="${args}\"$ta\" "
+	    #[ "$ta" != "" ] && args="${args}\"$ta\" "
+	    [ "$ta" != "" ] && args="${args}${ta} "
 	done
 	#logtoboth "DD sdm-spawn: cmd=|$cmd| 4=|$4| 5=|$5| args=|$args| nspawnsw=|$nspawnsw| cmode=|$cmode|"
-	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $args
+	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd $args
 	sts=$?
 	if [ $sts -eq 127 ]
 	then
@@ -918,7 +971,7 @@ function sdm_spawn() {
 		logtoboth "   Host system architecture: $hostarch with $hostpagesz byte pages"
 		logtoboth "   IMG binaries: $rest"
 		logtoboth "   Correct this error on this host by:"
-		logtoboth "    * sudoedit /boot/config.txt"
+		logtoboth "    * sudoedit /boot/firmware/config.txt"
 		logtoboth "    * Add the following line:"
 		logtoboth "    * kernel=kernel8.img"
 		logtoboth "    * Reboot and rerun the sdm command"
@@ -1121,6 +1174,118 @@ function doinstalls() {
     fi
 }
 
+function extendimage() {
+    #
+    # Extend an IMG and resize partition 2
+    # Does NOT resize the file system in partition 2
+    #
+    local ldimg=$1 limgext=$2
+    local line
+    if [ "$ddextend" == "1" ]
+    then
+	trap "ctrlcexit" SIGINT
+	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error"
+	trap SIGINT
+    else
+        truncate --size +${limgext}M $ldimg || errexit "? Exit due to truncate resize error"
+    fi
+    # Get partition 2 start and IMG size from parted and compute new partition size
+    while read line ; do
+	if [[ "$line" =~ "ext4" ]]
+	then
+	    IFS=":" read partnum partstart remains <<< $line
+	elif [[ "$line:" =~ "msdos" ]]
+	then
+	    IFS=":" read fn imgend remains <<< $line
+	fi
+    done < <(parted -sm $ldimg unit MB print)
+    partstart=${partstart%MB}
+    imgend=${imgend%MB}
+    partsize=$((imgend-partstart))
+    echo "* Resize partition 2 of '$ldimg' to ${partsize}MB"
+    parted $ldimg -s resizepart 2 ${imgend}MB
+}
+
+function expandpartition() {
+    # $1: devicename (/dev/sdX)
+    # $2: 0 (fill available space) or nnnn (expand by MB)
+    # $3: message output (write_burnmsg/logtoboth/or similar)
+    local fulldevname="$1" sexp=${2:-0} msgrtn=${3:-logtoboth}
+    local dev=${fulldevname##/dev/}
+    local part pname fsize partstart partend devsize partsize newend pbytes nbytes
+
+    [[ "$fulldevname" =~ "mmcblk" ]] && pname="p2" || pname="2"
+    part="${dev}${pname}"
+    while read line
+    do
+        if [[ "$line" =~ "msdos" ]]
+        then
+            fsize=$(IFS=":" read fs bytes file n1 n2 fs <<< $line ; echo $bytes)
+            fsize=${fsize%B}     #Fsize is file system size in bytes
+        elif [[ "$line" =~ "ext4" ]]
+        then
+            IFS=":;" read partnum partstart partend partsize fstype etc etc2 etc3 <<< $line
+            partstart=${partstart%B}
+            partend=${partend%B}
+            partsize=${partsize%B}
+        fi
+    done < <(parted -ms /dev/$dev unit B print)
+    #
+    #   https://alioth-lists.debian.net/pipermail/parted-devel/2006-December/000573.html
+    # $l1: BYT;  ** error if not BYT 
+    # $l2: filespec:bytesB:file:512:512:msdos::;
+    # $l3: partnum:startB:endB:sizeB:fstype:::;
+    # $l4: partnum:startB:endB:sizeB:fstype:::;
+
+    devsize=$(cat /sys/block/$dev/size)         # 512byte blocks
+    partsize=$(cat /sys/block/$dev/$part/size)  # 512byte blocks
+    pbytes=$((partsize*512))
+    if [ $sexp -eq 0 ]
+    then
+	nbytes=$(((devsize*512)-partend+pbytes))
+	newend=$((devsize-1))                  # 512byte blocks
+    else
+	nbytes=$(((pbytes+($sexp*1048576)))) #1024*1024
+	newend=$(((nbytes+partstart)/512))
+    fi
+    $msgrtn "> Expand Root: Expand partition '$part' on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
+    # root partition is always partition 2
+    parted -m /dev/$dev u s resizepart 2 $newend
+    errifrc $? "? parted resizepart failed with status '$sts'"
+    $msgrtn "* Mount $fulldevname to resize the root file system"
+    [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
+    domount $fulldevname "Device"
+    $msgrtn "* Resize the root file system"
+    $msgrtn "% (Ignore 'on-line resizing required' message)"
+    resize2fs ${fulldevname}${pname}
+    docleanup
+    #echo ",+" | sfdisk -N 2 $fulldevname
+    #errifrc $? "? sfdisk expand last partition failed with status"
+}
+
+function zero1stlast() {
+    # $1: device name
+    local dn="$1" eblock line blks=5
+    local dns=${dn##/dev/}
+
+
+    # number of bytes on disk in parted output line 'Disk $dn: xxxxxxxxxB'
+    while read line
+    do
+	if [[ "$line" =~ "Disk $dn: " ]]
+	then
+            nb=${line##*:}
+            nb=${nb%B}
+            eblock=$(((nb/512)-blks))
+	fi
+    done < <(parted $dn unit B print 2>/dev/null)
+    # Zero first block
+    eblock=$(($(cat /sys/block/$dns/size)-blks))
+    dd if=/dev/zero bs=512 count=$blks of=$dn status=none
+    # Zero last block
+    dd if=/dev/zero bs=512 count=$blks of=$dn seek=$eblock status=none
+}
+
 function ismounted() {
     #
     # Trailing space to distinguish "/mnt/sdm" from "/mnt/sdm.44443"
@@ -1170,52 +1335,99 @@ function islooped() {
     [[ "$line" =~ "$fn" ]] && return 0 || return 1
 }
 
+function getloopdev() {
+    #
+    # Returns the loopdev associated with the specified mount point
+    #
+    # $1: Mount point (either $SDMPT or $SDMPT/boot[/firmware])
+    #
+    local mpt="$1" junk
+    if [[ "$mpt" =~ "boot" ]]
+    then
+	IFS=" " read ldev junk < <(grep "$mpt" /proc/mounts)
+    else
+	IFS=" " read ldev junk < <(grep "$mpt " /proc/mounts)
+    fi
+    echo $ldev
+}
+
 function domount() {
     #
-    # Before calling domount:
-    #      declare -x SDMPT=$(makemtpt)
+    # Only one of the first 3 args can be passed
     #
-    local p1="1" p2="2"
-    local mimg=$1
+    # $1: device name/IMG Name/directory name
+    # $2: "Directory" "IMG" or "Device"
+    # Tree will be mounted on $SDMPT which must be set with declare -x SDMPT=$(makemtpt)
+    #
+    local dmimg=$1 imgtype=$2
+    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir
 
     [ ! -d $SDMPT ] && mkdir $SDMPT
-    if [ $fdirtree -eq 1 ]
+    if [ "$imgtype" == "Directory" ]
     then
-	ismounted $(realpath $dimg) && errexit "? Directory '$dimg' is already mounted"
-	mount --bind $dimg $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting --bind '$dimg'"
-	mount --bind $dimg/boot $SDMPT/boot
-	notmounted $SDMPT/boot && errexit "? Error mounting --bind '$dimg'"
-    elif [ $dimgdev -eq 0 ]
-    then
-	islooped $mimg && errexit "? IMG '$mimg' already attached to a loop device"
-	echo "* Mount IMG '$mimg'"
-	loopdev=$(losetup --show -P -f $mimg)
-	mount -v ${loopdev}p2 $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting IMG '$mimg'"
+	#ismounted $(realpath $dmimg) && errexit "? Directory '$dmimg' is already mounted"
+	ismounted $(realpath $dmimg) && echo "% Directory '$dmimg' is mounted; Continuing..."
+	mount --bind $dmimg $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting --bind '$dmimg'"
 	if [ -d $SDMPT/boot/firmware ]
 	then
-	    mount -v ${loopdev}p1 $SDMPT/boot/firmware
+	    mount --bind $dmimg/boot/firmware $SDMPT/boot/firmware
 	else
-	    mount -v ${loopdev}p1 $SDMPT/boot
+	    mount --bind $dmimg/boot $SDMPT/boot
 	fi
-	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$mimg'"
-    else
-	[[ "$dimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
-	ismounted $dimg${p1} && errexit "? Device $dimg is already mounted"
-	ismounted $dimg${p2} && errexit "? Device $dimg is already mounted"
-	echo "* Mount device '$dimg'"
-	mount -v ${dimg}${p2} $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting IMG '$dimg'"
+	notmounted $SDMPT/boot && errexit "? Error mounting --bind '$dmimg'"
+    elif [ "$imgtype" == "IMG" ]
+    then
+	pinfo=($(fdisk --bytes -lo Start,Size "${dmimg}" | tail -n 2))
+	while read line
+	do
+	    if [[ "$line" =~ ^Sector\ size\ \(logical/physical\)\:\ ([[:digit:]]{,4}) ]]
+	    then
+		csize="${BASH_REMATCH[1]}"
+		break
+	    fi
+	done < <(fdisk -l "${dmimg}")
+	bootstart=$((${pinfo[0]}*csize))
+	bootsize=${pinfo[1]}
+	rootstart=$((${pinfo[2]}*csize))
+	rootsize=${pinfo[3]}
+	mount -o loop,offset=${rootstart},sizelimit=${rootsize} -t ext4 ${dmimg} $SDMPT
+	[ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	mount -o loop,offset=${bootstart},sizelimit=${bootsize} -t vfat ${dmimg} $mdir
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dmimg'"
+    else # imgtype=Device
+	[[ "$dmimg" =~ "mmcblk" ]] && p1="p1" && p2="p2"
+	ismounted $dmimg${p1} && errexit "? Device $dmimg is already mounted"
+	ismounted $dmimg${p2} && errexit "? Device $dmimg is already mounted"
+	echo "* Mount device '$dmimg'"
+	mount -v ${dmimg}${p2} $SDMPT
+	notmounted $SDMPT && errexit "? Error mounting IMG '$dmimg'"
 	if [ -d $SDMPT/boot/firmware ]
 	then
-	    mount -v ${dimg}${p1} $SDMPT/boot/firmware
+	    mount -v ${dmimg}${p1} $SDMPT/boot/firmware
 	else
-	    mount -v ${dimg}${p1} $SDMPT/boot
+	    mount -v ${dmimg}${p1} $SDMPT/boot
 	fi
-	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dimg'"
-	loopdev=""
+	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dmimg'"
     fi
+}
+
+function mountburn() {
+    local burndev="$1" p1="1" p2="2"
+    [[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
+    [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
+    mount -v ${burndev}${p2} $SDMPT
+    if [ -d $SDMPT/boot/firmware ]
+    then
+        mount -v ${burndev}${p1} $SDMPT/boot/firmware
+    else
+        mount -v ${burndev}${p1} $SDMPT/boot
+    fi
+    ! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
+}
+
+function umountburn() {
+    docleanup keep
 }
 
 function docleanup() {
@@ -1231,7 +1443,6 @@ function docleanup() {
 	[ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
 	unset SDMPT
     fi
-    [ "$loopdev" != "" ] && losetup -d $loopdev && loopdev=""
     sync
 }
 
