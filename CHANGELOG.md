@@ -1,5 +1,29 @@
 # Changelog
 
+## V11.0
+
+* New Features
+  * Add `--burn-plugin` which specifies plugins to be run AFTER a burn has been completed. Only certain plugins can be invoked as burn plugins. Burn plugins can also be used with `--runonly` to operate on an IMG or burned device. See <a href="Docs/Plugins.md#burn-plugin">Burn Plugins </a> for details.
+    * `explore` &mdash; A burn plugin that enables you to explore the just-burned disk or IMG ala `sdm --explore`, or just mount it ala `sdm --mount`
+    * `extractfs` &mdash; Extracts the boot and root file trees from the IMG into the file system
+    * `parted` &mdash; A burn plugin that provides more flexible control over burn device (and burnfile) partitions
+      * Enables root partition expand by nnnnMB and creating partitions of size nnnnMB with a supported file system on it
+  * New Plugins See <a href="Docs/Plugins.md">Plugins </a>
+    * `apt-addrepo` &mdash; Add apt Repos and gpgkeys for apt
+    * `ndm` &mdash; Installs and configures `named` (bind9), `isc-dhcp-server`, and `ndm` which generates their config files
+    * `git-clone` &mdash; Clones a repo to the specified path.
+    * `piapps` &mdash; Install @Botspot's Pi-Apps control (https://github.com/Botspot/pi-apps) as part of customizing your Pi disk
+    * `serial` &mdash; Properly set serial configuration at burn time based on target Pi (Pi5 serial config differs from other Pi serial config)
+* Improvements
+  * Use `truncate` rather than `qemu-img` to extend an IMG. (Thanks @1stcall) Same result but removes a package dependency
+  * `--shrink` switch now honors `--xmb nnnn` to shrink the root partition and leave some additional free space
+  * IMG mounting redone to use dynamic loop devices (Thanks @simlu). Still need to bring this to a few other functions (shrink, expand, parted plugin)
+  * Add `wayfire-ini` argument to `lxde` plugin to copy your pre-configured wayfire.ini into the IMG
+  * Add `wayvnc` argument to `vnc` plugin to enable wayvnc when using Wayland
+* Bug fixes
+  * Further improve handling of cmdline.txt and config.txt WRT /boot/firmware
+  * Remove the `gid` keyword from the `user` plugin. Not relevant in an sdm environment. The user's primary group can be fully specified with the `Group` and `groups` keywords. This has no effect on the gid specified with the `user` plugin `addgroup` directive
+
 ## V10.2
 
 * Bug fixes
@@ -25,7 +49,7 @@
   * Eliminate `--plugin` command line explosion
     * sdm interprets a plugin name starting with **@** as the name of a file containing a list of plugins
     * Each file contains plugins, one per line. For example: user:useradd=pi. The string `--plugin` is not acceptable in the file    * Reduces sdm command line clutter
-    * See <a href="Docs//Plugins.md#invoking-a-plugin-on-the-sdm-command-line">Plugins </a> for details
+    * See <a href="Docs/Plugins.md#invoking-a-plugin-on-the-sdm-command-line">Plugins </a> for details
   * Stop customization and exit sdm if:
     * A plugin returns failure (non-zero) status
     * An apt command fails
