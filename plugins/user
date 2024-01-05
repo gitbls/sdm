@@ -164,7 +164,7 @@ function add_group() {
     #
     # $1: groupname,gid to add (or just groupname to get next assigned by system)
     #
-    local addgroup="$1"
+    local addgroup="$1" gid
     IFS="," read grpname gid <<< "$addgroup"
     if [ "$gid" != "" ]
     then
@@ -369,7 +369,7 @@ function do_userlist() {
 	then
 	    line="${line%#*}"   # strip trailing comment
 	    [[ "$line" =~ "groups=" ]] && line="${line/groups=/ugroups=}"
-	    unset addgroup adduser deluser gid homedir uid password nohomedir noskel nochown Group groupadd ugroups prompt rootpwd setpassword redact nosudo samba shell smbpasswd userlist
+	    unset addgroup adduser deluser homedir uid password nohomedir noskel nochown Group groupadd ugroups prompt rootpwd setpassword redact nosudo samba shell smbpasswd userlist
 	    logtoboth "> Plugin $pfx: Line:  $line"
 	    plugin_getargs $pfx "$line" "$vldargs" || exit
 	    plugin_printkeys
@@ -394,7 +394,7 @@ function user_plugin_printkeys() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|addgroup|adduser|deluser|gid|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|samba|shell|smbpasswd|userlist|log|"
+vldargs="|addgroup|adduser|deluser|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|samba|shell|smbpasswd|userlist|log|"
 redactargs="password"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/user"
