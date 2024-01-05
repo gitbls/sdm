@@ -49,40 +49,12 @@ function write_premsg() {
     return 0
 }
 
-function extendimage() {
-    local ldimg=$1 limgext=$2
-    local line
-    if [ $ddextend -eq 1 ]
-    then
-	trap "ctrlcexit" SIGINT
-	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error"
-	trap SIGINT
-    else
-	qemu-img resize -f raw $ldimg +${limgext}M || errexit "? Exiting due to qemu-img resize error"
-    fi
-    # Get partition 2 start and IMG size from parted and compute new partition size
-    while read line ; do
-	if [[ "$line" =~ "ext4" ]]
-	then
-	    IFS=":" read partnum partstart remains <<< $line
-	elif [[ "$line:" =~ "msdos" ]]
-	then
-	    IFS=":" read fn imgend remains <<< $line
-	fi
-    done < <(parted -sm $ldimg unit MB print)
-    partstart=${partstart%MB}
-    imgend=${imgend%MB}
-    partsize=$((imgend-partstart))
-    echo "* Resize partition 2 of '$ldimg' to ${partsize}MB"
-    parted $ldimg -s resizepart 2 ${imgend}MB
-}
-
 function extendandresize() {
     #
     # IMG must not be mounted
     # Leaves IMG mounted on completion
     #
-    local extbytes=$(($imgext*1024*1024))
+    local extbytes=$(($imgext*1024*1024)) loopdev
 
     echo "* Extend $dimgdevname by ${imgext}MB $(getgbstr $extbytes)..."
     extendimage "$dimg" "$imgext"
@@ -91,10 +63,11 @@ function extendandresize() {
     #
     echo "* Remount $dimgdevname to resize the file system"
     [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
-    domount "$dimg"
+    domount "$dimg" $dimgdevname
     echo "* Resize the file system"
     echo "% (Ignore 'on-line resizing required' message)"
-    resize2fs ${loopdev}p2
+    loopdev=$(getloopdev $SDMPT)
+    resize2fs ${loopdev}
 }    
 
 function poptcheck() {
@@ -173,6 +146,7 @@ Command Switches for --customize and --burn or as noted
  --b1script script   Like --b0script, but done in nspawn (can do both b0script and b1script)
  --bootscripts       Run the scripts /usr/local/sdm/1piboot/0*-*.sh during first boot
  --bupdate plugin    Check and update sdm plugins on burned output; See documentation for details
+ --burn-plugin pname:\"args\" Run burn plugin pname post-burn with the specified args (separate args with '|')
  --chroot            Use chroot rather than systemd-nspawn (for use on certain host OSes)
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
@@ -191,7 +165,7 @@ Command Switches for --customize and --burn or as noted
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
  --logwidth N        Split log lines longer than N characters [Default: 96]
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
- --noexpand-root     Don't expand root partition and don't let RasPiOS do it either
+ --no-expand-root    Don't expand root partition and don't let RasPiOS do it either
  --nowait-timesync   Don't wait for time to sync in sdm-firstboot
  --nspawnsw str      Additional switches for systemd-nspawn
  --oklive            It's OK to run plugins on running system without notification
@@ -216,7 +190,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V10.2"
+version="V11.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -232,6 +206,7 @@ burn=0                      #1=Burn the image to the SD card
 burndev=""                  #SD card device name for --burn
 burnfile=0                  #1=Burn image to a file
 burnfilefile=""             #Filename for --burnfile
+burnplugins=""              #Burn-time plugin list
 chroot=""                   #Set by sdm to chroot type (nspawn, arm, or aarch64)
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
@@ -261,7 +236,7 @@ fshrink=0                   #1=Shrink the IMG
 hname=""                    #Host name when using --burn
 hostname=""                 #Written to cparams during --burn
 hotspot=""                  #WiFi config file
-imgext=2048                 #Number of MB to extend IMG (2048MB = 2GB)
+imgext=0                    #Number of MB to extend IMG
 infocmd=0                   #1=--info command
 loadl10n=0                  #1=Load Localization settings from running system 
 loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
@@ -289,7 +264,7 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
@@ -316,7 +291,7 @@ source $src/sdm-cparse           # Get function defs
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
-autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,chroot,cscript:,csrc:,\
+autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
 groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
@@ -345,6 +320,7 @@ do
 		       burndev=$2    ; shift 2 ;;
 	--burnfile)    burnfile=1 ;
 		       burnfilefile=$2 ; shift 2 ;;
+	--burn-plugin) burnplugins=$(appendvalue "$burnplugins" "$2" "~") ; shift 2 ;;
 	--chroot)      fchroot=1     ; shift 1 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
@@ -510,7 +486,10 @@ exitiferr "$bupdate"
 runonly=$(poptcheck "$runonly" "$vrunonlyopts" "--runonly")
 exitiferr "$runonly"
 
-[ "$runonly" != "" -a "$plugins" == "" ] && errexit "? No plugins specified for --runonly plugins"
+if [ "$runonly" != "" ]
+then
+    [[ "$plugins" == "" ]] && [[ "$burnplugins" == "" ]] && errexit "? No plugins specified for --runonly plugins"
+fi
 os=$(poptcheck "$os" "$vosopts" "--os")
 exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
@@ -527,17 +506,17 @@ then
 	if [ "${p:0:1}" == "@" ]
 	then
 	    pluglist=${p:1:999}
-	    if [ -f $pluglist ]
+	    if [ -f "$pluglist" ]
 	    then
 		while read line
 		do
 		    IFS=":" read -r p pargs <<< "$line"
 		    # Strip quotes surrounding the arg list
-		    pargs=$(stripquotes $pargs)
+		    pargs=$(stripquotes "$pargs")
 		    [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
 		    [ "$pargs" == "" ] && line=$p || line="${p}:${pargs}"
 		    plugins=$(appendvalue "$plugins" "$line" "~") 
-		done < $pluglist
+		done < "$pluglist"
 		pluglistlist=$(appendvalue "$pluglistlist" "$pluglist" "~")
 	    else
 		errexit "? Plugin list file '$pluglist' not found"
@@ -548,39 +527,11 @@ then
     done
 fi
 
-if [ "$plugins" != "" ]
-then
-    IFS="~" read -a plugs <<< $plugins
-    for p in "${plugs[@]}"
-    do
-	IFS=':' read fpn pargs <<< "$p"
-	pf=0
-	dfpn=$(dirname $fpn)
-	for d in  $dfpn $src/local-plugins $src/plugins
-	do
-	    pn=$(basename $fpn)
-	    # Don't look in current directory unless explicit './' provided
-            if  [[ "$d" != "." ]] || [[ "$fpn" == "./$pn" ]]
-	    then
-		if [ -f $d/$pn ]
-		then
-		    [ -x $d/$pn ] || errexit "? Plugin $d/$pn is not executable"
-		    # if plugin found outside of sdm hierarchy copy it in
-		    if [ "$d" == "$dfpn" -a $burning -eq 0 -a $frunonly -eq 0 ]     # Don't update plugins on host if burning or runonly
-		    then
-			copyifnewer $d/$pn $src/local-plugins && write_premsg "% Copy Plugin '$pn' from '$d/$pn' to '$src/local-plugins'"
-		    fi
-		    pf=1
-		    break
-		fi
-	    fi
-	done
-	[ $pf -eq 0 ] && errexit "? Unrecognized plugin '$fpn'"
-    done
-fi
+checkpluginsx "$plugins" y
+checkpluginsx "$burnplugins" n
 
 [ $fextend -eq 1 -a "$(which parted)" == "" ] && errexit "? Please 'sudo apt install parted'"
-[ $fextend -eq 1 -a "$(which qemu-img)" == "" ] && errexit "? Please 'sudo apt install qemu-utils'"
+#[ $fextend -eq 1 -a "$(which qemu-img)" == "" ] && errexit "? Please 'sudo apt install qemu-utils'"
 
 #
 # Check sanity of the disk image argument
@@ -670,7 +621,7 @@ fi
 if [ $fdomount -eq 1 ]
 then
     declare -x SDMPT=$(makemtpt)
-    domount "$dimg"
+    domount "$dimg" $dimgdevname
     echo "* $dimgdevname '$dimg' mounted on $SDMPT"
     if [ -t 0 ]
     then
@@ -694,6 +645,7 @@ fi
 #
 if [ $fextendonly -eq 1 ]
 then
+    [ $imgext -eq 0 ] && imgext=2048
     if [ $fextend -eq 1 ] # Only on if file-based (e.g., can be extended)
     then
 	extendandresize
@@ -708,40 +660,50 @@ fi
 #
 if [ $frunonly -eq 1 ]
 then
-    if [ $fdirtree -eq 1 -a "$dimg" == "/" ]
+    if [ "$plugins" != "" ]
     then
-	if [ $oklive -eq 0 ]
+	if [ $fdirtree -eq 1 -a "$dimg" == "/" ]
 	then
-	    if israspios
+	    if [ $oklive -eq 0 ]
 	    then
-		askyn "** Do you really want to run plugins live on the running host RasPiOS system" || exit 1
-	    else
-		errexit "? Host OS is not RasPiOS. Use --oklive to run plugins live on this system"
+		if israspios
+		then
+		    askyn "** Do you really want to run plugins live on the running host RasPiOS system" || exit 1
+		else
+		    errexit "? Host OS is not RasPiOS. Use --oklive to run plugins live on this system"
+		fi
 	    fi
+	    # Either --oklive or said yes to modify running system
+	    logtoboth "* Run selected plugins on the host system"
+	    declare -x SDMPT=""
+	    declare -x SDMNSPAWN="Live0"
+	    runplugins_exit "$plugins" 0
+	    declare -x SDMNSPAWN="Live1"
+	    runplugins_exit "$plugins" 1
+	    runplugins_exit "$plugins" post-install
+	else
+	    # Operating on an IMG or disk
+	    declare -x SDMPT=$(makemtpt)
+	    domount "$dimg" $dimgdevname
+	    initvirt write_premsg
+	    [ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
+	    runplugins_exit "$plugins" 0
+	    sdm_runspawncmd Phase1 run-plugin-list 1 "$plugins" || exit
+	    sdm_runspawncmd Phase1 run-plugin-list post-install "$plugins" || exit
 	fi
-	# Either --oklive or said yes to modify running system
-	logtoboth "* Run selected plugins on the host system"
-	declare -x SDMPT=""
-	declare -x SDMNSPAWN="Live0"
-	runplugins_exit "$plugins" 0
-	declare -x SDMNSPAWN="Live1"
-	runplugins_exit "$plugins" 1
-	runplugins_exit "$plugins" post-install
-    else
-	# Operating on an IMG or disk
-	declare -x SDMPT=$(makemtpt)
-	domount "$dimg"
-	initvirt write_premsg
-	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
-	runplugins_exit "$plugins" 0
-	sdm_runspawncmd Phase1 run-plugin-list 1 "$plugins" || exit
-	sdm_runspawncmd Phase1 run-plugin-list post-install "$plugins" || exit
+	exit 0
+    elif [ "$burnplugins" != "" ]
+    then
+	logtoboth "* Run selected burn plugins on $dimgdevname '$dimg'"
+	[ "$dimgdevname" == "Device" ] && burndev=$dimg || burndev=""
+	[ "$dimgdevname" == "IMG" ] && burnfilefile=$dimg || burnfilefile=""
+	runplugins_exit "$burnplugins" burn-complete "burndev=$burndev|burnfilefile=$burnfilefile|imgtype=$dimgdevname"
+	exit 0
     fi
-    exit 0
 fi
 # Not --extend (only). Other steps need IMG mounted
 declare -x SDMPT=$(makemtpt)
-domount "$dimg"
+domount "$dimg" $dimgdevname
 [ $fexplore -eq 0 ] && initvirt write_premsg || initvirt echo
 #
 # Handle commands --aptmaint, --customize, and --explore
@@ -789,6 +751,7 @@ else
     then
 	echo "* Unmount $dimgdevname for --extend"
 	docleanup keep
+	[ $imgext -eq 0 ] && imgext=2048
 	extendandresize   # Remounts IMG afterward
     fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
