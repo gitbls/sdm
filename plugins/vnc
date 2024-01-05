@@ -31,6 +31,7 @@ function decodeargs() {
 	eval "${key}=\"$value\""
 	[ "$key" == "tigervnc" ] && tigerlist+=("$value")
 	[ "$key" == "tightvnc" ] && tightlist+=("$value")
+	[ "$key" == "wayvnc" ] && wayvnc=wayvnc
 	if [ "$key" == "realvnc" ]
 	then
 	    [ "$value" == "" ] && realvnclist="default" || realvnclist="$value"  #Not really a list at the moment
@@ -98,8 +99,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
 
-    decodeargs "$allargs" "realvnc,tightvnc,tigervnc,vncbase"
-
+    decodeargs "$allargs" "realvnc,tightvnc,tigervnc,wayvnc,vncbase"
     vbase=${vncbase:-5900}
     vncserver=""
 
@@ -166,15 +166,34 @@ EOF
 	fi
     fi
 
-    if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
-    then
-	[ "$realvnc" == "" ] && realvnc="default"
-    fi
-
-    [ "$realvnc" != "" ] && realvncserver="realvnc-vnc-server" || realvncserver=""
-
     #
-    # Install RealVNC in post-install after xapps have been installed
+    # If wayvnc requested queue configuration for first boot when IP address and hostname are known (raspi-config do_vnc uses them)
+    #
+    if [ "$wayvnc" != "" ]
+    then
+	logtoboth "> Plugin $pfx: wayvnc will be enabled in FirstBoot"
+	cat > /etc/sdm/0piboot/090-wayvnc-enable.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Enable wayvnc VNC server"
+source /etc/sdm/sdm-readparams
+source $src/sdm-rpcsubs
+enable_wayvnc
+EOF
+	if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
+	then
+	    realvnc=""
+	    realvncserver=""
+	    systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
+	fi
+    else
+	if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
+	then
+	    realvnc="default"
+	fi
+    fi
+    [ "$realvnc" != "" ] && realvncserver="realvnc-vnc-server" || realvncserver=""
+    #
+    # Install RealVNC if requested
     #
     if [ "$realvncserver" != "" ]
     then
@@ -240,7 +259,7 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     #logfreespace "at start of Plugin $pfx Phase post-install"
-    decodeargs "$allargs" "realvnc,tightvnc,tigervnc"
+    decodeargs "$allargs" "realvnc,tightvnc,tigervnc,wayvnc,vncbase"
     #
     # Configure display manager for vnc. Warn if none of lightdm/xdm/wdm is installed
     #
