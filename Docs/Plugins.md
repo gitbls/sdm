@@ -33,7 +33,6 @@ network:nmconn=/rpi/etc/NetworkManager/system-connections/eth0.nmconnection,/rpi
 disables:triggerhappy|wifi|bluetooth|piwiz
 quietness:consoleblank=300|noquiet=keep|nosplash=keep|noplymouth
 L10n:host
-
 ```
 
 Plugins are run in the order they are encountered on the command line or the plugin @file,
@@ -45,6 +44,16 @@ The complete plugin switch format is:
 Enclose the keys/values in double quotes as above if there is more than one key/value or bash will be confused by the "|".
 
 See below for plugin-specific examples and important information.
+
+## Burn Plugins
+
+Burn plugins are special plugins that are run after a burn has completed on a disk (`--burn`) or disk image (`--burnfile`). Only plugins designated as burn plugins in this document can be used with `--burn-plugin`. sdm doesn't check whether a plugin is burn-plugin capable, so trying to use a non-burn-plugin as a burn-plugin will likely be *interesting*.
+
+Burn plugins can also be used with `--runonly plugins` to operate on an IMG or disk. The `parted` plugin can be used in this manner.
+```sh
+sdm --runonly plugins --burn-plugin parted:"addpartition=2048,ext4" 2023-12-05-raspios-bookworm-arm64.img
+sdm --runonly plugins --burn-plugin extractfs:"rootfs=/path/to/rootfs|bootfs=/path/to/bootfs" 2023-12-05-raspios-bookworm-arm64.img
+```
 
 ## Plugin-specific documentation
 
@@ -66,6 +75,22 @@ Use the apps plugin to install applications. The apps plugin can be called multi
 * `--plugin apps:"apps=emacs,vim,zile"` &mdash; Install emacs, vim, and zile
 * `--plugin apps:"apps=@my-apps|name=myapps" --plugin apps:"apps=@my-xapps|name=myxapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
 * `--plugin apps:"apps=@mycoreapps|name=core-apps"` `--plugin apps:"apps=@myaddtlapps|name=extra-apps"` &mdash; Install the list of apps from @mycoreapps and @myaddtlapps
+
+### apt-addrepo
+
+apt-addrepo adds Repos and gpgkeys to apt
+
+#### Arguments
+* **gpgkey** &mdash; /path/to/keyname.gpg
+* **gpgkeyname** &mdash; Provide a different filename for the key in /etc/apt/trusted.gpg.d
+* **name** &mdash; Name of the repo file in /etc/apt/sources.list.d for a `repo` string
+* **repo** &mdash; A repo string that will be written to the named file in /etc/apt/sources.list.d
+* **repofile** &mdash; File containing an apt repo that is copied to /etc/apt/sources.list.d
+
+#### Examples
+
+* `--plugin apt-addrepo:"repo=deb  http://repo.feed.flightradar24.com flightradar24 raspberrypi-stable|gpgkey=/path/to/gpgkey.gpg"`
+* `--plugin apt-addrepo:"repofile=/path/to/some-repo.list"`
 
 ### apt-cacher-ng
 
@@ -96,15 +121,15 @@ apt-file installs the *apt-file* command and builds the database. This is very h
 
 There are no `--plugin` arguments for apt-file
 
-### `bootconfig`
+### bootconfig
 
-The `bootconfig` plugin configures the contents of /boot/config.txt.
+The `bootconfig` plugin configures the contents of /boot/firmware/config.txt.
 
 #### Arguments
 
 * **comment** &mdash; Append the comment to the end of config.txt. Comments can also be specified by an argument starting with `#` or `\n`. In the latter case, the comment is transformed to `\n# comment string` resulting in a blank line before the comment.
 * **inline** &mdash; If `inline` is provided as an argument (does not take a value), the plugin will replace existing settings in config.txt (if they exist) with any new value provided to the plugin. If it doesn't exist, or if `inline` is not provided, new arguments are appended to the end of the file.
-* **reset** &mdash; If `reset` is provided /boot/config.txt will be saved as /boot/config.txt.sdm. If no value is provided for `reset` then /boot/config.txt will be set to a null file. If `reset=/path/to/file` is provided, the specified file will replace /boot/config.txt. To work correctly, `reset` must be specified before any other arguments (this is not enforced or specifically logged by sdm).
+* **reset** &mdash; If `reset` is provided /boot/firmware/config.txt will be saved as /boot/firmware/config.txt.sdm. If no value is provided for `reset` then /boot/firmware/config.txt will be set to a null file. If `reset=/path/to/file` is provided, the specified file will replace /boot/firmware/config.txt. To work correctly, `reset` must be specified before any other arguments (this is not enforced or specifically logged by sdm).
 * **section** &mdash; The `section` argument takes a value like `pi4` or `[pi4]`, and appends the appropriately-bracketed section value to the end of config.txt preceded by a blank line.
 
 * **somename=somevalue** &mdash; All other key/value settings are presumed to be settings in config.txt and added to it. There is no validity checking, so typos are propagated. But, on the other hand, the `bootconfig` plugin doesn't need to be updated every time a brand new setting is added to config.txt.
@@ -212,9 +237,56 @@ The disables plugin makes it easy to disable a few *complex* functions.
 
 * `--plugin disables:"bluetooth|piwiz|triggerhappy"` &mdash; Disable Bluetooth, Triggerhappy, and piwiz, but leave WiFi enabled
 
+### explore
+
+The `explore` plugin is a `--burn-plugin` that can be used to explore or mount the newly-burned device after the burn has completed.
+
+### Arguments
+
+* **mount** &mdash; Mount the device into the host system rather than exploring the device container
+
+#### Examples
+
+* `--burn-plugin explore` &mdash; After the burn completes mount the device and enter the container.
+* `--burn-plugin explore:mount` &mdash; Like the previous example, but does not enter the container and operates in the context of the host system.
+
+### extractfs
+
+The `extractfs` plugin is a non-general purpose `--burn-plugin` that is used to copy the `boot` and `root` trees from an IMG into directories in the file system
+
+#### Arguments
+
+* **bootfs** &mdash; Directory where the `boot` tree will be written
+* **rootfs** &mdash; Directory where the `root` tree will be written
+* **img** &mdash; /path/to/IMG.IMG from which the trees will be copied
+
+#### Examples
+
+* `--burn-plugin extractfs:"bootfs=/path/to/bootfs|rootfs=/path/to/rootfs"
+
+### git-clone
+
+Clones the specified repository to the specified directory.
+
+#### Arguments
+
+* `repo` &mdash; Full path to the git repository. Must be network-accessible either via https or some other mechanism (NFS, etc)
+* `gitdir` &mdash; Directory into which to place the clone. sdm will do a `mkdir -p` to ensure the directory exists. The clone is done directly into the specified directory
+* `gitsw` &mdash; Additional switches to use on the `git` command
+* `user` &mdash; User that will be used to run git. The user must already exist
+* `preclone` &mdash; Command to run immediately before the clone. If the command starts with `@` it is the name of a script to run
+* `postclone` &mdash; Command to run immediately after the clone. Otherwise same as `preclone`
+* `gitphase` &mdash; By default the `git` command is run in sdm Phase 1. Specify `gitphase=post-install` to run git in the post-install phase.
+* `cert` &mdash; Not Yet Implemented
+* `logspace` &mdash; Specify this flag to have the disk space logged immediately before and after the `git clone`
+
+#### Examples
+
+* `--plugin git-clone:"repo=https://github.com/gitbls/sdm|gitdir=/home/bls/work/sdm|user=bls|logspace` &mdash; Clone the sdm repo into /home/bls/work/sdm as user bls. Disk space will be logged before and after the clone.
+
 ### graphics
 
-The graphics plugin configures various graphics-related settings. It doesn't do much for wayland at the current time, although you might use it to set the video mode in /boot/cmdline.txt.
+The graphics plugin configures various graphics-related settings. It doesn't do much for wayland at the current time, although you might use it to set the video mode in /boot/firmware/cmdline.txt.
 
 #### Arguments
 
@@ -228,12 +300,12 @@ If `graphics=X11` and the Display Manager is known, the graphics plugin makes a 
 * If LXDE is installed, the mouse will be set to left-handed if specified on the command line. This works for wayland as well.
 * For Display Managers lightdm, wdm, and xdm, sdm will cause the boot behavior you might specify to be delayed until after the First Boot.
 
-The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm will add video=HDMI-A-1:1024x768M@60D to /boot/cmdline.txt
+The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm will add video=HDMI-A-1:1024x768M@60D to /boot/firmware/cmdline.txt
 
 #### Examples
 
 * `--plugin graphics:"graphics=X11|nodmconsole` &mdash; Installs the X11 core components and disables the Display Manager on the console
-* `--plugin graphics:"videomode=HDMI-A-1:1920x1280@60D"` &mdash; Sets the specified video mode in /boot/cmdline.txt
+* `--plugin graphics:"videomode=HDMI-A-1:1920x1280@60D"` &mdash; Sets the specified video mode in /boot/firmware/cmdline.txt
 
 ### hotspot
 
@@ -328,6 +400,8 @@ Use the `lxde` plugin to establish your preferred settings, such as left-handed 
 * **lhmouse** &mdash; Set LXDE for a left-handed mouse
 * **lxde-config** &mdash; Specify existing config files for `libfm`, `pcmanfm`, and `lxterminal`. See the example, and see <a href="Using-LXDE-Config.md">Using LXDE configuration</a> for details
 * **user** &mdash; The settings apply to the specified user. If no `user` argument is specified, they apply to the first user created with the `user` plugin. The `user` plugin must be specified on the command line before the `lxde` plugin
+* **wayfire-ini** &mdash; Specify existing wayfire.ini config file for `wayfire` which is copied to the ~/.config directory of the specified user
+* **wf-panel-pi** &mdash; Specify existing wf-panel-pi.ini config file for `wayfire` which is copied to the ~/.config directory of the specified user. HINT: Use `position=bottom` in this file to move the task bar to the bottom of the screen.
 
 #### Examples
 
@@ -349,6 +423,18 @@ Create the specified directory and optionally set directory owner and protection
 * `--plugin mkdir:"dir=/usr/local/foobar|chown=bls:users|chmod=740"`
 
 NOTE: The directory is created in Phase 0, so it is available as early as during customization. The owner and protection are not set until the post-install phase, since it's possible that the owner account may not be created until Phase 1.
+
+### ndm
+
+The `ndm` plugin installs ndm (https://github.com/gitbls/ndm), named (bind9) and isc-dhcp-server which enables the resulting system to operate as a full DHCP/DNS server with an easy-to-use command-line interface. ndm makes it super-simple to run your own DHCP/DNS server on RasPiOS with useful logging capabilities.
+
+#### Arguments
+
+* **config** &mdash; Existing ndm config file (dbndm.json) to build a new server with an existing ndm config file
+
+#### Examples
+
+* `--plugin ndm` &mdash; Installs ndm, named, and isc-dhcp-server. Both named and isc-dhcp-server services are disabled, and must be re-enabled once ndm has been used to generate the config files for these two services.
 
 ### network
 
@@ -372,6 +458,41 @@ Use the network plugin to configure various network settings
 
 * `--plugin network:"netman=dhcpcd|noipv6"` &mdash; On Bookworm, set the network manager to dhcpcd (and disable Network Manager), and direct dhcpcd to not request an IPv6 address.
 * `--plugin network:"netman=nm|wifissid=myssid|wifipassword=myssidpassword|wificountry=US|noipv6"` &mdash; Use Network Manager to configure the network and also configure the specified WiFi network.
+
+### parted
+
+parted is a `--burn-plugin` that operates on a device, disk, or disk image and enables you to
+* Expand the root partition by a specified number of MiB
+* Add one or more partitions of a specified size with a specified file system type on it
+
+Using the `parted` burn plugin implicitly sets `--no-expand-root` when used on a burn command.
+
+#### Arguments
+
+* **rootexpand** &mdash; Expand the root partition by the number of MiB specified as the value for this argument. A value of 0 expands the partition to fill the disk. A value of 0 is not allowed when used with `--burnfile`
+* **addpartition** &mdash; Adds another partition at the end of the IMG. Arguments: size[fstype][,partitiontype,] where:
+    * `size` is the number of MiB for the partition
+    * `fstype` is the type of file system. Supported file systems are: `btrfs`, `ext2`, `ext3`, `ext4` [default], `fat16`, `fat32`, `hfs`, `hfs+`, `ntfs`, `reiserfs`, `udf`, and `xfs`. Some file systems may require you to install additional apt packages on the host before running this plugin
+    * `partitiontype` is one of `primary` [default], `logical`, or `extended`
+    * NOTE: Multiple partitions can be named on the command line by separating them with `+`. See example below.
+
+#### Examples
+
+* `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4"` &mdash; Expand the RasPiOS root partition by 2048MiB and add a 1024MiB ext4 partition
+* `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4+2048,btrfs"`  &mdash; Expand the RasPiOS root partition by 2048MiB and add a 1024MiB ext4 partition and a 2048MiB btrfs partition
+* `--burn-plugin parted:"rootexpand=1024|addpartition=@/path/to/partition-list"` where the file partition-list has one line for each partition to be added in the form: `nnnn,fstype,partitiontype`
+
+### piapps
+
+Installs pi-apps (https://github.com/Botspot/pi-apps). That's it!
+
+#### Arguments
+
+* **user** &mdash; Specify the user that piapps should be installed for. The user must already exist. If not specified, the first created user ($myuser) will be used
+
+#### Examples
+
+* `--plugin piapps:"user=bls"` &mdash; Install piapps for user bls. The user was already created with the `user` plugin
 
 ### pistrong
 
@@ -402,16 +523,16 @@ postfix installs the postfix mail server. This plugin installs the postfix serve
 
 ### quietness
 
-The quietness plugin controls the quiet and splash settings in /boot/cmdline.txt
+The quietness plugin controls the quiet and splash settings in /boot/firmware/cmdline.txt
 
 #### Arguments
 
 * **consoleblank** &mdash; Set a console blanking timeout (Default: 300 seconds)
-* **quiet** &mdash; Enables 'quiet' in /boot/cmdline.txt
-* **noquiet** &mdash; Disable 'quiet' in /boot/cmdline.txt. If `noquiet=keep` is NOT specified, sdm will re-enable 'quiet' in cmdline.txt after the First Boot.
-* **splash** &mdash; Enables 'splash' in /boot/cmdline.txt
-* **nosplash** &mdash; Disable 'splash' in /boot/cmdline.txt. If `nosplash=keep` is NOT specified, sdm will re-enable 'splash' in cmdline.txt after the First Boot.
-* **plymouth** &mdash; Enables Plymouth in /boot/cmdline.txt. Not Yet Implemented
+* **quiet** &mdash; Enables 'quiet' in /boot/firmware/cmdline.txt
+* **noquiet** &mdash; Disable 'quiet' in /boot/firmware/cmdline.txt. If `noquiet=keep` is NOT specified, sdm will re-enable 'quiet' in cmdline.txt after the First Boot.
+* **splash** &mdash; Enables 'splash' in /boot/firmware/cmdline.txt
+* **nosplash** &mdash; Disable 'splash' in /boot/firmware/cmdline.txt. If `nosplash=keep` is NOT specified, sdm will re-enable 'splash' in cmdline.txt after the First Boot.
+* **plymouth** &mdash; Enables Plymouth in /boot/firmware/cmdline.txt. Not Yet Implemented
 * **noplymouth** &mdash; Disables the Plymouth graphical splash screen for the First Boot (only). It is re-enabled at the end of First Boot.
 
 #### Examples
@@ -505,6 +626,26 @@ There are no `--plugin` arguments for rxapp
 * `--plugin samba:"shares=/home/bls/mysmbshares.conf"` &mdash; Append the provided share definitions to the end of the default /etc/samba/smb.conf
 * `--plugin samba:"workgroup=myworkgroup|shares=/home/bls/mysmbshares.conf"` &mdash; Use the default /etc/samba/smb.conf, set the workgroup name to *myworkgroup* and append the provided share definitions to /etc/samba/smb.conf
 
+### serial
+
+The `serial` plugin is used to configure the serial port. Although the `serial` setting on the `raspiconfig` plugin still works, as of 2023-12-28 it prompts, which is obviously annoying when you're in the middle of an sdm customize.
+
+There's a second issue in that the serial setting for the Pi5 is different than for other Pis, and raspi-config checks the system on which it is running, which can likely be incorrect when doing an sdm customize.
+
+The `serial` plugin addresses these issues. You can use it during a customize if you know the target hardware. Otherwise, when you burn the disk for a target system, you can run the plugin then to set it correctly for the target hardware.
+
+#### Arguments
+
+* **enableshell** &mdash; If set, enable a shell on the console serial port.
+* **pi5** &mdash; If set, configure the serial port for a Pi5
+* **pi5debug** &mdash; If set, configure the debug serial port for a Pi5
+
+#### Examples
+
+* `--plugin serial:enableshell` &mdash; Configure the serial port for a Pi other than a Pi5 and enable a login shell on it
+* `--plugin serial:pi5|enableshell` &mdash; Configure the serial port for a Pi5 and enable a login shell on it
+* `--plugin serial:pi5debug` &mdash; Configure the debug serial port for a Pi5
+
 ### system
 
 The `system` plugin is a collection of system-related configuration settings. You are responsible for using correct file types expected by each function (e.g., .conf, .rules, etc). The plugin does no checking/modification of file types.
@@ -589,8 +730,6 @@ Use the `user` plugin to delete, create, or set passwords for users
   * Syntax: `setpassword=username|password=newpassword`
 * **addgroup** &mdash; Add a new group
   * Syntax: `addgroup=groupname,gid`
-* **gid** &mdash; Put the user in the specified group
-  * Syntax: `gid=name-or-number`
 * **homedir** &mdash; Specify the home directory for a new user. Default is /home/username.  A home directory will not be created if `nohomedir` is specified
   * Syntax: `homedir=/home/not-the-usual-place`
 * **uid** &mdash; Force the new user's ID to be the given number Default is the next uid to be assigned
@@ -628,7 +767,7 @@ dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i
 
 #### Overview and handling multiple accounts
 
-Conceptually, each invocation of the `user` plugin, or each line in a `userlist` file, consists of a *verb* and some arguments. Verbs are:
+Conceptually, each invocation of the `user` plugin, or each line in a `userlist` file, consists of a *verb* or *directive* and some arguments. Verbs are:
 * `adduser` &mdash; Adds the user as described by the rest of the arguments
 * `deluser` &mdash; Deletes the specified user
 * `setpassword` &mdash; Set the user's password
@@ -649,11 +788,11 @@ setpassword=demo3|password=thenewpassword
 In the above
 * The pi account will be deleted, if it exists
 * The two groups will be added. `myhomegroup` will have gid 7654.
-* The user `bls` account will be created with the specified group, and a default login group of `users`. The group `myhomegroup` will be added to the default set of groups (`--groups` or the plugin `group` argument.
-* The user `demo1` will be created with no home directory. The group `demousers` will be added to the defalt set of groups for this user. sdm will prompt for the password.
+* The user `bls` account will be created with the specified `Group`, and a default login group of `users`. The group `myhomegroup` will be added to the default set of groups (`--groups` or the plugin `group` argument).
+* The user `demo1` will be created with no home directory. The group `demousers` will be added to the default set of groups for this user. sdm will prompt for the password.
 * The user `demo2` will be created, sdm will prompt for the password
 * The user `demo3` will be created and a home directory /home/demo3 will be created
-* sdm will set the password for demo3 as a separate step (this is not necessary, btw; one could use the `password=` argument on the demo3 line
+* sdm will set the password for demo3 as a separate step (this is not necessary, btw; one could use the `password=` argument on the demo3 line)
 
   The plugin will prompt for the user's password
 
