@@ -43,6 +43,7 @@ then
     if [ -d $assetdir ]
     then
 	logtoboth "? Plugin $pfx: '$assetdir' already exists; Add argument 'name=somename' to this system plugin invocation"
+	logtoboth "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
 	exit 1
     else
 	logtoboth "> Plugin $pfx: Create directory $assetdir"
@@ -52,7 +53,7 @@ then
     IFS="|" read -a sargs <<< "$foundkeys"
     for c in "${sargs[@]}"
     do
-	chyp=${c/__/-} 
+	chyp=${c//__/-}
 	cval="${!c}"
 	if [[ "$argswithfiles" =~ "|$chyp|" ]]
 	then
@@ -156,7 +157,7 @@ else
     IFS="|" read -a sargs <<< "$foundkeys"
     for c in "${sargs[@]}"
     do
-	chyp=${c/__/-} 
+	chyp=${c//__/-}
 	cval="${!c}"
 	case "$chyp" in
 	    cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly)
