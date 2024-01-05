@@ -26,10 +26,6 @@ function ddctrlc() {
     fi
 }
 
-errifrc() {
-    [ $1 -ne 0 ] && errexit "$2 $1"
-}
-
 function setdiskid() {
     local dev="$1" diskid="$2"
     sfdisk --disk-id $dev 0x${diskid}
@@ -50,56 +46,12 @@ EOF
     fi
 }
 
-function expandpartition() {
-    # $1: devicename (/dev/sdX)
-    # #2: Name of partition 2 ("2" or "p2")
-    local fulldevname=$1 pname=$2
-    local dev=${fulldevname##/dev/}
-    local part="${dev}${pname}"           # RasPiOS Ext 4 partition is always partition 2
-
-    while read line
-    do
-        if [[ "$line" =~ "msdos" ]]
-        then
-            fsize=$(IFS=":" read fs bytes file n1 n2 fs <<< $line ; echo $bytes)
-            fsize=${fsize%B}     #Fsize is file system size in bytes
-        elif [[ "$line" =~ "ext4" ]]
-        then
-            IFS=":;" read partnum partstart partend partsize fstype etc etc2 etc3 <<< $line
-            partstart=${partstart%B}
-            partend=${partend%B}
-            partsize=${partsize%B}
-        fi
-    done < <(parted -ms /dev/$dev unit B print)
-    #
-    #   https://alioth-lists.debian.net/pipermail/parted-devel/2006-December/000573.html
-    # $l1: BYT;  ** error if not BYT 
-    # $l2: filespec:bytesB:file:512:512:msdos::;
-    # $l3: partnum:startB:endB:sizeB:fstype:::;
-    # $l4: partnum:startB:endB:sizeB:fstype:::;
-
-    devsize=$(cat /sys/block/$dev/size)   # 512byte blocks
-    newsize=$((devsize - 1 ))             # 512byte blocks
-    partsize=$(cat /sys/block/$dev/$part/size)  # 512byte blocks
-
-    pbytes=$((partsize*512))
-    nbytes=$(((devsize*512)-$partend+$pbytes))
-    write_burnmsg "> Expand Root: Expand partition '$part' on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
-    parted -m /dev/$dev u s resizepart 2 $newsize
-    errifrc $? "? parted resizepart failed with status"
-    #echo ",+" | sfdisk -N 2 $fulldevname
-    #errifrc $? "? sfdisk expand last partition failed with status"
-}
-
-
 function sdm_burndevfile() {
 
     # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
-    declare -x SDMPT=$(makemtpt)
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
-    #[ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
     if [ $burn -eq 1 ]
     then
 	#
@@ -121,7 +73,8 @@ function sdm_burndevfile() {
 	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
 	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
 	burnmsg+=("$(thisdate) > dd command: $ddcmd")
-	# Burn the IMG to the device
+	# Burn the IMG to the device but zero first and last blocks first
+	zero1stlast $burndev
 	echo "$ddcmd"
 	trap "ddctrlc" SIGINT
 	$ddcmd &
@@ -136,20 +89,14 @@ function sdm_burndevfile() {
 	[[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
 	if [ $expandroot -eq 1 ]
 	then
-	    expandpartition $burndev $p2
+	    expandpartition $burndev 0 write_burnmsg
 	fi
 	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
 	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
 	setdiskid $burndev $newdiskid
 	sync ; sleep 1 ; sync
-	mount -v ${burndev}${p2} $SDMPT
-        if [ -d $SDMPT/boot/firmware ]
-        then
-            mount -v ${burndev}${p1} $SDMPT/boot/firmware
-        else
-            mount -v ${burndev}${p1} $SDMPT/boot
-        fi
-	! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
+	declare -x SDMPT=$(makemtpt)
+	mountburn $burndev
     else
 	#
 	# Burning to a file
@@ -184,24 +131,25 @@ function sdm_burndevfile() {
 	setdiskid $loopdev $newdiskid
 	losetup -d $loopdev
 	sync ; sleep 1 ; sync
-	domount "$burnfilefile"
+	declare -x SDMPT=$(makemtpt)
+	domount "$burnfilefile" "IMG"
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
-    write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
-    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
-    if [ -f $SDMPT/boot/cmdline.txt ]
+    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
     then
+	write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/firmware/cmdline.txt"
+	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/firmware/cmdline.txt
+	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
+	# init_resize disappeared in 2022-09-06 build, not in systems with /boot/firmware
+    elif [ -f $SDMPT/boot/cmdline.txt ]
+    then
+	write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
 	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
 	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
 	# init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
 	sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
     fi
-    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
-    then
-	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/firmware/cmdline.txt
-	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
-	# init_resize disappeared in 2022-09-06 build, not in systems with /boot/firmware
-    fi
+    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
     #
     # Write out the accumulated messages into mounted image if image has been customized
     #
@@ -216,7 +164,7 @@ function sdm_burndevfile() {
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="autologin b0script b1script bootscripts domain expandroot exports fchroot hname fredact fnoexpandroot myuser noreboot"
+	xsettings="autologin b0script b1script bootscripts burnplugins domain expandroot exports fchroot hname fredact fnoexpandroot myuser noreboot"
 	xsettings="$xsettings nowaittimesync plugindebug plugins reboot rebootwait regensshkeys"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -236,6 +184,7 @@ function sdm_burndevfile() {
 	[ "$bhname" != "" ] && hname="$bhname"
 	plugins="$bplugins"
 	[ $bautologin -eq 1 ] && autologin=1
+	[ "$bburnplugins" != "" ] && burnplugins=$bburnplugins
 	expandroot=$((bexpandroot|expandroot))
 	fchroot=$((bfchroot|fchroot))
 	fnoexpandroot=$((bfnoexpandroot|fnoexpandroot))
@@ -246,6 +195,11 @@ function sdm_burndevfile() {
 	# --bupdate must specified on the burn command line
 	initvirt logtoboth  # Must be done after fchroot is set
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
+	if ispluginselected parted "$burnplugins"
+	then
+	    logtoboth "> Force --no-expand-root for parted burn-plugin"
+	    fnoexpandroot=1
+	fi
 	if [ $fnoexpandroot -eq 1 ]
 	then
 	    logtoboth "> Force --regen-ssh-host-keys for --no-expand-root"
@@ -253,9 +207,10 @@ function sdm_burndevfile() {
 	fi
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
-	    logtoboth "> Disable unneeded RasPiOS firstboot service in cmdline.txt"
+	    logtoboth "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
 	    [ -f $SDMPT/boot/cmdline.txt ] && sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
 	    [ -f $SDMPT/boot/firmware/cmdline.txt ] && sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
+	    [ -f $SDMPT/etc/init.d/resize2fs_once ] && mv $SDMPT/etc/init.d/resize2fs_once $SDMPT/etc/init.d/.sdm.resize2fs_once
 	else
 	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
 	fi
@@ -356,6 +311,23 @@ function sdm_burndevfile() {
 	[ "$b1script" != "" ] && echo "  and b1script '$b1script' will not be processed"
 	[ "$hname" != "" ] && updatehostname $hname
     fi
+    #
+    # Call burn-plugins
+    #
+    docleanup
+
+    # Redefine logtoboth so it just does an "echo" as the log is inaccessible from now on
+    function logtoboth() {
+	echo "$1"
+    }
+
+    if [ "$burnplugins" != "" ]
+    then
+	logtoboth "* Run Post-Burn plugins"
+	[ "$burndev" != "" ] && imgtype="Device"
+	[ "$burnfilefile" != "" ] && imgtype="IMG"
+	runplugins_exit "$burnplugins" burn-complete "burndev=$burndev|burnfilefile=$burnfilefile|imgtype=$imgtype"
+    fi
 }
 #
 # Print partitions in IMG 
@@ -421,7 +393,7 @@ sdm_shrink() {
 
     # Create loop device to the partition
     # Commented-out loggers and echos for debugging kernel log messages
-    #logger "Create loop device"
+    [ $plugindebug -eq 1 ] && logger "Create loop device"
     loopdev=$(losetup -f --show -o "$partstart" "$dimg")
     # bx is a dummy due to leading ",". Other 2 can be in either order
     IFS="," read bx b1 b2 <<< $(tune2fs -l $loopdev | while read aline ;\
@@ -438,45 +410,58 @@ sdm_shrink() {
     [ "${b2#bc}" != "$b2" ] && bs=${b2#bc}  #...
     [ "$bc" == "" -o "$bs" == "" ] && errexit "? tune2fs failed to read the file system"
 
-    #logger "Check the file system"
+    [ $plugindebug -eq 1 ] && logger "Check the file system"
     echo "> Check the file system"
     e2fsck -pf $loopdev
     rc=$?
     [ $rc -ge 4 ] && errexit "? e2fsck reports that file system is corrupt $rc"
 
-    #logger "Get new partition size"
+    [ $plugindebug -eq 1 ] && logger "Get new partition size"
     oresize=$(resize2fs -P $loopdev)
     errifrc $? "? resize2fs problem"
     # Strip everything before ": " leaving only the new partition size, then up it a bit
     newsize=${oresize##*: }
-    newsize=$((newsize+8))
+    #newsize=$((newsize+8))
+    newsize=$((newsize+(imgext/(bs/512))))
 
-    # uncomment for debug
-    #echo "> Shrink data"
-    #echo "  Partition Start: $partstart"
-    #echo "  Partition End:   $partend"
-    #echo "  Partition Size:  $partsize"
-    #echo "  New size: $newsize"
-    #echo "  bc: $bc"
-    #echo "  bs: $bs"
+    if [ $plugindebug -eq 1 ]
+    then
+	echo "> Shrink data"
+	echo "  Partition Start: $partstart"
+	echo "  Partition End:   $partend"
+	echo "  Partition Size:  $partsize"
+	echo "  oresize: ${oresize##*: }"
+	echo "  New size: $newsize"
+	echo "  bc: $bc"
+	echo "  bs: $bs"
+	echo "  imgext: $imgext"
+    fi
 
     [ $bc -le $newsize ] && errexit "% Image cannot be shrunk any further"
 
     # Shrink the file system
-    #logger "Shrink the file system"
-    echo "> Shrink the file system to $newsize"
-    resize2fs -p $loopdev $newsize
+    [ $plugindebug -eq 1 ] && logger "Shrink the file system"
+    echo "> Shrink the file system from $bc to $newsize ${bs}-byte blocks"
+    resize2fs -M -p $loopdev $newsize
     errifrc $? "? resize2fs shrink exited with status"
 
     # have not made resizepart work yet, so do a rm/mkpart on the partition
-    #parted -s $dimg resizepart 2 $partnewend
+    #partnewsize=$((newsize*bs))
+    #partnewend=$((partstart+partnewsize-1))
+    #partendblks=$(((partnewend-partstart)/512))
+    #parttype="primary"
+    #parted -ms $loopdev unit B print
+    #echo "> Resize partition: $partnewsize"
+    #parted -s $loopdev resizepart 1 $partnewsize
+    #errifrc $? "? parted resize partition failed"
+
     # Shrink the partition by removing and recreating it
-    #logger "Remove old partition"
+    [ $plugindebug -eq 1 ] && logger "Remove old partition"
     echo "> Remove old partition"
     parted -s -a minimal $dimg rm $partnum
     errifrc $? "? parted rm partition failed with status"
 
-    #logger "Make new partition"
+    [ $plugindebug -eq 1 ] && logger "Make new partition"
     echo "> Make new partition"
     partnewsize=$((newsize*bs))
     partnewend=$((partstart+partnewsize-1))
@@ -486,7 +471,7 @@ sdm_shrink() {
     #
     # Shrink the IMG
     #
-    #logger "Shrink the IMG"
+    [ $plugindebug -eq 1 ] && logger "Shrink the IMG"
     endsize=$((partstart+partnewsize))
     echo "> Shrink the image by truncating to $endsize"
     truncate -s ${endsize%B} $dimg
