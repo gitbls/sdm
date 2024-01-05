@@ -32,7 +32,7 @@ function doconfig() {
 	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
 	then
 	    value="${value%%\#*}"    # Del EOL comments
-	    value=$(stripquotes $value)
+	    value=$(stripquotes "$value")
 	    doconfigitem $rpifun $value bootlog
 	fi
     done < $cfgfile
