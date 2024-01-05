@@ -36,6 +36,7 @@ source /etc/sdm/sdm-readparams
 #
 cmd="$(stripquotes "$1")"
 cmdoptions="$(stripquotes "$2")"
+#logtoboth "DD-1 cmd:|$cmd| cmdoptions:|$cmdoptions| 2:|$2| 3:|$3|"
 # case stmt falls through if not processed within
 trap "doctrlcp1" SIGINT
 case "$cmd" in
@@ -79,7 +80,7 @@ case "$cmd" in
     run-one-plugin)  # Run Plugin phase 1 or post-install
 	# $cmdoptions: plugin name and args $3: Phase
 	p="$cmdoptions"
-	phase="$(stripquotes $3)"
+	phase="$(stripquotes "$3")"
 	runonepluginx "$p" $phase
 	exit
         ;;
@@ -90,8 +91,12 @@ case "$cmd" in
         ;;
     run-command-quietly)  # Run a single command in phase 1 or post-install
 	# $cmdoptions: Command line
-	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
+	#logtoboth "DD0 run-command-quietly: $cmdoptions"
+	#runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
+	runcmd="$cmdoptions $3 $4 $5 $6 $7 $8"
 	$runcmd > /dev/null 2>&1
+	#logtoboth "DD run-command-quietly: $runcmd"
+	#$runcmd #> /dev/null 2>&1
 	exit
         ;;
 esac
