@@ -115,8 +115,8 @@ EOF
 	echo "#$myuser:  $rootmail" >> /etc/aliases
     fi
 
-    logtoboth ""
-    logtoboth "> Plugin $pfx: *** postfix service notes ***"
+    plugin_addnote ""
+    plugin_addnote "> Plugin $pfx: *** postfix service notes ***"
     if [ "$maincf" == "" ]
     then
 	systemctl disable postfix > /dev/null 2>&1
