@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: explore
+#
+# The plugin is a burn plugin and must be invoked during a burn operation with --burn-plugin
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function logtoboth() {
+    echo "$1"
+}
+
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|mount|burndev|burnfilefile|imgtype|"
+rqdargs="|imgtype|"                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+# Redefine logtoboth so it just does an echo as the log is inaccessible from now on
+
+function logtoboth() {
+    echo "$1"
+}
+
+if [ "$phase" == "burn-complete" ]
+then
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    if [ -t 0 ]
+    then
+	dimg=$burndev
+	[ "$dimg" == "" ] && dimg=$burnfilefile
+	declare -x SDMPT=$(makemtpt)
+	domount "$dimg" $imgtype
+	echo "* $imgtype '$dimg' mounted on $SDMPT"
+	if [ -v mount ]
+	then
+	    echo $"** BE VERY CAREFUL!! **
+** Precede all path references by '$SDMPT' or you WILL modify your running system **
+** Use 'exit' to Exit the bash shell and unmount the $dimgdevname"
+	    IFS=":" read mfg mbg mcursor <<< $mcolors
+	    [ "$mfg" == "" ] && mfg="black"
+	    [ "$mbg" == "" ] && mbg="LightSalmon1"
+	    [ "$mcursor" == "" ] && mcursor="blue"
+	    stermcolors "$mfg" "$mbg" "$mcursor" xt
+	    cd $SDMPT
+	    bash
+	    cd - > /dev/null
+	    resetcolors xt
+	else
+	    echo "* Enter $imgtype '$dimg'"
+	    spawncmd="/bin/bash"
+	    IFS=":" read efg ebg ecursor <<< $ecolors
+	    [ "$efg" == "" ] && efg="blue"
+	    [ "$ebg" == "" ] && ebg="gray"
+	    [ "$ecursor" == "" ] && ecursor="red"
+	    stermcolors "$efg" "$ebg" "$ecursor" xt
+	    sdm_spawn "$nspawnsw" Phase1 $spawncmd
+	    resetcolors xt
+	fi
+    fi
+fi

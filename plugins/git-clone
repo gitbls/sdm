@@ -1,0 +1,150 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: git-clone
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function gcruncmd() {
+    #
+    # $1 is username
+    # $2 is command to run
+    #
+    local user=$1 cmd="$2 $3 $4 $5 $6 $7 $8 $9" eg
+    shopt -q extglob
+    eg=$?
+    [ $eg -ne 0 ] && shopt -s extglob
+    cmd="${cmd%%*( )}"
+    [ $eg -ne 0 ] && shopt -u extglob
+    hostname $thishost
+    logtoboth "> Plugin $pfx: Run command '$cmd' as user '$user'"
+    sudo -u $user $cmd
+    hostname sdm
+}
+
+function doclone() {
+    local fn
+    [ -v logspace ] && logfreespace "at start of Plugin $pfx Phase $phase"
+    [ "$cert" != "" ] &&  gitcert="$assetdir/$(basename "$cert")" || gitcert=""
+    if [ "$preclone" != "" ]
+    then
+	if [ "${preclone:0:1}" == "@" ]
+	then
+	    fn=$assetdir/$(basename "${preclone:1:999}")
+	    logtoboth "> Plugin $pfx: Run preclone script '$fn'"
+	    gcruncmd $user $fn
+	else
+	    logtoboth "> Plugin $pfx: Run preclone command '$preclone'"
+	    gcruncmd $user "$preclone"
+	fi
+    fi
+    logtoboth "> Plugin $pfx: Clone repo '$repo' into '$gitdir'"
+    gcruncmd $user mkdir -p $gitdir
+    gcruncmd $user git clone $gitsw $repo $gitdir
+    if [ "$postclone" != "" ]
+    then
+	if [ "${postclone:0:1}" == "@" ]
+	then
+	    logtoboth "> Plugin $pfx: Run postclone script '$fn'"
+	    fn=$assetdir/$(basename "${postclone:1:999}")
+	    gcruncmd $user $fn
+	else
+	    logtoboth "> Plugin $pfx: Run postclone command '$preclone'"
+	    gcruncmd $user "$postclone"
+	fi
+    fi
+    [ -v logspace ] && logfreespace "at end of $pfx Phase 1"
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|repo|gitdir|gitsw|user|preclone|postclone|gitphase|cert|logspace|"
+rqdargs="|gitdir|user|"                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    mkdir -p $assetdir
+    if [ "${preclone:0:1}" == "@" ]
+    then
+	fn="${preclone:1:999}"
+	if [ -f $fn ]
+	then
+	    logtoboth "> Plugin $pfx: Copy preclone file '$fn' to $assetdir"
+	    cp $fn $assetdir
+	else
+	    errexit "? preclone file '$fn' not found"
+	fi
+    fi
+    if [ "${postclone:0:1}" == "@" ]
+    then
+	fn="${postclone:1:999}"
+	if [ -f $fn ]
+	then
+	    logtoboth "> Plugin $pfx: Copy postclone file '$fn' to $assetdir"
+	    cp $fn $assetdir
+	else
+	    errexit "? postclone file '$fn' not found"
+	fi
+    fi
+    if [ "$cert" != "" ]
+    then
+	if [ -f $cert ]
+	then
+	    bfn=$(basename $cert)
+	    [ -f $assetdir/$bfn ] && logtoboth "% Plugin $pfx: Cert '$cert' already cached; replacing with this version"
+	    logtoboth "> Plugin $pfx: Copy cert '$cert' to $assetdir"
+	    cp -a $cert $assetdir
+	else
+	    errexit "? Cert '$cert' not found"
+	fi
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    if [ "$(which git)" == "" ]
+    then
+	logtoboth "> Plugin $pfx: Install git"
+	doaptrpterror "install --no-install-recommends --yes git" $showapt
+    fi
+    [ "$gitphase" == "" ] && gitphase="1"
+    if [[ "$gitphase" == "1" ]] || [[ "${gitphase,,}" == "phase1" ]]
+    then
+	doclone
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    if [[ "postinstall|post-install" =~ "${gitphase,,}" ]]
+    then
+	doclone
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

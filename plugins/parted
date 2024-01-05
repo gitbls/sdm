@@ -1,0 +1,268 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: parted
+#
+# The plugin is called once when the burn operation has completed
+#
+# Partition alignment resources:
+#
+#    https://blog.hqcodeshop.fi/archives/273-GNU-Parted-Solving-the-dreaded-The-resulting-partition-is-not-properly-aligned-for-best-performance.html
+#    https://rainbow.chard.org/2013/01/30/how-to-align-partitions-for-best-performance-using-parted/
+#
+
+#TODO TODO
+# mkfs on a partition #
+# Add swap partition
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function logtoboth() {
+    echo "$1"
+}
+
+function expandpartitionfile() {
+    #
+    # Expand the root partition in a burnfile
+    #
+    # $1: IMG name
+    #
+    local dimg="$1" dimgext="$2"
+    local extbytes=$((dimgext*1024*1024))
+    # Extend the IMG
+    logtoboth "> Plugin $pfx: Extend $dimgdevname by ${imgext}MB $(getgbstr $extbytes)..."
+    extendimage "$dimg" $dimgext
+    #
+    # Mount the image file into a loop device and resize the file system
+    #
+    logtoboth "> Plugin $pfx: Mount $dimg to resize the file system"
+    declare -x SDMPT=$(makemtpt)
+    domount $dimg IMG
+    logtoboth "> Plugin $pfx: Resize the file system"
+    logtoboth "> Plugin $pfx: Ignore 'on-line resizing required' message"
+    resize2fs $(getloopdev $SDMPT)p2
+    errifrc $? "? resize2fs error"
+    docleanup
+}
+
+function imgmakepartition() {
+    #
+    # $1: img name
+    # $2: partition size
+    # $3: partition type
+    # $4: fs type
+    local dimg="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" pstart pend pdname pname="" loopdev
+    #
+    # Figure out end of last partition in the img
+    #
+    while read line
+    do
+        IFS=":;" read partnum partstart partend partsize pfstype etc etc2 etc3 <<< $line
+        partstart=${partstart%MB}
+        partend=${partend%MB}
+        partsize=${partsize%MB}
+    done < <(parted -ms $dimg unit MB print)
+    partnum=$((partnum+1))
+    partstart=$((partend+1))
+    partend=$((partstart+psize-1))
+    logtoboth "> Plugin $pfx: Extend IMG '$dimg' by ${psize}MB"
+    truncate --size +${psize}MB $dimg
+    logtoboth "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}MB end: ${partend}MB"
+    logtoboth "> Plugin $pfx: parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB"
+    parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB
+    errifrc $? "? parted mkpart error"
+    sync ; sleep 1 ; sync
+    loopdev=$(losetup --show -P -f $dimg)
+    pdname="${loopdev}${partnum}"
+    logtoboth "> Plugin $pfx: Wipe existing file system on ${loopdev}p${partnum}"
+    wipefs -a ${loopdev}p${partnum}
+    logtoboth "> Plugin $pfx: Make '$fstype' file system on IMG '$dimg'"
+    case "${fstype,,}" in
+	*)
+	    mkfs.${fstype} ${loopdev}p${partnum}
+	    errifrc $? "? mkfs.${fstype} error"
+	    ;;
+    esac
+    losetup -d $loopdev
+    sync ; sleep 1 ; sync
+    return 0
+}
+
+function makepartition() {
+    #
+    # $1: device name (/dev/xxx)
+    # $2: partition size
+    # $3: partition type
+    # $4: fs type
+    local pdev="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" pstart pend pdname pname=""
+    local pdevnm=${pdev#/dev/}
+    local partnum partstart partend partsize pfstype etc etc2 etc3
+    local spartnum spartstart spartend spartsize etc etc2 etc3
+
+    if [ ! -f /sbin/mkfs.${fstype} ]
+    then
+	logtoboth "? Plugin $pfx: Unrecognized file system '$fstype' or missing mkfs.${fstype}"
+	exit 1
+    fi
+
+    #
+    # Figure out end of last partition on the disk
+    #
+    while read line
+    do
+        IFS=":;" read partnum partstart partend partsize pfstype etc etc2 etc3 <<< $line
+        partstart=${partstart%MiB}
+        partend=${partend%MiB}
+        partsize=${partsize%MiB}
+    done < <(parted -ms $pdev unit MiB print)
+    #
+    # Get sector-based info
+    #
+    while read line
+    do
+	if [[ "$line" =~ "$pdev" ]]
+	then
+	    # /dev/sdc:937703088s:scsi:512:512:msdos:ASMT ASM105x:;
+	    # get physical sector size in bytes
+	    IFS=":" read etc etc2 etc3 etc pbytes etc <<< $line
+	elif [[ "$line" =~ "free" ]]
+	then
+            IFS=":;" read spartnum spartstart spartend spartsize pfstype etc etc2 etc3 <<< $line
+            free_space_start=${spartstart%s}
+            free_space_end=${spartend%s}
+            free_space_amount=${spartsize%s}
+	fi
+    done < <(parted -ms $pdev unit s print free)
+    partnum=$((partnum+1))
+    optimal_io_size=$(cat /sys/block/$pdevnm/queue/optimal_io_size)
+    [ $optimal_io_size -le 0 ] && optimal_io_size=1048576  #1024*1024
+    physical_block_size=$(cat /sys/block/$pdevnm/queue/physical_block_size)
+    alignment_offset=$(cat /sys/block/$pdevnm/alignment_offset)
+    align_to_sector=$(((optimal_io_size+alignment_offset)/physical_block_size))
+    aligned_start_sector=$((((free_space_start/align_to_sector) + 1)*align_to_sector))
+    aligned_end_sector=$(((free_space_start+((psize*1048576)/512))/align_to_sector*align_to_sector-1))
+    partstart=$aligned_start_sector
+    partend=$aligned_end_sector
+    pdname="${pdev}${partnum}"
+    if [ $plugindebug -eq 1 ]
+    then
+	logtoboth "> Plugin $pfx: pdname: $pdname"
+	logtoboth "> Plugin $pfx: partnum: $partnum"
+	logtoboth "> Plugin $pfx: optimal_io_size: $optimal_io_size"
+	logtoboth "> Plugin $pfx: physical_block_size: $physical_block_size"
+	logtoboth "> Plugin $pfx: alignment_offset: $alignment_offset"
+	logtoboth "> Plugin $pfx: align_to_sector: $align_to_sector"
+	logtoboth "> Plugin $pfx: aligned_start_sector: $aligned_start_sector"
+	logtoboth "> Plugin $pfx: aligned_end_sector: $aligned_end_sector"
+    fi
+    [[ $aligned_end_sector -gt $free_space_end ]] && errexit "? Partition problem; Try again with --no-expand-root"
+    logtoboth "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}s end: ${partend}s"
+    parted $pdev mkpart $ptype $pname $fstype ${partstart}s ${partend}s
+    errifrc $? "? parted mkpart error"
+    sync ; sleep 1 ; sync
+    logtoboth "> Plugin $pfx: Wipe existing file system on $pdname"
+    wipefs -a $pdname
+    logtoboth "> Plugin $pfx: Make '$fstype' file system on partition $pdname"
+    case "${fstype,,}" in
+	#swap)
+	    #mkswap $pdname
+	    #errifrc $? "? mkswap error"
+	    #;;
+	*)
+	    mkfs.${fstype} $pdname
+	    errifrc $? "? mkfs.${fstype} error"
+	    ;;
+    esac
+    sync ; sleep 1 ; sync
+    return 0
+}
+
+function dopartition() {
+    #
+    # $1: value: size[,partitiontype,fstype]
+    # $2: burndev
+    # $3: burnfilefile
+    #
+    local pinfo="$1" bdev="$2" bfile="$3"
+    local psize ptype fstype
+    
+    IFS="," read -r psize fstype ptype <<< "$pinfo"
+    if [ "$bdev" != "" ]
+    then
+	makepartition $bdev "$psize" "$ptype" "$fstype"
+    else
+	imgmakepartition $bfile "$psize" "$ptype" "$fstype"
+    fi
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|burndev|burnfilefile|imgtype|rootexpand|addpartition|"
+rqdargs=""                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+# Redefine logtoboth so it just does an echo as the log is inaccessible from now on
+
+function logtoboth() {
+    echo "$1"
+}
+
+if [ "$phase" == "burn-complete" ]
+then
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    if [ -v rootexpand ]
+    then
+	if [ "$burndev" != "" ]
+	then
+	    expandpartition "$burndev" "$rootexpand" echo || exit
+	else
+	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && errexit "? Invalid rootexpand value '$rootexpand'"
+	    if [ $rootexpand -ne 0 ]
+	    then
+		checknumeric $rootexpand
+		expandpartitionfile "$burnfilefile" "$rootexpand" || exit
+	    else
+		logtoboth "? Plugin $pfx: rootexpand=0 is not supported on a --burnfile"
+		exit 1
+	    fi
+	fi
+    fi
+    if [[ -v addpartition ]] && [[ "$addpartition" != "" ]]
+       # value: size[,fstype][,partitiontype]
+       # type: primary|logical|extended
+       # fstype: btrfs|ext2|ext3|ext4|fat16|fat32|hfs|hfs+|linux-swap|ntfs|reiserfs|udf|xfs
+    then
+	if [ "${addpartition:0:1}" == "@" ]
+	then
+	    fn="${addpartition:1:999}"
+	    if [ -f $fn ]
+	    then
+		while read line
+		do
+		    dopartition "$line" "$burndev" "$burnfilefile"
+		done < $fn
+	    else
+		logtoboth "? Plugin $pfx: Unable to read addpartition file '$fn'"
+		exit 1
+	    fi
+	else
+	    IFS="+" read -a items <<< "$addpartition"
+	    for pinfo in "${items[@]}"
+	    do
+		dopartition "$pinfo" "$burndev" "$burnfilefile"
+	    done
+	fi
+
+    fi
+    exit 0
+fi

@@ -1,0 +1,80 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: apt-addrepo
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|repo|name|repofile|gpgkey|gpgkeyname|" #"|list|of|valid|args|"
+rqdargs=""                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    if [[ -v repo ]] && [[ "$repo" != "" ]]
+    then
+	logtoboth "> Plugin $pfx: Add repo '$repo' to apt sources"
+	[ "$name" != "" ] && name="sdm-sourced-repo"
+	echo "$repo" >> $SDMPT/etc/apt/sources.list.d/$name.list
+    fi
+    if [[ -v repofile ]] && [[ "$repofile" != "" ]]
+    then
+	if [ -f $repofile ]
+	then
+	    rbn=$(basename $repofile)
+	    [[ "${rbn##*.}" != "list" ]] && errexit "? Plugin $pfx: apt Repo file '$repofile' must have file type '.list'"
+	    logtoboth "> Plugin $pfx: Add apt repo sources file '$repofile'"
+	    cp $repofile $SDMPT/etc/apt/sources.list.d
+	else
+	    logtoboth "? Plugin $pfx: Repo source file '$repofile' not found"
+	    exit 1
+	fi
+    fi
+    if [[ -v gpgkey ]] && [[ -f $gpgkey ]]
+    then
+	[ "$gpgkeyname" == "" ] && gpgkeyname=$(basename "$gpgkey")
+	gpgkeyname=${gpgkeyname%.*} # Strip file type
+	logtoboth "> Plugin $pfx: Copy gpg key '$gpgkey' to $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg"
+	cp $gpgkey $SDMPT/etc/apt/trusted.gpg.d
+    else
+	[[ "$(which gpg)" == "" ]] && errexit "? Please sudo apt install gpg"
+	logtoboth "> Plugin $pfx: Download gpg key from $gpgkey and add to apt trusted keys"
+	curl -sS $gpgkey | gpg --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi

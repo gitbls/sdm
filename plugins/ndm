@@ -1,0 +1,76 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: ndm
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+vldargs="|localsrc|config|"
+loadparams
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" || exit
+    plugin_printkeys
+    if [ "$config" != "" ]
+    then
+	if [ -f $config ]
+	then
+	    logtoboth "> Plugin $pfx: copy ndm config '$config' to $SDMPT/etc/dbndm.json"
+	    cp -a $config $SDMPT/etc/dbndm.json
+	else
+	    logtoboth "? Plugin $pfx: config file '$config' not found"
+	    exit 1
+	fi
+    fi
+
+    if [ "$localsrc" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Copy ndm from '$localsrc'"
+	cp -a $localsrc/ndm* $SDMPT/usr/local/bin
+    else
+	logtoboth "> Plugin $pfx: download ndm from GitHub"
+	for f in ndm ndmdhcpisc.py ndmdhcpnone.py ndmdnsbind.py ndmdnsmasq.py
+	do
+	    curl -L https://raw.githubusercontent.com/gitbls/ndm/master/$f -o $SDMPT/usr/local/bin/$f
+	done
+    fi
+    chmod 755 $SDMPT/usr/local/bin/ndm*
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    logtoboth "> Plugin $pfx: Install isc-dhcp-server and bind9"
+    doaptrpterror "install --no-install-recommends --yes isc-dhcp-server bind9"
+    logtoboth "> Plugin $pfx: Disable services pending configuration"
+    systemctl disable isc-dhcp-server > /dev/null 2>&1
+    systemctl disable bind9 > /dev/null 2>&1
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+else
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
