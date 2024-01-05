@@ -55,7 +55,7 @@ then
 	do
 	    # The construct ${!c} gets the value of the variable 'pointed to' by contents of $c
 	    value="${!c}"
-	    chyp=${c/__/-}    # Convert double underscore back to hyphen
+	    chyp=${c//__/-}    # Convert double underscore back to hyphen
 	    [ "$value" == "" ] && value="0"
             # Remove any old entry for this key and write the new one
             if ! grep "$chyp=$value" $SDMPT/etc/sdm/auto-1piboot.conf > /dev/null 2>&1

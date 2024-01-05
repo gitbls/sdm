@@ -20,6 +20,7 @@ args="$2"
 loadparams
 vldargs="|consoleblank|quiet|noquiet|splash|nosplash|plymouth|noplymouth|"
 rqdargs=""
+[ -d $SDMPT/boot/firmware ] && cfgdir="$SDMPT/boot/firmware" || cfgdir="$SDMPT/boot"
 
 if [ "$phase" == "0" ]
 then
@@ -51,39 +52,30 @@ EOF
     then
 	[ "$consoleblank" == "" ] && consoleblank=300
 	logtoboth "> Plugin $pfx: Set console blank timeout to $consoleblank seconds"
-	[ -f /boot/cmdline.txt ] && sed -i "s/root=/consoleblank=$consoleblank root=/" /boot/cmdline.txt
-	[ -f /boot/firmware/cmdline.txt ] && sed -i "s/root=/consoleblank=$consoleblank root=/" /boot/firmware/cmdline.txt
+	[ -f $cfgdir/cmdline.txt ] && sed -i "s/root=/consoleblank=$consoleblank root=/" $cfgdir/cmdline.txt
     fi
     if [ -v quiet ]
     then
-	logtoboth "> Plugin $pfx: Enable quiet in /boot/cmdline.txt"
-	if [ -f /boot/cmdline.txt ]
+	logtoboth "> Plugin $pfx: Enable quiet in $cfgdir/cmdline.txt"
+	if [ -f $cfgdir/cmdline.txt ]
 	then
-	    sed -i "s/ quiet//g" /boot/cmdline.txt
-	    sed -i "s/rootwait/rootwait quiet/g" /boot/cmdline.txt
-	fi
-	if [ -f /boot/firmware/cmdline.txt ]
-	then
-	    sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
-	    sed -i "s/rootwait/rootwait quiet/g" /boot/firmware/cmdline.txt
+	    sed -i "s/ quiet//g" $cfgdir/cmdline.txt
+	    sed -i "s/rootwait/rootwait quiet/g" $cfgdir/cmdline.txt
 	fi
     fi
     
     if [ -v noquiet ]
     then
-	if grep -qs quiet /boot/cmdline.txt
+	if grep -qs quiet $cfgdir/cmdline.txt
 	then
-	    logtoboth "> Plugin $pfx: Disable quiet in /boot/cmdline.txt"
-	    [ -f /boot/cmdline.txt ] && sed -i "s/ quiet//g" /boot/cmdline.txt
-	    [ -f /boot/firmware/cmdline.txt ] && sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
+	    logtoboth "> Plugin $pfx: Disable quiet in $cfgdir/cmdline.txt"
+	    [ -f $cfgdir/cmdline.txt ] && sed -i "s/ quiet//g" $cfgdir/cmdline.txt
 	    if [ "$noquiet" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "FirstBoot: Re-add 'quiet' to /boot/cmdline.txt"
-[ -f /boot/cmdline.txt ] && sed -i "s/ quiet//g" /boot/cmdline.txt
-[ -f /boot/cmdline.txt ] && sed -i "s/rootwait/rootwait quiet/g" /boot/cmdline.txt
-[ -f /boot/firmware/cmdline.txt ] && sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
-[ -f /boot/firmware/cmdline.txt ] && sed -i "s/rootwait/rootwait quiet/g" /boot/firmware/cmdline.txt
+logger "FirstBoot: Re-add 'quiet' to $cfgdir/cmdline.txt"
+sed -i "s/ quiet//g" $cfgdir/cmdline.txt
+sed -i "s/rootwait/rootwait quiet/g" $cfgdir/cmdline.txt
 EOF
 	    fi
 	fi
@@ -91,34 +83,26 @@ EOF
     
     if [ -v splash ]
     then
-	logtoboth "> Plugin $pfx: Enable splash in /boot/cmdline.txt"
-	if [ -f /boot/cmdline.txt ]
+	logtoboth "> Plugin $pfx: Enable splash in $cfgdir/cmdline.txt"
+	if [ -f $cfgdir/cmdline.txt ]
 	then
-	    sed -i "s/splash //g" /boot/cmdline.txt
-	    sed -i "s/rootwait/rootwait splash/g" /boot/cmdline.txt
-	fi
-	if [ -f /boot/firmware/cmdline.txt ]
-	then
-	    sed -i "s/splash //g" /boot/firmware/cmdline.txt
-	    sed -i "s/rootwait/rootwait splash/g" /boot/firmware/cmdline.txt
+	    sed -i "s/splash //g" $cfgdir/cmdline.txt
+	    sed -i "s/rootwait/rootwait splash/g" $cfgdir/cmdline.txt
 	fi
     fi
     
     if [ -v nosplash ]
     then
-	if grep -qs splash /boot/cmdline.txt
+	if grep -qs splash $cfgdir/cmdline.txt
 	then
-	    logtoboth "> Plugin $pfx: Disable splash in /boot/cmdline.txt"
-	    [ -f /boot/cmdline.txt ] && sed -i "s/splash //g" /boot/cmdline.txt
-	    [ -f /boot/firmware/cmdline.txt ] && sed -i "s/splash //g" /boot/firmware/cmdline.txt
+	    logtoboth "> Plugin $pfx: Disable splash in $cfgdir/cmdline.txt"
+	    sed -i "s/splash //g" $cfgdir/cmdline.txt
 	    if [ "$nosplash" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "Re-add 'splash' to /boot/cmdline.txt"
-[ -f /boot/cmdline.txt ] && sed -i "s/ splash//g" /boot/cmdline.txt
-[ -f /boot/cmdline.txt ] && sed -i "s/rootwait/rootwait splash/g" /boot/cmdline.txt
-[ -f /boot/firmware/cmdline.txt ] && sed -i "s/ splash//g" /boot/firmware/cmdline.txt
-[ -f /boot/firmware/cmdline.txt ] && sed -i "s/rootwait/rootwait splash/g" /boot/firmware/cmdline.txt
+logger "Re-add 'splash' to $cfgdir/cmdline.txt"
+sed -i "s/ splash//g" $cfgdir/cmdline.txt
+sed -i "s/rootwait/rootwait splash/g" $cfgdir/cmdline.txt
 EOF
 	    fi
 	fi
@@ -151,7 +135,7 @@ EOF
     fi    
     #
     #logfreespace "at end of $pfx Phase 1"
-    logtoboth "> Plugin $pfx: Final cmdline.txt: $(cat /boot/cmdline.txt)"
+    logtoboth "> Plugin $pfx: Final cmdline.txt: $(cat $cfgdir/cmdline.txt)"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #

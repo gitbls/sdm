@@ -13,9 +13,9 @@ function updateconfigtxt() {
     local c="$1" value="$2" pfx="$3" inline="$4" newsection="$2" dnm drest dsep sname sval
     if [ "$c" == "section" ]
     then
-	logtoboth "> ${pfx}Append section '$value' to $SDMPT/boot/config.txt"
+	logtoboth "> ${pfx}Append section '$value' to $cfgdir/config.txt"
 	[ "$newsection" == "${newsection#[}" ] && newsection="[$newsection]"
-	printf "\n${newsection}\n" >> $SDMPT/boot/config.txt
+	printf "\n${newsection}\n" >> $cfgdir/config.txt
     else
 	# assume not dtoverlay/dtparam
 	sname="$c"
@@ -55,31 +55,30 @@ function updateconfigtxt() {
 	fi
 	if [ "$inline" != "" ]
 	then
-	    if grep -q "^#$sname.*" $SDMPT/boot/config.txt
+	    if grep -q "^#$sname.*" $cfgdir/config.txt
 	    then
 		# there but commented out
-		logtoboth "> ${pfx}Adding '${sname}${dsep}${sval}' below already commented line in $SDMPT/boot/config.txt"
-		sed -i "/^#$sname=.*/a $sname${dsep}$sval" $SDMPT/boot/config.txt
-		#sed -i "s/^#$sname=.*/$sname=$sval/" $SDMPT/boot/config.txt
+		logtoboth "> ${pfx}Adding '${sname}${dsep}${sval}' below already commented line in $cfgdir/config.txt"
+		sed -i "/^#$sname=.*/a $sname${dsep}$sval" $cfgdir/config.txt
 	    else
-		if grep -q "^$sname.*" $SDMPT/boot/config.txt
+		if grep -q "^$sname.*" $cfgdir/config.txt
 		then
 		    # There and uncommented
-		    logtoboth "> ${pfx}Add '${sname}${dsep}${sval}' below newly commented line it replaces $SDMPT/boot/config.txt"
-		    sed -i "s/^${sname}${dsep}/#sdm: $sname${dsep}/" $SDMPT/boot/config.txt
-		    sed -i "/^#sdm: $sname${dsep}.*/ a $sname${dsep}$sval" $SDMPT/boot/config.txt
+		    logtoboth "> ${pfx}Add '${sname}${dsep}${sval}' below newly commented line it replaces $cfgdir/config.txt"
+		    sed -i "s/^${sname}${dsep}/#sdm: $sname${dsep}/" $cfgdir/config.txt
+		    sed -i "/^#sdm: $sname${dsep}.*/ a $sname${dsep}$sval" $cfgdir/config.txt
 		else
 		    # Not in config.txt
-		    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $SDMPT/boot/config.txt"
-		    printf "${sname}${dsep}${sval}\n" >> $SDMPT/boot/config.txt
+		    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $cfgdir/config.txt"
+		    printf "${sname}${dsep}${sval}\n" >> $cfgdir/config.txt
 		fi
 	    fi
 	else
 	    #
 	    # Not inline, so always append
 	    #
-	    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $SDMPT/boot/config.txt"
-	    printf "${sname}${dsep}${sval}\n" >> $SDMPT/boot/config.txt
+	    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $cfgdir/config.txt"
+	    printf "${sname}${dsep}${sval}\n" >> $cfgdir/config.txt
 	fi
     fi
 
@@ -97,7 +96,7 @@ loadparams
 vldargs=""
 rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/bootconfig"
-
+[ -d $SDMPT/boot/firmware ] && cfgdir="$SDMPT/boot/firmware" || cfgdir="$SDMPT/boot"
 
 if [ "$phase" == "0" ]
 then
@@ -124,9 +123,9 @@ then
 	    value="${!c}"
 	    case "$c" in
 		comment)
-		    logtoboth "> Plugin $pfx: Add comment to $SDMPT/boot/config.txt: $value"
+		    logtoboth "> Plugin $pfx: Add comment to $cfgdir/config.txt: $value"
 		    #[ "$value" != "${value#\\n}" ] && value="\n#${value#\\n}" || value="#${value}"
-		    printf "$value\n" >> $SDMPT/boot/config.txt
+		    printf "$value\n" >> $cfgdir/config.txt
 		    ;;
 		#inline)
 		    #inline="1"  # Already set above of course
@@ -136,20 +135,20 @@ then
 		    then
 			if [ -f $reset ]
 			then
-			    logtoboth "% Plugin $pfx: Reset /boot/config.txt with '$reset'"
-			    [ ! -f $SDMPT/boot/config.txt.sdm ] && mv $SDMPT/boot/config.txt $SDMPT/boot/config.txt.sdm
-			    rm -f $SDMPT/boot/config.txt
-			    cp -a $reset $SDMPT/boot/config.txt
-			    setfileownmode $SDMPT/boot/config.txt 755
+			    logtoboth "% Plugin $pfx: Reset $cfgdir/config.txt with '$reset'"
+			    [ ! -f $cfgdir/config.txt.sdm ] && mv $cfgdir/config.txt $cfgdir/config.txt.sdm
+			    rm -f $cfgdir/config.txt
+			    cp -a $reset $cfgdir/config.txt
+			    setfileownmode $cfgdir/config.txt 644  #Doesn't matter on FAT, but wth
 			else
-			    logtoboth "? Plugin $pfx: /boot/config.txt reset file '$reset' not found"
+			    logtoboth "? Plugin $pfx: $cfgdir/config.txt reset file '$reset' not found"
 			    exit 1
 			fi
 		    else
-			logtoboth "% Plugin $pfx: Reset /boot/config.txt to null file"
-			[ ! -f $SDMPT/boot/config.txt.sdm ] && mv $SDMPT/boot/config.txt $SDMPT/boot/config.txt.sdm
-			rm -f $SDMPT/boot/config.txt
-			touch $SDMPT/boot/config.txt
+			logtoboth "% Plugin $pfx: Reset $cfgdir/config.txt to null file"
+			[ ! -f $cfgdir/config.txt.sdm ] && mv $cfgdir/config.txt $cfgdir/config.txt.sdm
+			rm -f $cfgdir/config.txt
+			touch $cfgdir/config.txt
 		    fi
 		    ;;
 		*)
