@@ -5,7 +5,11 @@
 # So, copy the code here and do it here. 
 #
 function enable_wayvnc() {
-
+    #
+    # $1: wayvnc headless width
+    # $2: wayvnc headless height
+    #
+    local waywidth=$1 wayheight=$2 gx
     HOMEDIR="/home/$myuser"
     systemctl --now disable vncserver-x11-serviced.service > /dev/null 2>&1
     mkdir -p $HOMEDIR/.config/wayvnc
@@ -35,12 +39,7 @@ EOF
       fi
       KBL=$(grep XKBLAYOUT /etc/default/keyboard | cut -d \" -f 2)
       KBV=$(grep XKBVARIANT /etc/default/keyboard | cut -d \" -f 2)
-      if [ -z $KBV ]
-      then
-          VNCKBD="$KBL"
-      else
-          VNCKBD="$KBL-$KBV"
-      fi
+      [ -z $KBV ] && VNCKBD="$KBL" || VNCKBD="$KBL-$KBV"
       cat << EOF > /etc/xdg/autostart/wayvnc.desktop
 [Desktop Entry]
 Type=Application
@@ -51,4 +50,14 @@ Exec=/usr/bin/wayvnc --render-cursor --keyboard=$VNCKBD
 OnlyShowIn=wayfire
 EOF
       chown -R $myuser:users $HOMEDIR/.config/wayvnc
+      if [[ "$waywidth" != "" ]] && [[ "$wayheight" != "" ]]
+      then
+	  cat << EOF >> $HOMEDIR/.config/wayfire.ini
+
+[output]
+headless_width=$waywidth
+headless_height=$wayheight
+EOF
+      fi
+      chown $myuser:$(getfilegroup $HOMEDIR) $HOMEDIR/.config/wayfire.ini
 }

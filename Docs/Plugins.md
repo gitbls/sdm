@@ -819,6 +819,7 @@ Install and configure either or both of Virtual VNC and RealVNC.
 * **realvnc=resolution** &mdash; Install RealVNC server with the specified resolution on the console. The resolution is optional.
 * **tigervnc=res1,res2,...resn** &mdash; Install tigervnc server with virtual VNC servers for the specified resolutions
 * **tightvnc=res1,res2,...resn** &mdash; Install tightvnc server with virtual VNC servers for the specified resolutions
+* **wayvnc[=res]** &mdash; Enable wayvnc server. If resolution is specified, set it has the Wayland headless resolution
 
 Only one of tigervnc or tightvnc can be installed and configured on a system by sdm.
 

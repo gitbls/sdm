@@ -114,8 +114,7 @@ else
     if [ -f /usr/bin/startlxde-pi ]
     then
 	logtoboth "> Plugin $pfx: Special LXDE-Pi handling"
-	gx=$(stat -c '%G' /home/$dstuser)
-	[ "$gx" == "" ] && gx=users
+	gx=$(getfilegroup /home/$dstuser)
 	mkdir -p /home/$dstuser/.config
 	if [ -f $assetdir/wf-panel-pi/$srcuser/wf-panel-pi.ini ]
 	then

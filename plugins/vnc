@@ -14,7 +14,7 @@ function decodeargs() {
     # Decode argument list: realvnc=res:tigervnc=res1,res2,res3:tightvnc=res1,res2,res3
     # Only one of tigervnc/tightvnc may be used at a time. Default is tigervnc
     #
-    local arglist=() realvnclist="" tigerlist=() tightlist=() validkeys="$2" keysfound=""
+    local arglist=() realvnclist="" wayvnclist="" tigerlist=() tightlist=() validkeys="$2" keysfound=""
     IFS="|" read -a arglist <<< "$1"
     for c in "${arglist[@]}"
     do
@@ -31,7 +31,10 @@ function decodeargs() {
 	eval "${key}=\"$value\""
 	[ "$key" == "tigervnc" ] && tigerlist+=("$value")
 	[ "$key" == "tightvnc" ] && tightlist+=("$value")
-	[ "$key" == "wayvnc" ] && wayvnc=wayvnc
+	if [ "$key" == "wayvnc" ]
+	then
+	    [ "$value" == "" ] && wayvnclist="default" || wayvnclist="$value"  #Not really a list at the moment
+	fi
 	if [ "$key" == "realvnc" ]
 	then
 	    [ "$value" == "" ] && realvnclist="default" || realvnclist="$value"  #Not really a list at the moment
@@ -67,6 +70,7 @@ function decodeargs() {
 	done
     fi
     [ "$realvnclist" != "" ] && eval "realvnc=\"$realvnclist\""
+    [ "$wayvnclist" != "" ] && eval "wayvnc=\"$wayvnclist\""
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -171,13 +175,23 @@ EOF
     #
     if [ "$wayvnc" != "" ]
     then
-	logtoboth "> Plugin $pfx: wayvnc will be enabled in FirstBoot"
+	if [ "$wayvnc" == "default" ]
+	then
+	    waywidth=""
+	    wayheight=""
+	    logtoboth "> Plugin $pfx: wayvnc will be enabled in FirstBoot with no headless resolution set"
+	else
+	    wayvnc="${wayvnc,,}"
+	    wayheight=${wayvnc#*x}
+	    waywidth=${wayvnc%x*}
+	    logtoboth "> Plugin $pfx: wayvnc will be enabled in FirstBoot with headless resolution ${waywidth}x${wayheight}"
+	fi
 	cat > /etc/sdm/0piboot/090-wayvnc-enable.sh <<EOF
 #!/bin/bash
 logger "FirstBoot: Enable wayvnc VNC server"
 source /etc/sdm/sdm-readparams
 source $src/sdm-rpcsubs
-enable_wayvnc
+enable_wayvnc "$waywidth" "$wayheight"
 EOF
 	if [ -f /lib/systemd/system/vncserver-x11-serviced.service ]
 	then
