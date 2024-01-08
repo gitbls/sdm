@@ -1,5 +1,10 @@
 # Changelog
 
+## V11.1
+
+* New Features
+  * `vnc` plugin accepts `wayvnc[=geometry]` argument to enable wayvnc. If geometry (widthXheight) specified, the headless desktop geometry will be set
+
 ## V11.0
 
 * New Features
