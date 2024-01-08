@@ -189,6 +189,18 @@ function isactive() {
     return $sts
 }
 
+function getfilegroup() {
+    #
+    # $1: /path/to/file
+    #
+    # Returns the string for the group owning the file
+    #
+    local tfile="$1" gx
+    gx=$(stat -c '%G' $tfile)
+    [ "$gx" == "" ] && gx=users
+    echo $gx
+}
+
 function getgbstr() {
     #
     # $1: # of bytes in partition
@@ -1357,7 +1369,7 @@ function domount() {
     #
     # $1: device name/IMG Name/directory name
     # $2: "Directory" "IMG" or "Device"
-    # Tree will be mounted on $SDMPT which must be set with declare -x SDMPT=$(makemtpt)
+    # Tree will be mounted on $SDMPT which must be set with: declare -x SDMPT=$(makemtpt)
     #
     local dmimg=$1 imgtype=$2
     local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir
@@ -1365,7 +1377,6 @@ function domount() {
     [ ! -d $SDMPT ] && mkdir $SDMPT
     if [ "$imgtype" == "Directory" ]
     then
-	#ismounted $(realpath $dmimg) && errexit "? Directory '$dmimg' is already mounted"
 	ismounted $(realpath $dmimg) && echo "% Directory '$dmimg' is mounted; Continuing..."
 	mount --bind $dmimg $SDMPT
 	notmounted $SDMPT && errexit "? Error mounting --bind '$dmimg'"
@@ -1410,24 +1421,6 @@ function domount() {
 	fi
 	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dmimg'"
     fi
-}
-
-function mountburn() {
-    local burndev="$1" p1="1" p2="2"
-    [[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
-    [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
-    mount -v ${burndev}${p2} $SDMPT
-    if [ -d $SDMPT/boot/firmware ]
-    then
-        mount -v ${burndev}${p1} $SDMPT/boot/firmware
-    else
-        mount -v ${burndev}${p1} $SDMPT/boot
-    fi
-    ! ismounted ${burndev}${p2} && errexit "? Unable to mount ${burndev}${p2}"
-}
-
-function umountburn() {
-    docleanup keep
 }
 
 function docleanup() {

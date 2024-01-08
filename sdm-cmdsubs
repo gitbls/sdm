@@ -96,7 +96,7 @@ function sdm_burndevfile() {
 	setdiskid $burndev $newdiskid
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
-	mountburn $burndev
+	domount "$burndev" "Device"
     else
 	#
 	# Burning to a file
