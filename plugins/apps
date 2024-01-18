@@ -18,8 +18,8 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|apps|name|"
-rqdargs="|apps|"
+vldargs="|apps|name|remove|"
+rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/apps"
 if [ "$phase" == "0" ]
 then
@@ -33,18 +33,40 @@ then
     #
     plugin_printkeys
 
+    if [[ "$apps" == "" ]] && [[ "$remove" == "" ]]
+    then
+	logtoboth "? Plugin $pfx: Neither 'apps' nor 'remove' specified; Nothing to do"
+	exit 1
+    fi
     if [[ -f $assetdir/default ]] && [[ "$name" == "" ]]
     then
 	logtoboth "? Plugin $pfx: Default apps list already set; this and subsequent apps plugins must provide 'name' argument"
 	exit 1
     else
 	[ "$name" == "" ] && name="default"
-        appfile=$(findappfile "$apps")
-        exitiferr "$appfile"
-	apps=$(getapplist "$appfile")
 	mkdir -p $assetdir
-	echo "$apps" > $assetdir/$name
-        logtoboth "> Plugin $pfx [$name]: Saved apps list: $apps"
+	if [ "$apps" != "" ]
+	then
+            appfile=$(findappfile "$apps")
+            exitiferr "$appfile"
+	    apps=$(getapplist "$appfile")
+	    if [ -f $assetdir/$name ]
+	    then
+		logtoboth "? Plugin $pfx: Apps list '$name' already exists; Add argument 'name=somename' to this apps plugin invocation"
+		logtoboth "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
+		exit 1
+	    fi
+	    echo "$apps" > $assetdir/$name
+            logtoboth "> Plugin $pfx [$name]: Saved apps list: $apps"
+	fi
+	if [ "$remove" != "" ]
+	then
+	    removefile=$(findappfile "$remove")
+	    exitiferr "$removefile"
+	    removes=$(getapplist "$removefile")
+	    echo "$removes" > $assetdir/$name-removes
+            logtoboth "> Plugin $pfx [$name]: Saved 'remove' list: $removes"
+	fi
     fi
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -57,6 +79,23 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     [ "$name" == "" ] && name="default"
+    if [ -f $assetdir/$name-removes ]
+    then
+	logfreespace "at start of [$name] Application Removes"
+	read removes < $assetdir/$name-removes
+	logtoboth "> Plugin $pfx: Remove application(s)"
+        IFS=" " read -a alist <<< "$removes"
+        for a in "${alist[@]}"
+        do
+            if ispkginstalled $a
+	    then
+		logtoboth "  -- $a"
+		doapt "remove --yes $a" $showapt
+	    else
+		logtoboth "  -- $a (not installed)"
+	    fi
+        done
+    fi
     logfreespace "at start of [$name] Application Installs"
     read svapps < $assetdir/$name
     if [[ "$virtmode" == "chroot" ]] && [[ "$svapps" =~ "qemu-user-static" ]]
