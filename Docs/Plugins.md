@@ -69,10 +69,11 @@ Use the apps plugin to install applications. The apps plugin can be called multi
 
 * **apps** &mdash; Specifies the list of apps to install or @filename to provide a list of apps (one per line) to install. Comments are indicated by a pound sign (#) and are ignored, so you can document your app list if desired. If the specified file is not found, sdm will look in the sdm directory (/usr/local/sdm). 
 * **name** &mdash; Specifies the name of the apps list. The default name is *default*, but it can only be used once per customization. If you want to use the apps plugin 2 or more times, all plugin instances after the first must have a name provided.
+* **remove** &mdash; Specifies the list of apps to remove ofr @filename to provide a list of apps (one per line) to remove. The `remove` argument is processed before the `apps` argument. If you try to remove an apt packge that doesn't exist it will log in /etc/sdm/apt.log and sdm will notify you at the end of the customize: '? apt reported errors; review /etc/sdm/apt.log'
 
 #### Examples
 
-* `--plugin apps:"apps=emacs,vim,zile"` &mdash; Install emacs, vim, and zile
+* `--plugin apps:"remove=wolfram-engine|apps=emacs"` &mdash; Remove wolfram-engine, and install emacs
 * `--plugin apps:"apps=@my-apps|name=myapps" --plugin apps:"apps=@my-xapps|name=myxapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
 * `--plugin apps:"apps=@mycoreapps|name=core-apps"` `--plugin apps:"apps=@myaddtlapps|name=extra-apps"` &mdash; Install the list of apps from @mycoreapps and @myaddtlapps
 
@@ -667,6 +668,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
     * `persistent`: Makes a permanent journal in /var/log
     * `volatile`: The journal is in memory and not retained across system restarts
     * `none`: There is no system journal
+* **ledheartbeat** &mdash; Enable LED heartbeat flash on Pi systems that have /sys/class/leds/PWR/trigger, such as the Pi4 and Pi5.
 * **modprobe** &mdash; Comma-separated list of files to copy to /etc/modprobe.d
 * **motd** &mdash; Single /path/to/file to use for /etc/motd. /dev/null results in an empty motd
 * **name** &mdash; Name of this invocation. This **must** be included if the `system` plugin is invoked more than once in an IMG, including between customize and burn. Best practice to avoid problems is to give each and every invocation a name.
