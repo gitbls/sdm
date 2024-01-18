@@ -1,0 +1,327 @@
+#!/bin/bash
+# Guide: https://rr-developer.github.io/LUKS-on-Raspberry-Pi/
+#
+# This script can be run two different ways:
+# * Automatically by sdm on the booted system as invoked by the cryptroot plugin via the sdm-auto-encrypt service
+# * Manually on the booted system
+#
+function wait_startup_complete {
+    # $1 is the message to write
+    local lc=0 msg=$1
+    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    do
+        if [ $lc -eq 0 ]
+        then
+            logger "$msg"
+	    echo "\$msg" > /dev/console
+            lc=1
+        fi
+        sleep 1
+    done
+}
+
+function getgbstr() {
+    #
+    # $1: # of bytes in partition
+    #
+    # Returns the string "(nn.nnGB, mm.mmGiB)"
+
+    local nbytes=$1
+    local gb=1000000000 gib=1073741824 gb2=500000000 gi2=536870912
+    local ngbytes ngibytes 
+     ngbytes=$(printf %.1f "$(( ((10 * $nbytes)+$gb2) / $gb ))e-1")
+    ngibytes=$(printf %.1f "$(( ((10 * $nbytes)+$gi2) / $gib))e-1")
+    echo "(${ngbytes}GB, ${ngibytes}GiB)"
+    return
+}
+
+function getfsdf() {
+    #
+    # $1: fs name
+    # $2: df component: pcent, avail, etc
+    #
+    echo $(df --output=$2 $1 | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))
+}
+
+function logifsdm() {
+    local msg="$1"
+    [[ "$xcmd" =~ "sdm" ]] && echo "sdm-cryptconfig: $msg" > /dev/console
+}
+
+function doconfiginitramfs() {
+    echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
+    cat >> /etc/kernel/postinst.d/initramfs-rebuild <<EOF
+#!/bin/sh -e
+
+# Rebuild initramfs after kernel upgrade to include new kernel's modules.
+# https://github.com/Robpol86/robpol86.com/blob/master/docs/_static/initramfs-rebuild.sh
+# Save as (chmod +x): /etc/kernel/postinst.d/initramfs-rebuild
+
+# Remove splash from cmdline.
+if grep -q '\bsplash\b' /boot/firmware/cmdline.txt; then
+  sed -i 's/ \?splash \?/ /' /boot/firmware/cmdline.txt
+fi
+
+# Exit if not building kernel for this Raspberry Pi's hardware version.
+version="\$1"
+current_version="\$(uname -r)"
+case "\${current_version}" in
+  *-v7+)
+    case "\${version}" in
+      *-v7+) ;;
+      *) exit 0
+    esac
+  ;;
+  *+)
+    case "\${version}" in
+      *-v7+) exit 0 ;;
+    esac
+  ;;
+esac
+update-initramfs -u
+EOF
+    chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
+
+    echo "> Create /etc/initramfs-tools/hooks/luks_hooks"
+    cat > /etc/initramfs-tools/hooks/luks_hooks <<EOF
+#!/bin/sh -e
+PREREQS=""
+case "\$1" in
+        prereqs) echo "\${PREREQS}"; exit 0;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+copy_exec /sbin/resize2fs /sbin
+copy_exec /sbin/fdisk /sbin
+copy_exec /sbin/cryptsetup /sbin
+copy_exec /usr/bin/bash /usr/bin
+copy_file text /usr/local/bin/sdmcryptfs /usr/bin
+copy_file text /etc/mappername
+exit 0
+EOF
+    chmod 755 /etc/initramfs-tools/hooks/luks_hooks
+
+    echo "> Update /etc/initramfs-tools/modules to include crypto modules"
+    cat >> /etc/initramfs-tools/modules <<EOF
+algif_skcipher
+xchacha20
+adiantum
+aes_arm
+sha256
+nhpoly1305
+dm-crypt
+EOF
+    echo "> Enable KEYMAP=y in /etc/initramfs-tools/initramfs.conf"
+    sed -i "s/KEYMAP=n/KEYMAP=y/" /etc/initramfs-tools/initramfs.conf
+}
+
+function domkinitramfs() {
+    echo "> Update initramfs"
+    logifsdm "Update initramfs"
+    update-initramfs -u
+}
+
+function doupdateconfig() {
+    local rootfs sd
+
+    rootfs=$(findmnt -n -o SOURCE /)
+    sd=$(lsblk -dpno pkname $rootfs)
+    if [ "$sd" == "" ] #snh but the code was here!
+    then
+	[[ "$rootfs" =~ "mmcblk" ]] || [[ "$rootfs" =~ "nvme0n1" ]] && sd=${rootfs%p2}
+	[[ "$rootfs" =~ "/dev/sd" ]] && sd=${rootfs%2}
+    fi
+    echo "> Update root statement in cmdline.txt"
+    sed -i "s#root=[0-9a-zA-Z-]*[ =][0-9a-zA-Z-]* #root=/dev/mapper/$cryptdevice #" /boot/firmware/cmdline.txt
+    echo "> Add cryptdevice '$cryptdevice' to cmdline.txt"
+    # 'rw' needed so crypt device is mounted read/write
+    sed -i "s#\$# rw cryptdevice=$rootfs:$cryptdevice#" /boot/firmware/cmdline.txt
+
+    echo "> Updated cmdline:"
+    cat /boot/firmware/cmdline.txt
+
+    echo "> Update /etc/fstab for the encrypted rootfs"
+    sed -i "s#PARTUUID=[0-9a-zA-Z-]* *\/ #/dev/mapper/$cryptdevice /#" /etc/fstab
+
+    echo "> Update /etc/crypttab"
+    echo "$cryptdevice	$rootfs  none  luks" >> /etc/crypttab
+}
+
+#
+# Main code
+#
+
+if [ -f /etc/sdm/assets/cryptroot/mappername ]
+then
+    source /etc/sdm/assets/cryptroot/mappername
+    cp /etc/sdm/assets/cryptroot/mappername /etc/mappername
+else
+    cryptdevice="cryptroot"
+    echo "cryptdevice=$cryptdevice" > /etc/mappername
+fi
+
+xcmd=$1
+if [[ "$xcmd" =~ "sdm" ]]
+then
+    oy="config mkinitramfs updateboot"
+else
+    if [ ! -f /usr/local/bin/sdmcryptfs ]
+    then
+	echo "> Copy sdmcryptfs from GitHub"
+	curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdmcryptfs -o /usr/local/bin/sdmcryptfs
+	chmod 755 /usr/local/bin/sdmcryptfs
+    fi
+    oy="doapt config mkinitramfs updateboot"
+fi
+logifsdm "Starting; System will restart automatically when completed"
+
+for o in $oy
+do
+    case "$o" in
+	doapt)
+	    apt install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin
+	    ;;
+	config)
+	    doconfiginitramfs
+	    ;;
+	mkinitramfs)
+	    domkinitramfs
+	    ;;
+	updateboot)
+	    doupdateconfig
+	    ;;
+    esac
+done
+systemctl disable sdm-auto-encrypt > /dev/null 2>&1
+rm -f /etc/systemd/system/sdm-auto-encrypt.service
+#
+# Set up service to run after next reboot that will rebuild initramfs (again) and reboot
+#
+echo "> Set up run-once service to rebuild initramfs after encrytped rootfs boot"
+cat > /etc/systemd/system/sdm-cryptfs-cleanup.service <<EOF
+[Unit]
+Description=sdm cryptroot cleanup service
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sdm-cryptfs-cleanup
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "> Create /usr/local/bin/sdm-cryptfs-cleanup script"
+cat > /usr/local/bin/sdm-cryptfs-cleanup <<EOF
+#!/bin/bash
+
+function wait_startup_complete {
+    # $1 is the message to write
+    local lc=0 msg=\$1
+    while [ "\$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "\$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    do
+        if [ \$lc -eq 0 ]
+        then
+            logger "\$msg"
+	    echo "\$msg" > /dev/console
+            lc=1
+        fi
+        sleep 1
+    done
+}
+
+echo  "sdm-cryptfs-cleanup: Starting; System will restart automatically when completed" > /dev/console
+echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
+logger "sdm-cryptfs-cleanup: Clean up initramfs content"
+mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
+grep -v -E "bash|sdmcryptfs|mappername" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
+echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
+logger "sdm-cryptfs-cleanup: Rebuild initramfs"
+update-initramfs -u
+systemctl disable sdm-cryptfs-cleanup
+rm -f /etc/systemd/system/sdm-cryptfs-cleanup.service
+rm -f /etc/systemd/system/sdm-auto-encrypt.service
+systemctl daemon-reload
+wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
+secs=10
+logger "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds"
+echo "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds" > /dev/console
+sleep \$secs
+logger "sdm-cryptfs-cleanup: The system will reboot now!"
+echo "sdm-cryptfs-cleanup: The system will reboot now!" > /dev/console
+sleep 2
+reboot
+EOF
+chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
+systemctl daemon-reload
+systemctl enable sdm-cryptfs-cleanup > /dev/null 2>&1
+
+rootfs=$(findmnt -n -o SOURCE /)
+[[ "$rootfs" =~ "mmcblk" ]]  || [[ "$rootfs" =~ "nvme0n1" ]] && sd=${rootfs%p2}
+[[ "$rootfs" =~ "/dev/sd" ]] && sd=${rootfs%2}
+
+if ! [[ "$cmdx" =~ "sdm" ]]
+then
+    used1k=$(getfsdf "/" used)
+    usedby=$((used1k*1024))
+    usedstr=$(getgbstr $usedby)
+    echo ""
+    echo "> Rootfs '$rootfs' has $usedby bytes $usedstr used"
+    echo ""
+    echo "> You will need another disk for the encryption process to use as a scratch disk"
+    echo "  This disk must be larger than $usedstr and it will be over-written"
+    echo $"
+Reboot the system when you are ready to continue
+
+The system will start to reboot, but hang trying to read rootfs. It will try 30 times
+before giving up and dropping to the initramfs prompt: (initramfs)
+
+** Ignore the 'ALERT! missing /dev/mapper' message. That is expected. **
+
+Once at this prompt, connect the SSD or SD Card that will be used as a scratch drive
+
+When you have the drive name enter the command:
+    (initramfs) sdmcryptfs $sd /dev/sdX
+
+Where:
+
+    $sd is the name of your system disk
+    /dev/sdX is the name of your scratch disk
+
+sdmcryptfs will:
+
+* Print the size of rootfs $rootfs
+* Save the contents of $rootfs to /dev/sdX
+* Enable encryption on $rootfs
+  * You will be prompted to enter YES (all in upper case) to continue
+  * You will then be prompted to provide the passphrase for $rootfs
+    ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **
+* After a short pause you'll be prompted for the passphrase again to unlock $rootfs
+* The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs
+* When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt
+* Type 'exit' to continue the boot sequence
+
+* Once the system boots the sdm-cryptfs-cleanup service will run which:
+  * Removes some one-time content and rebuilds initramfs
+  * Reboots the system one last time
+
+* As the system reboots you'll once again be prompted for the rootfs passphrase (Without the 30 tries)
+  ** The system will now ask for the rootfs passphrase like this every time the system boots **
+"
+fi
+
+if [[ "$xcmd" =~ "reboot" ]]
+then
+    wait_startup_complete "sdm-cryptoconfig: Wait for system startup to complete"
+    secs=10
+    logger "sdm-cryptconfig: System will reboot in $secs seconds"
+    echo "" > /dev/console
+    echo "sdm-cryptconfig: System will reboot in $secs seconds" > /dev/console
+    sleep $secs
+    logger "sdm-cryptconfig: System will reboot now"
+    echo "sdm-cryptconfig: System will reboot now" > /dev/console
+    sleep 2
+    reboot
+fi
+exit 0

@@ -1,0 +1,121 @@
+#!/bin/bash
+#
+# Runs in initramfs to create an encrypted rootfs
+# Requires a second drive larger than the rootfs
+#
+function usage() {
+    echo $"Usage: sdmcryptfs rootdev scratchdev
+
+rootdev    Name of device with rootfs (possibly /dev/mmcblk0 or /dev/sda)
+scratchdev Name of scratch device (must be larger than rootfs on rootdev)
+"
+exit 0
+}
+
+function thisdate() {
+    echo  "$(date +"$datefmt")"
+}
+
+function pmsg() {
+    local msg="$1"
+    echo "> $(thisdate) $msg"
+}
+
+function getpartname() {
+    local dev=$1
+    local p1=1 p2=2
+
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && p1="p1" && p2="p2"
+    echo "${dev}${p2}"
+}
+
+function getpartsize() {
+    local rootpart=$1
+    local pat r2fs partsize
+    pat='([[:space:]][[:digit:]]+)'
+    r2fs=$(resize2fs -fM -p $rootpart 2>&1)
+    r2fs=${r2fs##* is}
+    [[ $r2fs =~ $pat ]]
+    partsize=${BASH_REMATCH[1]}
+    echo $partsize
+}
+
+function checkdev() {
+    local dev=$1
+    if [ -b $dev ]
+    then
+	return 0
+    else
+	echo "? Unrecognized device '$dev'"
+	return 1
+    fi
+}
+
+function save_rootfs() {
+    local dev=$1 sdisk=$2
+    local rootfs=$(getpartname $dev)
+    checkdev $sdisk || return 1
+    pmsg "Save rootfs '$rootfs' to $sdisk"
+    dd bs=4k count=$partsize if=$rootfs of=$sdisk
+    return 0
+}
+
+function cryptpart() {
+    local dev=$1
+    local rootfs=$(getpartname $dev)
+    pmsg "Enable luks2 encryption on '$rootfs'"
+    while [ 0 ]
+    do
+	cryptsetup luksFormat --type luks2 --cipher xchacha20,aes-adiantum-plain64 --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i  $rootfs
+	[ $? -eq 0 ] && break
+    done
+    return 0
+}
+
+function cryptopen() {
+    local dev=$1
+    local rootfs=$(getpartname $dev)
+    pmsg "Unlock encrypted partition '$rootfs'"
+    while [ 0 ]
+    do
+	cryptsetup luksOpen $rootfs $cryptdevice
+	[ $? -eq 0 ] && break
+    done
+    return 0
+}
+
+function restore_rootfs() {
+    local dev=$1 sdisk=$2
+    local rootfs=$(getpartname $dev)
+    checkdev $sdisk || return 1
+    pmsg "Restore '$rootfs' from $sdisk"
+    dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
+    resize2fs -f /dev/mapper/$cryptdevice
+    return 0
+}
+
+function runall() {
+    local dev=$1 sdisk=$2
+    local rootfs=$(getpartname $dev)
+    checkdev $dev || return 1
+    checkdev $sdisk || return 1
+    pmsg "Shrink $rootfs and get its size"
+    partsize=$(getpartsize $rootfs)
+    pmsg "Device '$dev' rootfs size: $partsize 4K blocks"
+    save_rootfs $dev $sdisk || return 1
+    cryptpart $dev || return 1
+    cryptopen $dev || return 1
+    restore_rootfs $dev $sdisk || return 1
+}
+
+partsize=""
+dev="$1"
+sdisk="$2"
+[[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
+cryptdevice="nomappername"
+datefmt="%Y-%m-%d %H:%M:%S"
+[ -f /etc/mappername ] && . /etc/mappername || echo "% Where is /etc/mappername?"
+runall $dev $sdisk && echo $"
+Enter the 'exit' command to resume the system boot process
+"
+exit
