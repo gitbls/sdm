@@ -190,7 +190,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V11.1"
+version="V11.2"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -264,7 +264,7 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
