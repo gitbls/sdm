@@ -61,7 +61,7 @@ function sdm_burndevfile() {
 	perr=0
 	for p in 1 2 3 4
 	do
-	    [[ "$burndev" =~ "mmcblk" ]] && pn="p${p}" || pn=$p
+	    [[ "$burndev" =~ "mmcblk" ]] || [[ "$burndev" =~ "nvme0n1" ]] && pn="p${p}" || pn=$p
 	    pdev="${burndev}${pn}"
 	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
 	done
@@ -86,7 +86,7 @@ function sdm_burndevfile() {
 	# Prevent mount errors
 	sync ; sleep 1 ; sync
 	p1="1" ; p2="2"
-	[[ "$burndev" =~ "mmcblk" ]] && p1="p1" && p2="p2"
+	[[ "$burndev" =~ "mmcblk" ]]  || [[ "$burndev" =~ "nvme0n1" ]] && p1="p1" && p2="p2"
 	if [ $expandroot -eq 1 ]
 	then
 	    expandpartition $burndev 0 write_burnmsg
@@ -208,8 +208,13 @@ function sdm_burndevfile() {
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
-	    [ -f $SDMPT/boot/cmdline.txt ] && sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
-	    [ -f $SDMPT/boot/firmware/cmdline.txt ] && sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
+	    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
+	    then
+		sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
+	    elif [ -f $SDMPT/boot/cmdline.txt ]
+	    then
+		sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
+	    fi
 	    [ -f $SDMPT/etc/init.d/resize2fs_once ] && mv $SDMPT/etc/init.d/resize2fs_once $SDMPT/etc/init.d/.sdm.resize2fs_once
 	else
 	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
@@ -311,6 +316,7 @@ function sdm_burndevfile() {
 	[ "$b1script" != "" ] && echo "  and b1script '$b1script' will not be processed"
 	[ "$hname" != "" ] && updatehostname $hname
     fi
+    printnotes
     #
     # Call burn-plugins
     #
