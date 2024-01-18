@@ -19,7 +19,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 maxsys=32                #Max number times system plugin can be invoked
 loadparams
-vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|modprobe|motd|name|rclocal|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
 rqdargs=""
 argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
 eepromvals="|critical|stable|beta|"
@@ -249,6 +249,23 @@ EOF
 			logtoboth "> System journal configuration not modified"
 			;;
 		esac
+		;;
+	    ledheartbeat)
+		logtoboth "> Plugin $pfx: Enable LED heartbeat blink"
+		logtoboth "  Plugin $pfx: * Manually disable with: sudo bash -c 'echo none >| /sys/class/leds/PWR/trigger'"
+		logtoboth "  Plugin $pfx:   or permanently: sudo systemctl disable sdm-led-heartbeat"
+		cat > /etc/systemd/system/sdm-led-heartbeat.service <<EOF
+[Unit]
+Description=Enable Pi LED heartbeat flash
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'if [ -f /sys/class/leds/PWR/trigger ] ; then echo heartbeat >| /sys/class/leds/PWR/trigger ; fi'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+		systemctl enable sdm-led-heartbeat > /dev/null 2>&1
 		;;
 	    modprobe)
 		for fl in $assetdir/$chyp/*
