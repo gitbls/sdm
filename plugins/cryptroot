@@ -1,0 +1,152 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: cryptroot
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|mappername|noauto|"
+rqdargs=""                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    mkdir -p $assetdir
+    # Put these in /bin
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    plugin_printkeys
+    [ "$mappername" == "" ] && mappername="cryptroot"
+    cp -a $src/sdm-cryptconfig /usr/local/bin
+    cp -a $src/sdmcryptfs /usr/local/bin
+    #
+    # Set mapper name for sdm-cryptconfig and sdmcryptfs
+    #
+    echo "cryptdevice=$mappername" > $assetdir/mappername
+    logtoboth "> Plugin $pfx: Install cryptsetup cryptsetup-initramfs cryptsetup-bin"
+    doaptrpterror "install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin"
+    if [ ! -v noauto ]
+    then
+	logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration"
+	cat > /etc/sdm/0piboot/099-enable-auto-encrypt.sh <<EOF
+#!/bin/bash
+logger "FirstBoot: Create automatic disk encryption service"
+cat > /etc/systemd/system/sdm-auto-encrypt.service <<ZEOF
+[Unit]
+Description=sdm cryptoroot automatic encryption
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sdm-cryptconfig sdmreboot
+
+[Install]
+WantedBy=multi-user.target
+ZEOF
+systemctl enable sdm-auto-encrypt
+EOF
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    used1k=$(getfsdf "/" used) 
+    usedby=$((used1k*1024))
+    logtoboth ""
+    logtoboth " * IMPORTANT"
+    logtoboth "   * When the system boot process begins you will need a scratch disk larger than $(getgbstr $usedby)"
+    logtoboth ""
+    plugin_addnote ""
+    plugin_addnote "*** cryptoroot notes ***"
+    plugin_addnote ""
+    if [ ! -v nooautorun ]
+    then
+	plugin_addnote "* Next steps"
+	plugin_addnote "  * When the system initial boot process has completed, the sdm-auto-encrypt service will run"
+	plugin_addnote "  * It will adjust the configuration for an encrypted rootfs and reboot the system"
+	plugin_addnote "  * The system will start to reboot, but hang trying to read rootfs"
+	plugin_addnote "    It will try 30 times before giving up and dropping to the initramfs prompt: (initramfs)"
+	plugin_addnote ""
+	plugin_addnote "  * Ignore the 'ALERT! missing /dev/mapper' message. That is expected."
+	plugin_addnote ""
+	plugin_addnote "  * Once at this prompt, connect the SSD or SD Card that will be used as a scratch drive"
+	plugin_addnote "    and find the drive name"
+	plugin_addnote ""
+	plugin_addnote "  * When you have the drive name enter the command:"
+	plugin_addnote "    (initramfs) sdmcryptfs sd /dev/sdX"
+	plugin_addnote ""
+	plugin_addnote "  * Where:"
+	plugin_addnote ""
+	plugin_addnote "      'sd' is the name of your system disk (typically /dev/mmcblk0 or /dev/sda)"
+	plugin_addnote "      '/dev/sdX' is the name of your scratch disk"
+	plugin_addnote ""
+	plugin_addnote "  * sdmcryptfs will:"
+	plugin_addnote ""
+	plugin_addnote "    * Shrink and then print the size of the rootfs"
+	plugin_addnote "    * Save the contents of rootfs to /dev/sdX"
+	plugin_addnote "    * Enable encryption on rootfs"
+	plugin_addnote "      You will be prompted to enter YES (all in upper case) to continue"
+	plugin_addnote "    * You will then be prompted to provide the passphrase for rootfs"
+	plugin_addnote "      ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **"
+	plugin_addnote "      ** And remember your passphrase as it is not recoverable **"
+	plugin_addnote "    * After a short pause you'll be prompted for the passphrase again to unlock rootfs"
+	plugin_addnote "    * The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs"
+	plugin_addnote "    * When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt"
+	plugin_addnote "    * Type 'exit' to continue the boot sequence"
+	plugin_addnote ""
+	plugin_addnote "    * Once the system boots the sdm-crypto-cleanup service will run which:"
+	plugin_addnote "      * Removes some one-time content and rebuilds initramfs"
+	plugin_addnote "      * Reboots the system one last time"
+	plugin_addnote ""
+	plugin_addnote "    * On the way back up you'll once again be prompted for the rootfs passphrase (Without the 30 tries)"
+	plugin_addnote "    * The system will ask for the rootfs passphrase in this manner every time the system boots"
+	plugin_addnote ""
+    else
+	plugin_addnote " * Manual steps"
+	plugin_addnote "   * After the system completes the sdm boot process, login and run sdm-cryptoconfig:"
+	plugin_addnote "     bash$ sudo /usr/local/sdm/sdm-cryptoconfig"
+	plugin_addnote "   * Reboot the system"
+	plugin_addnote "   * After looking for the root device 30 times initramfs will prompt"
+	plugin_addnote "   * Plug in your spare SSD/SD Card and notice its device name"
+	plugin_addnote "   * Enter:"
+	plugin_addnote "     (initramfs) sdmcryptfs sdname sparesd"
+	plugin_addnote "       Examples:"
+	plugin_addnote "           sdmcryptfs /dev/mmcblk0 /dev/sda"
+	plugin_addnote "           sdmcryptfs /dev/sda /dev/sdb"
+	plugin_addnote "   * You will be prompted for the partition passphrase; ** Remember what you enter here **"
+	plugin_addnote "   * Type 'exit' to exit initramfs and continue the system boot"
+	plugin_addnote "   * After the system finishes booting the sdm-crypto-cleanup script will run"
+	plugin_addnote "     This script removes some one-time content, rebuilds initramfs, and reboots one final time"
+	plugin_addnote "   * Every time the system starts you'll be prompted for the rootfs partition passphrase"
+	plugin_addnote ""
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
