@@ -92,6 +92,8 @@ for f in sdm sdm-phase0 \
 	     sdm-readparams \
 	     sdm-rpcsubs \
 	     sdm-firstboot \
+	     sdm-cryptconfig \
+	     sdmcryptfs \
 	     sdm-apt-cacher \
 	     sdm-apt \
 	     sdm-customphase \
@@ -110,6 +112,7 @@ for f in sdm sdm-phase0 \
 	     plugins/clockfake \
 	     plugins/copydir \
 	     plugins/copyfile \
+	     plugins/cryptroot \
 	     plugins/disables \
 	     plugins/explore \
 	     plugins/extractfs \
