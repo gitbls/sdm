@@ -38,7 +38,7 @@ then
 	do
 	    IFS=":=" read lxname lxfname <<< "$lx"
 	    case "${lxname,,}" in
-		libfm|pcmanfm|lxterminal)
+		bookmarks|libfm|pcmanfm|lxterminal)
 		    mkdir -p $assetdir/$lxname/$username
 		    if [ -f $lxfname ]
 		    then
@@ -158,14 +158,30 @@ else
 	# Copy LXDE config files if requested
 	if [ "$lxde__config" != "" ]
 	then
-	    for lx in libfm pcmanfm lxterminal
+	    for lx in libfm pcmanfm lxterminal bookmarks
 	    do
 		dirx="/home/$dstuser/.config/$lx"
 		if compgen -G "$assetdir/$lx/$srcuser/*" > /dev/null
 		then
-		    logtoboth "> Plugin $pfx: Copy '$lx' config file to $dirx/$lx.conf"
-		    mkdir -p $dirx
-		    cp -a $assetdir/$lx/$srcuser/* $dirx/$lx.conf
+		    case "$lx" in
+			libfm|lxterminal)
+			    logtoboth "> Plugin $pfx: Copy '$lx' config file to $dirx/$lx.conf"
+			    mkdir -p $dirx
+			    cp -a $assetdir/$lx/$srcuser/* $dirx/$lx.conf
+			    ;;
+			pcmanfm)
+			    logtoboth "> Plugin $pfx: Copy '$lx' config file to $dirx/LXDE-pi/$lx.conf"
+			    mkdir -p $dirx/LXDE-pi
+			    cp -a $assetdir/$lx/$srcuser/* $dirx/LXDE-pi/$lx.conf
+			    ;;
+			bookmarks)
+			    #logtoboth "> Plugin $pfx: Copy '$lx' to /home/$dstuser/.config/gtk-3.0/bookmarks"
+			    #mkdir -p /home/$dstuser/.config/gtk-3.0
+			    #cp -a $assetdir/$lx/$srcuser/* /home/$dstuser/.config/gtk-3.0/bookmarks
+			    logtoboth "> Plugin $pfx: Copy '$lx' to /home/$dstuser/.gtk-bookmarks"
+			    cp -a $assetdir/$lx/$srcuser/* /home/$dstuser/.gtk-bookmarks
+			    ;;
+		    esac
 		fi
 	    done
 	fi
