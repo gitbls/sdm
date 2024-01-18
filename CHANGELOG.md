@@ -1,5 +1,20 @@
 # Changelog
 
+## V11.2
+
+* New Features
+  * `cryptroot` plugin enables encrypted rootfs
+    * Non-sdm-customized systems can also be encrypted. See <a href="Docs/Disk-Encryption.md">Disk Encryption</a>
+  * Add `bookmarks` as an argument to the `lxde` plugin `lxde-config` argument
+* Improvements
+  * Improve error handling in apps and apt-addrepo plugins
+  * apps plugin now takes `remove` argument, same format as `apps`. Removes are done before new apps are installed. If you try to remove an apt packge that doesn't exist it will log in /etc/sdm/apt.log and sdm will notify you at the end of the customize: '? apt reported errors; review /etc/sdm/apt.log'
+  * Add `ledheartbeat` argument to the `system` plugin which enables LED heartbeat flashing on Pis so equipped. Pi4 and Pi5 work. Pi 02W does not support this. Others have not been tested.
+* Bug fixes
+  * Correct mis-handling of cmdline.txt on burned disk
+  * Correct location for placement of the `lxde` plugin `lxde-config` `pcmanfm` value
+  * One final /boot/firmware fix
+
 ## V11.1
 
 * New Features
