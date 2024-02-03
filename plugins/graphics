@@ -9,12 +9,6 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
-function setdelayedbbh() {
-    local dbbh=$1
-    sed -i "/delayed_boot_behav/d" /etc/sdm/auto-1piboot.conf
-    echo "delayed_boot_behavior=$dbbh" >> /etc/sdm/auto-1piboot.conf
-}
-
 function delaydmenable() {
     #
     # Disable the display manager in $1 and set for re-enable during First Boot
@@ -38,8 +32,7 @@ function delaylightdmenable() {
     do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
     [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-    aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
-    [ "$aval" == "" ] && aval=$bbh
+    aval=$(getfinalbbh "$bbh")
     if [ "$bbh" != "$aval" ]
     then
 	logtoboth "% Plugin $pfx: Display Manager lightdm default boot behavior overridden by explicit setting '$aval'"
@@ -107,10 +100,10 @@ function gfxcfgpostinstall() {
 	    logtoboth "> Plugin $pfx: Set RasPiOS to B1:'console no login' for First Boot"
 	    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
 	    do_raspiconfig do_boot_behaviour B1
-	    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || (grep '^boot_behav' /etc/sdm/auto-1piboot.conf > /dev/null 2>&1)
+	    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || [[ "$(cat /etc/sdm/assets/gfxbbh 2>/dev/null)" != "" ]]
 	    then
 		aval=$(getfinalbbh B1)
-		logtoboth "% 1piboot.conf|auto-1piboot.conf 'boot_behaviour' setting $aval will be honored after First Boot"
+		logtoboth "% Boot behavior setting '$aval' will be honored after First Boot"
 	    else
 		[ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
 		[ "$bbh" != "B1" ] && logtoboth "% Console Autologin setting '$bbh' will be re-enabled after First Boot"
