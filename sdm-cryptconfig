@@ -1,10 +1,16 @@
 #!/bin/bash
-# Guide: https://rr-developer.github.io/LUKS-on-Raspberry-Pi/
+# Guide: https://rr-developer.github.io/LUKS-on-Raspberry-Pi/ plus others
 #
 # This script can be run two different ways:
 # * Automatically by sdm on the booted system as invoked by the cryptroot plugin via the sdm-auto-encrypt service
 # * Manually on the booted system
 #
+
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
 function wait_startup_complete {
     # $1 is the message to write
     local lc=0 msg=$1
@@ -43,9 +49,210 @@ function getfsdf() {
     echo $(df --output=$2 $1 | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))
 }
 
+function ispdevp() {
+    local dev="$1"
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
+}
+
+function getspname() {
+    local dev="$1" pn="$2"
+    ispdevp $dev && echo "p${pn}" || echo "$pn"
+}
+
 function logifsdm() {
     local msg="$1"
-    [[ "$xcmd" =~ "sdm" ]] && echo "sdm-cryptconfig: $msg" > /dev/console
+    [ $xsdm -eq 1 ] && echo "sdm-cryptconfig: $msg" > /dev/console
+}
+
+function printhelp() {
+    echo $"
+sdm-cryptconfig has several command line switches, all of which are optional
+
+* --authorized-keys keyfile -- Provides SSH authorized_keys file for the initramfs. Required with --ssh
+* --dns dnsaddr -- Set IP Address of DNS server
+* --gateway gatewayaddr -- Set IP address of gateway
+* --hostname hostname -- Set hostname
+* --ipaddr ipaddr -- set IP address to use in initramfs
+* --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
+* --mask netmask -- Set network mask for initramfs
+* --quiet -- Do not disable quiet boot for RasPiOS with desktop
+* --ssh -- Enable SSH in initramfs
+* --reboot -- Reboot the system (into initramfs) when sdm-cryptconfig is complete
+* --sdm -- sdm cryptroot plugin sets this
+* --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
+
+The network configuration switches (dns, gateway, hostname, ipaddr, and mask) are only needed
+and should only be used if you know that the system is unable to get an IP address and network
+configuration information from the network (e.g., via DHCP). These settings are ONLY used in the
+initramfs if SSH is enabled and are not automatically removed, so each time the system restarts
+the initramfs will use these settings.
+"
+}
+
+function printinfo() {
+    local used1k usedby usedstr rootfs sd
+
+    rootfs=$(findmnt -n -o SOURCE /)     # rootfs name
+    sd=${rootfs%$(getspname $rootfs 2)}  # dev name w/o partition name
+
+    used1k=$(getfsdf "/" used)
+    usedby=$((used1k*1024))
+    usedstr=$(getgbstr $usedby)
+    echo ""
+    echo "> Rootfs '$rootfs' has $usedby bytes $usedstr used"
+    echo ""
+    echo "> You will need another disk for the encryption process to use as a scratch disk"
+    echo "  This disk must be larger than $usedstr and it will be over-written"
+    echo $"
+Reboot the system when you are ready to continue
+
+The system will start to reboot, but hang trying to read rootfs. It will try 30 times
+before giving up and dropping to the initramfs prompt: (initramfs)
+
+** Ignore the 'ALERT! missing /dev/mapper' message. That is expected. **
+
+Once at the (initramfs) prompt, connect the SSD or SD Card that will be used as a scratch drive
+
+When you have the drive name enter the command:
+    (initramfs) sdmcryptfs $sd /dev/sdX
+
+Where:
+
+    $sd is the name of your system disk
+    /dev/sdX is the name of your scratch disk
+
+sdmcryptfs will:
+
+* Print the size of rootfs $rootfs
+* Save the contents of $rootfs to /dev/sdX
+* Enable encryption on $rootfs
+  * You will be prompted to enter YES (all in upper case) to continue
+  * You will then be prompted to provide the passphrase for $rootfs
+    ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **
+* After a short pause you'll be prompted for the passphrase again to unlock $rootfs
+* The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs
+* When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt
+* Type 'exit' to continue the boot sequence
+
+* Once the system boots the sdm-cryptfs-cleanup service will run which:
+  * Removes some one-time content and rebuilds initramfs
+  * Reboots the system one last time
+
+* As the system reboots you'll once again be prompted for the rootfs passphrase (Without the 30 tries)
+  ** The system will now ask for the rootfs passphrase like this every time the system boots **
+"
+    if [ $xssh -eq 1 ]
+    then
+	echo $"
+NOTE: You have configured SSH
+      Please review https://github.com/gitbls/sdm/blob/master/Docs/Disk-Encryption.md
+"
+    fi
+}
+
+function configcleanupsvc() {
+#
+# Set up service to run after next reboot that will rebuild initramfs (again) and reboot
+#
+    echo "> Set up run-once service to rebuild initramfs after encrytped rootfs boot"
+    cat > /etc/systemd/system/sdm-cryptfs-cleanup.service <<EOF
+[Unit]
+Description=sdm cryptroot cleanup service
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sdm-cryptfs-cleanup
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    echo "> Create /usr/local/bin/sdm-cryptfs-cleanup script"
+    cat > /usr/local/bin/sdm-cryptfs-cleanup <<EOF
+#!/bin/bash
+
+function wait_startup_complete {
+    # $1 is the message to write
+    local lc=0 msg=\$1
+    while [ "\$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "\$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    do
+        if [ \$lc -eq 0 ]
+        then
+            logger "\$msg"
+	    echo "\$msg" > /dev/console
+            lc=1
+        fi
+        sleep 1
+    done
+}
+
+echo  "sdm-cryptfs-cleanup: Starting; System will restart automatically when completed" > /dev/console
+source /etc/sdm/sdm-readparams
+[ -f /etc/sdm/assets/cryptbbh ] && cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot
+echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
+logger "sdm-cryptfs-cleanup: Clean up initramfs content"
+mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
+grep -v -E "bash|sdmcryptfs|mappername" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
+[ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
+echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
+logger "sdm-cryptfs-cleanup: Rebuild initramfs"
+update-initramfs -u
+systemctl disable sdm-cryptfs-cleanup
+rm -f /etc/systemd/system/sdm-cryptfs-cleanup.service
+rm -f /etc/systemd/system/sdm-auto-encrypt.service
+[ -f /usr/bin/startlxde-pi ] && systemctl set-default graphical.target
+systemctl daemon-reload
+wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
+secs=10
+logger "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds"
+echo "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds" > /dev/console
+sleep \$secs
+logger "sdm-cryptfs-cleanup: The system will reboot now!"
+echo "sdm-cryptfs-cleanup: The system will reboot now!" > /dev/console
+sleep 2
+reboot
+EOF
+    chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
+    systemctl daemon-reload
+    systemctl enable sdm-cryptfs-cleanup > /dev/null 2>&1
+}
+
+function parsecmd() {
+    local cmd="$1" args="$2"
+    local longopts="authorized-keys:,dns:,gateway:,help,hostname:,ipaddr:,mapper:,mappername:,mask:,netmask:,ssh,reboot,sdm,unique-ssh"
+
+    OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
+    [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
+    eval set -- "$OARGS"
+while true
+do
+    case "${1,,}" in
+	# 'shift 2' if switch has argument, else just 'shift'
+	--authorized-keys) xauthkeys=$2 ; shift 2 ;;
+	--dns)             xdns=$2      ; shift 2 ;;
+	--gateway)         xgateway=$2  ; shift 2 ;;
+	--hostname)        xhostname=$2 ; shift 2 ;;
+	--ipaddr)          xipaddr=$2   ; shift 2 ;;
+	--mapper|--mappername) xmapper=$2   ; shift 2 ;;
+	--mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	--quiet)           xquiet=1     ; shift 1 ;;
+	--reboot)          xreboot=1    ; shift 1 ;;
+	--ssh)             xssh=1       ; shift 1 ;;
+	--sdm)             xsdm=1       ; shift 1 ;;
+	--unique-ssh)      xunique=1    ; shift 1 ;;
+	--)                shift ; break ;;
+	-h|--help)         printhelp ; shift ; exit ;;
+	*) errexit "? $0: Internal error" ;;
+    esac
+done
+
+if [ "$xauthkeys" != "" ]
+then
+    ! [ -f $xauthkeys ] && errexit "? --authorized-keys file '$xauthkeys' not found"
+else
+    [ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
+fi
 }
 
 function doconfiginitramfs() {
@@ -114,11 +321,43 @@ dm-crypt
 EOF
     echo "> Enable KEYMAP=y in /etc/initramfs-tools/initramfs.conf"
     sed -i "s/KEYMAP=n/KEYMAP=y/" /etc/initramfs-tools/initramfs.conf
+    #
+    # Configure the network in initramfs.conf if requested
+    #
+    if [[ $xssh -eq 1 ]] && [[ "${xipaddr}${xgateway}${xnetmask}${xhostname}" != "" ]]
+    then
+	ips="IP="   # Configure DNS, gateway, hostname, ipaddr, netmask
+	[ "$xipaddr" != "" ] && ips="${ips}${xipaddr}:" || ips="${ips}:"
+	ips="${ips}:"   # For the mystery 'server' value
+	[ "$xgateway" != "" ] && ips="${ips}${xgateway}:" || ips="${ips}:"
+	[ "$xnetmask" != "" ] && ips="${ips}${xnetmask}:" || ips="${ips}:"
+	[ "$xhostname" != "" ] && ips="${ips}${xhostname}:" || ips="${ips}:"
+	ips=${ips%:}
+	echo "ipstatement: $ips"
+	echo "$ips" >> /etc/initramfs-tools/initramfs.conf
+    fi
+    #
+    # Configure dropbear if requested
+    #
+    if [ $xssh -eq 1 ]
+    then
+	echo "> Configure SSH"
+	sed -i "s#\#DROPBEAR_OPTIONS=\"\"#DROPBEAR_OPTIONS=\"-I 300 -j -k -s -p 22 -c bash -r /etc/dropbear/dropbear_ed25519_host_key\"#" /etc/dropbear/initramfs/dropbear.conf
+	echo "> Copy authorized keys file from '$xauthkeys'"
+	cp $xauthkeys /etc/dropbear/initramfs/authorized_keys
+	if [ $xunique -eq 0 ]
+	then
+	    echo "> Convert openSSH host key for use in dropbear/initramfs"
+	    dropbearconvert openssh dropbear /etc/ssh/ssh_host_ed25519_key /etc/dropbear/initramfs/dropbear_ed25519_host_key
+	else
+	    echo "> Use unique SSH host key in dropbear/initramfs"
+	fi
+    fi
 }
 
 function domkinitramfs() {
-    echo "> Update initramfs"
-    logifsdm "Update initramfs"
+    echo "> Update initramfs with all the rootfs encryption settings in place"
+    logifsdm "Update initramfs with all the rootfs encryption settings in place"
     update-initramfs -u
 }
 
@@ -129,58 +368,80 @@ function doupdateconfig() {
     sd=$(lsblk -dpno pkname $rootfs)
     if [ "$sd" == "" ] #snh but the code was here!
     then
-	[[ "$rootfs" =~ "mmcblk" ]] || [[ "$rootfs" =~ "nvme0n1" ]] && sd=${rootfs%p2}
-	[[ "$rootfs" =~ "/dev/sd" ]] && sd=${rootfs%2}
+	sd="$rootfs$(getspname $rootfs 2)"
+	#ispdevp $rootfs && sd=${rootfs%p2}
+	#[[ "$rootfs" =~ "/dev/sd" ]] && sd=${rootfs%2}
     fi
     echo "> Update root statement in cmdline.txt"
-    sed -i "s#root=[0-9a-zA-Z-]*[ =][0-9a-zA-Z-]* #root=/dev/mapper/$cryptdevice #" /boot/firmware/cmdline.txt
-    echo "> Add cryptdevice '$cryptdevice' to cmdline.txt"
+    sed -i "s#root=[0-9a-zA-Z-]*[ =][0-9a-zA-Z-]* #root=/dev/mapper/$xmapper #" /boot/firmware/cmdline.txt
+    echo "> Add cryptdevice '$xmapper' to cmdline.txt"
     # 'rw' needed so crypt device is mounted read/write
-    sed -i "s#\$# rw cryptdevice=$rootfs:$cryptdevice#" /boot/firmware/cmdline.txt
+    sed -i "s#\$# rw cryptdevice=$rootfs:$xmapper#" /boot/firmware/cmdline.txt
 
     echo "> Updated cmdline:"
     cat /boot/firmware/cmdline.txt
 
     echo "> Update /etc/fstab for the encrypted rootfs"
-    sed -i "s#PARTUUID=[0-9a-zA-Z-]* *\/ #/dev/mapper/$cryptdevice /#" /etc/fstab
+    sed -i "s#PARTUUID=[0-9a-zA-Z-]* *\/ #/dev/mapper/$xmapper /#" /etc/fstab
 
     echo "> Update /etc/crypttab"
-    echo "$cryptdevice	$rootfs  none  luks" >> /etc/crypttab
+    echo "$xmapper	$rootfs  none  luks" >> /etc/crypttab
 }
 
 #
 # Main code
 #
+xauthkeys=""
+xdns=""
+xgateway=""
+xhostname=""
+xipaddr=""
+xmapper=""
+xnetmask=""
+xquiet=0
+xreboot=0
+xsdm=0
+xssh=0
+xunique=0
+src=$(dirname "$(realpath "$0")")
+parsecmd $0 "$*"
 
-if [ -f /etc/sdm/assets/cryptroot/mappername ]
-then
-    source /etc/sdm/assets/cryptroot/mappername
-    cp /etc/sdm/assets/cryptroot/mappername /etc/mappername
-else
-    cryptdevice="cryptroot"
-    echo "cryptdevice=$cryptdevice" > /etc/mappername
-fi
+[ "$xmapper" == "" ] && xmapper="cryptroot"
+echo "cryptdevice=$xmapper" > /etc/mappername
 
-xcmd=$1
-if [[ "$xcmd" =~ "sdm" ]]
+if [ $xsdm -eq 0 ]
 then
-    oy="config mkinitramfs updateboot"
-else
     if [ ! -f /usr/local/bin/sdmcryptfs ]
     then
-	echo "> Copy sdmcryptfs from GitHub"
-	curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdmcryptfs -o /usr/local/bin/sdmcryptfs
-	chmod 755 /usr/local/bin/sdmcryptfs
+	if [ -f $src/sdmcryptfs ]
+	then
+	    echo "> Copy sdmcryptfs from $src"
+	    cp $src/sdmcryptfs /usr/local/bin
+	else
+	    echo "> Copy sdmcryptfs from GitHub"
+	    curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdmcryptfs -o /usr/local/bin/sdmcryptfs
+	    chmod 755 /usr/local/bin/sdmcryptfs
+	fi
     fi
-    oy="doapt config mkinitramfs updateboot"
 fi
 logifsdm "Starting; System will restart automatically when completed"
 
-for o in $oy
+for o in doapt config mkinitramfs updateboot
 do
     case "$o" in
 	doapt)
-	    apt install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin
+	    [ $xssh -eq 1 ] && db="dropbear-initramfs dropbear-bin" || db=""
+	    apps="cryptsetup cryptsetup-initramfs cryptsetup-bin $db"
+	    echo "Install $apps"
+	    if [ $xssh -eq 1 ]
+	    then
+		echo ""
+		echo "** Ignore dropbear WARNINGs about authorized_keys file **"
+		echo "   initramfs will be rebuilt with the authorize_keys file later"
+		echo ""
+		sleep 5
+	    fi
+	    apt install --no-install-recommends --yes $apps
 	    ;;
 	config)
 	    doconfiginitramfs
@@ -190,128 +451,40 @@ do
 	    ;;
 	updateboot)
 	    doupdateconfig
+	    configcleanupsvc
 	    ;;
     esac
 done
-systemctl disable sdm-auto-encrypt > /dev/null 2>&1
-rm -f /etc/systemd/system/sdm-auto-encrypt.service
-#
-# Set up service to run after next reboot that will rebuild initramfs (again) and reboot
-#
-echo "> Set up run-once service to rebuild initramfs after encrytped rootfs boot"
-cat > /etc/systemd/system/sdm-cryptfs-cleanup.service <<EOF
-[Unit]
-Description=sdm cryptroot cleanup service
-After=multi-user.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/sdm-cryptfs-cleanup
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-echo "> Create /usr/local/bin/sdm-cryptfs-cleanup script"
-cat > /usr/local/bin/sdm-cryptfs-cleanup <<EOF
-#!/bin/bash
-
-function wait_startup_complete {
-    # $1 is the message to write
-    local lc=0 msg=\$1
-    while [ "\$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "\$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
-    do
-        if [ \$lc -eq 0 ]
-        then
-            logger "\$msg"
-	    echo "\$msg" > /dev/console
-            lc=1
-        fi
-        sleep 1
-    done
-}
-
-echo  "sdm-cryptfs-cleanup: Starting; System will restart automatically when completed" > /dev/console
-echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
-logger "sdm-cryptfs-cleanup: Clean up initramfs content"
-mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
-grep -v -E "bash|sdmcryptfs|mappername" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
-echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
-logger "sdm-cryptfs-cleanup: Rebuild initramfs"
-update-initramfs -u
-systemctl disable sdm-cryptfs-cleanup
-rm -f /etc/systemd/system/sdm-cryptfs-cleanup.service
-rm -f /etc/systemd/system/sdm-auto-encrypt.service
-systemctl daemon-reload
-wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
-secs=10
-logger "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds"
-echo "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds" > /dev/console
-sleep \$secs
-logger "sdm-cryptfs-cleanup: The system will reboot now!"
-echo "sdm-cryptfs-cleanup: The system will reboot now!" > /dev/console
-sleep 2
-reboot
-EOF
-chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
-systemctl daemon-reload
-systemctl enable sdm-cryptfs-cleanup > /dev/null 2>&1
-
-rootfs=$(findmnt -n -o SOURCE /)
-[[ "$rootfs" =~ "mmcblk" ]]  || [[ "$rootfs" =~ "nvme0n1" ]] && sd=${rootfs%p2}
-[[ "$rootfs" =~ "/dev/sd" ]] && sd=${rootfs%2}
-
-if ! [[ "$cmdx" =~ "sdm" ]]
+if [ $xsdm -eq 1 ]
 then
-    used1k=$(getfsdf "/" used)
-    usedby=$((used1k*1024))
-    usedstr=$(getgbstr $usedby)
-    echo ""
-    echo "> Rootfs '$rootfs' has $usedby bytes $usedstr used"
-    echo ""
-    echo "> You will need another disk for the encryption process to use as a scratch disk"
-    echo "  This disk must be larger than $usedstr and it will be over-written"
-    echo $"
-Reboot the system when you are ready to continue
-
-The system will start to reboot, but hang trying to read rootfs. It will try 30 times
-before giving up and dropping to the initramfs prompt: (initramfs)
-
-** Ignore the 'ALERT! missing /dev/mapper' message. That is expected. **
-
-Once at this prompt, connect the SSD or SD Card that will be used as a scratch drive
-
-When you have the drive name enter the command:
-    (initramfs) sdmcryptfs $sd /dev/sdX
-
-Where:
-
-    $sd is the name of your system disk
-    /dev/sdX is the name of your scratch disk
-
-sdmcryptfs will:
-
-* Print the size of rootfs $rootfs
-* Save the contents of $rootfs to /dev/sdX
-* Enable encryption on $rootfs
-  * You will be prompted to enter YES (all in upper case) to continue
-  * You will then be prompted to provide the passphrase for $rootfs
-    ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **
-* After a short pause you'll be prompted for the passphrase again to unlock $rootfs
-* The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs
-* When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt
-* Type 'exit' to continue the boot sequence
-
-* Once the system boots the sdm-cryptfs-cleanup service will run which:
-  * Removes some one-time content and rebuilds initramfs
-  * Reboots the system one last time
-
-* As the system reboots you'll once again be prompted for the rootfs passphrase (Without the 30 tries)
-  ** The system will now ask for the rootfs passphrase like this every time the system boots **
-"
+    #
+    # if started via sdm, clean up
+    #
+    systemctl disable sdm-auto-encrypt > /dev/null 2>&1
+    rm -f /etc/systemd/system/sdm-auto-encrypt.service
+else
+    if [ -f /usr/bin/startlxde-pi ]
+    then
+	#
+	# Desktop. Enable console boot and modify quietness unless --quiet
+	#
+	echo "> Enable console boot for next system restart; will be reset to graphical subsequently"
+	systemctl set-default multi-user.target
+	if [ $xquiet -eq 0 ]
+	then
+	    echo "> Enable verbose system restart"
+	    sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
+	    sed -i "s/ splash//g" /boot/firmware/cmdline.txt
+            for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
+            do
+                systemctl mask $svc >/dev/null 2>&1
+            done
+	fi
+    fi
+    printinfo
 fi
 
-if [[ "$xcmd" =~ "reboot" ]]
+if [ $xreboot -eq 1 ]
 then
     wait_startup_complete "sdm-cryptoconfig: Wait for system startup to complete"
     secs=10
