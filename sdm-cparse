@@ -59,15 +59,20 @@ function logtoboth() {
 
 function bootlog() {
     # Write string in $1 to the system log/journal and /etc/sdm/history.log
-    logger "FirstBoot: $1"
-    logit "> FirstBoot: $1"
+    logger "sdm FirstBoot: $1"
+    logit "> sdm FirstBoot: $1"
+}
+
+function bootlogx() {
+    # Write string only to the system log
+    logger "sdm FirstBoot: $1"
 }
 
 function write_console() {
     #
     # $1 string to write
-    # Written to /dev/console as "\n$(thisdate) FirstBoot: $1"
-    echo -e "\n$(thisdate) FirstBoot: $1" > /dev/console
+    # Written to /dev/console as "\n$(thisdate) sdm FirstBoot: $1"
+    echo -e "\n$(thisdate) sdm FirstBoot: $1" > /dev/console
 }
 
 function write_console0() {
@@ -386,6 +391,16 @@ function is64bit() {
     wtf=$(file $SDMPT/bin/ls)
     IFS="," read wtfelf wtfarch rest <<< "$wtf"
     [[ "$wtfarch" =~ "aarch64" ]] && return 0 || return 1
+}
+
+function ispdevp() {
+    local dev="$1"
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
+}
+
+function getspname() {
+    local dev="$1" pn="$2"
+    ispdevp $dev && echo "p${pn}" || echo "$pn"
 }
 
 function writeconfig() {
@@ -1056,7 +1071,7 @@ function deferqemu() {
 # Install qemu-user-static. Install deferred because it can't be installed in a chroot
 #
 source /etc/sdm/sdm-readparams
-logger "FirstBoot: Install qemu-user-static"
+bootlogx "Install qemu-user-static"
 doaptrpterror "install --yes --no-install-recommends qemu-user-static" $showapt
 EOF
     fi
@@ -1093,13 +1108,64 @@ function checkifnewer() {
     return 0  # Doesn't exist, so $1 is newer
 }
 
-function getfinalbbh {
+function setdelayedbbh() {
+    #
+    # $1: end state boot behaviour (B[1-4])
+    echo "$1" >| /etc/sdm/assets/gfxbbh
+}
+
+function getfinalbbh() {
     #
     # Get boot_behaviour from auto-1piboot if provided
     # If not, return $1
     #
-    aval=$((grep ^boot_behav /etc/sdm/auto-1piboot.conf) | (IFS=":=" read kn kv ; echo $kv))
+    aval=$(cat /etc/sdm/assets/gfxbbh 2>/dev/null)
     [ "$aval" == "" ] && echo "$1" || echo "$aval"
+}
+
+function do_delayed_boot_behavior {
+    #
+    # $1 = 'reboot' if system will be rebooted
+    local now="" nowb="" bbh=""
+    [ "$1" != "reboot" ] && now="--now" && nowb="--no-block"
+    bbh=$(cat /etc/sdm/assets/gfxbbh 2>/dev/null)
+    if [ "$bbh" != "" ]
+    then
+	if [[ "B3B4" =~ "$bbh" ]]
+	then
+	    # Re-enable display manager that we disabled in phase 1
+	    if [ -d /etc/lightdm ]
+	    then
+		configitemlog "set boot behaviour to $bbh" bootlog
+		do_raspiconfig do_boot_behaviour $bbh
+		bootlog "Set systemd default to graphical.target"
+		systemctl set-default graphical.target
+		if [ "$1" != "reboot" ]
+		then
+		    bootlog "Start lightdm"
+		    systemctl restart lightdm
+		else
+		    bootlog "Enable lightdm"
+		    systemctl enable lightdm
+		fi
+	    else
+		[ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
+		[ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
+		bootlog "Set systemd default to graphical.target"
+		systemctl set-default graphical.target
+	    fi
+	else
+	    if [[ "B1B2" =~ "$bbh" ]]
+	    then
+		configitemlog "set boot behaviour to $bbh" bootlog
+		do_raspiconfig do_boot_behaviour $bbh
+	    fi
+	fi
+    fi
+    # Perform cleanup steps done by /usr/bin/cancel_rename
+    bootlog "Re-enable getty@tty1"
+    systemctl enable $now $nowb getty@tty1 > /dev/null 2>&1
+    rm -f /etc/ssh/sshd_config.d/rename_user.conf
 }
 
 function findappfile() {
@@ -1226,7 +1292,7 @@ function expandpartition() {
     local dev=${fulldevname##/dev/}
     local part pname fsize partstart partend devsize partsize newend pbytes nbytes
 
-    [[ "$fulldevname" =~ "mmcblk" ]] || [[ "$fulldevname" =~ "nvme0n1" ]] && pname="p2" || pname="2"
+    pname=$(getspname $fulldevname 2)
     part="${dev}${pname}"
     while read line
     do
@@ -1270,9 +1336,16 @@ function expandpartition() {
     $msgrtn "* Resize the root file system"
     $msgrtn "% (Ignore 'on-line resizing required' message)"
     resize2fs ${fulldevname}${pname}
-    docleanup
     #echo ",+" | sfdisk -N 2 $fulldevname
     #errifrc $? "? sfdisk expand last partition failed with status"
+}
+
+function expandpartitionx() {
+    local rc
+    expandpartition "$1" "$2" "$3"
+    rc=$?
+    docleanup
+    return $rc
 }
 
 function zero1stlast() {
@@ -1398,7 +1471,8 @@ function domount() {
 	mount -o loop,offset=${bootstart},sizelimit=${bootsize} -t vfat ${dmimg} $mdir
 	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dmimg'"
     else # imgtype=Device
-	[[ "$dmimg" =~ "mmcblk" ]]  || [[ "$dimg" =~ "nvme0n1" ]] && p1="p1" && p2="p2"
+	p1=$(getspname $dmimg 1)
+	p2=$(getspname $dmimg 2)
 	ismounted $dmimg${p1} && errexit "? Device $dmimg is already mounted"
 	ismounted $dmimg${p2} && errexit "? Device $dmimg is already mounted"
 	echo "* Mount device '$dmimg'"
@@ -1417,15 +1491,23 @@ function domount() {
 function docleanup() {
     #
     # $1: if 'keep' (don't unset SDMPT)
-    local mnt=$SDMPT
+    local mnt=$SDMPT loopdev
     [ "$mnt" == "" ] && mnt=/mnt/sdm
     ismounted $mnt/boot/firmware && umount -v $mnt/boot/firmware
     ismounted $mnt/boot && umount -v $mnt/boot
     ismounted $mnt && umount -v $mnt
+    if islooped $mnt
+    then
+	loopdev=$(getloopdev $mnt)
+	losetup -d $loopdev
+    fi
     if [ "$1" != "keep" ]
     then
-	[ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
-	unset SDMPT
+	if [ "$SDMPT" != "" ]
+	then
+	    [ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
+	    unset SDMPT
+	fi
     fi
     sync
 }
