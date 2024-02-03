@@ -23,68 +23,85 @@ function logtoboth() {
     echo "$1"
 }
 
+function istrimenabled() {
+    local dev="$1" name aln gran rest
+    read name aln gran rest <<< $(lsblk --discard -n $dev)
+    [ "$gran" == "0B" ] && return 1 || return 0
+}
+
 function trimcfg() {
-    disks="$1"
+    local disks="$1" trimenb=0
     # disks="" [all], "all", or a list of disks ("/dev/sda,/dev/sdb", etc)
     [ "$disks" == "" ] && disks="all"
     while read id diskname
     do
 	if [ "$disks" == "all" ] || [[ "$disks" =~ "$diskname" ]]
 	then
-	    logtoboth "* Plugin $pfx: found disk $diskname"
+	    logtoboth "* Plugin $pfx: found disk '$diskname'"
 	    id=${id#[}
 	    id=${id%]}
 	    rawdev=${diskname##/dev/}
+	    istrimenabled $diskname && trimenb=0 || trimenb=1
 	    pmfile=/sys/block/$rawdev/device/scsi_disk/$id/provisioning_mode 
-	    [ ! -f  $pmfile ] && logtoboth "? Plugin $pfx: Cannot find $pmfile" && exit
-	    lbacount=$(sg_vpd -p bl $diskname | grep "unmap LBA" | (read w1 w2 w3 w4 lbc rest; echo $lbc))
-	    unmapsupp=$(sg_vpd -p lbpv $diskname | grep "Unmap command supported" | (read w1 w2 w3 w4 ws ; echo $ws))
-	    if [ $lbacount -gt 0 -a $unmapsupp -eq 1 ]
+	    if [ ! -f  $pmfile ]
 	    then
-		maxbytes=$((lbacount*512))
-		read pmode < $pmfile
-		if [ "$pmode" != "unmap" ]
+		if [ $trimenb -eq 0 ]
 		then
-		    logtoboth "* Plugin $pfx: Set provisioning mode 'unmap' on $diskname"
-		    csts=$(set -o | grep noclobber | (read vn vs ; echo $vs))
-		    [ "$csts" == "on" ] && set +o noclobber
-		    echo "unmap" > $pmfile
-		    [ "$csts" == "on" ] && set -o noclobber
-		    logtoboth "* Plugin $pfx: Set discard_max_bytes to $maxbytes"
-		    echo "$maxbytes" > /sys/block/$rawdev/queue/discard_max_bytes
+		    logtoboth "> Device '$diskname' already has trim enabled"
 		else
-		    logtoboth "* Plugin $pfx: Device $diskname provisioning mode already set to unmap"
+		    logtoboth "? Device '$diskname' cannot be enabled for trim"
 		fi
-		#
-		# Create udev rule for this disk
-		#
-		udevrule="/etc/udev/rules.d/10-$rawdev-trim.rules"
-		oldudevrule="/etc/udev/rules.d/.10-$rawdev-trim-pre-$(date +'%Y-%m-%d-%H-%M-%S').rules"
-		if [ -f $udevrule ]
+	    fi
+	    if [[ $trimenb -eq 1 ]] && [[ -f $pmfile ]]  # If trim not enabled, but can be
+	    then
+		lbacount=$(sg_vpd -p bl $diskname | grep "unmap LBA" | (read w1 w2 w3 w4 lbc rest; echo $lbc))
+		unmapsupp=$(sg_vpd -p lbpv $diskname | grep "Unmap command supported" | (read w1 w2 w3 w4 ws ; echo $ws))
+		if [ $lbacount -gt 0 -a $unmapsupp -eq 1 ]
 		then
-		    logtoboth "* Plugin $pfx: Renaming existing udev rule $udevrule to $oldudevrule"
-		    mv $udevrule $oldudevrule
-		fi
-		idp=""
-		idv=""
-		while read usbdir
-		do
-		    dskdir="$(find $usbdir/ -name $rawdev -print)"
-		    if [ "$dskdir" != "" ]
+		    maxbytes=$((lbacount*512))
+		    read pmode < $pmfile
+		    if [ "$pmode" != "unmap" ]
 		    then
-			#  strip everything after "host" in $dskdir
-			devpath=${dskdir%%/host*}
-			[ ! -L $devpath/port ] && devpath="${devpath%/*}"
-			if [ -L $devpath/port ]
+			logtoboth "* Plugin $pfx: Set provisioning mode 'unmap' on '$diskname'"
+			csts=$(set -o | grep noclobber | (read vn vs ; echo $vs))
+			[ "$csts" == "on" ] && set +o noclobber
+			echo "unmap" > $pmfile
+			[ "$csts" == "on" ] && set -o noclobber
+			logtoboth "* Plugin $pfx: Set discard_max_bytes to $maxbytes"
+			echo "$maxbytes" > /sys/block/$rawdev/queue/discard_max_bytes
+		    else
+			logtoboth "* Plugin $pfx: Device $diskname provisioning mode already set to unmap"
+		    fi
+		    #
+		    # Create udev rule for this disk
+		    #
+		    udevrule="/etc/udev/rules.d/10-$rawdev-trim.rules"
+		    oldudevrule="/etc/udev/rules.d/.10-$rawdev-trim-pre-$(date +'%Y-%m-%d-%H-%M-%S').rules"
+		    if [ -f $udevrule ]
+		    then
+			logtoboth "* Plugin $pfx: Renaming existing udev rule $udevrule to $oldudevrule"
+			mv $udevrule $oldudevrule
+		    fi
+		    idp=""
+		    idv=""
+		    while read usbdir
+		    do
+			dskdir="$(find $usbdir/ -name $rawdev -print)"
+			if [ "$dskdir" != "" ]
 			then
-			    idp=$(cat $devpath/idProduct)
-			    idv=$(cat $devpath/idVendor)
-			else
-			    logtoboth "* Plugin $pfx: ? Could not find USB path for $rawdev"
-			    logtoboth "               Please sudo /usr/local/bin/debug-trim-enable to gather output for maintainer"
-			    rm -f /usr/local/bin/debug-trim-enable
-			    trimlog="/root/trim-enable.log"
-			    cat > /usr/local/bin/debug-trim-enable <<EOF
+			    #  strip everything after "host" in $dskdir
+			    devpath=${dskdir%%/host*}
+			    [ ! -L $devpath/port ] && devpath="${devpath%/*}"
+			    if [ -L $devpath/port ]
+			    then
+				idp=$(cat $devpath/idProduct)
+				idv=$(cat $devpath/idVendor)
+			    else
+				logtoboth "? Plugin $pfx: Could not find USB path for $rawdev"
+				logtoboth "               Please sudo /usr/local/bin/debug-trim-enable to gather output for maintainer"
+				rm -f /usr/local/bin/debug-trim-enable
+				trimlog="/root/trim-enable.log"
+				cat > /usr/local/bin/debug-trim-enable <<EOF
 #!/bin/bash
 sudo printf "Debug information for device $diskname\n" > $trimlog
 sudo printf "\n** lsusb\n" >> $trimlog
@@ -99,21 +116,22 @@ sudo printf "\n** sg_vpd -p lbpv $diskname\n" >> $trimlog
 sudo sg_vpd -p lbpv $diskname >> $trimlog
 echo "Please get the file '$trimlog' to the maintainer"
 EOF
-			    chmod 755 /usr/local/bin/debug-trim-enable
+				chmod 755 /usr/local/bin/debug-trim-enable
+			    fi
 			fi
+		    done < <(find /sys/bus/usb/devices -maxdepth 1 -type l  -regextype egrep -regex '.*usb[0-9]' -print)
+		    if [ "$idv" != "" -a "$idp" != "" ]
+		    then
+			echo "ACTION==\"add|change\", ATTRS{idVendor}==\"$idv\", ATTRS{idProduct}==\"$idp\", SUBSYSTEM==\"scsi_disk\", ATTR{provisioning_mode}=\"unmap\"" > $udevrule
+			echo "ACTION==\"add|change\", KERNEL==\"$rawdev\", SUBSYSTEM==\"block\", RUN+=\"/bin/sh -c 'echo $maxbytes > /sys/block/$rawdev/queue/discard_max_bytes'\"" >> $udevrule
+			logtoboth "* Plugin $pfx: Write udev rule $udevrule"
+			logtoboth "* Plugin $pfx:  with contents: $(cat $udevrule)"
+		    else
+			logtoboth "? Plugin $pfx: Did not find idProduct and idVendor for $diskname"
 		    fi
-		done < <(find /sys/bus/usb/devices -maxdepth 1 -type l  -regextype egrep -regex '.*usb[0-9]' -print)
-		if [ "$idv" != "" -a "$idp" != "" ]
-		then
-		    echo "ACTION==\"add|change\", ATTRS{idVendor}==\"$idv\", ATTRS{idProduct}==\"$idp\", SUBSYSTEM==\"scsi_disk\", ATTR{provisioning_mode}=\"unmap\"" > $udevrule
-		    echo "ACTION==\"add|change\", KERNEL==\"$rawdev\", SUBSYSTEM==\"block\", RUN+=\"/bin/sh -c 'echo $maxbytes > /sys/block/$rawdev/queue/discard_max_bytes'\"" >> $udevrule
-		    logtoboth "* Plugin $pfx: Write udev rule $udevrule"
-		    logtoboth "* Plugin $pfx:  with contents: $(cat $udevrule)"
 		else
-		    logtoboth "? Plugin $pfx: Did not find idProduct and idVendor for $diskname"
+		    logtoboth "% Plugin $pfx: Device '$diskname' does not support trim"
 		fi
-	    else
-		logtoboth "% Plugin $pfx: Device $diskname does not support trim"
 	    fi
 	fi
     done < <(lsscsi --brief)
