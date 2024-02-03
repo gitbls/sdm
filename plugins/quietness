@@ -73,7 +73,7 @@ EOF
 	    if [ "$noquiet" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "FirstBoot: Re-add 'quiet' to $cfgdir/cmdline.txt"
+logger "sdm FirstBoot: Re-add 'quiet' to $cfgdir/cmdline.txt"
 sed -i "s/ quiet//g" $cfgdir/cmdline.txt
 sed -i "s/rootwait/rootwait quiet/g" $cfgdir/cmdline.txt
 EOF
@@ -100,7 +100,7 @@ EOF
 	    if [ "$nosplash" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "Re-add 'splash' to $cfgdir/cmdline.txt"
+logger "sdm FirstBoot: Re-add 'splash' to $cfgdir/cmdline.txt"
 sed -i "s/ splash//g" $cfgdir/cmdline.txt
 sed -i "s/rootwait/rootwait splash/g" $cfgdir/cmdline.txt
 EOF
@@ -121,13 +121,13 @@ EOF
 	    #[ -f /etc/systemd/system/plymouth-start.service ] && mv /etc/systemd/system/plymouth-start.service /etc/systemd/system/.sdm.plymouth-start.service 
 	    for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
 	    do
-		systemctl mask $svc
+		systemctl mask $svc >/dev/null 2>&1
 	    done
 	    cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "FirstBoot: Re-enable Plymouth services"
+logger "sdm FirstBoot: Re-enable Plymouth services"
 for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
 do
-    systemctl unmask $svc
+    systemctl unmask $svc >/dev/null 2>&1
 done
 #[ -f /etc/systemd/system/.sdm.plymouth-start.service ] && mv /etc/systemd/system/.sdm.plymouth-start.service /etc/systemd/system/plymouth-start.service 
 EOF

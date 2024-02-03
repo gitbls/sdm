@@ -111,7 +111,7 @@ logtoboth "> Configure and enable sdm FirstBoot service (sdm-firstboot)"
 rm -f /etc/systemd/system/sdm-firstboot.service
 cat > /etc/systemd/system/sdm-firstboot.service <<EOF
 [Unit]
-Description=sdm System FirstBoot Configuration
+Description=sdm FirstBoot System Configuration
 After=network.target
 #Before=rc-local.service
 

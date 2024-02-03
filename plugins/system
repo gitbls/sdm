@@ -209,7 +209,7 @@ EOF
 		logtoboth "> Plugin $pfx: Set rpi-eeprom to '$eeprom' during FirstBoot"
 		cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
 #!/bin/bash
-logger "FirstBoot: Set rpi-eeprom to '$eeprom'"
+logger "sdm FirstBoot: Set rpi-eeprom to '$eeprom'"
 sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
 EOF
 		;;

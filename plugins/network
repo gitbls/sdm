@@ -314,7 +314,7 @@ EOF
 		    nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
 		    cat >> $nmdcfg <<EOF
 #!/bin/bash
-logger "FirstBoot: Configure Network Manager WiFi connection '$wificname' with SSID $wifissid"
+logger "sdm FirstBoot: Configure Network Manager WiFi connection '$wificname' with SSID $wifissid"
 nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
 nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
 EOF

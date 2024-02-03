@@ -40,7 +40,7 @@ then
 	then
 	    cat > $sfn <<EOF
 #!/bin/bash
-logger "FirstBoot: Run runatboot scripts"
+logger "sdm FirstBoot: Run runatboot scripts"
 EOF
 	fi
 	[ "$output" == "" ] && output=">/dev/null" || output=">$output"
@@ -59,17 +59,17 @@ if [ "$xdo" != "" ]
 then
     if ! getent passwd $user > /dev/null
     then
-        logger "FirstBoot: User '$user' for runatboot plugin script '$sbn' does not exist"
+        logger "sdm FirstBoot: User '$user' for runatboot plugin script '$sbn' does not exist"
         exit
     fi
-    logger "FirstBoot: Copy runatboot script /etc/sdm/assets/runatboot/${sbn} to /tmp to run${xstr}"
+    logger "sdm FirstBoot: Copy runatboot script /etc/sdm/assets/runatboot/${sbn} to /tmp to run${xstr}"
     cp /etc/sdm/assets/runatboot/${sbn} /tmp
     chown $user /tmp/${sbn}
     runfile="/tmp/${sbn}"
 else
     runfile="/etc/sdm/assets/runatboot/${sbn}"
 fi
-logger "FirstBoot: Run runatboot script '${sbn}'${xstr}: \$runfile $args $output $error"
+logger "sdm FirstBoot: Run runatboot script '${sbn}'${xstr}: \$runfile $args $output $error"
 chmod 755 \$runfile
 ${xdo}\$runfile $args $output $error
 EOF

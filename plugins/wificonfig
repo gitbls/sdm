@@ -101,7 +101,7 @@ else
     cat > /etc/sdm/xpiboot/020-plugin-wificonfig.sh <<EOF
 #!/bin/bash
 source /etc/sdm/sdm-readparams
-logger "FirstBoot: Run plugin-configured Captive Portal"
+logger "sdm FirstBoot: Run plugin-configured Captive Portal"
 rfkill unblock wlan
 bootlog "Start Captive Portal to obtain WiFi SSID and Password"
 write_console "Start Captive Portal to obtain WiFi SSID and Password"

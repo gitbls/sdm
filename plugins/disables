@@ -71,7 +71,7 @@ else
 			cat > $fndis <<EOF
 #!/bin/bash
 blfile="blacklist-sdm-bluetooth.conf"
-logger "FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
+logger "sdm FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
 printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
 systemctl disable hciuart
 EOF
@@ -105,7 +105,7 @@ EOF
 			cat > $fndis <<EOF
 #!/bin/bash
 blfile="blacklist-sdm-wifi.conf"
-logger "FirstBoot: Disable wlan0 using /etc/modprobe.d/\$blfile"
+logger "sdm FirstBoot: Disable wlan0 using /etc/modprobe.d/\$blfile"
 printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
 EOF
 		    fi

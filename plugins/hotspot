@@ -213,13 +213,13 @@ function enablesvcs() {
 	cat > /etc/sdm/0piboot/040-hotspot-enable.sh <<EOF
 #!/bin/bash
 #source /etc/sdm/sdm-readparams  #Not needed at the moment
-logger "FirstBoot: Enable hostapd"
+logger "sdm FirstBoot: Enable hostapd"
 rfkill unblock wlan
 systemctl enable $now hostapd
 EOF
 	if [ "$type" != "bridged" ]
 	then
-	    echo "logger \"FirstBoot: Enable dnsmasq\"" >> /etc/sdm/0piboot/040-hotspot-enable.sh
+	    echo "logger \"sdm FirstBoot: Enable dnsmasq\"" >> /etc/sdm/0piboot/040-hotspot-enable.sh
 	    echo "systemctl enable $now dnsmasq" >> /etc/sdm/0piboot/040-hotspot-enable.sh
 	fi
     else
