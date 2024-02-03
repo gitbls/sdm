@@ -132,51 +132,6 @@ function wait_startup_complete {
     done
 }
 
-function do_delayed_boot_behavior {
-    #
-    # $1 = 'reboot' if system will be rebooted
-    local now="" nowb=""
-    [ "$1" != "reboot" ] && now="--now" && nowb="--no-block"
-    IFS="=" read key value <<< $(grep delayed_boot_behavior /etc/sdm/auto-1piboot.conf)
-    if [ "$value" != "" ]
-    then
-	if [[ "B3B4" =~ "$value" ]]
-	then
-	    # Re-enable display manager that we disabled in phase 1
-	    if [ -d /etc/lightdm ]
-	    then
-		configitemlog "set boot behaviour to $value" bootlog
-		do_raspiconfig do_boot_behaviour $value
-		bootlog "Set systemd default to graphical.target"
-		systemctl set-default graphical.target
-		if [ "$1" != "reboot" ]
-		then
-		    bootlog "Start lightdm"
-		    systemctl restart lightdm
-		else
-		    bootlog "Enable lightdm"
-		    systemctl enable lightdm
-		fi
-	    else
-		[ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
-		[ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
-		bootlog "Set systemd default to graphical.target"
-		systemctl set-default graphical.target
-	    fi
-	else
-	    if [[ "B1B2" =~ "$value" ]]
-	    then
-		configitemlog "set boot behaviour to $value" bootlog
-		do_raspiconfig do_boot_behaviour $value
-	    fi
-	fi
-    fi
-    # Perform cleanup steps done by /usr/bin/cancel_rename
-    bootlog "Re-enable getty@tty1"
-    systemctl enable $now $nowb getty@tty1 > /dev/null 2>&1
-    rm -f /etc/ssh/sshd_config.d/rename_user.conf
-}
-
 #
 # Mainline
 #
@@ -254,7 +209,7 @@ rm -f /etc/ssh/sshd_not_to_be_run
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
     wait_startup_complete "System will restart automatically after system startup has completed"
-    do_delayed_boot_behavior reboot
+    [ -f /etc/sdm/assets/cryptbbh ] && bootlog "Skip set boot behavior per cryptroot plugin" || do_delayed_boot_behavior reboot
     write_console "System startup complete; System will restart in $rebootwait seconds"
     bootlog "System will restart in $rebootwait seconds"
     sleep $rebootwait
@@ -265,7 +220,7 @@ then
 else
     [ "$(systemctl is-enabled ssh)" == "enabled" -a $reboot -ne 1 ] && systemctl start ssh
     wait_startup_complete "System will continue without restarting after system startup has completed"
-    do_delayed_boot_behavior noreboot
+    [ -f /etc/sdm/assets/cryptbbh ]  && bootlog "Skip set boot behavior per cryptroot plugin" || do_delayed_boot_behavior noreboot
     write_console "System startup complete"
     bootlog "System startup complete"
 fi
