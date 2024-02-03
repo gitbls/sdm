@@ -55,6 +55,12 @@ sdm --runonly plugins --burn-plugin parted:"addpartition=2048,ext4" 2023-12-05-r
 sdm --runonly plugins --burn-plugin extractfs:"rootfs=/path/to/rootfs|bootfs=/path/to/bootfs" 2023-12-05-raspios-bookworm-arm64.img
 ```
 
+## Plugin ordering notes
+
+There are a couple of plugin ordering issues to be aware of.
+* The `user` plugin(s) should be the first plugin. Several other plugins expect this.
+* The `cryptroot` plugin must be after the graphics plugin.
+
 ## Plugin-specific documentation
 
 ### sdm-plugin-template
@@ -222,6 +228,28 @@ copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 
 
 * `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
 * `--plugin copyfile:"filelist=/usr/local/bin/`. The list of files in the provided `filelist` will be processed per above.
+
+### cryptroot
+
+Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encryption</a> for complete details
+
+#### Arguments
+
+* **authkeys** &mdash; Provides an SSH authorized keys file for use in the initramfs
+* **dns** &mdash; DNS server address for the intramfs network client to use
+* **gateway** &mdash; gateway address for the intramfs network client to use
+* **ihostname** &mdash; hostname for the intramfs network client to use
+* **ipaddr** &mdash; IP address for the intramfs network client to use
+* **netmask** &mdash; Network mask for the intramfs network client to use
+* **mapper** &mdash; Mapper name for the rootfs encryption (shows up, for instance, in the `df` listing)
+* **ssh** &mdash; Enable SSH in the initramfs
+* **uniquesshkey** &mdash; Use a unique SSH key in the initramfs. Default is to use the host SSH key (of the system being encrypted)
+
+These are discussed further in the above-mentioned Disk Encryption page.
+
+#### Examples
+
+* `--plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|ssh" Configures the rootfs for encryption and enables SSH into the initramfs with keys authorized in the named authorized_keys file.
 
 ### disables
 
