@@ -21,11 +21,31 @@ function pmsg() {
     echo "> $(thisdate) $msg"
 }
 
+function getgbstr() {
+    #
+    # $1: # of bytes in partition
+    #
+    # Returns the string "(nn.nnGB, mm.mmGiB)"
+
+    local nbytes=$1
+    local gb=1000000000 gib=1073741824 gb2=500000000 gi2=536870912
+    local ngbytes ngibytes 
+     ngbytes=$(printf %.1f "$(( ((10 * $nbytes)+$gb2) / $gb ))e-1")
+    ngibytes=$(printf %.1f "$(( ((10 * $nbytes)+$gi2) / $gib))e-1")
+    echo "(${ngbytes}GB, ${ngibytes}GiB)"
+    return
+}
+
+function ispdevp() {
+    local dev="$1"
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
+}
+
 function getpartname() {
     local dev=$1
     local p1=1 p2=2
 
-    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && p1="p1" && p2="p2"
+    ispdevp $dev && p1="p1" && p2="p2"
     echo "${dev}${p2}"
 }
 
@@ -52,10 +72,13 @@ function checkdev() {
 }
 
 function save_rootfs() {
-    local dev=$1 sdisk=$2
+    local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev)
     checkdev $sdisk || return 1
     pmsg "Save rootfs '$rootfs' to $sdisk"
+    pbytes=$((partsize*4096))
+    pgb=$(((pbytes / 1073741824)+1))
+    pmsg "rootfs Save should take less than $pgb minutes"
     dd bs=4k count=$partsize if=$rootfs of=$sdisk
     return 0
 }
@@ -64,6 +87,8 @@ function cryptpart() {
     local dev=$1
     local rootfs=$(getpartname $dev)
     pmsg "Enable luks2 encryption on '$rootfs'"
+    pmsg "Enabling encryption could take up to a minute or two"
+    pmsg "OK to ignore superblock signature warning"
     while [ 0 ]
     do
 	cryptsetup luksFormat --type luks2 --cipher xchacha20,aes-adiantum-plain64 --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i  $rootfs
@@ -76,6 +101,7 @@ function cryptopen() {
     local dev=$1
     local rootfs=$(getpartname $dev)
     pmsg "Unlock encrypted partition '$rootfs'"
+    pmsg "Unlock will take several seconds"
     while [ 0 ]
     do
 	cryptsetup luksOpen $rootfs $cryptdevice
@@ -85,37 +111,61 @@ function cryptopen() {
 }
 
 function restore_rootfs() {
-    local dev=$1 sdisk=$2
+    local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev)
+    local cpartnum cpartstart cpartend cpartsize etc
     checkdev $sdisk || return 1
     pmsg "Restore '$rootfs' from $sdisk"
+    pmsg "rootfs Restore should take about the same time as the rootfs Save"
     dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
+    pmsg "Restore complete; Expand rootfs..."
     resize2fs -f /dev/mapper/$cryptdevice
+    while read line
+    do
+        if [[ "$line" =~ "ext4" ]]
+        then
+            IFS=":;" read cpartnum cpartstart cpartend cpartsize fstype etc <<< $line
+            cpartsize=${cpartsize%B}
+	    break
+        fi
+    done < <(parted -ms /dev/mapper/$cryptdevice unit B print)
+    pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
     return 0
 }
 
 function runall() {
-    local dev=$1 sdisk=$2
+    local dev=$1 sdisk=$2 partsize pbytes pgb
     local rootfs=$(getpartname $dev)
     checkdev $dev || return 1
     checkdev $sdisk || return 1
-    pmsg "Shrink $rootfs and get its size"
+    pmsg "Shrink partition $rootfs and get its size"
     partsize=$(getpartsize $rootfs)
-    pmsg "Device '$dev' rootfs size: $partsize 4K blocks"
-    save_rootfs $dev $sdisk || return 1
+    pbytes=$((partsize*4096))
+    pmsg "Device '$dev' rootfs size: $partsize 4K blocks $(getgbstr $pbytes)"
+    save_rootfs $dev $sdisk $partsize || return 1
     cryptpart $dev || return 1
     cryptopen $dev || return 1
-    restore_rootfs $dev $sdisk || return 1
+    restore_rootfs $dev $sdisk $partsize || return 1
 }
 
-partsize=""
 dev="$1"
 sdisk="$2"
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
 cryptdevice="nomappername"
 datefmt="%Y-%m-%d %H:%M:%S"
 [ -f /etc/mappername ] && . /etc/mappername || echo "% Where is /etc/mappername?"
-runall $dev $sdisk && echo $"
+runall $dev $sdisk 
+sleepsecs=10
+if [ "$SSH_CLIENT" == "" ]
+then
+    echo $"
 Enter the 'exit' command to resume the system boot process
 "
+else
+    echo $"
+Encryption complete. System boot will continue in $sleepsecs seconds
+"
+    sleep $sleepsecs
+    kill -9 -1
+fi
 exit
