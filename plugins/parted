@@ -145,7 +145,7 @@ function makepartition() {
     aligned_end_sector=$(((free_space_start+((psize*1048576)/512))/align_to_sector*align_to_sector-1))
     partstart=$aligned_start_sector
     partend=$aligned_end_sector
-    pdname="${pdev}${partnum}"
+    pdname="${pdev}$(getspname $pdev $partnum)"
     if [ $plugindebug -eq 1 ]
     then
 	logtoboth "> Plugin $pfx: pdname: $pdname"
@@ -224,7 +224,7 @@ then
     then
 	if [ "$burndev" != "" ]
 	then
-	    expandpartition "$burndev" "$rootexpand" echo || exit
+	    expandpartitionx "$burndev" "$rootexpand" echo || exit
 	else
 	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && errexit "? Invalid rootexpand value '$rootexpand'"
 	    if [ $rootexpand -ne 0 ]
