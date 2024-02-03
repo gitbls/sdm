@@ -61,8 +61,8 @@ function sdm_burndevfile() {
 	perr=0
 	for p in 1 2 3 4
 	do
-	    [[ "$burndev" =~ "mmcblk" ]] || [[ "$burndev" =~ "nvme0n1" ]] && pn="p${p}" || pn=$p
-	    pdev="${burndev}${pn}"
+	    #ispdevp $burndev && pn="p${p}" || pn=$p
+	    pdev="${burndev}$(getspname $burndev $p)"
 	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
 	done
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
@@ -85,12 +85,6 @@ function sdm_burndevfile() {
 	burnmsg+=("$(thisdate) > dd Copy completed")
 	# Prevent mount errors
 	sync ; sleep 1 ; sync
-	p1="1" ; p2="2"
-	[[ "$burndev" =~ "mmcblk" ]]  || [[ "$burndev" =~ "nvme0n1" ]] && p1="p1" && p2="p2"
-	if [ $expandroot -eq 1 ]
-	then
-	    expandpartition $burndev 0 write_burnmsg
-	fi
 	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
 	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
 	setdiskid $burndev $newdiskid
@@ -204,6 +198,10 @@ function sdm_burndevfile() {
 	then
 	    logtoboth "> Force --regen-ssh-host-keys for --no-expand-root"
 	    regensshkeys=1
+	elif [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
+	then
+	    docleanup keep
+	    expandpartition $burndev 0 logtoboth
 	fi
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
@@ -398,7 +396,7 @@ sdm_shrink() {
 #    fi
 
     # Create loop device to the partition
-    # Commented-out loggers and echos for debugging kernel log messages
+    # Debug loggers and echos are handy for debugging kernel log messages
     [ $plugindebug -eq 1 ] && logger "Create loop device"
     loopdev=$(losetup -f --show -o "$partstart" "$dimg")
     # bx is a dummy due to leading ",". Other 2 can be in either order
@@ -408,26 +406,26 @@ sdm_shrink() {
 				    [[ "$aline" =~ "Block count" ]] && (bc=${aline##Block count: } ; bc=${bc// } ; echo -n ",bc${bc}");\
 					[[ "$aline" =~ "Block size" ]] && (bs=${aline##Block size: } ; bs=${bs// } ; echo -n ",bs${bs}");\
 					done) ; rc=${PIPESTATUS[0]}
-    [ $rc -ne 0 ] && errexit "? tune2fs failed with status $rc"
+    [ $rc -ne 0 ] && losetup -d $loopdev 2> /dev/null && errexit "? tune2fs failed with status $rc"
     # Set bc=block count, bs=blocksize. Handle both orderings: <nn>bc,<nn>bs or <nn>bs,<nn>bc
     [ "${b1#bc}" != "$b1" ] && bc=${b1#bc}
     [ "${b2#bs}" != "$b2" ] && bs=${b2#bs}
     [ "${b1#bs}" != "$b1" ] && bc=${b1#bs}  #In case in other order
     [ "${b2#bc}" != "$b2" ] && bs=${b2#bc}  #...
-    [ "$bc" == "" -o "$bs" == "" ] && errexit "? tune2fs failed to read the file system"
+    [ "$bc" == "" -o "$bs" == "" ] && losetup -d $loopdev 2>/dev/null && errexit "? tune2fs failed to read the file system"
 
     [ $plugindebug -eq 1 ] && logger "Check the file system"
     echo "> Check the file system"
     e2fsck -pf $loopdev
     rc=$?
-    [ $rc -ge 4 ] && errexit "? e2fsck reports that file system is corrupt $rc"
+    [ $rc -ge 4 ] && losetup -d $loopdev 2>/dev/null && errexit "? e2fsck reports that file system is corrupt $rc"
 
     [ $plugindebug -eq 1 ] && logger "Get new partition size"
     oresize=$(resize2fs -P $loopdev)
-    errifrc $? "? resize2fs problem"
+    rc=$?
+    [ $rc -ne 0 ] && losetup -d $loopdev 2>/dev/null && errifrc $? "? resize2fs problem"
     # Strip everything before ": " leaving only the new partition size, then up it a bit
     newsize=${oresize##*: }
-    #newsize=$((newsize+8))
     newsize=$((newsize+(imgext/(bs/512))))
 
     if [ $plugindebug -eq 1 ]
@@ -443,44 +441,46 @@ sdm_shrink() {
 	echo "  imgext: $imgext"
     fi
 
-    [ $bc -le $newsize ] && errexit "% Image cannot be shrunk any further"
+    [ $bc -le $newsize ] && losetup -d $loopdev 2>/dev/null && errexit "% Image cannot be shrunk any further"
 
     # Shrink the file system
     [ $plugindebug -eq 1 ] && logger "Shrink the file system"
-    echo "> Shrink the file system from $bc to $newsize ${bs}-byte blocks"
-    resize2fs -M -p $loopdev $newsize
-    errifrc $? "? resize2fs shrink exited with status"
-
-    # have not made resizepart work yet, so do a rm/mkpart on the partition
-    #partnewsize=$((newsize*bs))
-    #partnewend=$((partstart+partnewsize-1))
-    #partendblks=$(((partnewend-partstart)/512))
-    #parttype="primary"
-    #parted -ms $loopdev unit B print
-    #echo "> Resize partition: $partnewsize"
-    #parted -s $loopdev resizepart 1 $partnewsize
-    #errifrc $? "? parted resize partition failed"
-
-    # Shrink the partition by removing and recreating it
-    [ $plugindebug -eq 1 ] && logger "Remove old partition"
-    echo "> Remove old partition"
-    parted -s -a minimal $dimg rm $partnum
-    errifrc $? "? parted rm partition failed with status"
-
-    [ $plugindebug -eq 1 ] && logger "Make new partition"
-    echo "> Make new partition"
     partnewsize=$((newsize*bs))
-    partnewend=$((partstart+partnewsize-1))
-    parttype="primary"
-    parted -s $dimg unit B mkpart $parttype $partstart $partnewend
-    errifrc $? "? parted mkpart failed with status"
+    bcb=$((bc*bs))
+    echo "> Shrink the root file system from $bc $(getgbstr $bcb) to $newsize ${bs}-byte blocks $(getgbstr $partnewsize)"
+    resize2fs -M -p $loopdev $newsize
+    rc=$?
+    losetup -d $loopdev 2> /dev/null
+    [ $rc -ne 0 ] && errifrc $rc "? resize2fs shrink exited with status '$rc'"
+    rzp=0
+    if [ $rzp -eq 0 ]
+    then
+	# Shrink the partition in the file
+	partnewend=$((partstart+partnewsize-1))
+	printf "%% Ignore Warning about shrinking a partition may cause data loss\n\n"
+	printf 'Yes\n' | parted -a none $dimg unit B resizepart 2 $partnewend ---pretend-input-tty 2>&1
+	errifrc $? "? parted resize partition failed"
+    else
+	# Shrink the partition by removing and recreating it
+	# Not used, but keep for a while
+	[ $plugindebug -eq 1 ] && logger "Remove old partition"
+	echo "> Remove old partition"
+	parted -s -a minimal $dimg rm $partnum
+	errifrc $? "? parted rm partition failed with status"
+	[ $plugindebug -eq 1 ] && logger "Make new partition"
+	echo "> Make new partition"
+	partnewend=$((partstart+partnewsize-1))
+	parttype="primary"
+	parted -s $dimg unit B mkpart $parttype $partstart $partnewend
+	errifrc $? "? parted mkpart failed with status"
+    fi
     #
     # Shrink the IMG
     #
     [ $plugindebug -eq 1 ] && logger "Shrink the IMG"
-    endsize=$((partstart+partnewsize))
-    echo "> Shrink the image by truncating to $endsize"
-    truncate -s ${endsize%B} $dimg
+    newfilesize=$((partnewsize+partstart))
+    echo "> Shrink the image by truncating to $newfilesize $(getgbstr $newfilesize)"
+    truncate -s ${newfilesize%B} $dimg
     errifrc $? "? Truncate failed with status "
     echo "* Shrink complete"
     asize=$(stat --printf %s $dimg)
