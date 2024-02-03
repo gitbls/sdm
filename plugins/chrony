@@ -84,12 +84,9 @@ else
     then
 	if compgen -G "$assetdir/sources/*.sources" > /dev/null
 	then
-	    logtoboth "> Plugin $pfx: Disable time servers defined in /etc/chrony.conf after FirstBoot"
-	    cat > /etc/sdm/0piboot/085-nodistro-time-servers.sh <<EOF
-#!/bin/bash
-cp -a /etc/chrony/chrony.conf /etc/chrony/chrony.conf.sdm
-sed -i "s/^pool/#pool/" /etc/chrony/chrony.conf
-EOF
+	    logtoboth "> Plugin $pfx: Disable time servers defined in /etc/chrony.conf"
+	    cp -a /etc/chrony/chrony.conf /etc/chrony/chrony.conf.sdm
+	    sed -i "s/^pool/#pool/" /etc/chrony/chrony.conf
 	fi
     fi
 
