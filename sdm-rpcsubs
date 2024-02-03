@@ -10,12 +10,18 @@ function enable_wayvnc() {
     # $2: wayvnc headless height
     #
     local waywidth=$1 wayheight=$2 gx
-    HOMEDIR="/home/$myuser"
-    systemctl --now disable vncserver-x11-serviced.service > /dev/null 2>&1
-    mkdir -p $HOMEDIR/.config/wayvnc
-    if ! [ -e $HOMEDIR/.config/wayvnc/config ]
+    local useservice=0  # Cheap way to keep old code around
+    if [[ $useservice -eq 0 ]] && [[ -f /lib/systemd/system/wayvnc.service ]]
     then
-        cat << EOF > $HOMEDIR/.config/wayvnc/config
+	systemctl enable wayvnc > /dev/null 2>&1
+    else
+	# This code is out of date. can delete soon
+	HOMEDIR="/home/$myuser"
+	systemctl --now disable vncserver-x11-serviced.service > /dev/null 2>&1
+	mkdir -p $HOMEDIR/.config/wayvnc
+	if ! [ -e $HOMEDIR/.config/wayvnc/config ]
+	then
+            cat << EOF > $HOMEDIR/.config/wayvnc/config
 use_relative_paths=true
 address=0.0.0.0
 enable_auth=true
@@ -24,23 +30,23 @@ private_key_file=key.pem
 certificate_file=cert.pem
 rsa_private_key_file=rsa_key.pem
 EOF
-      fi
-    if ! [ -e $HOMEDIR/.config/wayvnc/key.pem ] || ! [ -e $HOMEDIR/.config/wayvnc/cert.pem ]
-    then
-        logger "FirstBoot: Generate wayvnc keys..."
-        HOSTNAME=$(cat /etc/hostname)
-        IP=$(ifconfig | grep inet | head -n 1 | cut -d ' ' -f 10)
-        openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout $HOMEDIR/.config/wayvnc/key.pem -out $HOMEDIR/.config/wayvnc/cert.pem -subj /CN=$HOSTNAME -addext subjectAltName=DNS:$HOSTNAME,DNS:$HOSTNAME,IP:$IP 2> /dev/null
-      fi
-    if ! [ -e $HOMEDIR/.config/wayvnc/rsa_key.pem ]
-    then
-        logger "FirstBoot: Generate wayvnc RSA key..."
-        ssh-keygen -m pem -f $HOMEDIR/.config/wayvnc/rsa_key.pem -t rsa -N "" > /dev/null
-      fi
-      KBL=$(grep XKBLAYOUT /etc/default/keyboard | cut -d \" -f 2)
-      KBV=$(grep XKBVARIANT /etc/default/keyboard | cut -d \" -f 2)
-      [ -z $KBV ] && VNCKBD="$KBL" || VNCKBD="$KBL-$KBV"
-      cat << EOF > /etc/xdg/autostart/wayvnc.desktop
+	fi
+	if ! [ -e $HOMEDIR/.config/wayvnc/key.pem ] || ! [ -e $HOMEDIR/.config/wayvnc/cert.pem ]
+	then
+            logger "FirstBoot: Generate wayvnc keys..."
+            HOSTNAME=$(cat /etc/hostname)
+            IP=$(ifconfig | grep inet | head -n 1 | cut -d ' ' -f 10)
+            openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout $HOMEDIR/.config/wayvnc/key.pem -out $HOMEDIR/.config/wayvnc/cert.pem -subj /CN=$HOSTNAME -addext subjectAltName=DNS:$HOSTNAME,DNS:$HOSTNAME,IP:$IP 2> /dev/null
+	fi
+	if ! [ -e $HOMEDIR/.config/wayvnc/rsa_key.pem ]
+	then
+            logger "FirstBoot: Generate wayvnc RSA key..."
+            ssh-keygen -m pem -f $HOMEDIR/.config/wayvnc/rsa_key.pem -t rsa -N "" > /dev/null
+	fi
+	KBL=$(grep XKBLAYOUT /etc/default/keyboard | cut -d \" -f 2)
+	KBV=$(grep XKBVARIANT /etc/default/keyboard | cut -d \" -f 2)
+	[ -z $KBV ] && VNCKBD="$KBL" || VNCKBD="$KBL-$KBV"
+	cat << EOF > /etc/xdg/autostart/wayvnc.desktop
 [Desktop Entry]
 Type=Application
 Name=wayvnc
@@ -49,15 +55,19 @@ NoDisplay=true
 Exec=/usr/bin/wayvnc --render-cursor --keyboard=$VNCKBD
 OnlyShowIn=wayfire
 EOF
-      chown -R $myuser:users $HOMEDIR/.config/wayvnc
-      if [[ "$waywidth" != "" ]] && [[ "$wayheight" != "" ]]
-      then
-	  cat << EOF >> $HOMEDIR/.config/wayfire.ini
+	chown -R $myuser:users $HOMEDIR/.config/wayvnc
+    fi
+    #
+    # Set resolution for wayfire if specified
+    #
+    if [[ "$waywidth" != "" ]] && [[ "$wayheight" != "" ]]
+    then
+	cat << EOF >> $HOMEDIR/.config/wayfire.ini
 
 [output]
 headless_width=$waywidth
 headless_height=$wayheight
 EOF
-      fi
-      chown $myuser:$(getfilegroup $HOMEDIR) $HOMEDIR/.config/wayfire.ini
+    fi
+    chown $myuser:$(getfilegroup $HOMEDIR) $HOMEDIR/.config/wayfire.ini
 }
