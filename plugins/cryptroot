@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|mappername|noauto|"
+vldargs="|authkeys|dns|gateway|ihostname|ipaddr|netmask|mapper|ssh|uniquesshkey|noauto|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -29,8 +29,19 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
     mkdir -p $assetdir
-    # Put these in /bin
+    if [ "$authkeys" != "" ]
+    then
+	if [ -f $authkeys ]
+	then
+	    logtoboth "> Plugin $pfx: Copy authkeys file '$authkeys' to $assetdir"
+	    cp -a $authkeys $assetdir
+	else
+	    logtoboth "? Plugin $pfx: authkeys file '$authkeys' not found"
+	    exit 1
+	fi
+    fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
@@ -39,36 +50,47 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    plugin_printkeys
     [ "$mappername" == "" ] && mappername="cryptroot"
+    [ -v ssh ] && ssh="y"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
-    #
-    # Set mapper name for sdm-cryptconfig and sdmcryptfs
-    #
+    # $assetdir/mappername only for tracking, not used by sdm-cryptconfig
     echo "cryptdevice=$mappername" > $assetdir/mappername
     logtoboth "> Plugin $pfx: Install cryptsetup cryptsetup-initramfs cryptsetup-bin"
     doaptrpterror "install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin"
-    if [ ! -v noauto ]
-    then
-	logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration"
-	cat > /etc/sdm/0piboot/099-enable-auto-encrypt.sh <<EOF
+    logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration"
+    osw="--mappername $mappername"
+    [ "$authkeys" != "" ] && osw="${osw} --authorized-keys $assetdir/$(basename $authkeys)"
+    [ "$dns" != "" ] && osw="${osw} --dns $dns"
+    [ "$gateway" != "" ] && osw="${osw} --gateway $gateway"
+    [ "$ihostname" != "" ] && osw="${osw} --hostname $ihostname"
+    [ "$ipaddr" != "" ] && osw="${osw} --ipaddr $ipaddr"
+    [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
+    [ "$ssh" != "" ] && osw="${osw} --ssh"
+    [ -v uniquesshkey ] && osw="${osw} --unique-ssh"
+    [ -v noauto ] && escript0=".099-enable-auto-encrypt.sh" || escript0="099-enable-auto-encrypt.sh"
+    cat > /etc/sdm/0piboot/$escript0 <<EOF
 #!/bin/bash
-logger "FirstBoot: Create automatic disk encryption service"
+logger "sdm FirstBoot: Create automatic disk encryption service"
 cat > /etc/systemd/system/sdm-auto-encrypt.service <<ZEOF
 [Unit]
-Description=sdm cryptoroot automatic encryption
+Description=sdm cryptroot automatic encryption
 After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/sdm-cryptconfig sdmreboot
+ExecStart=/usr/local/bin/sdm-cryptconfig --sdm --reboot $osw
 
 [Install]
 WantedBy=multi-user.target
 ZEOF
 systemctl enable sdm-auto-encrypt
 EOF
+    if [ -f /etc/sdm/assets/gfxbbh ]
+    then
+	logtoboth "> Configure boot behavior for disk encryption"
+	mv /etc/sdm/assets/gfxbbh /etc/sdm/assets/cryptbbh
+	echo "B1" > /etc/sdm/assets/gfxbbh
     fi
     logtoboth "* Plugin $pfx: Complete Phase 1"
 elif [ "$phase" == "post-install" ]
@@ -78,6 +100,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    [ -v ssh ] && ssh="y"
     used1k=$(getfsdf "/" used) 
     usedby=$((used1k*1024))
     logtoboth ""
@@ -85,9 +108,9 @@ then
     logtoboth "   * When the system boot process begins you will need a scratch disk larger than $(getgbstr $usedby)"
     logtoboth ""
     plugin_addnote ""
-    plugin_addnote "*** cryptoroot notes ***"
+    plugin_addnote "*** cryptroot notes ***"
     plugin_addnote ""
-    if [ ! -v nooautorun ]
+    if [ ! -v noauto ]
     then
 	plugin_addnote "* Next steps"
 	plugin_addnote "  * When the system initial boot process has completed, the sdm-auto-encrypt service will run"
@@ -128,6 +151,12 @@ then
 	plugin_addnote ""
 	plugin_addnote "    * On the way back up you'll once again be prompted for the rootfs passphrase (Without the 30 tries)"
 	plugin_addnote "    * The system will ask for the rootfs passphrase in this manner every time the system boots"
+	if [ -v ssh ]
+	then
+	    plugin_addnote ""
+	    plugin_addnote "    NOTE: You have configured SSH"
+	    plugin_addnote "          Please review https://github.com/gitbls/sdm/blob/master/Docs/Disk-Encryption.md for important information"
+	fi
 	plugin_addnote ""
     else
 	plugin_addnote " * Manual steps"
