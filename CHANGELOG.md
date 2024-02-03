@@ -1,5 +1,22 @@
 # Changelog
 
+## V11.3
+
+* New Features
+  * sdm-gburn optimized for plugins and Bookworm. See <a href="Docs/BatchBurn-SSD-SDs-with-sdm-gburn.md">Batch Burning SSDs and SD cards</a>
+    * Simplifies burning a batch of SSDs/SD cards from a common base, each with unique configurations
+  * Encrypted rootfs can now be configured and unlocked via SSH for headless systems
+* Improvements
+  * Document known plugin ordering issues in <a href="Docs/Plugins.md">Plugins</a>
+  * Maintain text-mode console until rootfs encryption completes when used from sdm
+  * Provide elapsed time guesstimates for sdmcryptfs encryption operations in initramfs
+  * Update plugin vnc:wayvnc to use the wayvnc service
+  * Change FirstBoot logging in the journal and on the console to be `sdm FirstBoot` to differentiate from non-sdm `FirstBoot` logging. Searching the system log for `sdm` will now find all sdm-related log entries
+  * Improve `--shrink` by using "shrink partition" instead of "delete/recreate partition"
+* Bug fixes
+  * Partition reference issues resolved for NVME drives
+  * Correct trim (both standalone `satrim` and `trim-enable` plugin) to do better handle NVME drives
+
 ## V11.2
 
 * New Features
