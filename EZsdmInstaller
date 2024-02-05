@@ -166,13 +166,17 @@ then
     [ -L /usr/local/bin/sdm ] && $sudo rm -f /usr/local/bin/sdm
     $sudo ln -s /usr/local/sdm/sdm /usr/local/bin/sdm
 fi
-#
-# modify sdm-gburn to point to whereever sdm is installed
-#
-$sudo sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$dir\"#" $dir/sdm-gburn
 
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
+$sudo mkdir -p /etc/sdm
+$sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
+$sudo cp -a $dir/sdm-readparams /etc/sdm
+$sudo cat >| /etc/sdm/cparse <<EOF
+sdmdir:/usr/local/sdm
+src:/usr/local/sdm
+plugindebug:0
+EOF
 
 pkgs="systemd-container qemu-user-static binfmt-support parted"
 echo "* Ensure required packages are installed: $pkgs"
