@@ -65,7 +65,14 @@ then
 		    logtoboth "> Plugin $pfx: Set ${chyp} ${value} immediately"
 		    doconfigitem ${chyp} ${value} logtoboth
 		else
-                    logtoboth "> Plugin $pfx: Set ${chyp} ${value} to be enabled during First Boot"
+		    case "$chyp" in
+			overlayfs)
+			    logtoboth "> Plugin $pfx: Install overlayroot for overlayfs"
+			    doaptrpterror "install --no-install-recommends --yes overlayroot" $showapt
+			    [ "$value" == "0" ] && value="ro"
+			    ;;
+		    esac
+                    logtoboth "> Plugin $pfx: Set ${chyp} '${value}' to be enabled during sdm FirstBoot"
                     sed -i "/^$chyp=/d" $SDMPT/etc/sdm/auto-1piboot.conf
                     echo "$chyp=$value" >> $SDMPT/etc/sdm/auto-1piboot.conf
 		fi
