@@ -144,20 +144,33 @@ function makepartition() {
     aligned_start_sector=$((((free_space_start/align_to_sector) + 1)*align_to_sector))
     aligned_end_sector=$(((free_space_start+((psize*1048576)/512))/align_to_sector*align_to_sector-1))
     partstart=$aligned_start_sector
-    partend=$aligned_end_sector
+    if [ "$psize" == "0" ]
+    then
+	partend=$free_space_end
+    else
+	partend=$aligned_end_sector
+    fi
     pdname="${pdev}$(getspname $pdev $partnum)"
+    [ "$plugindebug" == "" ] && plugindebug=0  #cya
     if [ $plugindebug -eq 1 ]
     then
 	logtoboth "> Plugin $pfx: pdname: $pdname"
 	logtoboth "> Plugin $pfx: partnum: $partnum"
+	logtoboth "> Plugin $pfx: partstart: $partstart"
+	logtoboth "> Plugin $pfx: partend: $partend"
+	logtoboth "> Plugin $pfx: psize: $psize"
 	logtoboth "> Plugin $pfx: optimal_io_size: $optimal_io_size"
 	logtoboth "> Plugin $pfx: physical_block_size: $physical_block_size"
 	logtoboth "> Plugin $pfx: alignment_offset: $alignment_offset"
 	logtoboth "> Plugin $pfx: align_to_sector: $align_to_sector"
 	logtoboth "> Plugin $pfx: aligned_start_sector: $aligned_start_sector"
 	logtoboth "> Plugin $pfx: aligned_end_sector: $aligned_end_sector"
+	logtoboth "> Plugin $pfx: free_space_start: $free_space_start"
+	logtoboth "> Plugin $pfx: free_space_end: $free_space_end"
+	logtoboth "> Plugin $pfx: free_space_amount: $free_space_amount"
     fi
-    [[ $aligned_end_sector -gt $free_space_end ]] && errexit "? Partition problem; Try again with --no-expand-root"
+    [[ $partend -gt $free_space_end ]] && errexit "? Partition problem; Try again with --no-expand-root"
+    [[ $partstart -gt $partend ]] && errexit "? Partition problem; Insufficient space for partition '$partnum'"
     logtoboth "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}s end: ${partend}s"
     parted $pdev mkpart $ptype $pname $fstype ${partstart}s ${partend}s
     errifrc $? "? parted mkpart error"
@@ -189,6 +202,7 @@ function dopartition() {
     local psize ptype fstype
     
     IFS="," read -r psize fstype ptype <<< "$pinfo"
+    [ "$(type -p mkfs.${fstype})" == "" ] && errexit "? Unrecognized file system type '$fstype'"
     if [ "$bdev" != "" ]
     then
 	makepartition $bdev "$psize" "$ptype" "$fstype"
@@ -225,6 +239,10 @@ then
 	if [ "$burndev" != "" ]
 	then
 	    expandpartitionx "$burndev" "$rootexpand" echo || exit
+	    #
+	    # Fix up partuuid's if this is a gpt disk
+	    #
+	    updategptrootfs $burndev
 	else
 	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && errexit "? Invalid rootexpand value '$rootexpand'"
 	    if [ $rootexpand -ne 0 ]
@@ -249,7 +267,9 @@ then
 	    then
 		while read line
 		do
-		    dopartition "$line" "$burndev" "$burnfilefile"
+		    line="${line%%\#*}"    # Del EOL comments
+		    line="${line%"${line##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+		    [ "$line" != "" ] && dopartition "$line" "$burndev" "$burnfilefile"
 		done < $fn
 	    else
 		logtoboth "? Plugin $pfx: Unable to read addpartition file '$fn'"

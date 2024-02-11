@@ -46,6 +46,40 @@ EOF
     fi
 }
 
+function writediskids() {
+    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
+    then
+	if [ $fgpt -eq 0 ]
+	then
+	    write_burnmsg "> Set MBR partition Disk ID in cmdline.txt"
+	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
+	else
+	    gptuuid1=$(blkid ${burndev}$(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	    gptuuid2=$(blkid ${burndev}$(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	    write_burnmsg "> Set GPT rootfs partition GUID in cmdline.txt"
+	    sed -i "s/${olddiskid}-02/$gptuuid2/" $SDMPT/boot/firmware/cmdline.txt
+	fi
+	# init_resize disappeared in 2022-09-06 build, not in systems with /boot/firmware
+    elif [ -f $SDMPT/boot/cmdline.txt ]
+    then
+	write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
+	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
+	# Quirks not there in bullseye or bookworm, but keep for posterity
+	#sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
+	# init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
+	sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
+    fi
+    if [ $fgpt -eq 0 ]
+    then
+	write_burnmsg "> Set MBR partition Disk ID in fstab"
+	sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
+    else
+	write_burnmsg "> Set GPT partition GUIDs in fstab"
+	sed -i "s/${olddiskid}-01/$gptuuid1/" $SDMPT/etc/fstab
+	sed -i "s/${olddiskid}-02/$gptuuid2/" $SDMPT/etc/fstab
+    fi
+}
+
 function sdm_burndevfile() {
 
     # Stash burn messages in an array until log on SD Card is mounted and available 
@@ -86,8 +120,29 @@ function sdm_burndevfile() {
 	# Prevent mount errors
 	sync ; sleep 1 ; sync
 	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
-	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
-	setdiskid $burndev $newdiskid
+	if [ $fgpt -eq 0 ]
+	then
+	    write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
+	    setdiskid $burndev $newdiskid
+	else
+	    write_burnmsg "> Convert disk '$burndev' to GPT"
+	    sgdisk --mbrtogpt --randomize-guids $burndev >/dev/null 2>&1
+	    errifrc $? "? Error converting MBR to GPT"
+	    write_burnmsg "> Set boot partition boot code 0c on '$burndev'"
+	    gdisk $burndev <<EOF &>/dev/null
+r
+h
+1
+n
+0c
+n
+n
+w
+y
+EOF
+
+	    errifrc $? "? Error Setting MBR hex code"
+	fi
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
 	domount "$burndev" "Device"
@@ -129,21 +184,6 @@ function sdm_burndevfile() {
 	domount "$burnfilefile" "IMG"
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
-    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
-    then
-	write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/firmware/cmdline.txt"
-	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/firmware/cmdline.txt
-	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
-	# init_resize disappeared in 2022-09-06 build, not in systems with /boot/firmware
-    elif [ -f $SDMPT/boot/cmdline.txt ]
-    then
-	write_burnmsg "> Set new Disk ID '$newdiskid' in /etc/fstab and /boot/cmdline.txt"
-	sed -i 's| sdhci\.debug_quirks2=4||' $SDMPT/boot/cmdline.txt
-	sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/cmdline.txt
-	# init_resize disappeared in 2022-09-06 build, but keep this here for older IMGs
-	sed -i 's| init=/usr/lib/raspi-config/init_resize\.sh||' $SDMPT/boot/cmdline.txt
-    fi
-    sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
     #
     # Write out the accumulated messages into mounted image if image has been customized
     #
@@ -203,6 +243,7 @@ function sdm_burndevfile() {
 	    docleanup keep
 	    expandpartition $burndev 0 logtoboth
 	fi
+	writediskids
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    logtoboth "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
@@ -219,7 +260,7 @@ function sdm_burndevfile() {
 	fi
 	if [ $regensshkeys -eq 1 ]
 	then
-	    logtoboth "> Disable regenerate_ssh_host_keys service; First Boot will run it instead"
+	    logtoboth "> Disable regenerate_ssh_host_keys service; sdm FirstBoot will run it instead"
 	    sdm_runspawncmd Burn1 run-command-quietly "systemctl disable regenerate_ssh_host_keys"
 	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
@@ -313,6 +354,12 @@ function sdm_burndevfile() {
 	[ "$b0script" != "" ] && echo "  and b0script '$b0script' will not be processed"
 	[ "$b1script" != "" ] && echo "  and b1script '$b1script' will not be processed"
 	[ "$hname" != "" ] && updatehostname $hname
+	if [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
+	then
+	    docleanup keep
+	    expandpartition $burndev 0 echo
+	fi
+	writediskids
     fi
     printnotes
     #

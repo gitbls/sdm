@@ -285,7 +285,7 @@ function doconfigitem() {
     # $2: value
     # $3: "" or "bootlog" (first boot) or "logtoboth" (phase1)
     # NOTE; first boot only at the moment!
-    local rpifun=$1 value=$2 msgfn=$3
+    local rpifun=$1 value=$2 msgfn=$3 tval
     case "$rpifun" in
 	# * do_resolution still needs to be sorted out
 	serial)
@@ -326,6 +326,12 @@ function doconfigitem() {
 	fstab)
 	    configitemlog "Append fstab extension '$value' to /etc/fstab" $msgfn
 	    cat $value >> /etc/fstab
+	    ;;
+	overlayfs)
+	    [[ "$2" == "" ]] || [[ "$2" == "0" ]] && tval="ro" || tval=$2
+	    $msgfn "Enable overlayfs with '$tval' bootfs"
+	    sed -i -e "s/^/overlayroot=tmpfs /" /boot/firmware/cmdline.txt
+	    sed -i -e "s#\(.*/boot/firmware.*\)defaults\(.*\)#\1defaults,$tval\2#" /etc/fstab
 	    ;;
 	#
 	# keymap, locale, and timezone may be set via sdm --burn command
@@ -1252,6 +1258,46 @@ function doinstalls() {
     fi
 }
 
+function getdisktype() {
+    local dev=$1 line dtype
+    while read line
+    do
+        if [[ "$line" =~ "Disklabel type:" ]]
+        then
+            dtype=${line##*:}
+            dtype=${dtype/ /}
+            echo "$dtype"
+            break
+        fi
+    done < <(sfdisk -l $dev)
+}
+
+function isgpt() {
+    local dev=$1
+    [ "$(getdisktype $dev)" == "gpt" ] && return 0 || return 1
+}
+
+function updategptrootfs() {
+    #
+    # $1: device name
+    #
+    local dev=$1
+
+    if isgpt $dev
+    then
+        declare -x SDMPT=$(makemtpt)
+	domount $dev "Device"
+        #gptuuid1=$(blkid ${burndev}$(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	gptuuid2=$(blkid ${burndev}$(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	logtoboth "> Set GPT rootfs partition GUID in cmdline.txt"
+	sed -i "/^[[:space:]]*#/!s|^\(.*root=\)\S\+\(\s\+.*\)$|\1PARTUUID=${gptuuid2}\2|" $SDMPT/boot/firmware/cmdline.txt
+	logtoboth "> Set GPT partition GUIDs in fstab"
+	#sed -i "s/${olddiskid}-01/$gptuuid1/" $SDMPT/etc/fstab
+	sed -i "/^[[:space:]]*#/!s|^\S\+\(\s\+/\s\+.*\)$|PARTUUID=${gptuuid2}\1|" $SDMPT/etc/fstab
+	docleanup
+    fi
+}
+
 function extendimage() {
     #
     # Extend an IMG and resize partition 2
@@ -1290,13 +1336,13 @@ function expandpartition() {
     # $3: message output (write_burnmsg/logtoboth/or similar)
     local fulldevname="$1" sexp=${2:-0} msgrtn=${3:-logtoboth}
     local dev=${fulldevname##/dev/}
-    local part pname fsize partstart partend devsize partsize newend pbytes nbytes
+    local part pname fsize partstart partend devsize partsize newend pbytes nbytes pend
 
     pname=$(getspname $fulldevname 2)
     part="${dev}${pname}"
     while read line
     do
-        if [[ "$line" =~ "msdos" ]]
+        if [[ "$line" =~ "msdos|fat32" ]]
         then
             fsize=$(IFS=":" read fs bytes file n1 n2 fs <<< $line ; echo $bytes)
             fsize=${fsize%B}     #Fsize is file system size in bytes
@@ -1326,10 +1372,32 @@ function expandpartition() {
 	nbytes=$(((pbytes+($sexp*1048576)))) #1024*1024
 	newend=$(((nbytes+partstart)/512))
     fi
-    $msgrtn "> Expand Root: Expand partition '$part' on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
+    [ "$plugindebug" == "" ] && plugindebug=0
+    if [ $plugindebug -eq 1 ]
+    then
+	logtoboth "> Plugin ${pfx}ExpandPartition: partstart: $partstart"
+	logtoboth "> Plugin ${pfx}ExpandPartition: partend: $partend"
+	logtoboth "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
+	logtoboth "> Plugin ${pfx}ExpandPartition: devsize: $devsize"
+	logtoboth "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
+	logtoboth "> Plugin ${pfx}ExpandPartition: pbytes: $pbytes"
+	logtoboth "> Plugin ${pfx}ExpandPartition: nbytes: $nbytes"
+    fi
+    $msgrtn "> Expand Root: Expand root partition '$part' on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     # root partition is always partition 2
-    parted -m /dev/$dev u s resizepart 2 $newend
-    errifrc $? "? parted resizepart failed with status '$sts'"
+    if isgpt $fulldevname
+    then
+	[ "$sexp" == "0" ] && pend="" || pend="+$newend"
+	sgdisk --delete 2 $fulldevname        > /dev/null 2>&1
+	errifrc $? "? sgdisk delete partition failed"
+	sgdisk --new 2::${pend} $fulldevname         > /dev/null 2>&1
+	errifrc $? "? sgdisk new partition failed"
+	sgdisk --typecode 2:8300 $fulldevname > /dev/null 2>&1
+	errifrc $? "? sgdisk set typecode failed"
+    else
+	parted -m /dev/$dev u s resizepart 2 $newend
+	errifrc $? "? parted resizepart failed"
+    fi
     $msgrtn "* Mount $fulldevname to resize the root file system"
     [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
     domount $fulldevname "Device"

@@ -190,7 +190,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V11.3"
+version="V11.4"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -229,6 +229,7 @@ fdomount=0                  #1=Do a mount and drop into bash
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
+fgpt=0                      #1=Convert burned device to gpt format
 fnoexpandroot=0             #1=Don't expand root partition and don't let RasPiOS do it either
 fppart=0                    #1=Print partition tables in an IMG
 frunonly=0                  #1=--runonly
@@ -293,7 +294,7 @@ cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
-groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
+gpt,groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
@@ -335,6 +336,7 @@ do
 	--expand-root) expandroot=1  ; shift 1 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
 	--extend)      fextend=1     ; shift 1 ;;
+	--gpt)         fgpt=1        ; shift 1 ;;
 	--groups)      dgroups=$2    ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
 	--info)        infocmd=1     ; shift 1 ;;
@@ -442,6 +444,7 @@ cscript="$(fndotfullpath $cscript)"
 [ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
 [ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
 [ $expandroot -eq 1 -a $burn -eq 0 -a $burnfile -eq 0 ] && errexit "? Switch conflict: --expand-root only valid with --burn and --burnfile"
+[ $fgpt -eq 1 -a $burn -ne 1 ] && errexit "? Switch conflict: --gpt only valid with --burn"
 [ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
 if [ "$aptmaint" != "" ]
 then
