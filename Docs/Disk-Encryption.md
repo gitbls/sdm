@@ -122,6 +122,14 @@ Note that once you've enabled SSH in the initramfs, sdm does not provide an easy
 * `--unique-ssh` &mdash; Use a different SSH host key in the initramfs. The default is to use the host OS SSH key
 * Network configuration settings &mdash; You may need to use some or all of these depending on your network configuration
 
+### SSH and initramfs notes
+
+Things to know when using SSH as documented here
+
+* You must use `ssh root@ip.ad.dd.rs`. The username `root` is important, as that's how SSH is configured in the initramfs
+* You won't be able to SSH using ".local" names when initramfs SSH is running; avahi is not running in the initramfs so the system is unknown to MDNS (that's the protocol that is used for ".local")
+* WiFi is not supported for the SSH initramfs connection at the moment
+
 ## initramfs
 
 initramfs is one of the first programs run during a RasPiOS system boot. Since the system has been configured to use an encrypted rootfs, initramfs will try to boot using that configuration, and it will fail.
