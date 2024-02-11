@@ -595,7 +595,7 @@ See <a href="https://www.raspberrypi.com/documentation/computers/configuration.h
 * **net_names**
 * **onewire**
 * **overclock**
-* **overlayfs**
+* **overlayfs** &mdash; Enables the readonly file system. Optional value specifies whether bootfs should be 'ro' (default) or 'rw'
 * **overscan**
 * **pi4video**
 * **pixdub**
@@ -609,6 +609,13 @@ See <a href="https://www.raspberrypi.com/documentation/computers/configuration.h
 #### Examples
 
 * `--plugin raspiconfig:"net_names=1|boot_splash=1"`
+* `--plugin raspiconfig:overlayfs=ro` &mdash; Enable the rootfs readonly file system with a read-only bootfs also
+* `--plugin raspiconfig:overlayfs` &mdash; Enable the rootfs readonly file system with a read-only bootfs also
+* `--plugin raspiconfig:overlayfs=rw` &mdash; Enable the rootfs readonly file system with a read/write bootfs
+
+#### Notes
+
+The 'overlayfs' setting enables the read-only file system. The file system is not made read-only until sdm FirstBoot has completed and the system restarts. If you need a swapfile, you'll need to configure it on another disk or partition, since the boot disk isn't writeable. At the moment sdm doesn't provide any support for swapfile management with overlayfs.
 
 ### runatboot
 
