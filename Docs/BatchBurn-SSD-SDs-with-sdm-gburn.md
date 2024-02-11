@@ -22,7 +22,7 @@ Valid options:
 * **sudo=[yes|no]** &mdash; Enable sudo. Default: ***yes***
 * **piwiz=[yes|no]** &mdash; Enable piwiz. Default: ***no***
 * **autologin=[yes|no]** &mdash; Enable autologin. Default: ***no***
-* **reboot=*n*** &mdash; Enable auto reboot at completion of first boot after waiting *n* seconds. Default: 20 seconds
+* **reboot=*n*** &mdash; Enable auto reboot at completion of sdm FirstBoot after waiting *n* seconds. Default: 20 seconds
 * **mouse=*left*** &mdash; Set left-handed mouse for user. Default: right-handed mouse
 * **nmconn=*/path/to/nmconnfile*** &mdash; Path to a single .nmconnection file. If multiple are needed, use `--pluglist @/path/to/plugin-list`
 * **pluglist=*/path/to/pluglist*** &mdash; See <a href="Docs/Plugins.md">the Plugin documentation</a>

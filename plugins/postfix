@@ -91,7 +91,7 @@ else
 	#
 	# Using provided main.cf, so modify what we can
 	#
-	logtoboth "> Plugin $pfx: Set postfix completion script to run after first boot"
+	logtoboth "> Plugin $pfx: Set postfix completion script to run in sdm FirstBoot"
 	pf01="/etc/sdm/0piboot/080-complete-postfix.sh"
 	rm -f $pf01
 	[ "$domain" != "" ] && dmn=".${domain}" || dmn=""

@@ -37,7 +37,7 @@ function delaylightdmenable() {
     then
 	logtoboth "% Plugin $pfx: Display Manager lightdm default boot behavior overridden by explicit setting '$aval'"
     else
-	logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be set after First Boot"
+	logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be set after sdm FirstBoot"
 	setdelayedbbh $bbh
     fi
 }
@@ -97,16 +97,16 @@ function gfxcfgpostinstall() {
 	if [ $reboot -eq 1 ]
 	then
 	    logtoboth "> Plugin $pfx: No known Display Manager found"
-	    logtoboth "> Plugin $pfx: Set RasPiOS to B1:'console no login' for First Boot"
+	    logtoboth "> Plugin $pfx: Set RasPiOS to B1:'console no login' for sdm FirstBoot"
 	    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
 	    do_raspiconfig do_boot_behaviour B1
 	    if (grep '^boot_behav' /etc/sdm/1piboot.conf > /dev/null 2>&1) || [[ "$(cat /etc/sdm/assets/gfxbbh 2>/dev/null)" != "" ]]
 	    then
 		aval=$(getfinalbbh B1)
-		logtoboth "% Boot behavior setting '$aval' will be honored after First Boot"
+		logtoboth "% Boot behavior setting '$aval' will be honored after sdm FirstBoot"
 	    else
 		[ $autologin -eq 1 ] && bbh="B2" || bbh="B1"
-		[ "$bbh" != "B1" ] && logtoboth "% Console Autologin setting '$bbh' will be re-enabled after First Boot"
+		[ "$bbh" != "B1" ] && logtoboth "% Console Autologin setting '$bbh' will be re-enabled after sdm FirstBoot"
 		setdelayedbbh $bbh
 	    fi
 	fi
@@ -176,7 +176,7 @@ then
     fi
     if [ -v nopiwiz ]
     then
-	logtoboth "> Plugin $pfx: Disable running piwiz and userconfig on FirstBoot"
+	logtoboth "> Plugin $pfx: Disable running piwiz and userconfig on first system boot"
 	[ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
 	systemctl disable userconfig.service > /dev/null 2>&1
 	systemctl mask    userconfig.service > /dev/null 2>&1

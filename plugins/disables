@@ -67,7 +67,7 @@ else
 		    then
 			logtoboth "% Plugin $pfx: Bluetooth already disabled"
 		    else
-			logtoboth "> Plugin $pfx: Set Bluetooth to disable in FirstBoot per --disable bluetooth"
+			logtoboth "> Plugin $pfx: Set Bluetooth to disable in sdm FirstBoot per --disable bluetooth"
 			cat > $fndis <<EOF
 #!/bin/bash
 blfile="blacklist-sdm-bluetooth.conf"
@@ -78,7 +78,7 @@ EOF
 		    fi
 		    ;;
 		piwiz)
-		    logtoboth "> Plugin $pfx: Disable running piwiz and userconfig on first boot per --disable piwiz"
+		    logtoboth "> Plugin $pfx: Disable running piwiz and userconfig on first system boot per --disable piwiz"
 		    [ -f /etc/xdg/autostart/piwiz.desktop ] && mv /etc/xdg/autostart/piwiz.desktop /etc/xdg/autostart/.piwiz.desktop.sdm
 		    systemctl disable userconfig.service > /dev/null 2>&1
 		    systemctl mask    userconfig.service > /dev/null 2>&1
@@ -101,7 +101,7 @@ EOF
 		    then
 			logtoboth "% Plugin $pfx: WiFi already disabled"
 		    else
-			logtoboth "> Plugin $pfx: Set WiFi to disable in FirstBoot per --disable wifi"
+			logtoboth "> Plugin $pfx: Set WiFi to disable in sdm FirstBoot per --disable wifi"
 			cat > $fndis <<EOF
 #!/bin/bash
 blfile="blacklist-sdm-wifi.conf"

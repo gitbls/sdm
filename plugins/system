@@ -206,7 +206,7 @@ EOF
 		systemctl mask    cron > /dev/null 2>&1
 		;;
 	    eeprom)
-		logtoboth "> Plugin $pfx: Set rpi-eeprom to '$eeprom' during FirstBoot"
+		logtoboth "> Plugin $pfx: Set rpi-eeprom to '$eeprom' during sdm FirstBoot"
 		cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
 #!/bin/bash
 logger "sdm FirstBoot: Set rpi-eeprom to '$eeprom'"
@@ -224,7 +224,7 @@ EOF
 		for fl in $assetdir/$chyp/*
 		do
 		    bfn=$(basename $fl)
-		    logtoboth "> Plugin $pfx: Queue $chyp file '$bfn' to install during First Boot"
+		    logtoboth "> Plugin $pfx: Queue $chyp file '$bfn' to install during sdm FirstBoot"
 		    printf "fstab=$assetdir/$chyp/$bfn\n" >> /etc/sdm/auto-1piboot.conf
 		done
 		;;

@@ -1,4 +1,4 @@
-# First Boot Service
+# sdm FirstBoot Service
 
 sdm adds the sdm-firstboot service to each image during Customization. The FirstBoot service implements settings that must be delayed until the target system has actually booted.
 

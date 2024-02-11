@@ -94,7 +94,7 @@ else
     [ "$tunnelenable" == "" ] && tunnelenable="false"
     [ "$proxy" == "" ] && proxy="keep"
 
-    logtoboth "> Plugin $pfx: Set apt-cacher-ng to enable and enable apt to use it (127.0.0.1) after First Boot"
+    logtoboth "> Plugin $pfx: Set apt-cacher-ng to enable and enable apt to use it (127.0.0.1) after sdm FirstBoot"
     acs01="/etc/sdm/0piboot/099-enable-apt-cacher-ng.sh"
     cat > $acs01 <<EOF
 #!/bin/bash

@@ -117,7 +117,7 @@ EOF
     then
 	if [ -f /etc/systemd/system/plymouth-start.service ]
 	then
-	    logtoboth "> Plugin $pfx: Disable Plymouth for First Boot"
+	    logtoboth "> Plugin $pfx: Disable Plymouth for first system boot"
 	    #[ -f /etc/systemd/system/plymouth-start.service ] && mv /etc/systemd/system/plymouth-start.service /etc/systemd/system/.sdm.plymouth-start.service 
 	    for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
 	    do
