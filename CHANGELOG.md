@@ -1,5 +1,15 @@
 # Changelog
 
+## V11.4
+
+* New Features
+  * `sdm --burn` can convert burned disk to GPT with `--gpt` switch
+    * Not for use on IMGs; GPT only enabled for burned disks at the moment
+    * Well-tested on Pi5/Pi4/Pi3B+/Pi02W/Pi0W
+    * `--burn-plugin parted` works on GPT disks
+ * `--plugin raspiconfig` enables overlayfs read-only file system
+ * Enable SSH for remote crypt rootfs unlock if not enabled when rootfs was encrypted
+
 ## V11.3
 
 * New Features
