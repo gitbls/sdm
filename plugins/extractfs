@@ -1,12 +1,14 @@
 #!/bin/bash
 #
-# This is an sdm plugin for: extractfs
-#
-# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+# This is an sdm burn plugin for: extractfs
 #
 
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function logtoboth() {
+    echo "$1"
 }
 
 # $1 is the phase: "0", "1", or "post-install"
