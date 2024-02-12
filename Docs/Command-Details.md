@@ -70,6 +70,7 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, it replaces the default value.
 * `--expand-root` &mdash; Used with `--burn`. Expands the root partition on the SSD/SD Card after burning, and disables the default (quick) first boot that does this, since sdm has already expanded the partition
 * `--extend` &mdash; Used in conjunction with the `--xmb` switch to extend an image. If used without `--customize` the IMG is extended but no other action is taken. If used with `--customize` the IMG is extended before the IMG is customized.
+* `--gpt` &mdash; Directs the `--burn` command to set the burned disk to GPT partitions
 * `--groups` *grouplist* &mdash; Specify the groups to be added to new users created with the `user` plugin. The default list is: `dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio`
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
 * `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See <a href="Captive-Portal.md">Captive Portal</a> for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
