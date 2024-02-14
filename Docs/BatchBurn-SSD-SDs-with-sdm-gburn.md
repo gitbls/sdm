@@ -82,7 +82,7 @@ Each disk has a different hostname (the customer's name in this case), but all h
 
 /path/to/mypluglist has:
 ```
-user:userdel=pi
+user:deluser=pi
 user:adduser=bls|uid=2400|password=secret
 ```
 
