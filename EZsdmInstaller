@@ -173,15 +173,13 @@ $sudo mkdir -p /etc/sdm
 $sudo chmod 700 /etc/sdm
 $sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
 $sudo cp -a $dir/sdm-readparams /etc/sdm
-cat >| /tmp/cparse <<EOF
+$sudo rm -f /etc/sdm/cparse.old
+$sudo mv /etc/sdm/cparse /etc/sdm/cparse.old 2>/dev/null
+cat <<EOF | sudo tee /etc/sdm/cparse >/dev/null
 sdmdir:/usr/local/sdm
 src:/usr/local/sdm
 plugindebug:0
 EOF
-$sudo chown root:root /tmp/cparse
-$sudo rm -f /etc/sdm/cparse.old
-$sudo mv /etc/sdm/cparse /etc/sdm/cparse.old 2>/dev/null
-$sudo mv /tmp/cparse /etc/sdm/cparse
 
 pkgs="systemd-container qemu-user-static binfmt-support parted"
 echo "* Ensure required packages are installed: $pkgs"
