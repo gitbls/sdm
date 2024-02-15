@@ -170,15 +170,18 @@ fi
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 $sudo mkdir -p /etc/sdm
+$sudo chmod 700 /etc/sdm
 $sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
 $sudo cp -a $dir/sdm-readparams /etc/sdm
-$sudo rm -f /etc/sdm/cparse.old
-$sudo mv /etc/sdm/cparse /etc/sdm/cparse.old 2>/dev/null
-$sudo cat >| /etc/sdm/cparse <<EOF
+cat >| /tmp/cparse <<EOF
 sdmdir:/usr/local/sdm
 src:/usr/local/sdm
 plugindebug:0
 EOF
+$sudo chown root:root /tmp/cparse
+$sudo rm -f /etc/sdm/cparse.old
+$sudo mv /etc/sdm/cparse /etc/sdm/cparse.old 2>/dev/null
+$sudo mv /tmp/cparse /etc/sdm/cparse
 
 pkgs="systemd-container qemu-user-static binfmt-support parted"
 echo "* Ensure required packages are installed: $pkgs"
