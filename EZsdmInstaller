@@ -173,9 +173,9 @@ $sudo mkdir -p /etc/sdm
 $sudo chmod 700 /etc/sdm
 $sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
 $sudo cp -a $dir/sdm-readparams /etc/sdm
-$sudo rm -f /etc/sdm/cparse.old
-$sudo mv /etc/sdm/cparse /etc/sdm/cparse.old 2>/dev/null
-cat <<EOF | sudo tee /etc/sdm/cparse >/dev/null
+$sudo rm -f /etc/sdm/cparams.old
+$sudo mv /etc/sdm/cparams /etc/sdm/cparams.old 2>/dev/null
+cat <<EOF | $sudo tee /etc/sdm/cparams >/dev/null
 sdmdir:/usr/local/sdm
 src:/usr/local/sdm
 plugindebug:0
