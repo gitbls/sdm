@@ -62,13 +62,14 @@ myscript="$0 $@"
 #
 [ "$1" == "" ] && branch="master" || branch="$1"
 [ "$2" != "" ] && dir="$2" || dir="/usr/local/sdm"
+[ "$3" != "" ] && repo="$3" || repo="gitbls/sdm"
 
 if [ "$SDMLAN" != "" ]
 then
     src=$SDMLAN
     curl="scp"
 else
-    src="https://github.com/gitbls/sdm/raw/$branch"
+    src="https://github.com/$repo/raw/$branch"
     curl="curl"
 fi
 
@@ -197,7 +198,7 @@ else
 fi
 
 echo $"
-  Complete sdm documentation: https://github.com/gitbls/sdm/tree/$branch/Docs
+  Complete sdm documentation: https://github.com/$repo/tree/$branch/Docs
 "
 
 if [ $dlerrors -ne 0 ]
@@ -206,6 +207,6 @@ then
 $dlerrors file(s) not downloaded
 This must be corrected before you can use sdm
 
-If you need help, open an issue at https://github.com/gitbls/sdm
+If you need help, open an issue at https://github.com/$repo
 "
 fi
