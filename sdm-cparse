@@ -1325,7 +1325,7 @@ function extendimage() {
     done < <(parted -sm $ldimg unit MB print)
     partstart=${partstart%MB}
     imgend=${imgend%MB}
-    partsize=$((imgend-partstart))
+    partsize=$(bc <<< "$imgend - $partstart")
     echo "* Resize partition 2 of '$ldimg' to ${partsize}MB"
     parted $ldimg -s resizepart 2 ${imgend}MB
 }
