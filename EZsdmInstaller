@@ -12,6 +12,7 @@
 #    and start it from the command line:
 #    e.g., bash$ EZsdmInstaller V9.0                       # Install V9.0 release to /usr/local/sdm
 #          bash$ EZsdmInstaller "" /home/$(whoami)/sdm     # Install master branch to /home/$(whoami)/sdm
+# $3: Source Github repo (D:gitbls/sdm)
 #
 # NOTE: Using this version on the master branch requires that the master branch is updated to V9.0 (NYI)
 #
