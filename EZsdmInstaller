@@ -181,7 +181,7 @@ src:/usr/local/sdm
 plugindebug:0
 EOF
 
-pkgs="systemd-container qemu-user-static binfmt-support parted"
+pkgs="binfmt-support gdisk parted qemu-user-static systemd-container"
 echo "* Ensure required packages are installed: $pkgs"
 [[ $EUID -ne 0 ]] && sudo="sudo"
 $sudo apt-get install --yes --no-install-recommends $pkgs
