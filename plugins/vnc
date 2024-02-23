@@ -179,12 +179,12 @@ EOF
 	then
 	    waywidth=""
 	    wayheight=""
-	    logtoboth "> Plugin $pfx: wayvnc will be enabled in FirstBoot with no headless resolution set"
+	    logtoboth "> Plugin $pfx: wayvnc will be enabled in sdm FirstBoot with no headless resolution set"
 	else
 	    wayvnc="${wayvnc,,}"
 	    wayheight=${wayvnc#*x}
 	    waywidth=${wayvnc%x*}
-	    logtoboth "> Plugin $pfx: wayvnc will be enabled in FirstBoot with headless resolution ${waywidth}x${wayheight}"
+	    logtoboth "> Plugin $pfx: wayvnc will be enabled in sdm FirstBoot with headless resolution ${waywidth}x${wayheight}"
 	fi
 	cat > /etc/sdm/0piboot/090-wayvnc-enable.sh <<EOF
 #!/bin/bash
