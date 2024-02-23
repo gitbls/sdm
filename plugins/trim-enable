@@ -178,7 +178,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase post-install"
-    logtoboth "> Plugin $pfx: Set trim to enable during FirstBoot"
+    logtoboth "> Plugin $pfx: Set trim to enable during sdm FirstBoot"
     cat > /etc/sdm/0piboot/020-trim-enable.sh <<EOF
 #!/bin/bash
 logger "sdm FirstBoot: Enable trim"

@@ -208,7 +208,7 @@ function enablesvcs() {
     local now=""
     if [ "$enable" == "true" -o "$enable" == "y" ]
     then
-	logtoboth "> Plugin $pfx: FirstBoot will enable services 'hostapd' and 'dnsmasq'"
+	logtoboth "> Plugin $pfx: sdm FirstBoot will enable services 'hostapd' and 'dnsmasq'"
 	[ $reboot -eq 0 ] && now="--now"
 	cat > /etc/sdm/0piboot/040-hotspot-enable.sh <<EOF
 #!/bin/bash
@@ -341,6 +341,7 @@ function cfgnm() {
     then
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-routed.sh <<EOF
 #!/bin/bash
+logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
 rfkill unblock wlan
 nmcli device wifi hotspot ifname $device con-name Hotspot ssid $ssid band bg password "$passphrase"
 nmcli c down Hotspot
@@ -350,6 +351,7 @@ EOF
     else
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-bridged.sh <<EOF
 #!/bin/bash
+logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
 rfkill unblock wlan
 
 nmcli device wifi hotspot ifname wlan0 con-name Hotspot ssid $ssid band bg # password "$passphrase"
@@ -470,9 +472,9 @@ then
     fi
     if [ "$enable" == "true" ]
     then
-	logtoboth "> Plugin $pfx: Hotspot will be enabled by FirstBoot"
+	logtoboth "> Plugin $pfx: Hotspot will be enabled by sdm FirstBoot"
     else
-	logtoboth "% Plugin $pfx: Hotspot will not be enabled by FirstBoot"
+	logtoboth "% Plugin $pfx: Hotspot will not be enabled by sdm FirstBoot"
     fi
     #
     logtoboth "* Plugin $pfx: Complete Phase 1"
