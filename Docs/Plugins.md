@@ -846,6 +846,8 @@ The above userlist can be equivalently placed on the command line:
 ```
 Plugins are run in the order they are specified on the command line. I recommend that the `user` plugin be as close to the first plugin run as possible, so that the first created user ($myuser) is available to other plugins.
 
+**NOTE:** If you add any users and/or add a password for the user `pi` you probably don't want the RasPiOS services to run at first system boot that help you configure a user. That is exactly what this plugin does, so you can and **should** disable the RasPiOS services with `--plugin disables:piwiz`.
+
 ### vnc
 
 Install and configure either or both of Virtual VNC and RealVNC.
