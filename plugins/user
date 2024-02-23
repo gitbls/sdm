@@ -261,6 +261,7 @@ function add_user() {
 	    for f in /etc/skel/.* /etc/skel/*
 	    do
 		[ -f $f ] && ( [ -f $uhomedir/$(basename $f) ] || cp -a $f $uhomedir )
+		[ -d $f ] && ( [ -d $uhomedir/$(basename $f) ] || cp -a $f $uhomedir )
 	    done
 	else
 	    plugin_dbgprint "> Plugin $pfx: Skip skel copy for user '$user'"
