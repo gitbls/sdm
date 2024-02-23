@@ -1,5 +1,23 @@
 # Changelog
 
+## V11.5
+
+* Improvements
+  * Improve/simplify systemd-nspawn/chroot/qemu usage
+    * Cross-architecture detection/support vastly improved
+      * New! Can customize 32-bit IMG on 64-bit (only) ARM OS (e.g., Mac M2 with no 32-bit mode)
+      * Also can customize 64-bit IMG on 32-bit ARM OS (e.g., Pi0W) (dog slow, but it works!)
+  * Add some missing informative messages...useful for WTF happened debugging
+  * Add note to `user` plugin about `--plugin disables:piwiz`
+  * More updates of "FirstBoot" to "sdm FirstBoot"
+  * Copy directories in addition to files in /etc/skel to new user (unless `noskel`, of course) 
+  * sdm-cportal works better on Bookworm. Works, but not 100% baked so would appreciate any/all feedback on it
+  * EZsdmInstaller can now install from alternate repo (e.g., if you clone sdm) (Thanks @jchan-legendpower)
+* Bug fixes
+  * Correct L10n plugin keymap setting
+  * Correct `EZsdmInstaller` so it properly enables burn plugins to run on hosts not created with sdm
+  * Correct mount failure path to use *old* style loop-mounts (needed, e.g., for some older Mint and Ubuntu releases)
+
 ## V11.4
 
 * New Features
