@@ -876,50 +876,95 @@ function checkupdsdm() {
     obupdplugins $copt $bup
 }
 
+function gethostarch() {
+    local heading arch
+    while read line
+    do
+	if [[ "$line" =~ "Architecture:" ]]
+	then
+	    IFS=":" read heading arch <<< "$line"
+            echo "${arch##* }"
+	    break
+	fi
+    done < <(lscpu)
+}
+
+function gethostopmode() {
+    local heading modes=""
+    while read line
+    do
+	if [[ "$line" =~ "CPU op-mode(s):" ]]
+	then
+	    IFS=":" read heading modes <<< "$line"
+	    break
+	fi
+    done < <(lscpu)
+    if [ "$modes" == "" ]
+    then
+	[[ "armv6l|armv7l" =~ "$(gethostarch)" ]] && modes="32-bit" || modes="unknown"
+    fi
+    echo "${modes#${modes%%[![:space:]]*}}"
+}
+
 function initvirt() {
     # Check IMG and running system. If running on 32-bit and IMG is 64-bit, prepare for chroot
     # wtf -> what's the file :)
-    # wami -> what is my OS (that sdm running on)
+    # wami -> what is my host OS (where sdm is running)
     # $1 = function to call to write msgs, or null to echo
     local msgrtn=$1
+    local hbits=0 ibits=0 bfs="" hostarch hostopmode vqemu="" armno32=0
+    local wami wtf wtfelf wtfarch wamielf wamiarch rest
     [ "$msgrtn" == "" ] && msgrtn=echo
-    vqemu=""
-    bfs=""
+    hostarch=$(gethostarch)
+    hostopmode=$(gethostopmode)
     wami=$(file /bin/ls)
+    IFS="," read wamielf wamiarch rest <<< "$wami"
     wtf=$(file $SDMPT/bin/ls)
     IFS="," read wtfelf wtfarch rest <<< "$wtf"
     [[ "$wtfarch" =~ "ARM" ]] || errexit "? Unrecognized architecture '$wtfarch' in IMG"
+    [[ "$hostarch" =~ "aarch64" ]] && ! [[ "$hostopmode" =~ "32-bit" ]] && armno32=1    # aarch64 host that does not support 32-bit mode
+    [[ "$wami" =~ "32-bit" ]] && hbits=32 || hbits=64
+    [[ "$wtf" =~ "32-bit" ]] && ibits=32 || ibits=64
     if [[ "$wami" =~ "ARM" ]]
     then
-	if [[ "$wami" =~ "32-bit" ]]
-	then
-	    if  [[ "$wtf" =~ "aarch64" ]]
-	    then
-		$msgrtn "% Configure chroot to operate on this 64-bit IMG on your 32-bit ARM OS"
-		$msgrtn "  sdm will run more slowly due to qemu emulation"
-		virtmode="chroot"
-		vqemu="aarch64"
-		qf="/usr/bin/qemu-aarch64-static"
-		bfs=":qemu-aarch64:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:$qf:"
-	    fi
-	elif [ $fchroot -eq 1 ]
-	then
-	    $msgrtn "% sdm using chroot per --chroot"
-	    virtmode="chroot"
-	    [[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
-	fi
+	[ $armno32 -eq 1 ] && [ $ibits -eq 32 ]    && vqemu="arm"     #64-bit host without 32-bit support
+	[[ $hbits -eq 32 ]] && [[ $ibits -eq 64 ]] && vqemu="aarch64" #32-bit host and 64-bit IMG
     else
-	IFS="," read wamielf wamiarch rest <<< "$wami"
-	if [ $fchroot -eq 0 ]
+	# Not an ARM host; choose qemu based on IMG bits
+	[ $ibits -eq 32 ] && vqemu="arm" || vqemu="aarch64"
+    fi
+    # Set up qemu in case needed (system decides)
+    if [ "$vqemu" != "" ]
+    then
+	$msgrtn "% sdm will use qemu '$vqemu'"
+	if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
 	then
-	    $msgrtn "% sdm will use systemd-nspawn on this '${wamiarch##\ }' host"
-	    $msgrtn "  Retry the command with --chroot if this fails"
-	else
-	    $msgrtn "% sdm will use chroot per --chroot on this '${wamiarch##\ }' host"
-	    virtmode="chroot"
-	    [[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
+	    if [ $ibits -eq 32 ]
+	    then
+		bfs=":qemu-arm:M:0:\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:F"
+	    else
+		bfs=":qemu-aarch64:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-aarch64-static:F"
+	    fi
+	    ubf=""
+	    for fn in /sbin/update-binfmts /usr/sbin/update-binfmts
+	    do
+		[ -f $fn ] && ubf=$fn && break
+	    done
+	    [ "$ubf" == "" ] && errexit "? Cannot find update-binfmts; try 'sudo apt install binfmt-support'"
+	    $msgrtn "% Add and enable qemu binfmt for '$vqemu' processor architecture"
+	    echo "$bfs" | tee /proc/sys/fs/binfmt_misc/register >/dev/null 2>&1
+	    $ubf --enable qemu-${vqemu} 2>/dev/null
 	fi
-	$msgrtn "  sdm will run more slowly due to qemu emulation"
+    fi
+    [[ "$hostopmode" =~ "64-bit" ]] && bfs="64-bit" || bfs="32-bit"
+    wamiarch=${wamiarch##\ }
+    if [ $fchroot -eq 1 ]
+    then
+	virtmode="chroot"
+	$msgrtn "% sdm will use chroot per --chroot on this $bfs $wamiarch host"
+    else
+	$msgrtn "% sdm will use systemd-nspawn on this $bfs $wamiarch host"
+	$msgrtn "  Retry the command with --chroot if this fails"
     fi
 }
 
@@ -927,7 +972,6 @@ function chroot_cleanup() {
     if [ "$SDMPT" != "" ]
     then
 	grep -q 'sdm-generated' $SDMPT/etc/resolv.conf && rm -f $SDMPT/etc/resolv.conf
-	[ "$qemu" != "" ] && rm -f $SDMPT/usr/bin/$qemu
 	umount $SDMPT/{dev/pts,dev,proc,sys}
     else
 	logtoboth "% SDMPT null in handling chroot cleanup. Please log an issue at https://github.com/gitbls/sdm; Continuing..."
@@ -1017,33 +1061,8 @@ function sdm_spawn() {
 	return $sts
     else
 	#
-	# Copy appropriate qemu-${vqemu}-static into the IMG
-	# $bfs and $vqemu set in initvirt
+	# Use chroot
 	#
-	qemu=""
-	if [ "$vqemu" != "" ]
-	then
-	    [ ! -f /usr/bin/qemu-${vqemu}-static ] && errexit "? qemu-${vqemu}-static missing for chroot; try 'sudo apt install qemu-user-static binfmt-support'"
-	    if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
-	    then
-		ubf=""
-		for fn in /sbin/update-binfmts /usr/sbin/update-binfmts
-		do
-		    [ -f $fn ] && ubf=$fn && break
-		done
-		[ ! $? ] && errexit "? Cannot find update-binfmts; try 'sudo apt install binfmt-support'"
-		#logtoboth "% Run 'update-binfmts --enable' to enable chroot"
-		$ubf --enable
-		if [ "$bfs" != "" -a ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
-		then
-		    echo "% Add binfmt for 64-bit ARM (aarch64)"
-		    echo "$bfs" > /proc/sys/fs/binfmt_misc/register
-		fi
-		[ -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} -o -x /bin/qemu-${vqemu}-static ] || errexit "? Cannot find binfmt for architecture '${vqemu}'"
-	    fi
-	    qemu="/usr/bin/qemu-${vqemu}-static"
-	fi
-	[ "$qemu" != "" ] && cp $qemu $SDMPT/usr/bin
 	declare -x OLDSDMPT="$SDMPT"
 	declare -x OLDSDMNSPAWN="$SDMNSPAWN"
 	#
@@ -1053,7 +1072,8 @@ function sdm_spawn() {
 	for fs in dev dev/pts proc sys ; do mount --bind /$fs $SDMPT/$fs ; done
 	declare -x SDMPT=""
 	declare -x SDMNSPAWN="$nsp"
-	chroot $OLDSDMPT $qemu /bin/bash $cmd
+
+	chroot $OLDSDMPT $cmd
 	sts=$?
 	declare -x SDMPT="$OLDSDMPT"
 	declare -x SDMNSPAWN="$OLDSDMNSPAWN"
@@ -1440,7 +1460,7 @@ function zero1stlast() {
 }
 
 function ismounted() {
-    if findmnt -n -o SOURCE $1 > /dev/null
+    if findmnt --noheadings --output source $1 > /dev/null
     then
 	return 0
     else
@@ -1492,7 +1512,21 @@ function getloopdev() {
     #
     # $1: Mount point (either $SDMPT or $SDMPT/boot[/firmware])
     #
-    echo $(findmnt -n -o SOURCE $1)
+    echo $(findmnt --noheadings --output source $1)
+}
+
+function rmloopdevs() {
+    local fn=$(realpath $1) line loopdev
+    while read line
+    do
+	if [[ "$line" =~ "$fn" ]]
+	then
+	    read loopdev rest <<< "$line"
+	    #echo "% Delete dangling loop device '$loopdev'"
+	    #echo "  $line"
+	    losetup --detach $loopdev >/dev/null 2>&1
+	fi
+    done < <(losetup --all --list --noheadings)
 }
 
 function domount() {
@@ -1504,7 +1538,7 @@ function domount() {
     # Tree will be mounted on $SDMPT which must be set with: declare -x SDMPT=$(makemtpt)
     #
     local dmimg=$1 imgtype=$2
-    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir
+    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts
 
     [ ! -d $SDMPT ] && mkdir $SDMPT
     if [ "$imgtype" == "Directory" ]
@@ -1512,13 +1546,9 @@ function domount() {
 	ismounted $(realpath $dmimg) && echo "% Directory '$dmimg' is mounted; Continuing..."
 	mount --bind $dmimg $SDMPT
 	notmounted $SDMPT && errexit "? Error mounting --bind '$dmimg'"
-	if [ -d $SDMPT/boot/firmware ]
-	then
-	    mount --bind $dmimg/boot/firmware $SDMPT/boot/firmware
-	else
-	    mount --bind $dmimg/boot $SDMPT/boot
-	fi
-	notmounted $SDMPT/boot && errexit "? Error mounting --bind '$dmimg'"
+	[ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	mount --bind $dmimg/boot/firmware $mdir
+	notmounted $mdir && errexit "? Error mounting --bind '$dmimg'"
     elif [ "$imgtype" == "IMG" ]
     then
 	pinfo=($(fdisk --bytes -lo Start,Size "${dmimg}" | tail -n 2))
@@ -1534,10 +1564,31 @@ function domount() {
 	bootsize=${pinfo[1]}
 	rootstart=$((${pinfo[2]}*csize))
 	rootsize=${pinfo[3]}
-	mount -o loop,offset=${rootstart},sizelimit=${rootsize} -t ext4 ${dmimg} $SDMPT
-	[ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
-	mount -o loop,offset=${bootstart},sizelimit=${bootsize} -t vfat ${dmimg} $mdir
-	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dmimg'"
+        echo "* Mount IMG '$dmimg'"
+	#
+	# Try mounting with offset/sizelimit with automatic loop device management first
+	#
+	mount -v -o loop,offset=${rootstart},sizelimit=${rootsize} -t ext4 ${dmimg} $SDMPT 2>/dev/null
+	sts=$?            #Get this way to facilitate manual alt mount testing
+	if [ $sts -eq 0 ]
+	then
+	    [ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	    mount -v -o loop,offset=${bootstart},sizelimit=${bootsize} -t vfat ${dmimg} $mdir
+	else
+	    #
+	    # Try mounting it with explicit loop device
+	    # remove any dangling loop devices and mount from failed mount above
+	    #
+	    loopdev=$(getloopdev $SDMPT)
+	    umount -v $loopdev 2>/dev/null
+	    rmloopdevs $dmimg
+            loopdev=$(losetup --show --partscan --find $dmimg)
+            mount -v ${loopdev}p2 $SDMPT
+            notmounted $SDMPT && errexit "? Error mounting IMG '$dmimg'"
+	    [ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	    mount -v ${loopdev}p1 $mdir
+	fi
+	notmounted $mdir && errexit "? Error mounting IMG '$dmimg'"
     else # imgtype=Device
 	p1=$(getspname $dmimg 1)
 	p2=$(getspname $dmimg 2)
@@ -1545,30 +1596,28 @@ function domount() {
 	ismounted $dmimg${p2} && errexit "? Device $dmimg is already mounted"
 	echo "* Mount device '$dmimg'"
 	mount -v ${dmimg}${p2} $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting IMG '$dmimg'"
-	if [ -d $SDMPT/boot/firmware ]
-	then
-	    mount -v ${dmimg}${p1} $SDMPT/boot/firmware
-	else
-	    mount -v ${dmimg}${p1} $SDMPT/boot
-	fi
-	notmounted $SDMPT/boot && errexit "? Error mounting IMG '$dmimg'"
+	notmounted $SDMPT && errexit "? Error mounting device '$dmimg'"
+	[ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	mount -v ${dmimg}${p1} $mdir
+	notmounted $mdir && errexit "? Error mounting IMG '$dmimg'"
     fi
 }
 
 function docleanup() {
     #
     # $1: if 'keep' (don't unset SDMPT)
-    local mnt=$SDMPT loopdev
+    local mnt=$SDMPT loopdev1 loopdev2 bp
     [ "$mnt" == "" ] && mnt=/mnt/sdm
-    ismounted $mnt/boot/firmware && umount -v $mnt/boot/firmware
-    ismounted $mnt/boot && umount -v $mnt/boot
+    # Find loop device names and delete them after dismounting if not automatically deleted
+    [ -d $mnt/boot/firmware ] && bp="$mnt/boot/firmware" || bp="$mnt/boot"
+    loopdev1=$(findmnt $bp --noheadings --output source)
+    [ "$loopdev1" != "/dev/loop1" ] && loopdev1=${loopdev1%p1}
+    loopdev2=$(findmnt $mnt --noheadings --output source)
+    loopdev2=${loopdev1%p2}
+    ismounted $bp && umount -v $bp
     ismounted $mnt && umount -v $mnt
-    if islooped $mnt
-    then
-	loopdev=$(getloopdev $mnt)
-	losetup -d $loopdev
-    fi
+    [ "$loopdev1" == "" ] || losetup --detach $loopdev1 >/dev/null 2>&1
+    [ "$loopdev2" == "" ] || losetup --detach $loopdev2 >/dev/null 2>&1
     if [ "$1" != "keep" ]
     then
 	if [ "$SDMPT" != "" ]
