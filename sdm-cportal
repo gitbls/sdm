@@ -12,6 +12,12 @@
 # sdm-cportal can be used standalone, independently of sdm as well. sdm-cportal is documented
 # as part of sdm: https://github.com/gitbls/sdm/blob/master/Docs/Captive-Portal.md
 #
+#
+# TODO
+#  Remove wpa_supplicant.conf in cleanup if using networkmanager
+#  Review using networkmanager for access point
+#
+
 import argparse
 import datetime
 import importlib.util
@@ -22,6 +28,7 @@ import subprocess
 import syslog
 import threading
 import time
+import uuid
 from functools    import partial
 from http.server  import ThreadingHTTPServer
 from http.server  import BaseHTTPRequestHandler
@@ -299,6 +306,7 @@ class cpcontrol:
         self.errors = { "success":0, "noconnect":1, "nointernet":2, "manualgiveup":3, "notestdone":4 }
         self.sdm = self.connected = self.iconnected = self.isresult = False
         self.runflag = True
+        self.usenm = False
         self.formdone = self.inprogress = self.debug = False
         self.l10nhandler = self.defaults = self.allerrors = self.wlanip = self.apip = ""
         self.apssid = self.logmsg = self.facname = self.netns = self.apname = self.netdev = self.apdev = self.phydev = ""
@@ -348,6 +356,7 @@ UseDomains=yes\n")
 
     def writewpaconf(self, wlan=""):
         wl = "" if wlan == "" else f"-{wlan}"
+        lcssid=self.settings['ssid'].lower()
         with open(f"/etc/wpa_supplicant/wpa_supplicant{wl}.conf", 'w') as f:
             f.write(f"ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\
 country={self.settings['wificountry']}\n\
@@ -357,6 +366,28 @@ network={{\n\
     ssid=\"{self.settings['ssid']}\"\n\
     psk=\"{self.settings['password']}\"\n\
     key_mgmt=WPA-PSK\n}}\n")
+        with open(f"/etc/NetworkManager/system-connections/{self.settings['ssid']}.nmconnection", 'w') as f:
+            f.write(f"[connection]\n\
+id={lcssid}\n\
+uuid={uuid.uuid4()}\n\
+type=wifi\n\
+autoconnect=true\n\
+interface-name=wlan0\n\
+\n\
+[wifi]\n\
+mode=infrastructure\n\
+ssid={self.settings['ssid']}\n\
+\n\
+[wifi-security]\n\
+key-mgmt=wpa-psk\n\
+psk={self.settings['password']}\n\
+\n\
+[ipv4]\n\
+method=auto\n\
+\n\
+[ipv6]\n\
+method=ignore\n")
+        os.chmod(f"/etc/NetworkManager/system-connections/{self.settings['ssid']}.nmconnection",0o600)
 
     def writeapwpaconf(self):
         ssid = f"{self.hostname}-{self.apssid}"
@@ -508,11 +539,15 @@ class Netops(threading.Thread):
         syslogger(f"Write wpa_supplicant-{self.pd.netdev}.conf")
         self.pd.leds.setsequence(self.pd.ledseq['Testing'])
         self.pd.writewpaconf(f"{self.pd.netdev}")
-        # try this again someday
-        #if "OK" in gocmd(f"wpa_cli -i {self.pd.netdev} reconfigure"):
+        if self.pd.usenm:
+            runcmd("nmcli c reload", "Reload NetworkManager connections")
+            runcmd(f"nmcli c up {self.pd.settings['ssid'].lower()}")
+        else:
+            # try this again someday
+            #if "OK" in gocmd(f"wpa_cli -i {self.pd.netdev} reconfigure"):
             #syslogger(f"Successfully reconfigured {self.pd.netdev} wpa_supplicant")
-        #else:
-        reportcmd(f"systemctl restart wpa_supplicant@{self.pd.netdev}", msg=f"Restart wpa_supplicant@{self.pd.netdev} to use new SSID/password")
+            #else:
+            reportcmd(f"systemctl restart wpa_supplicant@{self.pd.netdev}", msg=f"Restart wpa_supplicant@{self.pd.netdev} to use new SSID/password")
         # Wait for the network to come online
         myipaddr = ""
         for i in range(1, self.pd.settings['dhcpwait']):
@@ -531,9 +566,7 @@ class Netops(threading.Thread):
                     self.pd.iconnected = True
                 else:
                     syslogger("Internet is Not Accessible")
-            syslogger("Update /etc/wpa_supplicant/wpa_supplicant.conf")
-            qdelfile("/etc/wpa_supplicant/wpa_supplicant.conf")
-            qcopyfile(f"/etc/wpa_supplicant/wpa_supplicant-{self.pd.netdev}.conf", "/etc/wpa_supplicant/wpa_supplicant.conf")
+            updatewifi(pd)
             ledresult = "ResultGood"
         else:
             syslogger(f"Did not obtain an IP address")
@@ -679,14 +712,15 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                     else:
                         if self.pd.settings['wifipower'] == "off" and curpm == "on":
                             reportcmd(f"iwconfig {self.pd.netdev} power off", msg=f"Set {self.pd.netdev} Power Management off")
-                    syslogger("Start Validate WiFi configuration thread")
-                    self.pd.netops = None         # Delete any previous instantiation
-                    self.pd.netops = Netops(pd)
-                    self.pd.netops.start()
                     syslogger("Send redirect to testinprogress")
                     self.send_response(302)
                     self.send_header('Location', f"http://{self.pd.apip}/testinprogress")
                     self.end_headers()
+                    time.sleep(3.0)  # Not really sleeping here?
+                    syslogger("Start Validate WiFi configuration thread")
+                    self.pd.netops = None         # Delete any previous instantiation
+                    self.pd.netops = Netops(pd)
+                    self.pd.netops.start()
                 else:
                     syslogger("Write WiFi configuration with No Validation")
                     self.pd.writewpaconf()
@@ -758,40 +792,55 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
                 self.pd.inprogress = False
                 self._notriesleft(self.pd.errors['notestdone'])
                 syslogger("Update /etc/wpa_supplicant/wpa_supplicant.conf")
-                qdelfile("/etc/wpa_supplicant/wpa_supplicant.conf")
-                qcopyfile(f"/etc/wpa_supplicant/wpa_supplicant-{self.pd.netdev}.conf", "/etc/wpa_supplicant/wpa_supplicant.conf")
+                updatewifi(pd)
                 pd.writel10n(self.pd.settings['keymap'], self.pd.settings['locale'], self.pd.settings['timezone'])
                 self.pd.leds.setsequence(self.pd.ledseq['ResultGood'])
                 self._setstop(pd)
         return
 
-def docleanup(pd, resetcmd=False):
-    if gocmd(f"iw dev {pd.apname} info") != "":
-        if f"tmp-{pd.facname}" in gocmd(f"ip netns"):
-            runcmd(f"iw {pd.phydev} set netns name {pd.netns}", msg=f"Delete Access Point {pd.apname}")
-            runcmd(f"ip netns exec {pd.netns} iw dev {pd.apname} del")
-            runcmd(f"ip netns exec {pd.netns} iw {pd.phydev} set netns 1") # Set back to primary namespace
-    runcmd(f"iw dev {pd.apname} del")                         # Just in case
-    runcmd(f"ip netns del {pd.netns}")                                         # And delete temp ns, no longer needed
-    runcmd(f"systemctl stop wpa_supplicant@{pd.apname}", msg=f"Stop {pd.apname} wpa_supplicant")
-    runcmd(f"systemctl stop wpa_supplicant@{pd.netdev}", msg=f"Stop {pd.netdev} wpa_supplicant")
-    qdelfile(f"/var/run/wpa_supplicant/{pd.apname}")
-    qdelfile(f"/etc/systemd/network/{pd.facname}-{pd.apname}.network")
-    qdelfile(f"/etc/systemd/network/{pd.facname}-{pd.netdev}.network")
-    qdelfile(f"/etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf")
-    qdelfile(f"/etc/wpa_supplicant/wpa_supplicant-{pd.netdev}.conf")
-    syslogger(f"Reload systemd and restart systemd-networkd and restart {pd.dhcp.dhcpclient}")
-    if pd.sdndrunning:
-        reportcmd("systemctl daemon-reload")
-        reportcmd("systemctl restart systemd-networkd")
+def updatewifi(pd):
+    if pd.usenm:
+        reportcmd("nmcli c up sdmap", "Restart Access Point")
     else:
-        reportcmd("systemctl stop systemd-networkd.socket")
-        reportcmd("systemctl stop systemd-networkd")
-        reportcmd("systemctl daemon-reload")
-    #Toggle the netdev network. Seems to work better. Or maybe not. Keep the code, commented out, for now
-    #reportcmd(f"networkctl down {pd.netdev}", msg=f"Toggle {pd.netdev} offline/online before {pd.dhcp.dhcpclient} restart")
-    #reportcmd(f"networkctl up {pd.netdev}")
-    pd.dhcp.restartclient()
+        syslogger("Update /etc/wpa_supplicant/wpa_supplicant.conf")
+        qdelfile("/etc/wpa_supplicant/wpa_supplicant.conf")
+        qcopyfile(f"/etc/wpa_supplicant/wpa_supplicant-{self.pd.netdev}.conf", "/etc/wpa_supplicant/wpa_supplicant.conf")
+
+def docleanup(pd, resetcmd=False):
+    if pd.usenm:
+        runcmd(f"nmcli c down sdmap")
+        runcmd(f"systemctl stop wpa_supplicant@{pd.netdev}", msg=f"Stop {pd.netdev} wpa_supplicant")
+        #qdelfile(f"/etc/NetworkManager/system-connections/sdmap.nmconnection")
+        runcmd("nmcli c reload", "Reload NetworkManager connections")
+        runcmd(f"nmcli c up {pd.netdev}")
+    else:
+        if gocmd(f"iw dev {pd.apname} info") != "":
+            if f"tmp-{pd.facname}" in gocmd(f"ip netns"):
+                runcmd(f"iw {pd.phydev} set netns name {pd.netns}", msg=f"Delete Access Point {pd.apname}")
+                runcmd(f"ip netns exec {pd.netns} iw dev {pd.apname} del")
+                runcmd(f"ip netns exec {pd.netns} iw {pd.phydev} set netns 1") # Set back to primary namespace
+        runcmd(f"iw dev {pd.apname} del")                         # Just in case
+        runcmd(f"ip netns del {pd.netns}")                                         # And delete temp ns, no longer needed
+        runcmd(f"systemctl stop wpa_supplicant@{pd.apname}", msg=f"Stop {pd.apname} wpa_supplicant")
+        runcmd(f"systemctl stop wpa_supplicant@{pd.netdev}", msg=f"Stop {pd.netdev} wpa_supplicant")
+        qdelfile(f"/var/run/wpa_supplicant/{pd.apname}")
+        qdelfile(f"/etc/systemd/network/{pd.facname}-{pd.apname}.network")
+        qdelfile(f"/etc/systemd/network/{pd.facname}-{pd.netdev}.network")
+        qdelfile(f"/etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf")
+        qdelfile(f"/etc/wpa_supplicant/wpa_supplicant-{pd.netdev}.conf")
+        qdelfile(f"/etc/NetworkManager/system-connections/sdmtemp.nmconnection")
+        syslogger(f"Reload systemd and restart systemd-networkd and {pd.dhcp.dhcpclient}")
+        if pd.sdndrunning:
+            reportcmd("systemctl daemon-reload")
+            reportcmd("systemctl restart systemd-networkd")
+        else:
+            reportcmd("systemctl stop systemd-networkd.socket")
+            reportcmd("systemctl stop systemd-networkd")
+            reportcmd("systemctl daemon-reload")
+        #Toggle the netdev network. Seems to work better. Or maybe not. Keep the code, commented out, for now
+        #reportcmd(f"networkctl down {pd.netdev}", msg=f"Toggle {pd.netdev} offline/online before {pd.dhcp.dhcpclient} restart")
+        #reportcmd(f"networkctl up {pd.netdev}")
+        pd.dhcp.restartclient()
 
 def resetnet(pd):
     syslogger("Reset Captive Portal WiFi Network")
@@ -805,27 +854,61 @@ def runclean(pd):
     pd.leds = pd.httpd = pd.atimer = pd.netops = None
     docleanup(pd)
 
+def apconfigure(pd):
+    if pd.usenm:
+        with open(f"/etc/NetworkManager/system-connections/sdmap.nmconnection", 'w') as f:
+            f.write(f"[connection]\n\
+id=sdmap\n\
+uuid={uuid.uuid4()}\n\
+type=wifi\n\
+autoconnect=false\n\
+interface-name={pd.netdev}\n\
+\n\
+[wifi]\n\
+band=bg\n\
+cloned-mac-address=00:12:34:56:78:9A\n\
+mode=ap\n\
+ssid={pd.hostname}-{pd.apssid}\n\
+\n\
+[wifi-security]\n\
+key-mgmt=wpa-psk\n\
+psk=password\n\
+\n\
+[ipv4]\n\
+address1=10.1.1.1/24\n\
+method=shared\n\
+\n\
+[ipv6]\n\
+addr-gen-mode=default\n\
+method=disabled\n")
+        os.chmod("/etc/NetworkManager/system-connections/sdmap.nmconnection", 0o600)
+        reportcmd("nmcli c reload", "Reload NetworkManager connections")
+        reportcmd("nmcli c up sdmap", "Start Access Point")
+    else:
+        pd.dhcp.stopclient()
+        reportcmd(f"systemctl stop systemd-networkd.socket", msg="Stop systemd-networkd")
+        reportcmd(f"systemctl stop systemd-networkd")
+        reportcmd(f"ip netns add {pd.netns}", msg="Reconfigure network to create Access Point")
+        reportcmd(f"iw {pd.phydev} set netns name {pd.netns}")
+        reportcmd(f"ip netns exec {pd.netns} iw phy {pd.phydev} interface add {pd.apname} type __ap")
+        syslogger(f"Write /etc/systemd/network/{pd.facname}-{pd.apname}.network and /etc/systemd/network/{pd.facname}-{pd.netdev}.network")
+        pd.writenetconfig()
+        syslogger(f"Write /etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf")
+        pd.settings['ssid'] = "sdmtemp"
+        pd.settings['password'] = "sdmtemp"
+        pd.writewpaconf(wlan=pd.netdev)
+        pd.writeapwpaconf()
+        reportcmd(f"ip netns exec {pd.netns} iw {pd.phydev} set netns 1") # Set back to primary namespace
+        qdelfile(f"/var/run/wpa_supplicant/{pd.apname}")
+        reportcmd(f"systemctl daemon-reload", msg='Do daemon-reload and start systemd-networkd')
+        reportcmd("systemctl start systemd-networkd")
+        reportcmd(f"systemctl start wpa_supplicant@{pd.apname}", msg=f"Start wpa_supplicant@{pd.apname}")
+        waitapip(pd.apip)
+
 def runserver(pd):
     syslogger("Portal network reconfiguration")
-    pd.dhcp.stopclient()
-    reportcmd(f"systemctl stop systemd-networkd.socket", msg="Stop systemd-networkd")
-    reportcmd(f"systemctl stop systemd-networkd")
-    reportcmd(f"ip netns add {pd.netns}", msg="Reconfigure network to create Access Point")
-    reportcmd(f"iw {pd.phydev} set netns name {pd.netns}")
-    reportcmd(f"ip netns exec {pd.netns} iw phy {pd.phydev} interface add {pd.apname} type __ap")
-    syslogger(f"Write /etc/systemd/network/{pd.facname}-{pd.apname}.network and /etc/systemd/network/{pd.facname}-{pd.netdev}.network")
-    pd.writenetconfig()
-    syslogger(f"Write /etc/wpa_supplicant/wpa_supplicant-{pd.apname}.conf")
-    pd.settings['ssid'] = "foobarfoobar"
-    pd.settings['password'] = "barfoobarfoobarfoobarfoo"
-    pd.writewpaconf(wlan=pd.netdev)
-    pd.writeapwpaconf()
-    reportcmd(f"ip netns exec {pd.netns} iw {pd.phydev} set netns 1") # Set back to primary namespace
-    qdelfile(f"/var/run/wpa_supplicant/{pd.apname}")
-    reportcmd(f"systemctl daemon-reload", msg='Do daemon-reload and start systemd-networkd')
-    reportcmd("systemctl start systemd-networkd")
-    reportcmd(f"systemctl start wpa_supplicant@{pd.apname}", msg=f"Start wpa_supplicant@{pd.apname}")
-    waitapip(pd.apip)
+    pd.usenm = True
+    apconfigure(pd)
     pd.leds.setsequence(pd.ledseq['APon'])
     syslogger("Start HTTP Server")
     handler = partial(sdmRequestHandler, pd)
