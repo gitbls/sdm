@@ -190,7 +190,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V11.4"
+version="V11.5"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -269,14 +269,13 @@ sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rp
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
-vdebug="|apt|"              #Valid --debug settings
+vdebug="|all|apt|"          #Valid --debug settings
 vpoptions="|apps|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
 #vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vloadopts="|wifi|"          #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
 vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
 vrunonlyopts="|plugin|plugins|"  #Valid options for --runonly
-vqemu=""                    # Qemu architecture to use in chroot
 showapt=0                   #1=Display apt output on terminal as well as logging
 pi1bootconf=""              #Command-line specified 1piboot.conf file to use
 custom1=""                  #For custom use
