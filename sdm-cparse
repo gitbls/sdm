@@ -1305,13 +1305,18 @@ function extendimage() {
     #
     local ldimg=$1 limgext=$2
     local line
+    # Raspberry Pi Imager will complain if the image is not an integer multiple
+    # of 512 bytes
+    local limgextb=$((limgext*1024*1024))
+    local limgcb=$(stat --printf="%s" $ldimg)
+    local limgextb=$((limgextb + 512 - limgcb%512))
     if [ "$ddextend" == "1" ]
     then
 	trap "ctrlcexit" SIGINT
-	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error"
+	dd if=/dev/zero bs=1 count=$limgextb status=progress >> $ldimg || errexit "? Exiting due to dd error"
 	trap SIGINT
     else
-        truncate --size +${limgext}M $ldimg || errexit "? Exit due to truncate resize error"
+        truncate --size +${limgextb} $ldimg || errexit "? Exit due to truncate resize error"
     fi
     # Get partition 2 start and IMG size from parted and compute new partition size
     while read line ; do
