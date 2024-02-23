@@ -104,16 +104,16 @@ then
 		    # actual keymap setting deferred until first boot
 		    if [ "$value" != "" ]
 		    then
-			logtoboth "% Plugin $pfx: Keymap will be set during FirstBoot"
-			keymap="$value"
+			logtoboth "% Plugin $pfx: Keymap '$value' will be set during sdm FirstBoot"
 			writeconfig
 			cat > /etc/sdm/0piboot/010-configure-keyboard.sh <<EOF
 #!/bin/bash
 source /etc/sdm/sdm-readparams
-SUDO_USER=\$myuser raspi-config do_configure_keyboard "\$keymap" nonint
+logger "sdm FirstBoot: Configure keyboard to '$value'"
+SUDO_USER=\$myuser raspi-config do_configure_keyboard "$value" nonint
 systemctl enable keyboard-setup
 EOF
-			logtoboth "> Plugin $pfx: Disable keyboard-setup service; will be re-enabled during FirstBoot"
+			logtoboth "> Plugin $pfx: Disable keyboard-setup service; will be re-enabled during sdm FirstBoot"
 			systemctl disable keyboard-setup
 		    fi
 		    ;;
