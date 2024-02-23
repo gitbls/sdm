@@ -19,7 +19,7 @@ function wait_startup_complete {
         if [ $lc -eq 0 ]
         then
             logger "$msg"
-	    echo "\$msg" > /dev/console
+	    echo "$msg" > /dev/console
             lc=1
         fi
         sleep 1
@@ -92,7 +92,7 @@ the initramfs will use these settings.
 function printinfo() {
     local used1k usedby usedstr rootfs sd
 
-    rootfs=$(findmnt -n -o SOURCE /)     # rootfs name
+    rootfs=$(findmnt --noheadings --output source /)     # rootfs name
     sd=${rootfs%$(getspname $rootfs 2)}  # dev name w/o partition name
 
     used1k=$(getfsdf "/" used)
@@ -364,7 +364,7 @@ function domkinitramfs() {
 function doupdateconfig() {
     local rootfs sd
 
-    rootfs=$(findmnt -n -o SOURCE /)
+    rootfs=$(findmnt --noheadings --output source /)
     sd=$(lsblk -dpno pkname $rootfs)
     if [ "$sd" == "" ] #snh but the code was here!
     then
