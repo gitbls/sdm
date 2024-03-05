@@ -41,11 +41,11 @@ curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bas
 * sdm will download the files to /usr/local/sdm by default, and make a link for sdm in /usr/local/bin for ease of use.
 * **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip** or **unxz** it.
 * Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D)
-* Pick the latest (Bullseye) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Buster images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
+* Pick the latest (Bookworm) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Bullseye images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
 
 ## Customize the image with sdm
 ```sh
-sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disables:piwiz --regen-ssh-host-keys --restart 2023-05-03-raspios-bullseye-arm64.img
+sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disables:piwiz --regen-ssh-host-keys --restart 2023-12-05-raspios-bookworm-arm64.img
 ```
 
 sdm will make the following changes to your IMG file:
@@ -59,7 +59,7 @@ No additional packages are installed in this example, but as you'll see, it's a 
 
 ## Burn the image onto the SD Card
 ```sh
-sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-05-03-raspios-bullseye-arm64.img
+sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-12-05-raspios-bookworm-arm64.img
 ```
 
 ## Boot and Go
