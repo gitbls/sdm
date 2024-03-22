@@ -50,6 +50,8 @@ sdm commands include:
 
 sdm has a broad set of command switches. These can be specified in any case (UPPER, lower, or MiXeD).
 
+All files that you provide to sdm, whether on the command line or in arguments to a plugin, must use full paths. For instance, to use a file in your home directory, don't use `file` or `~/file`, use `/home/<mylogin>/file`. Relative file paths may not work because the current directory in which any sdm function is running may change.
+
 * `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--apt-dist-upgrade` &mdash; Some RasPiOS Bullseye images have a strange software configuration, which causes `apt-get upgrade` to fail. This switch forces sdm to use `apt-get --dist-upgrade` which updates correctly. [In the 2021-10-30 set of images, the "with Desktop" versions have a set of problematic VLC modules installed.]
@@ -63,11 +65,13 @@ sdm has a broad set of command switches. These can be specified in any case (UPP
     * `--bupdate` is only honored on a burn command, and is not inspected during a customize command
     * This is very handy when you're in the process of developing a new plugin or updating an existing plugin
 * `--chroot` &mdash; By default sdm uses `systemd-nspawn` to enter the container in Phase 1/post-install phases. Some (likely older) host OSes may have issues with that. If `systemd-nspawn` fails with an `execve` error, retry the command and add `--chroot`.
+* `--convert-root fstype` &mdash; Use with `--burn` to create disks with either `btrfs` or `lvm` rootfs. See <a href="Disks-Partitions.md">Disks and Partitions</a>
 * `--cscript` *scriptname* &mdash; Specifies the path to your Custom Phase Script, which will be run as described in the Custom Phase Script section below.
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.
 * `--datefmt "fmt"` &mdash; Use the specified date format instead of the default "%Y-%m-%d %H:%M:%S". See `man date` for format string details.
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, it replaces the default value.
+* `--encrypted` &mdash; Use with the `--explore` and `--mount` commands to access encrypted disks. See <a href="Disk-Encryption.md">Disk Encryption.</a>
 * `--expand-root` &mdash; Used with `--burn`. Expands the root partition on the SSD/SD Card after burning, and disables the default (quick) first boot that does this, since sdm has already expanded the partition
 * `--extend` &mdash; Used in conjunction with the `--xmb` switch to extend an image. If used without `--customize` the IMG is extended but no other action is taken. If used with `--customize` the IMG is extended before the IMG is customized.
 * `--gpt` &mdash; Directs the `--burn` command to set the burned disk to GPT partitions
