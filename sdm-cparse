@@ -143,7 +143,7 @@ function doaptrpterror() {
     # $1 is apt command
     # $2 is $showapt value
     #
-    doapt "$1" "$2" || logapterror
+    doapt "$1" "$2" || { sts=$? ; logapterror ; return $sts ; }
 }
 
 function setfileownmode() {
@@ -401,7 +401,7 @@ function is64bit() {
 
 function ispdevp() {
     local dev="$1"
-    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme" ]] && return 0 || return 1
 }
 
 function getspname() {
@@ -520,7 +520,7 @@ function runplugins() {
 	    if [ "$p" != "" ]
 	    then
 		IFS=":" read -r pin pargs <<< "$p"
-		runonepluginx "$p" $phase "$xargv" || { logtoboth "? Plugin '$pin' exited with failure" && return 1 ; }
+		runonepluginx "$p" $phase "$xargv" || { logtoboth "? Plugin '$pin' exited with failure status '$?'" && return 1 ; }
 	    fi
 	done
     fi
@@ -912,7 +912,7 @@ function initvirt() {
     # wami -> what is my host OS (where sdm is running)
     # $1 = function to call to write msgs, or null to echo
     local msgrtn=$1
-    local hbits=0 ibits=0 bfs="" hostarch hostopmode vqemu="" armno32=0
+    local bfs="" hostarch hostopmode vqemu="" armno32=0
     local wami wtf wtfelf wtfarch wamielf wamiarch rest
     [ "$msgrtn" == "" ] && msgrtn=echo
     hostarch=$(gethostarch)
@@ -923,15 +923,15 @@ function initvirt() {
     IFS="," read wtfelf wtfarch rest <<< "$wtf"
     [[ "$wtfarch" =~ "ARM" ]] || errexit "? Unrecognized architecture '$wtfarch' in IMG"
     [[ "$hostarch" =~ "aarch64" ]] && ! [[ "$hostopmode" =~ "32-bit" ]] && armno32=1    # aarch64 host that does not support 32-bit mode
-    [[ "$wami" =~ "32-bit" ]] && hbits=32 || hbits=64
-    [[ "$wtf" =~ "32-bit" ]] && ibits=32 || ibits=64
     if [[ "$wami" =~ "ARM" ]]
     then
-	[ $armno32 -eq 1 ] && [ $ibits -eq 32 ]    && vqemu="arm"     #64-bit host without 32-bit support
-	[[ $hbits -eq 32 ]] && [[ $ibits -eq 64 ]] && vqemu="aarch64" #32-bit host and 64-bit IMG
+	[ $armno32 -eq 1 ] && [[ "$wtf" =~ "32-bit" ]]  && vqemu="arm"     #64-bit host without 32-bit support
+	[[ "$wami" =~ "32-bit" ]] && ! [[ "$wtf" =~ "32-bit" ]] && vqemu="aarch64" #32-bit host and 64-bit IMG
+	# ! [[ "$wami" =~ "32-bit" ]] && [[ "$wtf" =~ "32-bit" ]] && vqemu="arm" # explicit: aarch64 host and 32-bit IMG OS will automatically use qemu
+	                                                                         # so set this to ensure user knows? or not?
     else
 	# Not an ARM host; choose qemu based on IMG bits
-	[ $ibits -eq 32 ] && vqemu="arm" || vqemu="aarch64"
+	[[ "$wtf" =~ "32-bit" ]] && vqemu="arm" || vqemu="aarch64"
     fi
     # Set up qemu in case needed (system decides)
     if [ "$vqemu" != "" ]
@@ -939,7 +939,7 @@ function initvirt() {
 	$msgrtn "% sdm will use qemu '$vqemu'"
 	if [ ! -f /proc/sys/fs/binfmt_misc/qemu-${vqemu} ]
 	then
-	    if [ $ibits -eq 32 ]
+	    if [[ "$wtf" =~ "32-bit" ]]
 	    then
 		bfs=":qemu-arm:M:0:\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:F"
 	    else
@@ -948,7 +948,7 @@ function initvirt() {
 	    ubf=""
 	    for fn in /sbin/update-binfmts /usr/sbin/update-binfmts
 	    do
-		[ -f $fn ] && ubf=$fn && break
+		[ -x $fn ] && ubf=$fn && break
 	    done
 	    [ "$ubf" == "" ] && errexit "? Cannot find update-binfmts; try 'sudo apt install binfmt-support'"
 	    $msgrtn "% Add and enable qemu binfmt for '$vqemu' processor architecture"
@@ -963,8 +963,12 @@ function initvirt() {
 	virtmode="chroot"
 	$msgrtn "% sdm will use chroot per --chroot on this $bfs $wamiarch host"
     else
-	$msgrtn "% sdm will use systemd-nspawn on this $bfs $wamiarch host"
-	$msgrtn "  Retry the command with --chroot if this fails"
+	# only msg if host not aarch64 OR host arch different from IMG arch
+	if ! [[ "$hostarch" =~ "aarch64" ]] && ! [[ "$wtfarch" =~ "$hostarch" ]]
+	then
+	    $msgrtn "% sdm will use systemd-nspawn on this $bfs $wamiarch host"
+	    $msgrtn "  Retry the command with --chroot if this fails"
+	fi
     fi
 }
 
@@ -1162,7 +1166,7 @@ function do_delayed_boot_behavior {
 	    # Re-enable display manager that we disabled in phase 1
 	    if [ -d /etc/lightdm ]
 	    then
-		configitemlog "set boot behaviour to $bbh" bootlog
+		configitemlog "Set boot behaviour to $bbh" bootlog
 		do_raspiconfig do_boot_behaviour $bbh
 		bootlog "Set systemd default to graphical.target"
 		systemctl set-default graphical.target
@@ -1267,10 +1271,10 @@ function doinstalls() {
 	    for a in "${alist[@]}"
 	    do
 		logtoboth "> -- $a"
-		doaptrpterror "install --no-install-recommends --yes $a" $showapt
+		doaptrpterror "install --no-install-recommends --yes $a" $showapt || exit $?
 	    done
 	else
-	    doaptrpterror "install --no-install-recommends --yes $1" $showapt
+	    doaptrpterror "install --no-install-recommends --yes $1" $showapt || exit $?
 	fi
 	logtoboth "* $2 Completed"
     else
@@ -1328,10 +1332,10 @@ function extendimage() {
     if [ "$ddextend" == "1" ]
     then
 	trap "ctrlcexit" SIGINT
-	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error"
+	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error ?$"
 	trap SIGINT
     else
-        truncate --size +${limgext}M $ldimg || errexit "? Exit due to truncate resize error"
+        truncate --size +${limgext}M $ldimg || errexit "? Exit due to truncate resize error $?"
     fi
     # Get partition 2 start and IMG size from parted and compute new partition size
     while read line ; do
@@ -1354,7 +1358,8 @@ function expandpartition() {
     # $1: devicename (/dev/sdX)
     # $2: 0 (fill available space) or nnnn (expand by MB)
     # $3: message output (write_burnmsg/logtoboth/or similar)
-    local fulldevname="$1" sexp=${2:-0} msgrtn=${3:-logtoboth}
+    # $4: fs type (ext4, btrfs, or lvm)
+    local fulldevname="$1" sexp=${2:-0} msgrtn=${3:-logtoboth} rootfstype=${4:-ext4}
     local dev=${fulldevname##/dev/}
     local part pname fsize partstart partend devsize partsize newend pbytes nbytes pend
 
@@ -1403,17 +1408,12 @@ function expandpartition() {
 	logtoboth "> Plugin ${pfx}ExpandPartition: pbytes: $pbytes"
 	logtoboth "> Plugin ${pfx}ExpandPartition: nbytes: $nbytes"
     fi
-    $msgrtn "> Expand Root: Expand root partition '$part' on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
+    $msgrtn "> Expand Root: Expand root partition '$part' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     # root partition is always partition 2
     if isgpt $fulldevname
     then
 	[ "$sexp" == "0" ] && pend="" || pend="+$newend"
-	sgdisk --delete 2 $fulldevname        > /dev/null 2>&1
-	errifrc $? "? sgdisk delete partition failed"
-	sgdisk --new 2::${pend} $fulldevname         > /dev/null 2>&1
-	errifrc $? "? sgdisk new partition failed"
-	sgdisk --typecode 2:8300 $fulldevname > /dev/null 2>&1
-	errifrc $? "? sgdisk set typecode failed"
+	parted -m /dev/$dev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
     else
 	parted -m /dev/$dev u s resizepart 2 $newend
 	errifrc $? "? parted resizepart failed"
@@ -1421,9 +1421,21 @@ function expandpartition() {
     $msgrtn "* Mount $fulldevname to resize the root file system"
     [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
     domount $fulldevname "Device"
-    $msgrtn "* Resize the root file system"
+    $msgrtn "* Resize the $rootfstype root file system"
     $msgrtn "% (Ignore 'on-line resizing required' message)"
-    resize2fs ${fulldevname}${pname}
+    case "$rootfstype" in
+	ext4)
+	    resize2fs ${fulldevname}${pname}
+	    ;;
+	btrfs)
+	    btrfs filesystem resize max $SDMPT/
+	    ;;
+	lvm)
+	    pvresize ${fulldevname}${pname}
+	    lvresize --extents 100%VG $(lvmfind $fulldevname vg)/$(lvmfind $fulldevname lv)
+	    resize2fs $(lvmgetmapper $fulldevname)
+	    ;;
+    esac
     #echo ",+" | sfdisk -N 2 $fulldevname
     #errifrc $? "? sfdisk expand last partition failed with status"
 }
@@ -1497,6 +1509,25 @@ function makemtpt() {
     echo $sdmpt
 }
 
+function getmtptX() {
+    if ! ismounted /mnt/sdmX
+    then
+	echo "/mnt/sdmX"
+    else
+	if ismounted /mnt/sdmX.${BASHPID}
+	then
+	    errexit "? Alternate mount point /mnt/sdmX.${BASHPID} in use"
+	fi
+	echo "/mnt/sdmX.${BASHPID}"
+    fi
+}
+
+function makemtptX() {
+    local sdmpt=$(getmtptX)
+    [ ! -d $sdmpt ] && mkdir -p $sdmpt
+    echo $sdmpt
+}
+
 function islooped() {
     #
     # Returns true if file in $1 is already looped
@@ -1531,22 +1562,22 @@ function rmloopdevs() {
 
 function domount() {
     #
-    # Only one of the first 3 args can be passed
-    #
     # $1: device name/IMG Name/directory name
     # $2: "Directory" "IMG" or "Device"
-    # Tree will be mounted on $SDMPT which must be set with: declare -x SDMPT=$(makemtpt)
+    # $3: mount point (D:$SDMPT)
+    # Tree will be mounted on the mountpoint, which must be set with makemtpt or makemtptX
     #
-    local dmimg=$1 imgtype=$2
-    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts
+    local dmimg=$1 imgtype=$2 mpoint=${3}
+    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0
 
-    [ ! -d $SDMPT ] && mkdir $SDMPT
+    [ "$mpoint" == "" ] && mpoint=$SDMPT
+    [ ! -d $mpoint ] && mkdir $mpoint
     if [ "$imgtype" == "Directory" ]
     then
 	ismounted $(realpath $dmimg) && echo "% Directory '$dmimg' is mounted; Continuing..."
-	mount --bind $dmimg $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting --bind '$dmimg'"
-	[ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	mount --bind $dmimg $mpoint
+	notmounted $mpoint && errexit "? Error mounting --bind '$dmimg'"
+	[ -d $mpoint/boot/firmware ] && mdir="$mpoint/boot/firmware" || mdir="$mpoint/boot"
 	mount --bind $dmimg/boot/firmware $mdir
 	notmounted $mdir && errexit "? Error mounting --bind '$dmimg'"
     elif [ "$imgtype" == "IMG" ]
@@ -1568,36 +1599,54 @@ function domount() {
 	#
 	# Try mounting with offset/sizelimit with automatic loop device management first
 	#
-	mount -v -o loop,offset=${rootstart},sizelimit=${rootsize} -t ext4 ${dmimg} $SDMPT 2>/dev/null
+	mount -v -o loop,offset=${rootstart},sizelimit=${rootsize} -t ext4 ${dmimg} $mpoint 2>/dev/null
 	sts=$?            #Get this way to facilitate manual alt mount testing
 	if [ $sts -eq 0 ]
 	then
-	    [ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	    [ -d $mpoint/boot/firmware ] && mdir="$mpoint/boot/firmware" || mdir="$mpoint/boot"
 	    mount -v -o loop,offset=${bootstart},sizelimit=${bootsize} -t vfat ${dmimg} $mdir
 	else
 	    #
 	    # Try mounting it with explicit loop device
 	    # remove any dangling loop devices and mount from failed mount above
 	    #
-	    loopdev=$(getloopdev $SDMPT)
+	    loopdev=$(getloopdev $mpoint)
 	    umount -v $loopdev 2>/dev/null
 	    rmloopdevs $dmimg
             loopdev=$(losetup --show --partscan --find $dmimg)
-            mount -v ${loopdev}p2 $SDMPT
-            notmounted $SDMPT && errexit "? Error mounting IMG '$dmimg'"
-	    [ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+            mount -v ${loopdev}p2 $mpoint
+            notmounted $mpoint && errexit "? Error mounting IMG '$dmimg'"
+	    [ -d $mpoint/boot/firmware ] && mdir="$mpoint/boot/firmware" || mdir="$mpoint/boot"
 	    mount -v ${loopdev}p1 $mdir
 	fi
 	notmounted $mdir && errexit "? Error mounting IMG '$dmimg'"
     else # imgtype=Device
 	p1=$(getspname $dmimg 1)
 	p2=$(getspname $dmimg 2)
-	ismounted $dmimg${p1} && errexit "? Device $dmimg is already mounted"
-	ismounted $dmimg${p2} && errexit "? Device $dmimg is already mounted"
+	[ "$(lvmfind $dmimg pv)" == "" ] && rootfsd=$dmimg || { rootfsd=$(lvmgetmapper $dmimg) ; lv=1 ; }
+	ismounted ${dmimg}${p1} && errexit "? Device $dmimg is already mounted"
+	if [ $lv -eq 1 ]
+	then
+	    ismounted $rootfsd && errexit "? Device $rootfsd is already mounted"
+	else
+	    ismounted ${dmimg}${p2} && errexit "? Device ${dmimg} is already mounted"
+	fi
 	echo "* Mount device '$dmimg'"
-	mount -v ${dmimg}${p2} $SDMPT
-	notmounted $SDMPT && errexit "? Error mounting device '$dmimg'"
-	[ -d $SDMPT/boot/firmware ] && mdir="$SDMPT/boot/firmware" || mdir="$SDMPT/boot"
+	if [ $lv -eq 1 ]
+	then
+	    mount -v $rootfsd $mpoint
+	else
+	    if [ $fencrypted -eq 1 ]
+	    then
+		cryptsetup luksOpen ${dmimg}${p2} sdmcrypt
+		errifrc $? "? Cryptsetup failed to open ${dmimg}${p2}"
+		mount -v /dev/mapper/sdmcrypt $mpoint
+	    else
+		mount -v ${dmimg}${p2} $mpoint
+	    fi
+	fi
+	notmounted $mpoint && errexit "? Error mounting device '$dmimg'"
+	[ -d $mpoint/boot/firmware ] && mdir="$mpoint/boot/firmware" || mdir="$mpoint/boot"
 	mount -v ${dmimg}${p1} $mdir
 	notmounted $mdir && errexit "? Error mounting IMG '$dmimg'"
     fi
@@ -1607,17 +1656,24 @@ function docleanup() {
     #
     # $1: if 'keep' (don't unset SDMPT)
     local mnt=$SDMPT loopdev1 loopdev2 bp
-    [ "$mnt" == "" ] && mnt=/mnt/sdm
-    # Find loop device names and delete them after dismounting if not automatically deleted
-    [ -d $mnt/boot/firmware ] && bp="$mnt/boot/firmware" || bp="$mnt/boot"
-    loopdev1=$(findmnt $bp --noheadings --output source)
-    [ "$loopdev1" != "/dev/loop1" ] && loopdev1=${loopdev1%p1}
-    loopdev2=$(findmnt $mnt --noheadings --output source)
-    loopdev2=${loopdev1%p2}
-    ismounted $bp && umount -v $bp
-    ismounted $mnt && umount -v $mnt
-    [ "$loopdev1" == "" ] || losetup --detach $loopdev1 >/dev/null 2>&1
-    [ "$loopdev2" == "" ] || losetup --detach $loopdev2 >/dev/null 2>&1
+
+    for mnt in "${SDMPT:-/mnt/sdm}" "$SDMPX"
+    do
+	if [ "$mnt" != "" ]
+	then
+	    # Find loop device names and delete them after dismounting if not automatically deleted
+	    [ -d $mnt/boot/firmware ] && bp="$mnt/boot/firmware" || bp="$mnt/boot"
+	    loopdev1=$(findmnt $bp --noheadings --output source)
+	    [ "$loopdev1" != "/dev/loop1" ] && loopdev1=${loopdev1%p1}
+	    loopdev2=$(findmnt $mnt --noheadings --output source)
+	    loopdev2=${loopdev1%p2}
+	    ismounted $bp && umount -v $bp
+	    ismounted $mnt && umount -v $mnt
+	    [ "$loopdev1" == "" ] || losetup --detach $loopdev1 >/dev/null 2>&1
+	    [ "$loopdev2" == "" ] || losetup --detach $loopdev2 >/dev/null 2>&1
+	    [ "$fencrypted" == "1" ] && cryptsetup luksClose /dev/mapper/sdmcrypt >/dev/null 2>&1
+	fi
+    done
     if [ "$1" != "keep" ]
     then
 	if [ "$SDMPT" != "" ]
@@ -1625,8 +1681,77 @@ function docleanup() {
 	    [ "$SDMPT" != "/mnt/sdm" ] && rm -rf $SDMPT
 	    unset SDMPT
 	fi
+	[ "$SDMPX" != "" ] && rm -rf $SDMPX
+	unset SDMPX
     fi
     sync
+}
+
+function lvmfind() {
+    local dev=$1 lvitem=${2,,}
+    local vgname vgn
+    if [ "$(type -p pvs)" != "" ]
+    then
+	if [[ "$(pvs --noheadings -o pv_name)" =~ "$dev" ]]
+	then
+	    [ "$lvitem" == "pv" ] && echo "$dev" && return
+	    while read line
+	    do
+		read vgname pvname <<< $line
+		[[ "$pvname" =~ "$dev" ]] && break
+	    done < <(vgs --noheadings -o vg_name,pv_name)
+	    [ "$lvitem" == "vg" ] && echo "$vgname" && return
+	    while read line
+	    do
+		read lvname vgn <<< $line
+		[[ "$vgn" =~ "$vgname" ]] && break
+	    done < <(lvs --noheadings -o lv_name,vg_name)
+	    [ "$lvitem" == "lv" ] && echo "$lvname" && return
+	fi
+    fi
+}
+
+function lvmgetmapper() {
+    local dev=$1
+    echo "/dev/mapper/$(lvmfind $dev vg)-$(lvmfind $dev lv)"
+}
+
+function lvmdelete() {
+    local dev=$1
+    local thispv="" thisvg=""
+    if [[ "$(pvs --noheadings -o pv_name)" =~ "$dev" ]]
+    then
+        thispv=$dev
+        #
+        # Find vg. Loop through all vgs and find
+	#
+        while read line
+        do
+            #echo "vg: $line"
+            read vgname pvname <<< $line
+            [[ "$pvname" =~ "$dev" ]] && thisvg=$vgname && break
+        done < <(vgs --noheadings -o vg_name,pv_name)
+        #
+        # Find lv. Loop through all lvs and find
+        #
+        while read line
+        do
+            #echo "lv: $line"
+            read lvname vgname <<< $line
+            [[ "$vgname" =~ "$thisvg" ]] && thislv=$lvname && break
+        done < <(lvs --noheadings -o lv_name,vg_name)
+
+        [ "$thislv" != "" ] && lvremove --yes --force --force /dev/$thisvg/$thislv
+        [ "$thisvg" != "" ] && vgremove --yes --force --force /dev/$thisvg
+        [ "$thispv" != "" ] && pvremove --yes --force --force $dev >/dev/null 2>&1
+    fi
+}
+
+function dbgshell() {
+    local msg="${1:-Debug}"
+    echo "dbgshell: $msg"
+    bash </dev/tty >/dev/tty
+    echo "dbgexit: $msg"
 }
 
 function checknumeric() {
