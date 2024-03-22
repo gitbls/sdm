@@ -10,6 +10,7 @@
 <br><a href="Custom-Phase-Script.md">Custom Phase Script</a>
 <br><a href="Description.md">Description of sdm</a>
 <br><a href="Disk-Encryption.md">Disk Encryption</a>
+<br><a href="Disks-Partitions.md">Disks and Partitions</a>
 <br><a href="Example-Burn-Multiple-Hosts-From-Single-IMG.md">Example: Burn Multiple Hosts from a Single IMG</a>
 <br><a href="Example-Commands.md">Example: Commands</a>
 <br><a href="Example-Custom-Phase-Script.md">Example: Custom Phase Script</a>
