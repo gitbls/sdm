@@ -1,5 +1,18 @@
 # Changelog
 
+## V11.6
+
+* New Features
+  * Add `--convert-root fstype` which converts the rootfs to `btrfs` or `lvm` when burning
+  * Explore or mount encrypted disks with `--encrypted`
+* Improvements
+  * Code cleanups
+  * Burn-time logging improved
+* Bug fixes
+  * Improve apps plugin apt failure handling
+* Notes
+  * `--plugin vnc:wayvnc is deprecated but not yet tied. Don't use it with 2024-03-15 IMG
+
 ## V11.5
 
 * Improvements
