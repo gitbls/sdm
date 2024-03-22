@@ -148,6 +148,8 @@ Command Switches for --customize and --burn or as noted
  --bupdate plugin    Check and update sdm plugins on burned output; See documentation for details
  --burn-plugin pname:\"args\" Run burn plugin pname post-burn with the specified args (separate args with '|')
  --chroot            Use chroot rather than systemd-nspawn (for use on certain host OSes)
+ --convert-root fmt  Use the specified rootfs format (btrfs, lvm) instead of ext4
+ --encrypted         The rootfs is encrypted and must be decrypted by sdm
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -190,7 +192,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V11.5"
+version="V11.6"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -210,6 +212,7 @@ burnplugins=""              #Burn-time plugin list
 chroot=""                   #Set by sdm to chroot type (nspawn, arm, or aarch64)
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
+cvtrootfs=""                #--convert-root
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddpid=""                    #Holds pid of dd during IMG Extend
 ddextend=0                  #1=use dd for extend instead of qemu-img
@@ -226,6 +229,7 @@ fcustomize=0                #True if customizing an image (either --customize or
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
 fdirtree=0                  #1=source is a directory tree, not an IMG or device
 fdomount=0                  #1=Do a mount and drop into bash
+fencrypted=0                #1=rootfs is encrypted
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
@@ -269,6 +273,7 @@ sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rp
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
+vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
 vdebug="|all|apt|"          #Valid --debug settings
 vpoptions="|apps|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
 #vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
@@ -291,8 +296,8 @@ source $src/sdm-cparse           # Get function defs
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
-autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,csrc:,\
-customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,explore,expand-root,extend,\
+autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
+customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-root,extend,\
 gpt,groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
@@ -322,6 +327,7 @@ do
 		       burnfilefile=$2 ; shift 2 ;;
 	--burn-plugin) burnplugins=$(appendvalue "$burnplugins" "$2" "~") ; shift 2 ;;
 	--chroot)      fchroot=1     ; shift 1 ;;
+	--convert-root) cvtrootfs="${2,,}" ; shift 2 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;
@@ -332,6 +338,7 @@ do
         --directory)   fdirtree=1    ; shift 1 ;;
 	--domain)      domain=$2     ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
+	--encrypted)   fencrypted=1  ; shift 1 ;;
 	--expand-root) expandroot=1  ; shift 1 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
 	--extend)      fextend=1     ; shift 1 ;;
@@ -444,7 +451,9 @@ cscript="$(fndotfullpath $cscript)"
 [ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
 [ $expandroot -eq 1 -a $burn -eq 0 -a $burnfile -eq 0 ] && errexit "? Switch conflict: --expand-root only valid with --burn and --burnfile"
 [ $fgpt -eq 1 -a $burn -ne 1 ] && errexit "? Switch conflict: --gpt only valid with --burn"
+[ "$cvtrootfs" != "" -a $burning -ne 1 ] && errexit "? Switch conflict: --convert-root only valid with --burn"
 [ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
+[ $fencrypted -eq 1 -a $(($fdomount+$fexplore)) -eq 0 ] && errexit "? Switch conflict: --encrypted only valid with --explore and --mount"
 if [ "$aptmaint" != "" ]
 then
     [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
@@ -475,6 +484,9 @@ p1bootconf="$(fndotfullpath $p1bootconf)"
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
 #! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
 
+cvtrootfs=$(poptcheck "$cvtrootfs" "$vcvtrootfs" "--convert-root")
+exitiferr "$cvtrootfs"
+cvtrootfs="${cvtrootfs//|/}"  # Remove vbars: single value switch
 debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
 exitiferr "$debugs"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--poption")
@@ -532,9 +544,8 @@ fi
 checkpluginsx "$plugins" y
 checkpluginsx "$burnplugins" n
 
-[ $fextend -eq 1 -a "$(which parted)" == "" ] && errexit "? Please 'sudo apt install parted'"
-#[ $fextend -eq 1 -a "$(which qemu-img)" == "" ] && errexit "? Please 'sudo apt install qemu-utils'"
-
+[[ $fextend -eq 1 ]] && [[ "$(type -p parted)" == "" ]] && errexit "? Cannot find parted; Do 'sudo apt install parted' and then rerun sdm"
+[[ $cvtrootfs != "" ]] && [[ "$(type -p sgdisk)" == "" ]] && errexit "? Cannot find sgdisk; Do 'sudo apt install gdisk' and then rerun sdm"
 #
 # Check sanity of the disk image argument
 #
@@ -547,7 +558,8 @@ then
     dimgdevname="Directory"
 elif [ ! -f "$dimg" ]
 then
-    [ ! -b $dimg ] && errexit "? Disk image file or device '$dimg' does not exist"
+    p1=$(getspname $dimg 1)
+    [ ! -b ${dimg}${p1} ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
     dimgdevname="Device"
 fi    
@@ -563,6 +575,12 @@ then
 elif [ $fextend -eq 1 ]
 then
     echo "% Ignoring --extend for non-file-based $dimgdevname '$dimg'" && fextend=0
+fi
+
+if [ $fencrypted -eq 1 ]
+then
+    [ "$dimgdevname" != "Device" ] && errexit "? --encrypted only valid on disk devices"
+    [ "$(type -p cryptsetup)" == "" ] && errexit "? Cannot find cryptsetup for --encrypted; Do 'sudo apt install cryptsetup' and rerun sdm"
 fi
 
 if [ "$b0script" != "" ]
@@ -596,10 +614,19 @@ then
     then
 	 [ $burnfile -eq 0 ] && errexit "? sdm burn not supported on Windows WSL"
     fi
+    case "$cvtrootfs" in
+	btrfs)
+	    [ "$(type -p btrfs)" == "" ] && errexit "? Cannot find btrfs; Do 'sudo apt install btrfs-progs' and then rerun sdm"
+	    ;;
+	lvm)
+	    [ "$(type -p pvs)" == "" ] && errexit  "? Cannot find lvm; Do 'sudo apt install lvm2' and then rerun sdm"
+	    [ $fgpt -eq 0 ] && fgpt=1 && echo "% Forcing --gpt for --convert-root lvm"
+	    ;;
+    esac
     source $src/sdm-cmdsubs
     sdm_burndevfile
     [ $burn -eq 1 ] && echo "* Storage '$burndev' is ready" || echo "* Storage Image '$burnfilefile' is ready"
-    exit 0
+    exit
 fi
 #
 # Process --shrink command
@@ -609,13 +636,13 @@ then
     declare -x SDMPT=$(makemtpt)
     source $src/sdm-cmdsubs
     sdm_shrink
-    exit 0
+    exit
 fi
 if [ $fppart -eq 1 ]
 then
     source $src/sdm-cmdsubs
     sdm_ppart
-    exit 0
+    exit
 fi
 #
 # Process --mount command
@@ -894,6 +921,8 @@ fi
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 [ "$spawncmd" == "" ] && spawncmd="/bin/bash"
 sdm_spawn "$nspawnsw" Phase1 $spawncmd
+sts=$?
 [ $icolors -eq 1 ] && resetcolors xt
 
-exit 0
+exit $sts
+
