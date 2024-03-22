@@ -45,6 +45,9 @@ Enclose the keys/values in double quotes as above if there is more than one key/
 
 See below for plugin-specific examples and important information.
 
+All files that you provide to sdm, whether on the command line or in arguments to a plugin, must use full paths. For instance, to use a file in your home directory, don't use `file` or `~/file`, use `/home/<mylogin>/file`. Relative file paths may not work because the current directory in which any sdm function is running may change.
+
+
 ## Burn Plugins
 
 Burn plugins are special plugins that are run after a burn has completed on a disk (`--burn`) or disk image (`--burnfile`). Only plugins designated as burn plugins in this document can be used with `--burn-plugin`. sdm doesn't check whether a plugin is burn-plugin capable, so trying to use a non-burn-plugin as a burn-plugin will likely be *interesting*.
