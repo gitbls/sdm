@@ -213,6 +213,10 @@ Enter the 'exit' command to resume the system boot
 (initramfs) exit
 ```
 
+## Exploring and mounting encrypted disks
+
+Encrypted disks can be explored or mounted with the `--encrypted` switch.
+
 ## Known issues
 
 * When running RasPiOS with Desktop (both X11 and Wayland) sdm-cryptconfig will unconditionally make these adjustments to your system:
