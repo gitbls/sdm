@@ -62,7 +62,7 @@ then
 	logtoboth "> Plugin $pfx: Copy gpg key '$gpgkey' to $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg"
 	cp $gpgkey $SDMPT/etc/apt/trusted.gpg.d
     else
-	[[ "$(which gpg)" == "" ]] && errexit "? Please sudo apt install gpg"
+	[[ "$(type -p gpg)" == "" ]] && errexit "? Please sudo apt install gpg"
 	logtoboth "> Plugin $pfx: Download gpg key from $gpgkey and add to apt trusted keys"
 	curl -sS $gpgkey | gpg --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg
     fi

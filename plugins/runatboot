@@ -74,7 +74,7 @@ chmod 755 \$runfile
 ${xdo}\$runfile $args $output $error
 EOF
     else
-	logtoboth "% Plugin $pfx: Script file '$script' not found'"
+	logtoboth "? Plugin $pfx: Script file '$script' not found"
 	exit 1
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"

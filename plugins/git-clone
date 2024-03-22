@@ -124,7 +124,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    if [ "$(which git)" == "" ]
+    if [ "$(type -p git)" == "" ]
     then
 	logtoboth "> Plugin $pfx: Install git"
 	doaptrpterror "install --no-install-recommends --yes git" $showapt

@@ -103,7 +103,7 @@ then
         svapps=${svapps/qemu-user-static}
         deferqemu
     fi
-    doinstalls "$svapps" "[$name] Application Installs"
+    doinstalls "$svapps" "[$name] Application Installs" || exit $?
 
     logfreespace "at end of $pfx [$name] Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
