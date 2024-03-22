@@ -46,7 +46,8 @@ then
     if [ "$rootfs" != "" ]
     then
 	logtoboth "> Plugin $pfx: Copy rootfs from $SDMPT/boot to $rootfs"
-	rsync -a --info=progress2 --exclude boot/firmware/* $SDMPT/ $rootfs
+	# Need to use -H b/c /usr/lib/aarch64-linux-gnu/ has 50+ hard-linked files
+	rsync -aH --info=progress2 --exclude boot/firmware/* $SDMPT/ $rootfs
     fi
     docleanup
     exit
