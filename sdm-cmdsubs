@@ -10,8 +10,20 @@ function write_burnmsg() {
     # $1 has the message to write
     # It's written to the terminal and added to burnmsg
     #
-    burnmsg+=("$(thisdate) $1")
-    echo "$1"
+    local msg="$1"
+    if [[ "$SDMPT" != "" ]] && [[ $fpartcopy -eq 0 ]]
+    then
+	if ismounted $SDMPT && [[ -f $SDMPT/etc/sdm/history ]]
+	then
+	    logtoboth "$msg"
+	else
+	    burnmsg+=("$(thisdate) $msg")
+	    echo "$msg"
+	fi
+    else
+	burnmsg+=("$(thisdate) $msg")
+	echo "$msg"
+    fi
     return 0
 }    
 
@@ -19,9 +31,8 @@ function ddctrlc() {
     printf "\n%% Caught CTRL/C during burn. Cleaning up...\n"
     if [ "$ddpid" != "" ]
     then
-	#echo "killing $ddpid"
-	kill -HUP $ddpid > /dev/null 2>&1
-	wait $ddpid > /dev/null 2>&1
+	kill -HUP $ddpid >/dev/null 2>&1
+	wait $ddpid >/dev/null 2>&1
 	exit 1
     fi
 }
@@ -32,32 +43,42 @@ function setdiskid() {
     if [ $? -ne 0 ]    # Assume it's an older version of sfdisk without --disk-id if it fails
     then
 	write_burnmsg "% sfdisk failed; Trying fdisk to set Disk ID"
-        fdisk "$dev" > /dev/null <<EOF
+        fdisk $dev >/dev/null <<EOF
 x
 i
 0x$diskid
 r
 w
 EOF
-        errifrc $? "? fdisk error "
-	write_burnmsg "> Disk ID $diskid set successfully with fdisk"
+        errifrc $? "? fdisk error"
+	write_burnmsg "> Disk ID '$diskid' set successfully with fdisk"
     else
-	write_burnmsg "> Disk ID $diskid set successfully with sfdisk"
+	write_burnmsg "> Disk ID '$diskid' set successfully with sfdisk"
     fi
 }
 
 function writediskids() {
+    local gptuuid1 gptuuid2
+
     if [ -f $SDMPT/boot/firmware/cmdline.txt ]
     then
 	if [ $fgpt -eq 0 ]
 	then
-	    write_burnmsg "> Set MBR partition Disk ID in cmdline.txt"
+	    write_burnmsg "> Set MBR rootfs partition ID '$newdiskid' in cmdline.txt (was $olddiskid)"
 	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
 	else
 	    gptuuid1=$(blkid ${burndev}$(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
 	    gptuuid2=$(blkid ${burndev}$(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
-	    write_burnmsg "> Set GPT rootfs partition GUID in cmdline.txt"
-	    sed -i "s/${olddiskid}-02/$gptuuid2/" $SDMPT/boot/firmware/cmdline.txt
+	    if [ "$cvtrootfs" == "lvm" ]
+	    then
+		write_burnmsg "> Set GPT rootfs '$mapper' in cmdline.txt"
+		sed -i "s|root=PARTUUID=${olddiskid}-02|root=$mapper|" $SDMPT/boot/firmware/cmdline.txt
+		gptpart2=$mapper
+	    else
+		write_burnmsg "> Set GPT rootfs partition GUID '$gptuuid2' in cmdline.txt"
+		sed -i "s/${olddiskid}-02/$gptuuid2/" $SDMPT/boot/firmware/cmdline.txt
+		gptpart2="PARTUUID=$gptuuid2"
+	    fi
 	fi
 	# init_resize disappeared in 2022-09-06 build, not in systems with /boot/firmware
     elif [ -f $SDMPT/boot/cmdline.txt ]
@@ -71,13 +92,148 @@ function writediskids() {
     fi
     if [ $fgpt -eq 0 ]
     then
-	write_burnmsg "> Set MBR partition Disk ID in fstab"
+	write_burnmsg "> Set MBR partition Disk IDs in fstab"
 	sed -i "s/${olddiskid}/${newdiskid}/g" $SDMPT/etc/fstab
     else
 	write_burnmsg "> Set GPT partition GUIDs in fstab"
 	sed -i "s/${olddiskid}-01/$gptuuid1/" $SDMPT/etc/fstab
-	sed -i "s/${olddiskid}-02/$gptuuid2/" $SDMPT/etc/fstab
+	sed -i "s|PARTUUID=${olddiskid}-02|$gptpart2|" $SDMPT/etc/fstab
     fi
+}
+
+function copybypart() {
+    #
+    # Copy the partitions one at a time and change rootfs format
+    #
+    local srcdev="$1" dstdev="$2" dsttype="${3:-dos}" fstype="${4:-ext4}"
+    local fatnum fatstart fatend fatsize
+    local extnum extstart extend extsize
+    local misc p1 p2 rootfs
+
+    p1=$(getspname $dstdev 1)
+    p2=$(getspname $dstdev 2)
+    while read line
+    do
+	if [[ "$line" =~ "msdos" ]] || [[ "$line" =~ "fat32" ]]
+	then
+            IFS=":" read fatnum fatstart fatend fatsize misc <<< $line
+	elif [[ "$line" =~ "ext4" ]]
+	then
+            IFS=":" read extnum extstart extend extsize misc <<< $line
+	fi
+    done < <(parted --machine --script $srcdev unit S print)
+
+    if [[ "$fatnum" == "" ]] || [[ "$extnum" == "" ]]
+    then
+	errexit "? Expected partitions not found on $srcdev"
+    fi
+    #
+    # Delete old partitions on destination and set disk label type
+    # If lvm on the disk then delete it
+    #
+    write_burnmsg "* Remove partitions on $dstdev"
+    [ "$(lvmfind $dstdev pv)" != "" ] && lvmdelete $dstdev
+    # Just in case
+    wipefs --all ${dstdev}$p1 >/dev/null 2>&1
+    wipefs --all ${dstdev}$p2 >/dev/null 2>&1
+    sgdisk --zap-all $dstdev >/dev/null 2>&1
+    partprobe #>/dev/null 2>&1
+    if [ "$dsttype" == "dos" ]
+    then
+	write_burnmsg "* Create MBR partitions on $dstdev"
+	echo "label:$dsttype" | sfdisk --force $dstdev >/dev/null 2>&1
+	errifrc $? "? Error creating label on $dstdev"
+	parted -s $dstdev mkpart primary fat32 ${fatstart} ${fatend}
+	errifrc $? "? Error creating boot partition on $dstdev"
+	parted -s $dstdev mkpart primary ext4 ${extstart} ${extend}
+	errifrc $? "? Error creating root partition on $dstdev"
+	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
+	setdiskid $dstdev $newdiskid
+    else
+	write_burnmsg "> Create GPT partitions on $dstdev"
+	parted -s $dstdev mklabel gpt
+	errifrc $? "? Error creating label on $dstdev"
+	sgdisk --new 1:$fatstart:$fatend $dstdev >/dev/null
+	errifrc $? "? Error creating boot partition on $dstdev"
+	sgdisk --typecode 1:0700 $dstdev >/dev/null
+	errifrc $? "? Error modifying partition 1 type on $dstdev"
+	sgdisk --new 2:$extstart:$extend $dstdev >/dev/null
+	errifrc $? "? Error creating root partition on $dstdev"
+	sgdisk --typecode 2:8300 $dstdev >/dev/null
+	errifrc $? "? Error modifying partition 2 type on $dstdev"
+    fi
+    partprobe
+
+    #dbgshell "Point 0"
+    write_burnmsg "> Create bootfs file system on $dstdev"
+    mkfs.vfat ${dstdev}$p1 #>/dev/null 2>&1
+    errifrc $? "? Error creating bootfs file system on $dstdev"
+    rootdev=${dstdev}$p2
+    rootfs=$rootdev
+    case "$fstype" in
+	ext4)
+	    write_burnmsg "> Create 'ext4' rootfs file system on $rootdev"
+	    mkfs.ext4 -F ${dstdev}$p2 >/dev/null 2>&1
+	    #dbgshell "Point 1"
+	    errifrc $? "? Error creating ext4 rootfs file system on $dstdev"
+	    ;;
+	btrfs)
+	    write_burnmsg "> Create 'btrfs' rootfs file system on $rootdev"
+	    mkfs.btrfs -f ${dstdev}$p2 >/dev/null
+	    errifrc $? "? Error creating btrfs rootfs file system on $dstdev"
+	    ;;
+	lvm)
+	    rootfs="/dev/$vgname/rootfs"
+	    write_burnmsg "> Create 'lvm' rootfs file system on $rootdev"
+	    parted -s $dstdev set 1 boot on
+	    errifrc $? "? Error setting partition 1 'boot on' on $rootdev"
+	    parted -s $dstdev set 2 lvm on
+	    errifrc $? "? Error setting partition 2 'lvm on' on $rootdev"
+	    lvremove $rootfs --yes >/dev/null 2>&1
+	    vgremove /dev/$vgname --yes >/dev/null 2>&1
+	    pvremove $rootdev --yes >/dev/null 2>&1
+	    partprobe
+	    write_burnmsg "> Create LVM physical volume: pvcreate $rootdev"
+	    pvcreate $rootdev --force --force --yes
+	    errifrc $? "? Error initializing partition 2 lvm on $dstdev"
+	    write_burnmsg "> Create LVM volume group: vgcreate $vgname $rootdev"
+	    vgcreate $vgname $rootdev --force --force --yes
+	    errifrc $? "? Error creating volume group '$vgname' on $dstdev"
+	    write_burnmsg "> Create LVM logical volume: lvcreate --name rootfs $vgname"
+	    lvcreate --name rootfs -l 100%FREE $vgname --yes
+	    errifrc $? "? Error creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
+	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null #Redo this b/c lvm on changes p1 type to EFI (?)
+	    errifrc $? "? Error modifying partition 1 type on $dstdev"
+	    partprobe
+	    write_burnmsg "> Create 'ext4' rootfs file system on $rootfs"
+	    mkfs.ext4 -F $rootfs >/dev/null 2>&1
+	    errifrc $? "? Error creating ext4 rootfs file system on $rootfs"
+	    ;;
+	*)
+	    errexit "? Unrecognized fstype '$fstype'"
+	    ;;
+    esac
+
+    declare -x SDMPT=$(makemtpt)
+    domount $srcdev IMG
+
+    [ -d $SDMPT/boot/firmware ] && msdir="$SDMPT/boot/firmware" || msdir="$SDMPT/boot"
+    [ -d $SDMPT/boot/firmware ] && mddir="$SDMPX/boot/firmware" || mddir="$SDMPX/boot"
+    # Create the bootfs so domount works
+    mount $rootfs $SDMPX
+    mkdir -p $mddir
+    umount $SDMPX
+
+    domount $dstdev "Device" $SDMPX
+    write_burnmsg "> Copy bootfs to $dstdev"
+    rsync -aH $msdir/ $mddir
+    errifrc $? "? Error copying bootfs partition to $dstdev"
+
+    write_burnmsg "> Copy rootfs to $dstdev"
+    rsync -aH $SDMPT/ $SDMPX
+    errifrc $? "? Error copying rootfs partition to $dstdev"
+    sync ; sync
+    write_burnmsg "> rootfs copy complete"
 }
 
 function sdm_burndevfile() {
@@ -85,6 +241,8 @@ function sdm_burndevfile() {
     # Stash burn messages in an array until log on SD Card is mounted and available 
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
+    fpartcopy=0
+    write_burnmsg "* Start Burn"
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
     if [ $burn -eq 1 ]
     then
@@ -95,7 +253,6 @@ function sdm_burndevfile() {
 	perr=0
 	for p in 1 2 3 4
 	do
-	    #ispdevp $burndev && pn="p${p}" || pn=$p
 	    pdev="${burndev}$(getspname $burndev $p)"
 	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
 	done
@@ -103,33 +260,34 @@ function sdm_burndevfile() {
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
 	bsize=$(stat --printf %s $dimg)
-	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
-	burnmsg+=("$(thisdate) > Burn command line: $cmdline")
-	ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
-	burnmsg+=("$(thisdate) > dd command: $ddcmd")
-	# Burn the IMG to the device but zero first and last blocks first
-	zero1stlast $burndev
-	echo "$ddcmd"
-	trap "ddctrlc" SIGINT
-	$ddcmd &
-	ddpid=$!
-	wait $ddpid > /dev/null 2>&1
-	[ $? -ne 0 ] && errexit "? Exiting due to dd error"
-	trap SIGINT
-	burnmsg+=("$(thisdate) > dd Copy completed")
-	# Prevent mount errors
-	sync ; sleep 1 ; sync
-	olddiskid="$((blkid -o value $burndev) | (read id ; echo $id))"
-	if [ $fgpt -eq 0 ]
+	write_burnmsg "> Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
+	olddiskid="$((blkid -o value $dimg) | (read id ; echo $id))"
+	if [ "$cvtrootfs" == "" ]
 	then
-	    write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
-	    setdiskid $burndev $newdiskid
-	else
-	    write_burnmsg "> Convert disk '$burndev' to GPT"
-	    sgdisk --mbrtogpt --randomize-guids $burndev >/dev/null 2>&1
-	    errifrc $? "? Error converting MBR to GPT"
-	    write_burnmsg "> Set boot partition boot code 0c on '$burndev'"
-	    gdisk $burndev <<EOF &>/dev/null
+	    write_burnmsg "> Burn command line: $cmdline"
+	    ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
+	    write_burnmsg "> dd command: $ddcmd"
+	    # Burn the IMG to the device but zero first and last blocks first
+	    zero1stlast $burndev
+	    #echo "$ddcmd"
+	    trap "ddctrlc" SIGINT
+	    $ddcmd &
+	    ddpid=$!
+	    wait $ddpid >/dev/null 2>&1
+	    [ $? -ne 0 ] && errexit "? Exiting due to dd error"
+	    trap SIGINT
+	    write_burnmsg "> dd Copy completed"
+	    sync ; sleep 1 ; sync
+	    if [ $fgpt -eq 0 ]
+	    then
+		write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
+		setdiskid $burndev $newdiskid
+	    else
+		write_burnmsg "> Convert disk '$burndev' to GPT"
+		sgdisk --mbrtogpt --randomize-guids $burndev >/dev/null 2>&1
+		errifrc $? "? Error converting MBR to GPT"
+		write_burnmsg "> Set boot partition boot code 0c on '$burndev'"
+		gdisk $burndev <<EOF &>/dev/null
 r
 h
 1
@@ -140,9 +298,20 @@ n
 w
 y
 EOF
-
-	    errifrc $? "? Error Setting MBR hex code"
+		errifrc $? "? Error Setting MBR hex code"
+	    fi
+	else
+	    [ $fgpt -eq 0 ] && pt=dos || pt=gpt
+	    declare -x SDMPX=$(makemtptX)
+	    [ "$hname" == "" ] && vgname="vg1" || vgname=$hname
+	    mapper="/dev/mapper/$vgname-rootfs"
+	    fpartcopy=1
+	    copybypart $dimg $burndev $pt $cvtrootfs
+	    fpartcopy=0
+	    docleanup
+	    sync ; sleep 1 ; sync
 	fi
+	partprobe
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
 	domount "$burndev" "Device"
@@ -162,16 +331,16 @@ EOF
 	    burnmsg+=("$(thisdate) > Burn IMG using 'cp' on copy-on-write file system")
 	else
 	    ddcmd="dd if=$dimg of=$burnfilefile status=progress $ddsw"
-	    burnmsg+=("$(thisdate) > dd command: $ddcmd")
+	    write_burnmsg "> dd command: $ddcmd"
 	    # Burn the IMG to the file
-	    echo "$ddcmd"
+	    #echo "$ddcmd"
 	    trap "ddctrlc" SIGINT
 	    $ddcmd &
 	    ddpid=$!
-	    wait $ddpid > /dev/null 2>&1
+	    wait $ddpid >/dev/null 2>&1
 	    [ $? -ne 0 ] && errexit "? Exiting due to dd error"
 	    trap SIGINT
-	    burnmsg+=("$(thisdate) > Image copy completed")
+	    write_burnmsg "> Image copy completed"
 	fi
 	olddiskid="$((blkid -o value $burnfilefile) | (read id ; echo $id))"
 	loopdev=$(losetup --show -P -f $burnfilefile)
@@ -225,28 +394,28 @@ EOF
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
 	plugindebug=$((bplugindebug|plugindebug))
-	[ "$hname" == "" ] && echo "% hostname not specified with --host; will not be written"
+	[ "$hname" == "" ] && write_burnmsg "% hostname not specified with --host; will not be written"
 	# --bupdate must specified on the burn command line
 	initvirt logtoboth  # Must be done after fchroot is set
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	if ispluginselected parted "$burnplugins"
 	then
-	    logtoboth "> Force --no-expand-root for parted burn-plugin"
+	    write_burnmsg "> Force --no-expand-root for parted burn-plugin"
 	    fnoexpandroot=1
 	fi
 	if [ $fnoexpandroot -eq 1 ]
 	then
-	    logtoboth "> Force --regen-ssh-host-keys for --no-expand-root"
+	    write_burnmsg "> Force --regen-ssh-host-keys for --no-expand-root"
 	    regensshkeys=1
 	elif [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
 	    docleanup keep
-	    expandpartition $burndev 0 logtoboth
+	    expandpartition $burndev 0 logtoboth $cvtrootfs
 	fi
 	writediskids
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
-	    logtoboth "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
+	    write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
 	    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
 	    then
 		sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
@@ -256,11 +425,19 @@ EOF
 	    fi
 	    [ -f $SDMPT/etc/init.d/resize2fs_once ] && mv $SDMPT/etc/init.d/resize2fs_once $SDMPT/etc/init.d/.sdm.resize2fs_once
 	else
-	    logtoboth "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
+	    write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
 	fi
+	case "$cvtrootfs" in
+	    btrfs)
+		write_burnmsg "> Set file system type 'btrfs' in cmdline.txt and /etc/fstab"
+		sed -i 's/ext4/btrfs/' $SDMPT/etc/fstab
+		sed -i 's/ext4/btrfs/' $SDMPT/boot/firmware/cmdline.txt
+		;;
+	esac
+
 	if [ $regensshkeys -eq 1 ]
 	then
-	    logtoboth "> Disable regenerate_ssh_host_keys service; sdm FirstBoot will run it instead"
+	    write_burnmsg "> Disable regenerate_ssh_host_keys service; sdm FirstBoot will run it instead"
 	    sdm_runspawncmd Burn1 run-command-quietly "systemctl disable regenerate_ssh_host_keys"
 	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
@@ -271,11 +448,11 @@ EOF
 
 	#if [[ "$loadllocal" =~ "|wifi|" ]]
 	#then
-	    #[ "$wificountry" == "" ] && logtoboth "% No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
+	    #[ "$wificountry" == "" ] && write_burnmsg "% No --wifi-country specified with --loadlocal wifi; Using 'US' for a short time" && wificountry="US"
 	#fi
 	if [ "$bkeymap" != "" ]
 	then
-	    logtoboth "> Load Keymap '$keymap' to set during FirstBoot"
+	    write_burnmsg "> Load Keymap '$keymap' to set during FirstBoot"
 	    keymap=$bkeymap
 	fi
 	if [ "$b1script" != "" ]
@@ -284,31 +461,31 @@ EOF
 	    then
 		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b1script) ]
 		then
-		    logtoboth "> Copy '$b1script' to /etc/sdm/assets"
+		    write_burnmsg "> Copy '$b1script' to /etc/sdm/assets"
 		    cp -a $b1script $SDMPT/etc/sdm/assets
 		    setfileownmode $SDMPT/etc/sdm/assets/$(basename $b1script) 755
 		fi
 	    else
 		if [ ! -f $SDMPT/etc/sdm/assets/$(basename $b1script) ]
 		then
-		   logtoboth "? --b1script '$b1script' not found"
+		   write_burnmsg "? --b1script '$b1script' not found"
 		   b1script=""
 		fi
 	    fi
 	fi
 	hostname="$hname"         # So it gets written to updated params on SD card
 	[ $bootscripts -eq 1 ] && state="enabled" || state="disabled"
-	logtoboth "> First System Boot Custom Boot Scripts $state"
+	write_burnmsg "> First System Boot Custom Boot Scripts $state"
 	[ $rebootwait -ne $drebootwait ] && wmsg=" with a $rebootwait second wait" || wmsg=""
 	[ $reboot -eq 1 ] && state="enabled${wmsg}" || state="disabled"
-	logtoboth "> First System Boot automatic restart $state"
+	write_burnmsg "> First System Boot automatic restart $state"
 	writeconfig               # Write updated params to the SD card so they are available in the following and at boot
 	if [ "$b0script" != "" ]
 	then
-	    logtoboth "> Execute function 'do_b0script' in --b0script '$b0script'"
+	    write_burnmsg "> Execute function 'do_b0script' in --b0script '$b0script'"
 	    source $b0script
 	    ftype=$(type -t do_b0script)
-	    [ "$ftype" == "function" ] && do_b0script || logtoboth "% Function 'do_b0script' not found in '$b0script'; Skipping..."
+	    [ "$ftype" == "function" ] && do_b0script || write_burnmsg "% Function 'do_b0script' not found in '$b0script'; Skipping..."
 	fi
 	if [ "$plugins" != "" ]
 	then
@@ -320,7 +497,7 @@ EOF
 
 	if [ "$b1script" != "" ]
 	then
-	    logtoboth "> Run --b1script '$b1script'"
+	    write_burnmsg "> Run --b1script '$b1script'"
 	    sdm_runspawncmd Burn1 b1script "$b1script"
 	fi
 
@@ -342,12 +519,11 @@ EOF
 	#
 	if [[ $bfredact -eq 1 ]]
 	then
-	    logtoboth "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
+	    write_burnmsg "> Redact passwords from /etc/sdm/cparams and /etc/sdm/history"
 	    runoneplugin user redact "redact"
 	fi
 
 	declare -x SDMNSPAWN="Burn0"
-	logtoboth "* Burn Completed"
     else
 	echo $"% IMG '$dimg' is not sdm-enhanced
   Logs and configuration updates will not be written"
@@ -357,10 +533,41 @@ EOF
 	if [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
 	    docleanup keep
-	    expandpartition $burndev 0 echo
+	    if [[ "$cvtrootfs" == "lvm" ]] && [[ $fgpt -eq 1 ]]
+	    then
+		write_burnmsg "% Expand root partition does not work (yet) with GPT partition format and LVM"
+	    else
+		expandpartition $burndev 0 echo $cvtrootfs
+	    fi
 	fi
 	writediskids
     fi
+    #
+    # Install required packages for btrfs and lvm and do update-initramfs if needed
+    #
+    case "$cvtrootfs" in
+	btrfs)
+	    if [ ! -x $SDMPT/bin/btrfs ]
+	    then
+		write_burnmsg "> Install btrfs-progs onto burned disk"
+		sdm_runspawncmd Burn1 run-command "apt install --yes --no-install-recommends btrfs-progs"
+	    else
+		write_burnmsg "> Enable btrfs in initramfs"
+		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
+	    fi
+	    ;;
+	lvm)
+	    if [ ! -x $SDMPT/sbin/lvcreate ]
+	    then
+		write_burnmsg "> Install lvm2 onto burned disk"
+		sdm_runspawncmd Burn1 run-command "apt install --yes  --no-install-recommends lvm2"
+	    else
+		write_burnmsg "> Enable lvm in initramfs"
+		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
+	    fi
+	    ;;
+    esac
+    write_burnmsg "* Burn Completed"
     printnotes
     #
     # Call burn-plugins
@@ -385,13 +592,13 @@ EOF
 #
 sdm_ppart() {
     echo "* Human-readable partition list"
-    parted -s $dimg unit B print
+    parted -s $dimg unit s print
     echo ""
     echo "* Machine-readable partition list"
-    parted -ms $dimg unit B print
-    #echo "0: filespec:bytesB:file:512:512:msdos::;"
-    #echo "1: partnum:startB:endB:sizeB:fstype:::;"
-    #echo "2 partnum:startB:endB:sizeB:fstype:::;"
+    parted -ms $dimg unit s print
+    #echo "0: filespec:bytesS:file:512:512:msdos::;"
+    #echo "1: partnum:startS:endS:sizeS:fstype:::;"
+    #echo "2 partnum:startS:endS:sizeS:fstype:::;"
 }
 #
 # Shrink IMG file
@@ -453,7 +660,7 @@ sdm_shrink() {
 				    [[ "$aline" =~ "Block count" ]] && (bc=${aline##Block count: } ; bc=${bc// } ; echo -n ",bc${bc}");\
 					[[ "$aline" =~ "Block size" ]] && (bs=${aline##Block size: } ; bs=${bs// } ; echo -n ",bs${bs}");\
 					done) ; rc=${PIPESTATUS[0]}
-    [ $rc -ne 0 ] && losetup -d $loopdev 2> /dev/null && errexit "? tune2fs failed with status $rc"
+    [ $rc -ne 0 ] && losetup -d $loopdev 2>/dev/null && errexit "? tune2fs failed with status $rc"
     # Set bc=block count, bs=blocksize. Handle both orderings: <nn>bc,<nn>bs or <nn>bs,<nn>bc
     [ "${b1#bc}" != "$b1" ] && bc=${b1#bc}
     [ "${b2#bs}" != "$b2" ] && bs=${b2#bs}
@@ -488,7 +695,7 @@ sdm_shrink() {
 	echo "  imgext: $imgext"
     fi
 
-    [ $bc -le $newsize ] && losetup -d $loopdev 2>/dev/null && errexit "% Image cannot be shrunk any further"
+    [ $bc -le $newsize ] && { losetup -d $loopdev 2>/dev/null  ; echo "% Image cannot be shrunk any further" ; return 0 ; }
 
     # Shrink the file system
     [ $plugindebug -eq 1 ] && logger "Shrink the file system"
@@ -497,7 +704,7 @@ sdm_shrink() {
     echo "> Shrink the root file system from $bc $(getgbstr $bcb) to $newsize ${bs}-byte blocks $(getgbstr $partnewsize)"
     resize2fs -M -p $loopdev $newsize
     rc=$?
-    losetup -d $loopdev 2> /dev/null
+    losetup -d $loopdev 2>/dev/null
     [ $rc -ne 0 ] && errifrc $rc "? resize2fs shrink exited with status '$rc'"
     rzp=0
     if [ $rzp -eq 0 ]
@@ -532,5 +739,5 @@ sdm_shrink() {
     echo "* Shrink complete"
     asize=$(stat --printf %s $dimg)
     echo "  IMG '$dimg' was $(getgbstr $bsize) now $(getgbstr $asize)"
-    return
+    return 0
 }
