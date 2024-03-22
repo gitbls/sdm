@@ -43,9 +43,9 @@ case "$cmd" in
     apt)
 	logtoboth "* Start apt maintenance"
 	logfreespace "at start of 'apt $cmdoptions'"
-	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0
-	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade
-	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0
+	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0 || exit
+	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade || exit
+	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0 || exit
 	logfreespace "at end of 'apt $cmdoptions'"
 	logtoboth "* apt maintenance Completed"
 	exit 0
@@ -59,7 +59,7 @@ case "$cmd" in
 	else
 	    logtoboth "? Internal error: Script '$fn' not found"
 	fi
-	exit 0
+	exit
 	;;
     burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
 	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning"
@@ -75,7 +75,7 @@ case "$cmd" in
 	theseplugins="$(stripquotes "$3")"
 	runplugins "$theseplugins" $phase || exit
 	writeconfig                    #Write updated config
-	exit 0
+	exit
 	;;
     run-one-plugin)  # Run Plugin phase 1 or post-install
 	# $cmdoptions: plugin name and args $3: Phase

@@ -157,7 +157,7 @@ then
     if compgen -G "/etc/sdm/xpiboot/*" > /dev/null
     then
 	chmod 755  /etc/sdm/xpiboot/0*-*.sh  #Ensure all executable
-	doscripts "/etc/sdm/xpiboot/0*-*.sh" "Generated FirstBoot"
+	doscripts "/etc/sdm/xpiboot/0*-*.sh" "Generated sdm FirstBoot"
     fi
 fi
 
@@ -178,7 +178,7 @@ timesyncwait
 if compgen -G "/etc/sdm/0piboot/*" > /dev/null
 then
    chmod 755 /etc/sdm/0piboot/0*-*.sh   #Ensure all executable
-   doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated FirstBoot"
+   doscripts "/etc/sdm/0piboot/0*-*.sh" "Generated sdm FirstBoot"
 fi
 
 #
@@ -189,9 +189,9 @@ fi
 #
 # Final FirstBoot time processing: custom scripts and reboot
 #
-[ "$bootscripts" == "1" ] && doscripts "$sdmdir/1piboot/0*-*.sh" "Custom FirstBoot" || bootlog "Skip Custom FirstBoot Scripts"
+[ "$bootscripts" == "1" ] && doscripts "$sdmdir/1piboot/0*-*.sh" "Custom sdm FirstBoot" || bootlog "Skip Custom sdm FirstBoot Scripts"
 
-logit "> FirstBoot: Disable sdm-firstboot service"
+logit "> sdm FirstBoot: Disable sdm-firstboot service"
 systemctl disable sdm-firstboot > /dev/null 2>&1
 
 if [ $regensshkeys -eq 1 ]
