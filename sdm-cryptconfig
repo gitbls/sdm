@@ -312,11 +312,12 @@ EOF
     echo "> Update /etc/initramfs-tools/modules to include crypto modules"
     cat >> /etc/initramfs-tools/modules <<EOF
 algif_skcipher
-xchacha20
-adiantum
-aes_arm
-sha256
-nhpoly1305
+aes_arm64
+aes_ce_blk
+aes_ce_ccm
+aes_ce_cipher
+sha256_arm64
+cbc
 dm-crypt
 EOF
     echo "> Enable KEYMAP=y in /etc/initramfs-tools/initramfs.conf"
