@@ -91,7 +91,7 @@ function cryptpart() {
     pmsg "OK to ignore superblock signature warning"
     while [ 0 ]
     do
-	cryptsetup luksFormat --type luks2 --cipher xchacha20,aes-adiantum-plain64 --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i  $rootfs
+	cryptsetup luksFormat --type luks2 --cipher aes-cbc-essiv:sha256 --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i  $rootfs
 	[ $? -eq 0 ] && break
     done
     return 0
