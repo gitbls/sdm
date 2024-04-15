@@ -202,7 +202,7 @@ function copybypart() {
 	    write_burnmsg "> Create LVM logical volume: lvcreate --name rootfs $vgname"
 	    lvcreate --name rootfs -l 100%FREE $vgname --yes
 	    errifrc $? "? Error creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
-	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null #Redo this b/c lvm on changes p1 type to EFI (?)
+	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null
 	    errifrc $? "? Error modifying partition 1 type on $dstdev"
 	    partprobe
 	    write_burnmsg "> Create 'ext4' rootfs file system on $rootfs"
@@ -533,14 +533,13 @@ EOF
 	if [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
 	    docleanup keep
-	    if [[ "$cvtrootfs" == "lvm" ]] && [[ $fgpt -eq 1 ]]
-	    then
-		write_burnmsg "% Expand root partition does not work (yet) with GPT partition format and LVM"
-	    else
-		expandpartition $burndev 0 echo $cvtrootfs
-	    fi
+	    expandpartition $burndev 0 echo $cvtrootfs
 	fi
 	writediskids
+	if [ "$cvtrootfs" != "" ]
+	then
+	    errexit "? Sorry for the late notice but --convert-root requires an sdm-enhanced IMG"
+	fi
     fi
     #
     # Install required packages for btrfs and lvm and do update-initramfs if needed
