@@ -57,7 +57,7 @@ function getosdistro() {
 #
 myscript="$0 $@"
 #IFS=":" read osdistro osversion <<< $(getosdistro)
-[ "$(which apt)" == "" ] && errexit "? apt not found; cannot install on this system"
+[ "$(type -p apt)" == "" ] && errexit "? apt not found; cannot install on this system"
 #
 # Create directories and download sdm
 #
@@ -183,13 +183,13 @@ src:/usr/local/sdm
 plugindebug:0
 EOF
 
-pkgs="binfmt-support gdisk parted qemu-user-static systemd-container"
+pkgs="binfmt-support gdisk parted qemu-user-static rsync systemd-container"
 echo "* Ensure required packages are installed: $pkgs"
 [[ $EUID -ne 0 ]] && sudo="sudo"
 $sudo apt-get install --yes --no-install-recommends $pkgs
 
 echo ""
-if [ "$dir" == "/usr/local/sdm" -a "$(which sdm)" != "" ]
+if [ "$dir" == "/usr/local/sdm" -a "$(type -p sdm)" != "" ]
 then
     echo "* Invoke sdm with 'sudo sdm'"
 else
