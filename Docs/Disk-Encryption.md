@@ -90,6 +90,7 @@ sdm-cryptconfig has several switches. When using sdm-integrated rootfs encryptio
 Switches to sdm-cryptconfig include:
 
 * `--authorized-keys keyfile` &mdash; Specifies an SSH authorized_keys file to use in the initramfs. Required with `--ssh`
+* `--crypto crypt-type` &mdash; Specifies the encryption to use. `aes` used by default. Use `xchacha` on Pi4 and earlier for best performance. See Encryption/Decryption performance comparison below.
 * `--dns dnsaddr` &mdash; Set IP Address of DNS server
 * `--gateway gatewayaddr` &mdash; Set IP address of gateway
 * `--hostname hostname` &mdash; Set hostname
@@ -216,6 +217,40 @@ Enter the 'exit' command to resume the system boot
 ## Exploring and mounting encrypted disks
 
 Encrypted disks can be explored or mounted with the `--encrypted` switch.
+
+## Encryption performance
+
+As hinted above, it's best to use `aes` encryption on the Pi5, which has built-in crypto instructions. All other Pis lack these instructions, so for them `xchacha` is used/recommended.
+
+### Encryption/Decryption performance comparison
+
+Here's a performance comparison on a Pi5, first showing `xchacha`, then `aes`. As you can see, `aes` encryption is more than twice as fast as `xchacha`, and more than 4 times as fast on decryption.
+```
+pw/ssdy/work$ sudo cryptsetup benchmark -c xchacha20,aes-adiantum-plain64
+# Tests are approximate using memory only (no storage IO).
+#            Algorithm |       Key |      Encryption |      Decryption
+xchacha20,aes-adiantum        256b       394.4 MiB/s       421.6 MiB/s
+
+pw/ssdy/work$ sudo cryptsetup benchmark -c aes
+# Tests are approximate using memory only (no storage IO).
+# Algorithm |       Key |      Encryption |      Decryption
+    aes-cbc        256b       921.8 MiB/s      1885.4 MiB/s
+```
+
+On a Pi4, the results are quite different. Using `xchacha` is more than twice as fast as `aes` on both encryption and decryption.
+```
+p84~$ sudo cryptsetup benchmark -c xchacha20,aes-adiantum-plain64
+# Tests are approximate using memory only (no storage IO).
+#            Algorithm |       Key |      Encryption |      Decryption
+xchacha20,aes-adiantum        256b       170.9 MiB/s       180.0 MiB/s
+
+p84~$ sudo cryptsetup benchmark -c aes
+# Tests are approximate using memory only (no storage IO).
+# Algorithm |       Key |      Encryption |      Decryption
+    aes-cbc        256b        74.8 MiB/s        81.8 MiB/s
+p84~#
+```
+
 
 ## Known issues
 

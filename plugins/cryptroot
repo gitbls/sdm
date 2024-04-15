@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|authkeys|dns|gateway|ihostname|ipaddr|netmask|mapper|ssh|uniquesshkey|noauto|"
+vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|netmask|mapper|ssh|uniquesshkey|noauto|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -42,6 +42,10 @@ then
 	    exit 1
 	fi
     fi
+    if [ "$crypto" != "" ]
+    then
+	[[ "aes|xchacha" =~ "$crypto" ]] || { logtoboth "? Plugin $pfx: Supported cryptos: aes and xchacha" ; exit 1 ; }
+    fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
@@ -51,16 +55,19 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     [ "$mappername" == "" ] && mappername="cryptroot"
+    [ "$crypto" == "" ] && xcrypto="aes" || xcrypto=$crypto
     [ -v ssh ] && ssh="y"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
-    # $assetdir/mappername only for tracking, not used by sdm-cryptconfig
+    # $assetdir/mappername and $assetdir/sdmcrypto only for tracking, not used by sdm-cryptconfig
     echo "cryptdevice=$mappername" > $assetdir/mappername
+    echo "cryptoname=$xcrypto" > $assetdir/sdmcrypto
     logtoboth "> Plugin $pfx: Install cryptsetup cryptsetup-initramfs cryptsetup-bin"
     doaptrpterror "install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin"
-    logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration"
+    logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration with crypto '$xcrypto'"
     osw="--mappername $mappername"
     [ "$authkeys" != "" ] && osw="${osw} --authorized-keys $assetdir/$(basename $authkeys)"
+    [ "$crypto" != "" ] && osw="${osw} --crypto $xcrypto"
     [ "$dns" != "" ] && osw="${osw} --dns $dns"
     [ "$gateway" != "" ] && osw="${osw} --gateway $gateway"
     [ "$ihostname" != "" ] && osw="${osw} --hostname $ihostname"
@@ -145,7 +152,7 @@ then
 	plugin_addnote "    * When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt"
 	plugin_addnote "    * Type 'exit' to continue the boot sequence"
 	plugin_addnote ""
-	plugin_addnote "    * Once the system boots the sdm-crypto-cleanup service will run which:"
+	plugin_addnote "    * Once the system boots the sdm-cryptfs-cleanup service will run which:"
 	plugin_addnote "      * Removes some one-time content and rebuilds initramfs"
 	plugin_addnote "      * Reboots the system one last time"
 	plugin_addnote ""
@@ -170,9 +177,10 @@ then
 	plugin_addnote "       Examples:"
 	plugin_addnote "           sdmcryptfs /dev/mmcblk0 /dev/sda"
 	plugin_addnote "           sdmcryptfs /dev/sda /dev/sdb"
+	plugin_addnote ""
 	plugin_addnote "   * You will be prompted for the partition passphrase; ** Remember what you enter here **"
 	plugin_addnote "   * Type 'exit' to exit initramfs and continue the system boot"
-	plugin_addnote "   * After the system finishes booting the sdm-crypto-cleanup script will run"
+	plugin_addnote "   * After the system finishes booting the sdm-cryptfs-cleanup script will run"
 	plugin_addnote "     This script removes some one-time content, rebuilds initramfs, and reboots one final time"
 	plugin_addnote "   * Every time the system starts you'll be prompted for the rootfs partition passphrase"
 	plugin_addnote ""

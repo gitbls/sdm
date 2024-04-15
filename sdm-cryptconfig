@@ -69,6 +69,7 @@ function printhelp() {
 sdm-cryptconfig has several command line switches, all of which are optional
 
 * --authorized-keys keyfile -- Provides SSH authorized_keys file for the initramfs. Required with --ssh
+* --crypto cryptalgo -- Specify crypto algorithm (aes [D]) or xchacha (use on Pi4 and earlier)
 * --dns dnsaddr -- Set IP Address of DNS server
 * --gateway gatewayaddr -- Set IP address of gateway
 * --hostname hostname -- Set hostname
@@ -193,7 +194,7 @@ source /etc/sdm/sdm-readparams
 echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
 logger "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
-grep -v -E "bash|sdmcryptfs|mappername" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
+grep -v -E "bash|sdmcryptfs|mappername|sdmcrypto" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
 [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
 logger "sdm-cryptfs-cleanup: Rebuild initramfs"
@@ -220,39 +221,40 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,dns:,gateway:,help,hostname:,ipaddr:,mapper:,mappername:,mask:,netmask:,ssh,reboot,sdm,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,mapper:,mappername:,mask:,netmask:,ssh,reboot,sdm,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
     eval set -- "$OARGS"
-while true
-do
-    case "${1,,}" in
-	# 'shift 2' if switch has argument, else just 'shift'
-	--authorized-keys) xauthkeys=$2 ; shift 2 ;;
-	--dns)             xdns=$2      ; shift 2 ;;
-	--gateway)         xgateway=$2  ; shift 2 ;;
-	--hostname)        xhostname=$2 ; shift 2 ;;
-	--ipaddr)          xipaddr=$2   ; shift 2 ;;
-	--mapper|--mappername) xmapper=$2   ; shift 2 ;;
-	--mask|--netmask)  xnetmask=$2  ; shift 2 ;;
-	--quiet)           xquiet=1     ; shift 1 ;;
-	--reboot)          xreboot=1    ; shift 1 ;;
-	--ssh)             xssh=1       ; shift 1 ;;
-	--sdm)             xsdm=1       ; shift 1 ;;
-	--unique-ssh)      xunique=1    ; shift 1 ;;
-	--)                shift ; break ;;
-	-h|--help)         printhelp ; shift ; exit ;;
-	*) errexit "? $0: Internal error" ;;
-    esac
-done
+    while true
+    do
+	case "${1,,}" in
+	    # 'shift 2' if switch has argument, else just 'shift'
+	    --authorized-keys) xauthkeys=$2 ; shift 2 ;;
+	    --crypto)          xcrypto=$2   ; shift 2 ;;
+	    --dns)             xdns=$2      ; shift 2 ;;
+	    --gateway)         xgateway=$2  ; shift 2 ;;
+	    --hostname)        xhostname=$2 ; shift 2 ;;
+	    --ipaddr)          xipaddr=$2   ; shift 2 ;;
+	    --mapper|--mappername) xmapper=$2   ; shift 2 ;;
+	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	    --quiet)           xquiet=1     ; shift 1 ;;
+	    --reboot)          xreboot=1    ; shift 1 ;;
+	    --ssh)             xssh=1       ; shift 1 ;;
+	    --sdm)             xsdm=1       ; shift 1 ;;
+	    --unique-ssh)      xunique=1    ; shift 1 ;;
+	    --)                shift ; break ;;
+	    -h|--help)         printhelp ; shift ; exit ;;
+	    *) errexit "? $0: Internal error" ;;
+	esac
+    done
 
-if [ "$xauthkeys" != "" ]
-then
-    ! [ -f $xauthkeys ] && errexit "? --authorized-keys file '$xauthkeys' not found"
-else
-    [ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
-fi
+    if [ "$xauthkeys" != "" ]
+    then
+	! [ -f $xauthkeys ] && errexit "? --authorized-keys file '$xauthkeys' not found"
+    else
+	[ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
+    fi
 }
 
 function doconfiginitramfs() {
@@ -305,12 +307,15 @@ copy_exec /sbin/cryptsetup /sbin
 copy_exec /usr/bin/bash /usr/bin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
 copy_file text /etc/mappername
+copy_file text /etc/sdmcrypto
 exit 0
 EOF
     chmod 755 /etc/initramfs-tools/hooks/luks_hooks
 
-    echo "> Update /etc/initramfs-tools/modules to include crypto modules"
-    cat >> /etc/initramfs-tools/modules <<EOF
+    echo "> Update /etc/initramfs-tools/modules to include crypto '$xcrypto' modules"
+    case "$xcrypto" in
+	xchacha)
+	    cat >> /etc/initramfs-tools/modules <<EOF
 algif_skcipher
 xchacha20
 adiantum
@@ -319,6 +324,21 @@ sha256
 nhpoly1305
 dm-crypt
 EOF
+	    ;;
+	aes)
+	    cat >> /etc/initramfs-tools/modules <<EOF
+algif_skcipher
+aes_arm64
+aes_ce_blk
+aes_ce_ccm
+aes_ce_cipher
+sha256_arm64
+cbc
+dm-crypt
+EOF
+	    ;;
+    esac
+
     echo "> Enable KEYMAP=y in /etc/initramfs-tools/initramfs.conf"
     sed -i "s/KEYMAP=n/KEYMAP=y/" /etc/initramfs-tools/initramfs.conf
     #
@@ -392,6 +412,7 @@ function doupdateconfig() {
 # Main code
 #
 xauthkeys=""
+xcrypto=""
 xdns=""
 xgateway=""
 xhostname=""
@@ -407,7 +428,11 @@ src=$(dirname "$(realpath "$0")")
 parsecmd $0 "$*"
 
 [ "$xmapper" == "" ] && xmapper="cryptroot"
+[ "$xcrypto" == "" ] && xcrypto="aes"
+[[ "aes|xchacha" =~ "$xcrypto" ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
+
 echo "cryptdevice=$xmapper" > /etc/mappername
+echo "$xcrypto" > /etc/sdmcrypto
 
 if [ $xsdm -eq 0 ]
 then

@@ -12,6 +12,11 @@ scratchdev Name of scratch device (must be larger than rootfs on rootdev)
 exit 0
 }
 
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
 function thisdate() {
     echo  "$(date +"$datefmt")"
 }
@@ -86,12 +91,19 @@ function save_rootfs() {
 function cryptpart() {
     local dev=$1
     local rootfs=$(getpartname $dev)
-    pmsg "Enable luks2 encryption on '$rootfs'"
+    local cipher="aes-cbc-essiv:sha256"
+    pmsg "Enable luks2 '$xcrypto' encryption on '$rootfs'"
     pmsg "Enabling encryption could take up to a minute or two"
     pmsg "OK to ignore superblock signature warning"
+    case "$xcrypto" in
+	xchacha)
+	    cipher="xchacha20,aes-adiantum-plain64"
+	;;
+    esac
+
     while [ 0 ]
     do
-	cryptsetup luksFormat --type luks2 --cipher xchacha20,aes-adiantum-plain64 --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i  $rootfs
+	cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $rootfs
 	[ $? -eq 0 ] && break
     done
     return 0
@@ -130,6 +142,8 @@ function restore_rootfs() {
         fi
     done < <(parted -ms /dev/mapper/$cryptdevice unit B print)
     pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
+    pmsg "cryuptsetup status for /dev/mapper/$cryptdevice:"
+    cryptsetup status /dev/mapper/$cryptdevice
     return 0
 }
 
@@ -151,6 +165,10 @@ function runall() {
 dev="$1"
 sdisk="$2"
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
+xcrypto=""
+[ -f /etc/sdmcrypto ] && read xcrypto < /etc/sdmcrypto
+[ "$xcrypto" == "" ] && xcrypto="aes"
+[[ "aes|xchacha" =~ "$xcrypto" ]] || errexit "? Supported cryptos: aes and xchacha"
 cryptdevice="nomappername"
 datefmt="%Y-%m-%d %H:%M:%S"
 [ -f /etc/mappername ] && . /etc/mappername || echo "% Where is /etc/mappername?"
