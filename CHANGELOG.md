@@ -1,5 +1,20 @@
 # Changelog
 
+## V11.7
+
+* New Features
+  * rootfs encryption now supports `aes` encryption (default), for best performance on the Pi5
+    * For Pi4 and earlier use `crypto=xchacha` encryption for best performance on those devices. See <a href="Docs/Disk-Encryption.md">Disk Encryption</a>
+    * Thanks @jollycar for the suggestion and sussing out the initramfs changes
+* Improvements
+  * Add `stdout` and `stderr` arguments to `copydir` plugin and remove `tee` argument
+  * Ensure rsync is installed on sdm host in EZsdmInstaller. Some distros don't include it by default
+* Bug Fixes
+  * Don't try to `--convert-root` from a non-sdm-enhanced IMG
+  * Several corrections to `copyfile` plugin
+    * Copying two different files with the same filename but in different source directories now works
+    * Don't check for non-existent directory until it's time to actually copy the file (phase1 or postinstall)
+
 ## V11.6
 
 * New Features
