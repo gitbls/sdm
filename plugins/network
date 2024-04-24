@@ -164,7 +164,7 @@ then
 	    if [ -d $assetdir/nmconn ]
 	    then
 		# Did any of the nm connection definitions define a wifi connection?
-		grep -qs type=wifi $assetdir/nmconn/* > /dev/null && nmwifi=1
+		grep -qs type=wifi $assetdir/nmconn/* >/dev/null && nmwifi=1
 	    fi
 	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
 	    if [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ]
@@ -235,7 +235,7 @@ then
 		logtoboth "> Plugin $pfx: Install $pkg"
 		doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
 	    fi
-	    systemctl disable NetworkManager > /dev/null 2>&1
+	    systemctl disable NetworkManager >/dev/null 2>&1
 	    if [ -f $assetdir/dhcpcd-append.conf ]
 	    then
 		logtoboth "> Plugin $pfx: Append $assetdir/dhcpcd-append.conf to /etc/dhcpcd.conf"
@@ -280,11 +280,11 @@ EOF
 		logtoboth "> Plugin $pfx: Install Network Manager"
 		doaptrpterror "install --no-install-recommends --yes network-manager" $showapt
 	    fi
-	    systemctl -q enable NetworkManager > /dev/null 2>&1
-	    systemctl -q disable dhcpcd > /dev/null 2>&1
+	    systemctl -q enable NetworkManager >/dev/null 2>&1
+	    systemctl -q disable dhcpcd >/dev/null 2>&1
 	    for conf in nmconf nmconn
 	    do
-		if compgen -G "$assetdir/$conf/*" > /dev/null
+		if compgen -G "$assetdir/$conf/*" >/dev/null
 		then
 		    [ "$conf" == "nmconf" ] && tgt="conf.d" || tgt="system-connections"
 		    for c in $assetdir/$conf/*
@@ -296,7 +296,7 @@ EOF
 		fi
 	    done
 	    # If no .nmconnections provided via nmconn fabricate something if possible
-	    if ! compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null
+	    if ! compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null
 	    then
 		if [ "$wpa" != "" ]
 		then
@@ -305,31 +305,67 @@ EOF
 		    logtoboth "  only the first one will be defined in Network Manager"
 		fi
 		[ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
+		# Defer configuration to FirstBoot if running old NetworkManager (version older than bookworm)
+		nmver=$(nmcli --version 2>/dev/null)
+		nmver=${nmver##*version}
+		[[ "$nmver" =~ ([[:digit:]]{,2}).([[:digit:]]{,2}).([[:digit:]]{,2}) ]]
+		nmvermaj="${BASH_REMATCH[2]}"
+		nmvermin="${BASH_REMATCH[3]}"
+		[ "$nmvermaj" == "" ] && nmvermaj="1"
+		[ "$nmvermin" == "" ] && nmvermin="41"
+		[[ $nmvermaj -gt 1 ]] || [[ $nmvermin -ge 42 ]] && newnm=1 || newnm=0
+		nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot if newnm=0
 		if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
 		then
 		    logtoboth "> Plugin $pfx: Create NetworkManager WiFi configuration"
 		    logtoboth "  with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
 		    wificname=${wifissid,,}
-		    # Defer to FirstBoot since nmcli --offline not supported in Bullseye
-		    nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot
-		    cat >> $nmdcfg <<EOF
-#!/bin/bash
-logger "sdm FirstBoot: Configure Network Manager WiFi connection '$wificname' with SSID $wifissid"
-nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
-nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk $wifipassword
-EOF
-		    if [ -v noipv6 ]
+		    if [ $newnm -eq 1 ]
 		    then
-			echo "nmcli c modify $wificname ipv6.method disabled" >> $nmdcfg
+			# --offline should work
+			logtoboth "> Plugin $pfx: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
+			nmcli --offline c add type wifi con-name $wificname \
+			      ifname wlan0 ssid $wifissid wifi-sec.key-mgmt \
+			      wpa-psk wifi-sec.psk "$wifipassword" | tee /tmp/$wificname.nmconnection >/dev/null
+			rm -f /etc/NetworkManager/system-connections/$wificname.nmconnection
+			mv /tmp/$wificname.nmconnection /etc/NetworkManager/system-connections/$wificname.nmconnection
+		    else
+			cat >> $nmdcfg <<EOF
+#!/bin/bash
+logger "sdm FirstBoot: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
+nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
+nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$wifipassword"
+EOF
 		    fi
 		fi
 		if [ -v noipv6 ]
 		then
-		    echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> $nmdcfg
+		    if [ $wificname != "" ]
+		    then
+			if [ $newnm -eq 1 ]
+			then
+			    logtoboth "> Plugin $pfx: Disable ipv6 on Wifi '$wificname'"
+			    nmcli --offline c modify ipv6.method disabled < /etc/NetworkManager/system-connections/$wificname.nmconnection | tee /tmp/$wificname.nmconnection >/dev/null
+			    rm -f /etc/NetworkManager/system-connections/$wificname.nmconnection
+			    mv /tmp/$wificname.nmconnection /etc/NetworkManager/system-connections/$wificname.nmconnection
+			else
+			    logtoboth "> Plugin $pfx: Defer disable ipv6 on Wifi '$wificname'"
+			    echo "nmcli c modify $wificname ipv6.method disabled" >> $nmdcfg
+			fi
+		    fi
+		    if [ $newnm -eq 1 ]
+		    then
+			logtoboth "> Plugin $pfx: Disable ipv6 on Ethernet connection"
+			nmcli --offline c add con-name Wired\ connection\ 1 type ethernet ifname eth0 ipv6.method disabled | tee /etc/NetworkManager/system-connections/Wired\ connection\ 1.nmconnection >/dev/null
+		    else
+			logtoboth "> Plugin $pfx: Defer disable ipv6 on Ethernet connection"
+			echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> $nmdcfg
+		    fi
 		fi
+	    compgen -G "/etc/NetworkManager/conf.d/*" >/dev/null && setfileownmode "/etc/NetworkManager/conf.d/*" 644
+	    compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null && setfileownmode "/etc/NetworkManager/system-connections/*" 600
+	    writeconfig        # rewrite config in case we set wificountry
 	    fi
-	    compgen -G "/etc/NetworkManager/conf.d/*" > /dev/null && setfileownmode "/etc/NetworkManager/conf.d/*" 644
-	    compgen -G "/etc/NetworkManager/system-connections/*" > /dev/null && setfileownmode "/etc/NetworkManager/system-connections/*" 600
 	    ;;
     esac
     # Don't think this is needed, but keeping jic
