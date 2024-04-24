@@ -41,13 +41,31 @@ mv "$3.bak" "$3"
 }
 
 function do_serial_cons() {
-    logtoboth "> Plugin $pfx: Enable shell on console serial port"
-    if grep -q "console=ttyAMA0" $cmdline
+    # $1: y:enable serial console <anything else>:disable
+    local efl=$1
+
+    if [ "$efl" == "y" ]
     then
-        sed -i $cmdline -e "s/console=ttyAMA0/console=serial0/"
-    elif ! grep -q "console=ttyAMA0" $cmdline && ! grep -q "console=serial0" $cmdline
-    then
-        sed -i $cmdline -e "s/root=/console=serial0,115200 root=/"
+	logtoboth "> Plugin $pfx: Enable shell on console serial port"
+	if grep -q "console=ttyAMA0" $cmdline
+	then
+	    if [ -e /proc/device-tree/aliases/serial0 ]
+	    then
+		sed -i $cmdline -e "s/console=ttyAMA0/console=serial0/"
+	    fi
+	elif ! grep -q "console=ttyAMA0" $cmdline && ! grep -q "console=serial0" $cmdline
+	then
+	    if [ -e /proc/device-tree/aliases/serial0 ]
+	    then
+		sed -i $cmdline -e "s/root=/console=serial0,115200 root=/"
+	    else
+		sed -i $cmdline -e "s/root=/console=ttyAMA0,115200 root=/"
+	    fi
+	fi
+    else
+	logtoboth "> Plugin $pfx: Disable shell on console serial port"
+	sed -i $cmdline -e "s/console=ttyAMA0,[0-9]\+ //"
+	sed -i $cmdline -e "s/console=serial0,[0-9]\+ //"
     fi
 }
 
@@ -71,6 +89,8 @@ function do_serial_hw() {
 function converty() {
     [ -v pi5 ]   && pi5=y
     [ -v enableshell ] && enableshell=y
+    [ -v disableshell ] && disableshell=y
+    [ "$disableshell" == "y" ] && enableshell=""
     [ -v pi5debug ] && { pi5=y ; pi5debug=y ; }
 }
 
@@ -83,7 +103,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|pi5|enableshell|pi5debug|"     #"|list|of|valid|args|"
+vldargs="|pi5|disableshell|enableshell|pi5debug|"     #"|list|of|valid|args|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 cmdline="/boot/firmware/cmdline.txt"
@@ -112,7 +132,7 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
     do_serial_hw
-    [ "$enableshell" == "y" ] && do_serial_cons
+    do_serial_cons $enableshell
     logtoboth "* Plugin $pfx: Complete Phase 1"
 elif [ "$phase" == "post-install" ]
 then
