@@ -362,10 +362,10 @@ EOF
 			echo "nmcli c modify Wired\ connection\ 1 ipv6.method disabled" >> $nmdcfg
 		    fi
 		fi
+	    fi
 	    compgen -G "/etc/NetworkManager/conf.d/*" >/dev/null && setfileownmode "/etc/NetworkManager/conf.d/*" 644
 	    compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null && setfileownmode "/etc/NetworkManager/system-connections/*" 600
 	    writeconfig        # rewrite config in case we set wificountry
-	    fi
 	    ;;
     esac
     # Don't think this is needed, but keeping jic
