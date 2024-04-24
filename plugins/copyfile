@@ -37,7 +37,7 @@ function p0copyfile() {
 	touch $assetdir/$dirflag
     fi
     runfile="$assetdir/run-$phase-$(geninstance $src $dest)"
-    [ -f $runfile ] && { logtoboth "? Plugin $pfx: Copy $src to $dest already specified" ; exit 1 ; }
+    [ -f $runfile ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'"
     logtoboth "> Plugin $pfx: Add '$src' to files to copy"
     logtoboth "> Plugin $pfx: Copy '$src' to '$assetdir/$spath'"
     mkdir -p $assetdir/$spath
