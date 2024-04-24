@@ -629,7 +629,8 @@ function plugin_getargs() {
 	else
 	    # Turn word-word into word__word. User of the value must handle other end for display
 	    [ "$key" != "${key/-/_}" ] && key="${key//-/__}"
-	    [[ "$value" =~ "$" ]] && value=${value//$/\\$}    # Replace $ with \$
+	    # Don't slash-quote dollar signs. Breaks $ in passwords. What breaks if this is disabled?
+	    # [[ "$value" =~ "$" ]] && value=${value//$/\\$}    # Replace $ with \$
 	    [ "$key" != "" ] && printf -v "${key}" "%s" "$value" #eval "${key}=\"$value\""
 	    keysfound="${keysfound}|$key"
 	fi
@@ -1194,6 +1195,7 @@ function do_delayed_boot_behavior {
     fi
     # Perform cleanup steps done by /usr/bin/cancel_rename
     bootlog "Re-enable getty@tty1"
+    write_console "Re-enable getty@tty1"
     systemctl enable $now $nowb getty@tty1 > /dev/null 2>&1
     rm -f /etc/ssh/sshd_config.d/rename_user.conf
 }
