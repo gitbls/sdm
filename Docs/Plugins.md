@@ -343,7 +343,7 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 ### hotspot
 
-The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and earlier the hotspot is implemented with hostapd/dnsmasq. On Bookworm it's implemented using Network Manager (nm).
+The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and earlier the hotspot is implemented with hostapd/dnsmasq. On Bookworm it's implemented using NetworkManager (nm).
 
 #### Arguments
 
@@ -362,7 +362,7 @@ The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and e
 * **type** &mdash; Type of hotspot (*routed* or *bridged*) [D:routed]
 
 **Notes:**
-* The Network Manager support is complete enough to be functional, but not all the `hotspot` plugin arguments are supported yet.
+* The Network Manager support is complete except not all the `hotspot` plugin arguments are supported yet.
 * The best way to use nm in my opinion is to have pre-created .nmconf and .nmconn files, and then simply dump them into the appropriate nm directories by providing them as `nmconf` and `nmconn` arguments to the `network` plugin.
 * FWIW `type=local` hotspot is supported with hostapd/dnsmasq, but not for nm
 
@@ -476,22 +476,22 @@ Use the network plugin to configure various network settings
 
 #### Arguments
 
-* **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). dhcpcd is the default on Bullseye (Debian 11) and earlier, while Network Manager is the default on Bookworm (Debian 12).
+* **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). If `netman` is not specified, by default sdm will use dhcpcd on Bullseye (Debian 11) and earlier, while on Bookworm (Debian 12) sdm will use NetworkManager.
 * **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
 * **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
 * **ssh** &mdash; Accepts one of the values `service`, `socket`, or `none`. The default if `ssh` is not specified is to enable the SSH service
 * **wifissid** &mdash; Specifies the WiFi SSID to enable. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`), or will use nmcli during First Boot to establish the specified WiFi connection.
 * **wifipassword** &mdash; Password for the `wifissid` network. See `wifissid`
 * **wificountry** &mdash; WiFi country for the `wifissid` network. See `wifissid`
-* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. Network Manager does not use wpa_supplicant.conf
+* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. NetworkManager does not use wpa_supplicant.conf
 * **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
-* **nmconf** &mdash; Specifies a comma-separated list of Network Manager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
-* **nmconn** &mdash; Specifies a comma-separated list of Network Manager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+* **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
+* **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
 
 #### Examples
 
-* `--plugin network:"netman=dhcpcd|noipv6"` &mdash; On Bookworm, set the network manager to dhcpcd (and disable Network Manager), and direct dhcpcd to not request an IPv6 address.
-* `--plugin network:"netman=nm|wifissid=myssid|wifipassword=myssidpassword|wificountry=US|noipv6"` &mdash; Use Network Manager to configure the network and also configure the specified WiFi network.
+* `--plugin network:"netman=dhcpcd|noipv6"` &mdash; On Bookworm, set the network manager to dhcpcd (and disable NetworkManager), and direct dhcpcd to not request an IPv6 address.
+* `--plugin network:"netman=nm|wifissid=myssid|wifipassword=myssidpassword|wificountry=US|noipv6"` &mdash; Use NetworkManager to configure the network and also configure the specified WiFi network.
 
 ### parted
 
@@ -683,6 +683,9 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 
 #### Examples
 
+* `--plugin serial` &mdash; Configure the serial port for a Pi other than a Pi5 and disable the login shell on it
+* `--plugin serial:pi5` &mdash; Configure the serial port for a Pi5 and disable the login shell on it
+* `--plugin serial:disableshell` &mdash; Another way to disable the login shell on the console serial port
 * `--plugin serial:enableshell` &mdash; Configure the serial port for a Pi other than a Pi5 and enable a login shell on it
 * `--plugin serial:pi5|enableshell` &mdash; Configure the serial port for a Pi5 and enable a login shell on it
 * `--plugin serial:pi5debug` &mdash; Configure the debug serial port for a Pi5
