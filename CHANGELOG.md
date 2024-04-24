@@ -1,5 +1,14 @@
 # Changelog
 
+## V11.8
+
+* New Features
+* Improvements
+  * Warn instead of abort if `copyfile` plugin rerun with same source/dest
+  * Improve NetworkManager default connection management and only defer actual configuration to sdm First Boot if pre-Bookworm NetworkManager
+* Bug Fixes
+  * `serial plugin: If `enableshell` is NOT specified or `disableshell` IS specified, disable the shell on the serial console
+
 ## V11.7
 
 * New Features
