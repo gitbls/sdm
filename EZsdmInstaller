@@ -104,6 +104,8 @@ for f in sdm sdm-phase0 \
 	     sdm-cportal \
 	     sdm-logmsg \
 	     sdm-gburn \
+	     sdm-make-luks-usb-key \
+	     sdm-add-luks-key \
 	     plugins/apps \
 	     plugins/apt-addrepo \
 	     plugins/apt-cacher-ng \
@@ -134,6 +136,7 @@ for f in sdm sdm-phase0 \
 	     plugins/quietness \
 	     plugins/raspiconfig \
 	     plugins/runatboot \
+	     plugins/runscript \
 	     plugins/rxapp \
 	     plugins/samba \
 	     plugins/serial \
