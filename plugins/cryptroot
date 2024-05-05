@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|netmask|mapper|ssh|uniquesshkey|noauto|"
+vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|uniquesshkey|noauto|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -41,10 +41,18 @@ then
 	    logtoboth "? Plugin $pfx: authkeys file '$authkeys' not found"
 	    exit 1
 	fi
+    else
+	[ "$ssh" != "" ] && { logtoboth "? Plugin $pfx: 'ssh' requires 'authkeys'" ; exit 1 ; }
+    fi
+    if [ "$keyfile" != "" ]
+    then
+	[ -f $keyfile ] || { logtoboth "? Plugin $pfx: keyfile '$keyfile' not found" ; exit 1 ; }
+	logtoboth "> Plugin $pfx: Save keyfile to /etc/sdm/assets/cryptroot (deleted later)"
+	cp $keyfile $assetdir
     fi
     if [ "$crypto" != "" ]
     then
-	[[ "aes|xchacha" =~ "$crypto" ]] || { logtoboth "? Plugin $pfx: Supported cryptos: aes and xchacha" ; exit 1 ; }
+	[[ "aes|xchacha" =~ "$crypto" ]] || [[ "$crypto" =~ "aes-" ]] || { logtoboth "? Plugin $pfx: Supported cryptos: aes and xchacha" ; exit 1 ; }
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
@@ -59,9 +67,12 @@ then
     [ -v ssh ] && ssh="y"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
-    # $assetdir/mappername and $assetdir/sdmcrypto only for tracking, not used by sdm-cryptconfig
-    echo "cryptdevice=$mappername" > $assetdir/mappername
-    echo "cryptoname=$xcrypto" > $assetdir/sdmcrypto
+    # These are only for tracking, not used by sdm-cryptconfig
+    [ "$keyfile" != "" ] && keyfile="$(basename $keyfile)"
+    echo "$mappername" > $assetdir/mappername
+    echo "$xcrypto" > $assetdir/sdmcrypto
+    echo "$keyfile" > $assetdir/keyfile
+
     logtoboth "> Plugin $pfx: Install cryptsetup cryptsetup-initramfs cryptsetup-bin"
     doaptrpterror "install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin"
     logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration with crypto '$xcrypto'"
@@ -72,6 +83,7 @@ then
     [ "$gateway" != "" ] && osw="${osw} --gateway $gateway"
     [ "$ihostname" != "" ] && osw="${osw} --hostname $ihostname"
     [ "$ipaddr" != "" ] && osw="${osw} --ipaddr $ipaddr"
+    [ "$keyfile" != "" ] && osw="${osw} --keyfile $keyfile"
     [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
     [ "$ssh" != "" ] && osw="${osw} --ssh"
     [ -v uniquesshkey ] && osw="${osw} --unique-ssh"
@@ -87,6 +99,7 @@ After=multi-user.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/sdm-cryptconfig --sdm --reboot $osw
+#ExecStart=/usr/local/bin/sdm-cryptconfig --sdm $osw
 
 [Install]
 WantedBy=multi-user.target
@@ -158,10 +171,10 @@ then
 	plugin_addnote ""
 	plugin_addnote "    * On the way back up you'll once again be prompted for the rootfs passphrase (Without the 30 tries)"
 	plugin_addnote "    * The system will ask for the rootfs passphrase in this manner every time the system boots"
-	if [ -v ssh ]
+	if [[ -v ssh ]] || [[ -v keyfile ]]
 	then
 	    plugin_addnote ""
-	    plugin_addnote "    NOTE: You have configured SSH"
+	    plugin_addnote "    NOTE: You have configured SSH or a LUKS encryption keyfile"
 	    plugin_addnote "          Please review https://github.com/gitbls/sdm/blob/master/Docs/Disk-Encryption.md for important information"
 	fi
 	plugin_addnote ""

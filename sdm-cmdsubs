@@ -67,8 +67,8 @@ function writediskids() {
 	    write_burnmsg "> Set MBR rootfs partition ID '$newdiskid' in cmdline.txt (was $olddiskid)"
 	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
 	else
-	    gptuuid1=$(blkid ${burndev}$(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
-	    gptuuid2=$(blkid ${burndev}$(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	    gptuuid1=$(blkid $(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	    gptuuid2=$(blkid $(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
 	    if [ "$cvtrootfs" == "lvm" ]
 	    then
 		write_burnmsg "> Set GPT rootfs '$mapper' in cmdline.txt"
@@ -110,8 +110,8 @@ function copybypart() {
     local extnum extstart extend extsize
     local misc p1 p2 rootfs
 
-    p1=$(getspname $dstdev 1)
-    p2=$(getspname $dstdev 2)
+    p1=$(getpartname $dstdev 1)
+    p2=$(getpartname $dstdev 2)
     while read line
     do
 	if [[ "$line" =~ "msdos" ]] || [[ "$line" =~ "fat32" ]]
@@ -164,9 +164,8 @@ function copybypart() {
     fi
     partprobe
 
-    #dbgshell "Point 0"
     write_burnmsg "> Create bootfs file system on $dstdev"
-    mkfs.vfat ${dstdev}$p1 #>/dev/null 2>&1
+    mkfs.vfat -F 32 ${dstdev}$p1 #>/dev/null 2>&1
     errifrc $? "? Error creating bootfs file system on $dstdev"
     rootdev=${dstdev}$p2
     rootfs=$rootdev
@@ -253,12 +252,13 @@ function sdm_burndevfile() {
 	perr=0
 	for p in 1 2 3 4
 	do
-	    pdev="${burndev}$(getspname $burndev $p)"
+	    pdev="$(getpartname $burndev $p)"
 	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
 	done
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
+	! sfdisk -l $burndev >/dev/null 2>&1 && errexit "? Cannot access '$burndev'; is there a disk in the drive?"
 	bsize=$(stat --printf %s $dimg)
 	write_burnmsg "> Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
 	olddiskid="$((blkid -o value $dimg) | (read id ; echo $id))"

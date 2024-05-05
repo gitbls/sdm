@@ -406,7 +406,12 @@ function ispdevp() {
 
 function getspname() {
     local dev="$1" pn="$2"
-    ispdevp $dev && echo "p${pn}" || echo "$pn"
+    ispdevp $dev && echo "${dev}p${pn}" || echo "${dev}${pn}"
+}
+
+function getpartname() {
+    local dev="$1" pn="$2"
+    ispdevp $dev && echo "p${pn}" || echo "${pn}"
 }
 
 function writeconfig() {
@@ -1020,7 +1025,7 @@ function sdm_spawn() {
     #    [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
     local nspawnsw="$1" nsp="$2" cmd="$3" spcmd="$4" args="" ta
-    local wtf wtfelf wtfarch rest sts hostarch hostpagesz
+    local wtf wtfelf wtfarch rest sts hostarch hostpagesz pcor
     if [[ "$virtmode" =~ "nspawn" ]]
     then
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
@@ -1052,12 +1057,23 @@ function sdm_spawn() {
 		logtoboth "?! systemd-nspawn failed on this IMG"
 		logtoboth "   Host system architecture: $hostarch with $hostpagesz byte pages"
 		logtoboth "   IMG binaries: $rest"
-		logtoboth "   Correct this error on this host by:"
-		logtoboth "    * sudoedit /boot/firmware/config.txt"
-		logtoboth "    * Add the following line:"
-		logtoboth "    * kernel=kernel8.img"
-		logtoboth "    * Reboot and rerun the sdm command"
-		logtoboth "   Details: https://github.com/raspberrypi/bookworm-feedback/issues/120"
+		pcor=1
+		if [ "$(type -p cryptsetup)" != "" ]
+		then
+		    rest="$(df /)"
+		    [[ "$rest" =~ "/dev/mapper" ]] && pcor=0
+		fi
+		if [ $pcor -eq 1 ]
+		then
+		    logtoboth "   Correct this error on this host by:"
+		    logtoboth "    * sudoedit /boot/firmware/config.txt"
+		    logtoboth "    * Add the following line:"
+		    logtoboth "    * kernel=kernel8.img"
+		    logtoboth "    * Reboot and rerun the sdm command"
+		    logtoboth "   Details: https://github.com/raspberrypi/bookworm-feedback/issues/120"
+		else
+		    logtoboth "?! The rootfs on this host is encrypted; this IMG cannot be processed on this host"
+		fi
 	    else
 		logtoboth "?! Unrecognized error from systemd-nspawn"
 		logtoboth "   Please open an issue at https://github.com/gitbls/sdm"
@@ -1313,8 +1329,8 @@ function updategptrootfs() {
     then
         declare -x SDMPT=$(makemtpt)
 	domount $dev "Device"
-        #gptuuid1=$(blkid ${burndev}$(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
-	gptuuid2=$(blkid ${burndev}$(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+        #gptuuid1=$(blkid $(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+	gptuuid2=$(blkid $(getspname $burndev 2) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
 	logtoboth "> Set GPT rootfs partition GUID in cmdline.txt"
 	sed -i "/^[[:space:]]*#/!s|^\(.*root=\)\S\+\(\s\+.*\)$|\1PARTUUID=${gptuuid2}\2|" $SDMPT/boot/firmware/cmdline.txt
 	logtoboth "> Set GPT partition GUIDs in fstab"
@@ -1365,7 +1381,7 @@ function expandpartition() {
     local dev=${fulldevname##/dev/}
     local part pname fsize partstart partend devsize partsize newend pbytes nbytes pend
 
-    pname=$(getspname $fulldevname 2)
+    pname=$(getpartname $fulldevname 2)
     part="${dev}${pname}"
     while read line
     do
@@ -1570,7 +1586,7 @@ function domount() {
     # Tree will be mounted on the mountpoint, which must be set with makemtpt or makemtptX
     #
     local dmimg=$1 imgtype=$2 mpoint=${3}
-    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0
+    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0 kf=""
 
     [ "$mpoint" == "" ] && mpoint=$SDMPT
     [ ! -d $mpoint ] && mkdir $mpoint
@@ -1623,8 +1639,8 @@ function domount() {
 	fi
 	notmounted $mdir && errexit "? Error mounting IMG '$dmimg'"
     else # imgtype=Device
-	p1=$(getspname $dmimg 1)
-	p2=$(getspname $dmimg 2)
+	p1=$(getpartname $dmimg 1)
+	p2=$(getpartname $dmimg 2)
 	[ "$(lvmfind $dmimg pv)" == "" ] && rootfsd=$dmimg || { rootfsd=$(lvmgetmapper $dmimg) ; lv=1 ; }
 	ismounted ${dmimg}${p1} && errexit "? Device $dmimg is already mounted"
 	if [ $lv -eq 1 ]
@@ -1640,7 +1656,8 @@ function domount() {
 	else
 	    if [ $fencrypted -eq 1 ]
 	    then
-		cryptsetup luksOpen ${dmimg}${p2} sdmcrypt
+		[ "$keyfile" != "" ] && kf="--key-file $keyfile"
+		cryptsetup luksOpen ${dmimg}${p2} sdmcrypt $kf
 		errifrc $? "? Cryptsetup failed to open ${dmimg}${p2}"
 		mount -v /dev/mapper/sdmcrypt $mpoint
 	    else

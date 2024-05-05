@@ -67,20 +67,16 @@ function getpartsize() {
 
 function checkdev() {
     local dev=$1
-    if [ -b $dev ]
-    then
-	return 0
-    else
-	echo "? Unrecognized device '$dev'"
-	return 1
-    fi
+    [[ -b $dev ]] && parted -ms $dev print >/dev/null 2>&1 && return 0
+    echo "? Unrecognized device or no disk in drive '$dev'"
+    return 1
 }
 
 function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev)
     checkdev $sdisk || return 1
-    pmsg "Save rootfs '$rootfs' to $sdisk"
+    pmsg "Save rootfs '$rootfs' to '$sdisk'"
     pbytes=$((partsize*4096))
     pgb=$(((pbytes / 1073741824)+1))
     pmsg "rootfs Save should take less than $pgb minutes"
@@ -88,24 +84,63 @@ function save_rootfs() {
     return 0
 }
 
+if [ ! -e /mnt ]; then
+    mkdir -p /mnt
+    sleep 1
+fi
+
+function config_keyfile() {
+    local kfl="" kfn
+
+    if [ -f /etc/sdmkeyfile ]
+    then
+	read kfn < /etc/sdmkeyfile
+	if [ "$kfn" != "" ]
+	then
+	    kfn=$(basename $kfn)
+	    if [ -f /etc/$kfn ]
+	    then
+		kfl="/etc/$kfn"
+	    else
+		echo "? Internal error: keyfile $kfn not found"
+	    fi
+	    if [ "$kfl" != "" ]
+	    then
+		pmsg "Add LUKS key '$kfn' from file $kfl"
+		pmsg "When prompted for an existing passphrase use the one you just created"
+		cryptsetup luksAddKey $rootfs $kfl
+		[ $? -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $?"
+		rm -f $kfl
+	    fi
+	fi
+    fi
+}
+
 function cryptpart() {
     local dev=$1
-    local rootfs=$(getpartname $dev)
-    local cipher="aes-cbc-essiv:sha256"
-    pmsg "Enable luks2 '$xcrypto' encryption on '$rootfs'"
-    pmsg "Enabling encryption could take up to a minute or two"
-    pmsg "OK to ignore superblock signature warning"
+    local cipher
     case "$xcrypto" in
 	xchacha)
 	    cipher="xchacha20,aes-adiantum-plain64"
-	;;
+	    ;;
+	aes)
+	    cipher="aes-xts-plain64"
+	    ;;
+	aes-*)
+	    cipher="$xcrypto"
+	    ;;
     esac
+
+    pmsg "Enable LUKS2 encryption on '$rootfs' with cipher '$cipher'"
+    pmsg "Enabling encryption could take a while"
+    pmsg "OK to ignore superblock signature warning"
 
     while [ 0 ]
     do
 	cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $rootfs
 	[ $? -eq 0 ] && break
     done
+    config_keyfile $dev
     return 0
 }
 
@@ -127,7 +162,7 @@ function restore_rootfs() {
     local rootfs=$(getpartname $dev)
     local cpartnum cpartstart cpartend cpartsize etc
     checkdev $sdisk || return 1
-    pmsg "Restore '$rootfs' from $sdisk"
+    pmsg "Restore '$rootfs' from '$sdisk'"
     pmsg "rootfs Restore should take about the same time as the rootfs Save"
     dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
     pmsg "Restore complete; Expand rootfs..."
@@ -142,7 +177,7 @@ function restore_rootfs() {
         fi
     done < <(parted -ms /dev/mapper/$cryptdevice unit B print)
     pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
-    pmsg "cryuptsetup status for /dev/mapper/$cryptdevice:"
+    pmsg "cryptsetup status for /dev/mapper/$cryptdevice:"
     cryptsetup status /dev/mapper/$cryptdevice
     return 0
 }
@@ -152,7 +187,7 @@ function runall() {
     local rootfs=$(getpartname $dev)
     checkdev $dev || return 1
     checkdev $sdisk || return 1
-    pmsg "Shrink partition $rootfs and get its size"
+    pmsg "Shrink partition '$rootfs' and get its size"
     partsize=$(getpartsize $rootfs)
     pbytes=$((partsize*4096))
     pmsg "Device '$dev' rootfs size: $partsize 4K blocks $(getgbstr $pbytes)"
@@ -168,10 +203,10 @@ sdisk="$2"
 xcrypto=""
 [ -f /etc/sdmcrypto ] && read xcrypto < /etc/sdmcrypto
 [ "$xcrypto" == "" ] && xcrypto="aes"
-[[ "aes|xchacha" =~ "$xcrypto" ]] || errexit "? Supported cryptos: aes and xchacha"
+[[ "aes|xchacha" =~ "$xcrypto" ]] || [[ "$xcrypto" =~ "aes-" ]] || errexit "? Supported cryptos: 'aes' and 'xchacha'"
 cryptdevice="nomappername"
 datefmt="%Y-%m-%d %H:%M:%S"
-[ -f /etc/mappername ] && . /etc/mappername || echo "% Where is /etc/mappername?"
+[ -f /etc/mappername ] && read cryptdevice < /etc/mappername || echo "% Where is /etc/mappername?; Using cryptdevice 'nomappername'"
 runall $dev $sdisk 
 sleepsecs=10
 if [ "$SSH_CLIENT" == "" ]

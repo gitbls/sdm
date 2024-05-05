@@ -56,6 +56,11 @@ function ispdevp() {
 
 function getspname() {
     local dev="$1" pn="$2"
+    ispdevp $dev && echo "${dev}p${pn}" || echo "${dev}${pn}"
+}
+
+function getpartname() {
+    local dev="$1" pn="$2"
     ispdevp $dev && echo "p${pn}" || echo "$pn"
 }
 
@@ -74,6 +79,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --gateway gatewayaddr -- Set IP address of gateway
 * --hostname hostname -- Set hostname
 * --ipaddr ipaddr -- set IP address to use in initramfs
+* --keyfile keyfile -- Key file for USB-based key unlock
 * --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --mask netmask -- Set network mask for initramfs
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
@@ -94,7 +100,7 @@ function printinfo() {
     local used1k usedby usedstr rootfs sd
 
     rootfs=$(findmnt --noheadings --output source /)     # rootfs name
-    sd=${rootfs%$(getspname $rootfs 2)}  # dev name w/o partition name
+    sd=${rootfs%$(getpartname $rootfs 2)}  # dev name w/o partition name
 
     used1k=$(getfsdf "/" used)
     usedby=$((used1k*1024))
@@ -194,8 +200,9 @@ source /etc/sdm/sdm-readparams
 echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
 logger "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
-grep -v -E "bash|sdmcryptfs|mappername|sdmcrypto" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
+grep -v -E "bash|sdmcryptfs|mappername|sdmcrypto|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
 [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
+rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
 echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
 logger "sdm-cryptfs-cleanup: Rebuild initramfs"
 update-initramfs -u
@@ -221,7 +228,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,mapper:,mappername:,mask:,netmask:,ssh,reboot,sdm,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,ssh,reboot,sdm,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -236,6 +243,7 @@ function parsecmd() {
 	    --gateway)         xgateway=$2  ; shift 2 ;;
 	    --hostname)        xhostname=$2 ; shift 2 ;;
 	    --ipaddr)          xipaddr=$2   ; shift 2 ;;
+	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
 	    --mapper|--mappername) xmapper=$2   ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
 	    --quiet)           xquiet=1     ; shift 1 ;;
@@ -258,6 +266,8 @@ function parsecmd() {
 }
 
 function doconfiginitramfs() {
+    local kcmd=""
+
     echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
     cat >> /etc/kernel/postinst.d/initramfs-rebuild <<EOF
 #!/bin/sh -e
@@ -291,7 +301,37 @@ update-initramfs -u
 EOF
     chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
 
+    cat > /bin/sdmluksunlock <<EOF
+#!/bin/sh
+#
+# called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
+#
+set -e
+if [ ! -e /mnt ]; then
+    mkdir -p /mnt
+fi
+if [ "\$CRYPTTAB_TRIED" == "0" ] ; then
+    sleep 4 # Wait a bit for disk to appear
+fi
+for usbpartition in /dev/disk/by-id/usb-*-part1; do
+    usbdevice=\$(readlink -f \$usbpartition)
+    if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
+        if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
+             cat /mnt/\$CRYPTTAB_KEY.lek
+            umount \$usbdevice
+            exit
+        fi
+        umount \$usbdevice
+    fi
+done
+# Only print message and pause for ENTER if there is a keyboard
+#if [ -e /dev/input/by-id ] ; then
+    /lib/cryptsetup/askpass "Insert USB key and press ENTER (or type password then ENTER): "
+#fi
+EOF
+    chmod 755 /bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks_hooks"
+    [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
     cat > /etc/initramfs-tools/hooks/luks_hooks <<EOF
 #!/bin/sh -e
 PREREQS=""
@@ -306,8 +346,11 @@ copy_exec /sbin/fdisk /sbin
 copy_exec /sbin/cryptsetup /sbin
 copy_exec /usr/bin/bash /usr/bin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
+copy_file text /bin/sdmluksunlock
 copy_file text /etc/mappername
 copy_file text /etc/sdmcrypto
+copy_file text /etc/sdmkeyfile
+$kcmd
 exit 0
 EOF
     chmod 755 /etc/initramfs-tools/hooks/luks_hooks
@@ -325,7 +368,7 @@ nhpoly1305
 dm-crypt
 EOF
 	    ;;
-	aes)
+	aes|aes-*)
 	    cat >> /etc/initramfs-tools/modules <<EOF
 algif_skcipher
 aes_arm64
@@ -376,21 +419,19 @@ EOF
 }
 
 function domkinitramfs() {
-    echo "> Update initramfs with all the rootfs encryption settings in place"
-    logifsdm "Update initramfs with all the rootfs encryption settings in place"
+    echo "> Update initramfs with the rootfs encryption settings in place"
+    logifsdm "Update initramfs with the rootfs encryption settings in place"
     update-initramfs -u
 }
 
 function doupdateconfig() {
-    local rootfs sd
+    local rootfs sd kfu="" kfuuid="none"
 
     rootfs=$(findmnt --noheadings --output source /)
     sd=$(lsblk -dpno pkname $rootfs)
     if [ "$sd" == "" ] #snh but the code was here!
     then
-	sd="$rootfs$(getspname $rootfs 2)"
-	#ispdevp $rootfs && sd=${rootfs%p2}
-	#[[ "$rootfs" =~ "/dev/sd" ]] && sd=${rootfs%2}
+	sd="$(getspname $rootfs 2)"
     fi
     echo "> Update root statement in cmdline.txt"
     sed -i "s#root=[0-9a-zA-Z-]*[ =][0-9a-zA-Z-]* #root=/dev/mapper/$xmapper #" /boot/firmware/cmdline.txt
@@ -402,10 +443,16 @@ function doupdateconfig() {
     cat /boot/firmware/cmdline.txt
 
     echo "> Update /etc/fstab for the encrypted rootfs"
-    sed -i "s#PARTUUID=[0-9a-zA-Z-]* *\/ #/dev/mapper/$xmapper /#" /etc/fstab
+    sed -i "s#PARTUUID=[0-9a-zA-Z-]* */ #/dev/mapper/$xmapper / #" /etc/fstab
 
     echo "> Update /etc/crypttab"
-    echo "$xmapper	$rootfs  none  luks" >> /etc/crypttab
+    if [ "$xkeyfile" != "" ]
+    then
+	kfuuid=$(basename $xkeyfile)
+	kfuuid=${kfuuid%.lek}
+	kfu=",keyscript=/bin/sdmluksunlock"
+    fi
+    echo "$xmapper	$rootfs $kfuuid luks,discard${kfu}" >> /etc/crypttab
 }
 
 #
@@ -417,6 +464,7 @@ xdns=""
 xgateway=""
 xhostname=""
 xipaddr=""
+xkeyfile=""
 xmapper=""
 xnetmask=""
 xquiet=0
@@ -429,10 +477,17 @@ parsecmd $0 "$*"
 
 [ "$xmapper" == "" ] && xmapper="cryptroot"
 [ "$xcrypto" == "" ] && xcrypto="aes"
-[[ "aes|xchacha" =~ "$xcrypto" ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
+[[ "aes|xchacha" =~ "$xcrypto" ]] || [[ "$xcrypto" =~ "aes-" ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
+if [ "$xkeyfile" != "" ]
+then
+    mkdir -p /etc/sdm/assets/cryptroot
+    [ ! -f /etc/sdm/assets/cryptroot/$xkeyfile ] && cp $xkeyfile /etc/sdm/assets/cryptroot
+    xkeyfile="$(basename $xkeyfile)"
+fi
 
-echo "cryptdevice=$xmapper" > /etc/mappername
+echo "$xmapper" > /etc/mappername
 echo "$xcrypto" > /etc/sdmcrypto
+echo "$xkeyfile" > /etc/sdmkeyfile
 
 if [ $xsdm -eq 0 ]
 then
