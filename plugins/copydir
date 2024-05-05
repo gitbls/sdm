@@ -44,7 +44,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|from|to|nodirect|rsyncopts|stdout|stderr|"
+vldargs="|from|to|rsyncopts|stdout|stderr|"
 rqdargs="|from|to|"                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 instance=""
@@ -58,17 +58,7 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
     mkdir -p $assetdir
-    # Ensure stdout and stderr go to the IMG not the host if it's a real file, not a device
-    if [ "$stdout" != "" ]
-    then
-	dn=$(dirname $stdout)
-	[[ "$dn" != "/dev" ]] && [[ -d $dn ]] && stdout="$SDMPT/$stdout"
-    fi
-    if [ "$stderr" != "" ]
-    then
-	dn=$(dirname $stderr)
-	[[ "$dn" != "/dev" ]] && [[ -d $dn ]] && stderr="$SDMPT/$stderr"
-    fi
+    # nodirect will never be defined so will always use direct copy
     if [ ! -v nodirect ]
     then
 	# Direct copy in Phase 0 using rsync
