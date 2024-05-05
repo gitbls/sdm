@@ -150,7 +150,7 @@ function makepartition() {
     else
 	partend=$aligned_end_sector
     fi
-    pdname="${pdev}$(getspname $pdev $partnum)"
+    pdname="$(getspname $pdev $partnum)"
     [ "$plugindebug" == "" ] && plugindebug=0  #cya
     if [ $plugindebug -eq 1 ]
     then
