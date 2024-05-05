@@ -140,6 +140,7 @@ Command Switches for --customize and --burn or as noted
  --apt-dist-upgrade  Use apt-get dist-upgrade instead of upgrade 
  --aptcache IPADDR   Use apt-cacher-ng with server 'IPADDR'
  --aptmaint options  Do apt commands batch-mode in the image (update, upgrade, autoremove)
+ --apt-options str   Control which apt functions are done (D: all) Values: noupdate,noupgrade,noautoremove,none
  --autologin         Auto-login to the console (Lite) or graphical desktop session
  --batch             Perform customize operation and exit
  --b0script script   Script to run after burn has completed
@@ -164,6 +165,7 @@ Command Switches for --customize and --burn or as noted
  --groups list,of,groups Use this list of groups as the default for the user plugin
                      [dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio]
  --host hostname     Hostname to write onto the storage device with --burn
+ --key-file kf       Specify a key-file for certain commands
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
  --logwidth N        Split log lines longer than N characters [Default: 96]
  --mcolors fg:bg:cur Set fg/bg/cursor colors when operating in --mount
@@ -173,7 +175,6 @@ Command Switches for --customize and --burn or as noted
  --oklive            It's OK to run plugins on running system without notification
  --plugin pname:\"args\" Run plugin pname with the specified args (separate args with '|')
  --plugin-debug      Print plugin debug messages
- --poptions str      Set Phase 1 auto-run options
  --norestart         Do not restart after first boot (use on --burn command)
  --os osname         Specify OS in the Image (D:raspios, ubuntu)
  --reboot n          n seconds after first boot has completed restart the system
@@ -192,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V11.8"
+version="V12.0"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -243,6 +244,7 @@ hostname=""                 #Written to cparams during --burn
 hotspot=""                  #WiFi config file
 imgext=0                    #Number of MB to extend IMG
 infocmd=0                   #1=--info command
+keyfile=""                  #--key-file
 loadl10n=0                  #1=Load Localization settings from running system 
 loadlocal=""                #Non-null specifies loading wifi creds on firstboot (currently USB only)
 logwidth=96                 #Split log lines longer than this
@@ -269,13 +271,13 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key"
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
 vdebug="|all|apt|"          #Valid --debug settings
-vpoptions="|apps|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
+vpoptions="|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
 #vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vloadopts="|wifi|"          #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
@@ -295,10 +297,10 @@ source $src/sdm-cparse           # Get function defs
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,\
+longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-root,extend,\
-gpt,groups:,host:,hostname:,info,loadlocal:,locale:,logwidth:,\
+gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
@@ -346,6 +348,7 @@ do
 	--groups)      dgroups=$2    ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
 	--info)        infocmd=1     ; shift 1 ;;
+	--keyfile)     keyfile=$2    ; shift 2 ;;
 	--loadlocal)   loadlocal="${2,,}" ; shift 2 ;;
 	--logwidth)    logwidth=$2   ; shift 2 ;;
 	--mcolors)     mcolors=$2    ; shift 2 ;;
@@ -358,7 +361,7 @@ do
 	--os)          os="${2,,}"   ; shift 2 ;;
 	--plugin-debug) plugindebug=1 ; shift 1 ;;
 	--plugin|--plugins) plugins=$(appendvalue "$plugins" "$2" "~") ; shift 2 ;;
-	--poptions)    poptions=$(appendvalue "$poptions" "${2,,}" ",") ; shift 2 ;;
+	--apt-options|--poptions)    poptions=$(appendvalue "$poptions" "${2,,}" ",") ; shift 2 ;;
 	--ppart)       fppart=1      ; shift 1 ;;
 	--redact)      fredact=1     ; shift 1 ;;
 	--reboot)      rebootwait=$2 ;
@@ -489,8 +492,9 @@ exitiferr "$cvtrootfs"
 cvtrootfs="${cvtrootfs//|/}"  # Remove vbars: single value switch
 debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
 exitiferr "$debugs"
-poptions=$(poptcheck "$poptions" "$vpoptions" "--poption")
+poptions=$(poptcheck "$poptions" "$vpoptions" "--apt-options|--poptions")
 exitiferr "$poptions"
+[[ "$poptions" =~ "none" ]] && poptions="noupdate|noupgrade|noautoremove"
 loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
@@ -499,6 +503,11 @@ bupdate=$(poptcheck "$bupdate" "$vbupdopts" "--bupdate")
 exitiferr "$bupdate"
 runonly=$(poptcheck "$runonly" "$vrunonlyopts" "--runonly")
 exitiferr "$runonly"
+
+if [ $fexplore -eq 1 ]
+then
+    [ "$keyfile" != "" ] && fencrypted=1
+fi
 
 if [ "$runonly" != "" ]
 then
@@ -558,7 +567,7 @@ then
     dimgdevname="Directory"
 elif [ ! -f "$dimg" ]
 then
-    p1=$(getspname $dimg 1)
+    p1=$(getpartname $dimg 1)
     [ ! -b ${dimg}${p1} ] && errexit "? Disk image file or device '$dimg' does not exist"
     dimgdev=1
     dimgdevname="Device"

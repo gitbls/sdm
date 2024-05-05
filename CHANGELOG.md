@@ -1,5 +1,29 @@
 # Changelog
 
+## V12.0
+
+* New Features
+  * New plugin `runscript`: Runs the specified script during Phase 1 (default) or post-install (optional)
+    * Useful for codifying installs for some software
+    * See <a href="Docs/Plugins.md#runatboot">runatboot</a>
+  * rootfs encryption can now use LUKS encryption key on USB disk for non-stop boot of encrypted rootfs
+    * See <a href="Docs/Disk-Encryption.md">Disk Encryption</a> for complete details
+    * Use `sdm-make-luks-key` to create the encryption key and set up a USB keydisk
+    * Use `sdm-add-luks-key` to add an encryption key to an already-encrypted rootfs
+    * If using `sdm --explore` with an encrypted rootfs specifying `--keyfile` implies `--encrypted`
+    * Known issue: If the USB key is not inserted in a drive and the system has no keyboard attached the system will not be able to boot
+      * Fixable if anyone knows a reliable way to detect if the keyboard is attached in initramfs
+* Improvements
+  * rootfs encryption supports more aes ciphers: anything that starts with `aes-` is assumed valid; if it's not you'll find out during actual rootfs encryption
+    * Default encryption if not specified is now `aes-xts-plain64`
+  * Add `--apt-options` as a synonym for `--poptions` and make `--apt-options none` be `noupdate,noupgrade,noautoremove` (Default is to perform all 3)
+  * `copydir` plugin option `nodirect` removed. All copies now done in Phase 0
+  * Improve the error message if running on a Pi5 with an encrypted rootfs and trying to access a 32-bit Bookworm IMG
+* Bug Fixes
+ * `cryptroot` plugin did not require `authkeys` with `ssh`. Now it does
+ * Correct some broken links in the Documentation
+ * Correct plugin `serial` configuration
+
 ## V11.8
 
 * New Features
