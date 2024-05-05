@@ -25,7 +25,7 @@ Valid options:
 * **reboot=*n*** &mdash; Enable auto reboot at completion of sdm FirstBoot after waiting *n* seconds. Default: 20 seconds
 * **mouse=*left*** &mdash; Set left-handed mouse for user. Default: right-handed mouse
 * **nmconn=*/path/to/nmconnfile*** &mdash; Path to a single .nmconnection file. If multiple are needed, use `--pluglist @/path/to/plugin-list`
-* **pluglist=*/path/to/pluglist*** &mdash; See <a href="Docs/Plugins.md">the Plugin documentation</a>
+* **pluglist=*/path/to/pluglist*** &mdash; See <a href="Plugins.md">the Plugin documentation</a>
 
 All options are provided on a single line, separated by commas. Although order is not important, the parsing is a bit primitive so the format and punctuation is strict. For example
 ```

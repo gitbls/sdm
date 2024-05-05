@@ -14,7 +14,7 @@ On Bookworm, nm is used by default for network management. You can also select n
 
 When configuring nm, a WiFi connection can be configured with the arguments `wifissid`, `wifipassword`, and `wificountry`. If all 3 are provided to the network plugin an nm connection file will be created using the `wifissid` as the connection name. If these arguments are not provided, the plugin will get the values from a provided `wpa` argument file. If neither of these are provided, no WiFi connection will be configured unless one is provided with an `nmconn` argument.
 
-In addition to several <a href="Docs/Plugins.md#network">arguments</a> there are two nm-specific arguments: `nmconf`, and `nmconn`. Using these provides you with the best nm control in sdm.
+In addition to several <a href="Plugins.md#network">arguments</a> there are two nm-specific arguments: `nmconf`, and `nmconn`. Using these provides you with the best nm control in sdm.
 
 ## Generating `nmconf` and `nmconn` files
 

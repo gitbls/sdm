@@ -11,7 +11,7 @@ sudo sdm --customize --nouser --poptions noupdate,noupgrade,noautoremove --plugi
 * **Consider using the `--plugin` switch with a plugin name of @file** if you have more than one or two plugins. This enables you to put your plugin details in a text file. This enables you to:
   * Rearrange the plugin ordering more easily
   * Worry a lot less about a missing double quote or breaking bash syntax when updating (double quotes not required in pluglist file)
-  * See <a href="Docs//Plugins.md#invoking-a-plugin-on-the-sdm-command-line">Plugins </a> for details
+  * See <a href="Plugins.md#invoking-a-plugin-on-the-sdm-command-line">Plugins </a> for details
 * The **sdm history file (/etc/sdm/history) coding** is easily-missed, but provides additional information. Each message line (except for message continuations) starts with an indicator about the line content.
   * `*` Start of a new 'section' (e.g., `* Start Phase 1 image customization`)
   * `>` Inform you of something that sdm is doing

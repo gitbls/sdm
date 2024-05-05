@@ -14,7 +14,7 @@ sdm consists of a primary script sdm and several supporting scripts:
 
 * **sdm-phase1** &mdash; If `--aptcache` was specified, the IMG is enabled as an apt-cacher-ng client. See <a href="apt-Cacher-NG.md">apt Cacher NG</a> for details on apt-cacher-ng.
 
-    * App installation is accomplished using the <a href="Docs/Plugins.md#apps>`apps` plugin</a>. The `apps` plugin installs the requested apps when it is run in Phase 1.
+    * App installation is accomplished using the <a href="Plugins.md#apps>`apps` plugin</a>. The `apps` plugin installs the requested apps when it is run in Phase 1.
 
     * Similarly, other plugins can be used, and are called by sdm-phase1 at the appropriate time.
 

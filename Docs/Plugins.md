@@ -199,7 +199,6 @@ Copy a directory tree from the host system into the IMG
 #### Arguments
 * **from** &mdash; /full/path/to/sourcedir
 * **to** &mdash; /full/path/to/destdir
-* **nodirect** &mdash; If `nodirect` is specified, the files are staged into the IMG via /etc/sdm/assets. Useful for destination directories that aren't created until later in the customization. Without nodirect the source directory is copied directly to the destination directory.
 * **rsyncopts** &mdash; Additional switches for the `rsync` command. If `rsyncopts` is specified, ALL desired rsync switches must be included. If `rsyncopts` is NOT provided, the default switch `-a` is used
 * **stderr** &mdash; /path/to/file where stderr from the rsync command is written (D:/dev/null)
 * **stdout** &mdash; /path/to/file where stdout from the rsync command is written (D:/dev/null)
@@ -250,11 +249,13 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 * **ssh** &mdash; Enable SSH in the initramfs
 * **uniquesshkey** &mdash; Use a unique SSH key in the initramfs. Default is to use the host SSH key (of the system being encrypted)
 
+`authkeys` is required with `ssh`
+
 These are discussed further in the above-mentioned Disk Encryption page.
 
 #### Examples
 
-* `--plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|ssh" Configures the rootfs for encryption and enables SSH into the initramfs with keys authorized in the named authorized_keys file.
+* `--plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|ssh` Configures the rootfs for encryption and enables SSH into the initramfs with keys authorized in the named authorized_keys file.
 
 ### disables
 
@@ -641,6 +642,53 @@ The `runatboot` plugin provides a way to run an arbitrary script during the Firs
 * `--plugin runatboot:"user=me|sudoswitches=-H|script=/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments as the specified user and include `-H` on the sudo command
 * `--plugin runatboot:"script=/path/to/script2|args=arg1 arg2 arg3|output=/var/log/myscript.log"` &mdash; Run the specified script with the 3 provided arguments with output and error going to /var/log/myscript.log
 
+### runscript
+
+The `runscript` plugin runs a script during customization.
+
+#### Arguments
+
+* **dir** &mdash; Optional directory in which to run the script (as the default directory). The directory will be created if it doesn't exist. Use a /full/path/to/dir
+* **runphase** &mdash; Specifies the phase (`1` or `post-install`) in which to run the script. Default is `1`
+* **script** &mdash; /full/path/to/script on the host to run. The script will be copied into the IMG
+* **user** &mdash; The user under which to run the script. The user must exist by the time the script is run in Phase 1 or post-install. If not specified the script is run as `root`
+* **stdout** &mdash; Specifies stdout for the script output. /full/path/to/stdout must be specified (but not checked by sdm)
+* **stderr** &mdash; Specifies stderr for the script output. /full/path/to/stderr must be specified (but not checked by sdm)
+
+The script is called with one argument: the current Phase (either `1` or `post-install`).
+
+The default for `stdout` and `stderr` if not specified are `$(basename $script).out` and `$(basename $script).error`. If `dir` is specified the files will be written to `dir`. If not, the files will be written to `/etc/sdm/assets/runscript`. 
+
+#### Examples
+
+* `--plugin runscript:"dir=/home/work|script=/path/to/my/script|user=bls"` &mdash; The directory /home/work is created and owned by user bls. The script specified is run during Phase 1, and the ouptut and error files are saved in /home/work
+* `--plugin runscript:"/path/to/my/script"` &mdash; The script is run as root during Phase 1. Output and error are saved in /etc/sdm/assets/runscript/sdm-runscript-$script.out and .error
+
+#### Example runscript
+
+This simple script downloads the btop sources and builds/installs btop into the IMG being customized. All prerequisites such as make, gcc, etc must already be installed before this runscript is executed.
+```
+#!/bin/bash
+
+#
+# Download the tar file
+#
+btopver="1.3.2"
+mkdir -p /home/work/btop
+pushd /home/work/btop >/dev/null
+wget https://github.com/aristocratos/btop/releases/download/v${btopver}/btop-aarch64-linux-musl.tbz -O btop-aarch64-linux-musl.tbz
+#
+# Expand the tar file (creates directory btop)
+#
+tar -xjvf btop-aarch64-linux-musl.tbz
+#
+# cd into the directory, build, and install btop
+#
+cd btop
+make install
+
+```
+
 ### rxapp
 
 **rxapp** is a handy tool to securely and remotely start X11 apps via SSH without a password. You can read about it [here](https://github.com/gitbls/rxapp).
@@ -677,7 +725,9 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 
 #### Arguments
 
-* **enableshell** &mdash; If set, enable a shell on the console serial port.
+* **disableshell** &mdash; Explicitly disables the shell on the console serial port
+* **enableshell** &mdash; If set, enable a shell on the console serial port. Also enables the uart
+* **enableuart** &mdash; Enable the console serial port uart without enabling the shell
 * **pi5** &mdash; If set, configure the serial port for a Pi5
 * **pi5debug** &mdash; If set, configure the debug serial port for a Pi5
 
