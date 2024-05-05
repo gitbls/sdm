@@ -151,7 +151,7 @@ then
     doaptrpterror "update" $showapt
     logfreespace "at end of 'apt update'"
 else
-    logtoboth "> Skip 'apt update' per --poption noupdate"
+    logtoboth "> Skip 'apt update' per --apt-options noupdate"
 fi    
 
 if [ "$cscript" != "" ]
@@ -180,7 +180,7 @@ then
     upgkeepconf "-y" "$showapt" $aptdistupgrade
     logfreespace "at end of 'apt $upg'"
 else
-    logtoboth "> Skip 'apt upgrade' per --poption noupgrade"
+    logtoboth "> Skip 'apt upgrade' per --apt-options noupgrade"
 fi    
 
 if [[ ! "$poptions" =~ "noautoremove" ]]
@@ -190,7 +190,7 @@ then
     doaptrpterror "--yes autoremove" $showapt
     logfreespace "at end of 'apt autoremove'"
 else
-    logtoboth "> Skip 'apt autoremove' per --poption noautoremove"
+    logtoboth "> Skip 'apt autoremove' per --apt-options noautoremove"
 fi
 
 logfreespace "at end of Phase 1 image customization"
