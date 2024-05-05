@@ -70,19 +70,33 @@ function do_serial_cons() {
 }
 
 function do_serial_hw() {
-    if [ "$pi5" == "y" ]
+    if [ "$enableuart" == "y" ]
     then
-	if [ "$pi5debug" != "y" ]
+	if [ "$pi5" == "y" ]
 	then
-	    logtoboth "> Plugin $pfx: Enable Pi5 uart0 console serial port"
-	    set_config_var dtparam=uart0_console on $configtxt
+	    if [ "$pi5debug" != "y" ]
+	    then
+		logtoboth "> Plugin $pfx: Enable Pi5 uart0 console serial port"
+		set_config_var dtparam=uart0_console on $configtxt
+	    else
+		logtoboth "> Plugin $pfx: Enable Pi5 debug console serial port"
+		set_config_var dtparam=uart0 on $configtxt
+	    fi
 	else
-	    logtoboth "> Plugin $pfx: Enable Pi5 debug console serial port"
-	    set_config_var dtparam=uart0 on $configtxt
+	    logtoboth "> Plugin $pfx: Enable non-Pi5 console serial port"
+	    set_config_var enable_uart 1 $configtxt
 	fi
     else
-	logtoboth "> Plugin $pfx: Enable non-Pi5 console serial port"
-	set_config_var enable_uart 1 $configtxt
+	logtoboth "> Plugin $pfx: Disable console serial port"
+	sed -i $cmdline -e "s/console=ttyAMA0,[0-9]\+ //"
+	sed -i $cmdline -e "s/console=serial0,[0-9]\+ //"
+	if [ "$pi5" == "y" ]
+	then
+            sed $configtxt -i -e "/dtparam=uart0.*/d"
+	else
+	    set_config_var enable_uart 0 $configtxt
+	fi
+	return
     fi
 }
 
@@ -90,7 +104,10 @@ function converty() {
     [ -v pi5 ]   && pi5=y
     [ -v enableshell ] && enableshell=y
     [ -v disableshell ] && disableshell=y
-    [ "$disableshell" == "y" ] && enableshell=""
+    [ -v enableuart ] && enableuart=y
+    [ "$disableshell" == "y" ] && enableshell="" # In case uart enabled with no shell desired && enableuart=""
+    [ "$enableshell" == "y" ] && enableuart=y
+    [[ "$enableshell" != "y" ]] && [[ "$disableshell" != "y" ]] && disableshell=y
     [ -v pi5debug ] && { pi5=y ; pi5debug=y ; }
 }
 
@@ -103,7 +120,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|pi5|disableshell|enableshell|pi5debug|"     #"|list|of|valid|args|"
+vldargs="|pi5|disableshell|enableshell|enableuart|pi5debug|"     #"|list|of|valid|args|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 cmdline="/boot/firmware/cmdline.txt"
