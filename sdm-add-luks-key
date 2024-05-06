@@ -1,0 +1,79 @@
+#!/bin/bash
+#
+# Add the specified LUKS encryption key to an encrypted rootfs
+#
+function pmsg() {
+    echo "$1"
+}
+
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
+function usage() {
+    echo $"Usage: sudo $0 /path/to/keyfile.lek"
+exit 1
+}
+
+keyfn=$1
+[ "$keyfn" == "" ] && usage
+
+[ "$(type -p cryptsetup)" == "" ] && errexit "? cryptsetup not found; Does this host have an encrypted rootfs?"
+kfn=$(basename $keyfn)
+#
+# Add to running system
+#
+if [ ! -f /bin/sdmluksunlock ]
+then
+    # How to determine if keyboard attached? 
+    cat > /bin/sdmluksunlock <<EOF
+#!/bin/sh
+#
+# called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
+#
+set -e
+if [ ! -e /mnt ]; then
+    mkdir -p /mnt
+fi
+if [ "\$CRYPTTAB_TRIED" == "0" ] ; then
+    sleep 4 # Wait a bit for disk to appear
+fi
+for usbpartition in /dev/disk/by-id/usb-*-part1; do
+    usbdevice=\$(readlink -f \$usbpartition)
+    if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
+        if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
+             cat /mnt/\$CRYPTTAB_KEY.lek
+            umount \$usbdevice
+            exit
+        fi
+        umount \$usbdevice
+    fi
+done
+/lib/cryptsetup/askpass "Insert USB key and press ENTER (or type password then ENTER): "
+EOF
+    chmod 755 /bin/sdmluksunlock
+fi
+
+# Update /etc/crypttab
+
+mapname=$(findmnt --noheadings --output source /)
+mapname=$(basename $mapname)
+read mapname rootfs rest <<< "$(grep $mapname /etc/crypttab)"
+kfuuid=${kfn%.lek}
+pmsg "> Update /etc/crypttab for USB unlock"
+cp /etc/crypttab /etc/sdm.crypttab.orig
+sed -i /etc/crypttab -e "s|$mapname.*|$mapname  $rootfs $kfuuid luks,discard,keyscript=/bin/sdmluksunlock|"
+
+pmsg "> Add LUKS key '$kfn' from file $keyfn"
+pmsg "  When prompted for a passphrase use the one you created when you encrypted the rootfs"
+pmsg "  NOTE: This operation may take some time..."
+cryptsetup luksAddKey $rootfs $keyfn
+[ $? -ne 0 ] && errexit "? cryptsetup returned an error adding key '$keyfn': $?"
+pmsg "> LUKS key successfully added"
+pmsg ""
+pmsg "> Configure initramfs"
+echo "$kfn" > /etc/sdmkeyfile
+update-initramfs -u
+pmsg ""
+pmsg "> Reboot the system with the USB key disk in a drive"
