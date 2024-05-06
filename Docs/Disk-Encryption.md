@@ -266,11 +266,24 @@ cryptsetup: ERROR: cryptroot: cryptsetup failed, bad password or options?
 ```
 These messages can be ignored as the rootfs unlock process will then loop around, retry and find the USB key disk you just inserted.
 
+### Adding a USB Keyfile to an Already-Encrypted rootfs
+
+If your rootfs is already encrypted with a password, but no keyfile, you can easily add a keyfile to it:
+* Create the USB keyfile disk
+  * This can be done on any host and writes the keyfile to a USB disk. See above 'Creating a USB Keyfile Disk'
+* Add the USB keyfile on the host with the encrypted rootfs
+```
+sudo mount /dev/sdX /mnt
+sudo /usr/local/sdm/sdm-add-luks-key /mnt/big-long-uuid.lek
+sudo umount /mnt
+```
+* Reboot
+
 ## Exploring and Mounting Encrypted Disks
 
 Encrypted disks can be explored or mounted with the `--encrypted` switch.
 
-If a keyfile has been added to the encrypted disk you can use `--keyfile /path/to/keyfile.lek` to unlock the rootfs with a keyfile.
+If a keyfile has been added to the encrypted disk you can use `--keyfile /path/to/keyfile.lek` to unlock the rootfs with a keyfile. `--keyfile` implies `--encrypted`.
 
 ## Encryption Performance
 
