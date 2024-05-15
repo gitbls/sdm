@@ -1,18 +1,18 @@
 # rootfs Disk Encryption
 
-One tool that can be used to increase system security is encryption. This article discusses using sdm to configure encryption for the rootfs partition on a Raspberry Pi system disk. This makes the loss of a disk far less of a problem, since the content cannot be read, nor can the disk be booted,  without knowing the rootfs password.
+One tool that can be used to increase system security is encryption. This article discusses using sdm to configure encryption for the rootfs partition on a Raspberry Pi system disk. This makes the loss of a disk far less of a problem, since the content cannot be read, nor can the disk be booted,  without knowing how to decrypt the partition either with a passphrase or a USB Keyfile Disk.
 
 Although encryption does increase security, there are some challenges, such as:
 
-* The rootfs password must be typed **on the console** *every* time the Pi reboots, but you can also use a USB unlock key, or enter the password remotely. Details on both follow in this article.
+* The rootfs passphrase must be typed **on the console** *every* time the Pi reboots, but you can also use a USB Keyfile Disk, or enter the passphrase remotely via SSH. sdm fully supports both methods. Details below.
 * rootfs encryption does not make the running system any more secure
 * This tool does not provide any way to undo disk encryption if you decide you don't want it
   * You'll have to rebuild the system disk
-  * **Good news:** if you're using sdm to create your customized IMG, rebuilding your disk is much less of an issue
+  * ***Good news:*** If you're using sdm to create your customized IMG, rebuilding your disk is much less of an issue
 
-With those caveats, if rootfs encryption is useful for you, sdm makes it extremely simple to configure an encrypted rootfs.
+With those caveats, if rootfs encryption is useful for you, sdm makes it quite simple to configure and use an encrypted rootfs.
 
-**NOTE:** This tool only supports RasPiOS Bookworm and later. It is also usable on Debian Bookworm and derivatives by using `sdm-cryptconfig`.
+**NOTE:** This tool only supports sdm-integrated encryption configuration using the `cryptroot` plugin on RasPiOS Bookworm and later. `sdm-cryptconfig` can be used on already-running RasPiOS systems as well as on Debian Bookworm (arm and X86_64) and derivatives.
 
 ## Overview
 
@@ -20,14 +20,14 @@ There are many articles about rootfs disk encryption on the Internet. If you're 
 
 Additionally, <a href="https://en.wikipedia.org/wiki/Linux_Unified_Key_Setup">this Wikipedia article</a> discusses LUKS encryption, which is utilized to encrypt your rootfs.
 
-sdm supports rootfs encryption configuration two ways:
+sdm supports enabling rootfs encryption configuration in two different ways:
 
 * sdm-integrated, using the `cryptroot` plugin
 * Standalone on RasPiOS and Debian Bookworm without needing all of sdm by using `sdm-cryptconfig` on your running system
 
 These two methods are discussed in the following sections.
 
-## sdm-integrated rootfs Encryption Configuration
+## sdm-Integrated rootfs Encryption Configuration
 
 ### Terse Description
 The system reboots a couple of times, performing steps during each reboot:
@@ -39,9 +39,9 @@ The system reboots a couple of times, performing steps during each reboot:
 * **Third boot:** System startup drops into initramfs to perform the encryption process
   * In initramfs you use the `sdmcryptfs` command to encrypt rootfs
   * Upon initramfs exit, system continues booting
-  * At end of system startup the `sdm-cryptfs-cleanup` service runs that tidies up unneeded services and the initramfs and then reboots
+  * At end of system startup the `sdm-cryptfs-cleanup` service tidies sdm-related services on the running system, removes sdmcryptfs-related bits from the initramfs, and then reboots
 * **Final reboot:** System is now running on an encrypted rootfs
-  * All system boots now require the rootfs unlock passphrase or USB key disk to continue
+  * All system boots now require the rootfs unlock passphrase or USB Keyfile Disk to continue
 
 ### Details
 
@@ -61,15 +61,14 @@ All other steps are done automatically.
 
 ## Standalone rootfs Encryption Configuration
 
-If your system was not built with sdm (why not?), or if your distro is Debian Bookworm-based (or later) you can still use a single sdm script to encrypt your rootfs: `sdm-cryptconfig`.
+If your RasPiOS system was not built with sdm *(why not?)*, or if your distro is Debian Bookworm-based (or later) you can still use a single sdm script to encrypt your rootfs: `sdm-cryptconfig`.
 
 When your system is running, simply download and run sdm-cryptconfig:
 ```
-# sdm-make-luks-usb-key and sdm-add-luks-key are only needed if you want to use a USB key disk
+# sdm-make-luks-usb-key and sdm-add-luks-key are only needed if you want to use a USB Keyfile Disk
 sudo curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdm-make-luks-usb-key -o /usr/local/bin/sdm-make-luks-usb-key
-sudo chmod 755 /usr/local/bin/sdm-make-luks-usb-key
 sudo curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdm-add-luks-key -o /usr/local/bin/sdm-add-luks-key
-sudo chmod 755 /usr/local/bin/sdm-sdm-add-luks-key
+sudo chmod 755 /usr/local/bin/sdm-sdm-add-luks-key /usr/local/bin/sdm-make-luks-usb-key
 
 # sdm-cryptconfig is required for rootfs encryption
 sudo curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdm-cryptconfig -o /usr/local/bin/sdm-cryptconfig
@@ -87,7 +86,7 @@ sudo sdm-cryptconfig [optional switches; see below]
 * Updates the initramfs configuration to enable encrypting rootfs (primarily `bash` and `sdmcryptfs`)
 * Builds the updated initramfs with encryption support
 * Updates /boot/firmware/cmdline.txt, /etc/crypttab, and /etc/fstab for an encrypted rootfs
-* If sdm-cryptconfig was run via the cryptroot sdm plugin, it will automatically reboot the system
+* If sdm-cryptconfig was run via the cryptroot sdm plugin or if `--reboot` specified, the system will automatically reboot
   * If not, reboot the system manually when you are ready to proceed
 
 ### sdm-cryptconfig Switches
@@ -96,13 +95,13 @@ sdm-cryptconfig has several switches. When using sdm-integrated rootfs encryptio
 
 Switches to sdm-cryptconfig include:
 
-* `--authorized-keys keyfile` &mdash; Specifies an SSH authorized_keys file to use in the initramfs. Required with `--ssh`
+* `--authorized-keys authkeyfile` &mdash; Specifies an SSH *authorized_keys* file to use in the initramfs. Required with `--ssh`
 * `--crypto crypt-type` &mdash; Specifies the encryption to use. `aes` used by default, which uses `aes-xts-plain64`. Use `xchacha` on Pi4 and earlier for best performance. See Encryption/Decryption performance comparison below.
 * `--dns dnsaddr` &mdash; Set IP Address of DNS server
 * `--gateway gatewayaddr` &mdash; Set IP address of gateway
 * `--hostname hostname` &mdash; Set hostname
 * `--ipaddr ipaddr` &mdash; set IP address to use in initramfs
-* `--keyfile /path/to/keyfile` &mdash; A keyfile used for password-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile">Unlocking rootfs with a USB keyfile</a> for details
+* `--keyfile /path/to/keyfile` &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * `--mapper cryptmapname` &mdash; Set cryptroot mapper name [Default: cryptroot]
 * `--mask netmask` &mdash; Set network mask for initramfs
 * `--quiet` &mdash; Keep graphical desktop startup quiet (see 'known issues' below)
@@ -111,7 +110,7 @@ Switches to sdm-cryptconfig include:
 * `--sdm` &mdash; sdm `cryptroot` plugin sets this. Not for manual use
 * `--unique-ssh` &mdash; Use a different SSH host key in initramfs than the host OS SSH key
 
-The network configuration switches (dns, gateway, hostname, ipaddr, and mask) are only needed and should only be used if you know that the system is unable to get an IP address and network configuration information from the network (e.g., via DHCP). These settings are ONLY used in the initramfs if SSH is enabled and are not automatically removed.
+The network configuration switches (`dns`, `gateway`, `hostname`, `ipaddr`, and `mask`) are only needed and should only be used if you know that the system is unable to get an IP address and network configuration information from the network (e.g., via DHCP). These settings are ONLY used in the initramfs if SSH is enabled and are not automatically removed.
 
 RasPiOS uses a different mechanism to configure a static network, such as Network Manager, or other network configuration tools.
   
@@ -152,14 +151,14 @@ sdmcryptfs will then:
   * Removes some content that is no longer needed (`bash` and `sdmcryptfs`) and rebuilds initramfs 
   * Reboots the system one last time
 * As the system reboots you'll once again be prompted for the rootfs passphrase
-  * NOTE: Without the 30 tries!
-  * If using a USB keyfile you'll only be prompted if the USB keyfile disk cannot be found
-* The system will now ask for the rootfs passphrase like this (or use the USB keyfile disk) every time the system boots
+  * **NOTE:** Without the 30 tries!
+  * If using a USB Keyfile Disk you'll only be prompted if the USB Keyfile Disk cannot be found
+* The system will now ask for the rootfs passphrase like this (or use the USB Keyfile Disk) every time the system boots
 
-**Do not lose or forget the rootfs password. It is not possible to unlock the encrypted rootfs without a USB key disk or rootfs password**
+**Do not lose or forget the rootfs passphrase. It is not possible to unlock the encrypted rootfs without a USB Keyfile Disk or rootfs passphrase**
 
 ### Sample initramfs/sdmcryptfs Console Interaction
-Lines not preceded by '> yyyy-mm-dd hh:mm:ss' are the output of programs (dd, cryptsetup, resize2fs) that are run by sdmcryptfs.
+Lines not preceded by `> yyyy-mm-dd hh:mm:ss` are the output of programs (dd, cryptsetup, resize2fs) that are run by sdmcryptfs. The date/time may be incorrect if the system doesn not have a battery backed up clock.
 
 ```
 (initramfs) sdmcryptfs /dev/sda /dev/sdb
@@ -202,7 +201,10 @@ Enter the 'exit' command to resume the system boot
 
 ## SSH and initramfs
 
-If the Pi is *headless* (no keyboard/video/mouse) it is quite difficult (OK, it's impossible or close to it) to unlock the rootfs partition. To address this, you can enable SSH in the initramfs. When the system boots you can SSH into the initramfs and you'll be prompted for the rootfs unlock passphrase. After you enter it correctly, the system boot will proceed.
+If the Pi is *headless* (no keyboard/video/mouse) it is quite difficult (OK, it's impossible or close to it) to unlock the rootfs partition. There are two solutions that you can use with sdm's encrypted rootfs support. You can:
+
+* Use a USB Keyfile Disk (described in the next section).
+* Enable SSH in the initramfs. When the system boots you can SSH into the initramfs and you'll be prompted for the rootfs unlock passphrase. After you enter it correctly, the system boot will proceed.
 
 SSH can also be used during the initial rootfs encryption process, discussed in the next section. Everything works exactly the same as if you are sitting on the console, with the exception that log entries (e.g. plugging in a disk) do not show up in the SSH session.
 
@@ -216,9 +218,22 @@ Note that once you've enabled SSH in the initramfs, sdm does not provide an easy
 * `--unique-ssh` &mdash; Use a different SSH host key in the initramfs. The default is to use the host OS SSH key
 * Network configuration settings &mdash; You may need to use some or all of these depending on your network configuration
 
+Note that if SSH is enabled in initramfs, you can also SSH into the initramfs to perform the initial configuration (sdmcryptfs). As part of the post-encryption cleanup, this capability is removed in favor of only being able to enter the decryption passphrase.
+
+### Add SSH to an Already-Encrypted system
+
+If you encrypted your rootfs but didn't add SSH and now wish you did, you can! On your running, rootfs encrypted system:
+```
+sudo /usr/local/sdm/sdm-ssh-initramfs --authorized-keys /path/to/ssh/authorized_keys
+```
+sdm-ssh-initramfs will install and configure dropbear, and then rerun `update-initramfs -u`. After it completes, reboot the system, and the SSH server will be active, and you'll be able to unlock the encrypted rootfs over the network using SSH with a key that is accepted in the authorized_keys file.
+
+sdm-ssh-initramfs has a few other configuration switches. They are documented above at <a href="#sdm-cryptconfig-switches">sdm-cryptconfig switches</a>. sdm-ssh-initramfs supports the `--authorized-keys`, `--dns`, `--gateway`, `--hostname`, `--ipaddr`, `--mask`, and `--unique-ssh` switches.
+
+
 ### SSH and initramfs Notes
 
-Things to know when using SSH as documented here
+Things to know when using SSH as documented here:
 
 * You must use `ssh root@address`. The username `root` is important, as that's how SSH is configured in the initramfs
 * You can use `ssh root@hostname` if DNS (not MDNS) on your network is set up correctly for resolving local host names.
@@ -228,50 +243,51 @@ Things to know when using SSH as documented here
 
 ## Unlocking rootfs with a USB Keyfile Disk
 
-Instead of typing the rootfs password every boot you can use a USB keyfile to unlock the rootfs.
+Instead of typing the rootfs passphrase every boot you can use a USB Keyfile Disk to unlock the rootfs.
 
 ### Creating a USB Keyfile Disk
 
 Use `sudo /usr/local/sdm/sdm-make-luks-usb-key` on a host system to create a USB keyfile disk and key. `sdm-make-luks-usb-key` takes one argument, the name of an unmounted disk where the keyfile will be written. The disk will be re-partitioned with a small FAT32 partition.
 
-Use `--init` for the first key you create and save to the USB key disk. If you add additional keys to the disk, only use `--init` if you intend to delete all keys already on the disk.
+Use `--init` for the first key you create and save to the USB Keyfile Disk. If you add additional keys to the disk (for the same or other systems), only use `--init` if you intend to delete ALL keys already on the disk.
 
 Switches include:
 
 * `--ext4` &mdash; Also create a small second partition, formatted as ext4
 * `--hidden` &mdash; Create a GPT formatted disk and tag the partition as EFI. It will not be readable on Windows. Requires `--init`
-* `--hostname hname` &mdash; Add this key to the file `hostkeys.txt` on the USB key disk. This is handy if you have multiple keys on the disk.
+* `--hostname hname` &mdash; Add this key to the file `hostkeys.txt` on the USB Keyfile Disk. This is handy if you have multiple keys on the disk.
 * `--init` &mdash; Re-initialize the USB disk and re-create the FAT32 partition
 
 ### Using the USB Keyfile Disk
 
-The USB keyfile can be used in one of 3 ways:
+The USB Keyfile Disk can be used in one of 3 ways:
 
-* Already inserted into the system when boot starts
-  * The system will locate the keyfile on the USB disk and continue the system boot
-* Inserted after the boot process has started
+* Disk already inserted into the system when boot starts
+  * The system will locate the keyfile on the USB Keyfile Disk and continue the system boot
+* Disk inserted after the boot process has started
   * Once the disk has been inserted it will be noticed and used
-* Not present
-  * Enter the unlock password when prompted with `Insert USB key and press ENTER (or type password then ENTER):`
+* Disk not present
+  * Enter the unlock passphrase when prompted with `Insert USB Keyfile Disk and press ENTER (or type passphrase then ENTER):`
 
-### USB Keyfile Usage Notes
+### USB Keyfile Disk Usage Notes
 
-* The system will not boot if the USB keyfile disk is not inserted AND the system does not have a keyboard attached.
-* In addition to writing the USB key disk, `sdm-make-luks-usb-key` also places a copy of the encryption key file in /root/big-long-uid.lek. You may find it handy for use during customization runs, but once a USB key disk has been successfully created, you can `sudo rm -f /root/big-long-uid.lek`, or `*.lek` to delete them all.
-* If you get to the prompt `Insert USB key and press ENTER (or type password then ENTER):` you will probably see the following messages after you press ENTER:
+* In addition to writing the USB Keyfile Disk, `sdm-make-luks-usb-key` also places a copy of the encryption key file in /root/big-long-uid.lek.
+
+  You may find it handy for use during customization runs, but once a USB Keyfile Disk has been successfully created, you can `sudo rm -f /root/big-long-uid.lek`, or `*.lek` to delete them all.
+* If you get to the prompt `Insert USB Keyfile Disk and press ENTER (or type a passphrase then ENTER):` you will probably see the following messages after you press ENTER:
 
 ```
 Nothing to read on input.
 cryptsetup: ERROR: cryptroot: cryptsetup failed, bad password or options?
 ```
-These messages can be ignored as the rootfs unlock process will then loop around, retry and find the USB key disk you just inserted.
+These messages can be ignored as the rootfs unlock process will then loop around, retry and find the USB Keyfile Disk you just inserted.
 
 ### Adding a USB Keyfile to an Already-Encrypted rootfs
 
-If your rootfs is already encrypted with a password, but no keyfile, you can easily add a keyfile to it:
+If your rootfs is already encrypted with a passphrase, but no keyfile, you can easily add a keyfile to it:
 * Create the USB keyfile disk
-  * This can be done on any host and writes the keyfile to a USB disk. See above 'Creating a USB Keyfile Disk'
-* Add the USB keyfile on the host with the encrypted rootfs
+  * This can be done on any host and writes the keyfile to a USB disk. See above <a href="Disk-Encryption.md#creating-a-usb-keyfile-disk">Creating a USB Keyfile Disk</a>
+* Add the USB keyfile on the host with the encrypted rootfs (on the system running with an encrypted rootfs):
 ```
 sudo mount /dev/sdX /mnt
 sudo /usr/local/sdm/sdm-add-luks-key /mnt/big-long-uuid.lek
@@ -335,7 +351,7 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
   * Configure the system so that the boot following the disk encryption boots to the CLI
     * The systemd service `sdm-cryptfs-cleanup` restores the boot to graphical desktop
 
-  The above changes are made to ensure that you have full visibility into what's happening in the boot process. You can override these changes with the `--quiet` switch.
+  The above changes are made to ensure that you have full visibility into what's happening in the boot process. You can override these changes with the sdm-cryptconfig `--quiet` switch.
 
   After the system has fully completed the encryption process, if you want you can `sudoedit /boot/firmware/cmdline.txt` and add `quiet splash`. Also, if you want to re-enable plymouth, do the following once you're logged in:
 ```sh
@@ -344,7 +360,8 @@ do
     sudo systemctl unmask $svc
 done
 ```
-* The system will not boot if the USB keyfile disk is not inserted AND the system does not have a keyboard attached.
+
+## Acknowledgement
 
 Encryption configuration is based on https://rr-developer.github.io/LUKS-on-Raspberry-Pi. As of 2024-01-01 it predates Bookworm, but was very helpful in working out the initramfs configuration.
 
