@@ -121,7 +121,7 @@ function doapt() {
     # $2 is $showapt value
     # $3 is optional apt command [D:apt-get]
     #
-    local aptcmd="$3" sts
+    local aptcmd="$3" sts line
     [ "$aptcmd" == "" ] && aptcmd="apt-get -qq"
     echo "" >> /etc/sdm/apt.log
     outlong "$aptcmd $1" "/etc/sdm/apt.log"
@@ -133,6 +133,11 @@ function doapt() {
     else
 	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
 	sts=$?
+	#while read line
+	#do
+	#    echo "$(thisdate) $line" >> /etc/sdm/apt.log
+	#done < <(DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1)
+	#ls -l | (while read line; do echo $(date) ":" $line ; done)
     fi
     echo "[Done]" >> /etc/sdm/apt.log
     return $sts
@@ -414,6 +419,29 @@ function getpartname() {
     ispdevp $dev && echo "p${pn}" || echo "${pn}"
 }
 
+function getcdate() {
+    #
+    # Returns date in canonical format
+    #
+    local cdtfmt="+%Y-%m-%dT%H:%M:%S"  # Canonical date format for manipulation
+   echo $(date "$cdtfmt")
+}
+
+function datediff() {
+    #
+    # Computes difference between two dates
+    # returns it as a string of Days:Hours:Minutes:Seconds
+    #
+    local days hours minutes seconds eseconds
+    local btime="$1" etime="$2"
+    eseconds=$(($(/bin/date -d "$etime" +%s) - $(/bin/date -d "$btime" +%s)))
+    days=$((eseconds/86400))
+    hours=$(((eseconds - $((days*86400)))/3600))
+    minutes=$(((eseconds - $((days*86400)) - $((hours*3600)))/60))
+    seconds=$((eseconds - $((days*86400)) - $((hours*3600)) - $((minutes*60))))
+    printf "%02d:%02d:%02d:%02d\n" "$days" "$hours" "$minutes" "$seconds"
+}
+
 function writeconfig() {
     #
     # Write config parameters into the image
@@ -424,7 +452,7 @@ function writeconfig() {
     [ -f $paramfile ] && mv $paramfile $bkfile
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     for e in version thishost aptcache aptdistupgrade autologin fbatch b0script b1script bootscripts \
-		     burnplugins cscript csrc datefmt debugs dimg dimgdev dimgdevname domain ecolors \
+		     burnplugins cscript csrc customizestart datefmt debugs dimg dimgdev dimgdevname domain ecolors \
 		     expandroot exports fchroot fdirtree fnoexpandroot hname hostname loadlocal logwidth \
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
@@ -779,12 +807,12 @@ function dosshsetup() {
     ssh="$1" pfx="$2"
     case "$ssh" in
 	service)
-	    logtoboth "> Plugin $pfx: Enable SSH service via /boot/ssh"
-	    touch /boot/ssh                 # In case the OS changes its mind again ;)
-	    [ -d /boot/firmware ] && touch /boot/firmware/ssh
+	    logtoboth "> Plugin $pfx: Enable SSH service"
+	    systemctl enable ssh >/dev/null 2>&1
+	    systemctl enable sshswitch >/dev/null 2>&1
 	    ;;
 	socket)
-	    logtoboth "> Plugin $pfx: Enable SSH via ssh.socket"
+	    logtoboth "> Plugin $pfx: Enable SSH using ssh.socket"
 	    systemctl enable ssh.socket > /dev/null 2>&1
 	    systemctl disable sshswitch.service > /dev/null 2>&1
 	    ;;
