@@ -255,6 +255,7 @@ function sdm_burndevfile() {
 	    pdev="$(getpartname $burndev $p)"
 	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
 	done
+	burnstart="$(getcdate)"
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
@@ -567,6 +568,7 @@ EOF
 	    ;;
     esac
     write_burnmsg "* Burn Completed"
+    logtoboth "> Burn elapsed time: $(datediff "$burnstart" "$(getcdate)")"
     printnotes
     #
     # Call burn-plugins
