@@ -26,6 +26,30 @@ function pmsg() {
     echo "> $(thisdate) $msg"
 }
 
+function getcbbdate() {
+    #
+    # Returns date in busybox canonical format
+    #
+    local cdtfmt="+%Y-%m-%d %H:%M:%S"  # Canonical date format for manipulation
+   echo $(date "$cdtfmt")
+}
+
+function datediff() {
+    #
+    # Computes difference between two dates
+    # returns it as a string of Days:Hours:Minutes:Seconds
+    #
+    local days hours minutes seconds eseconds
+    local btime="$1" etime="$2"
+    eseconds=$(($(/bin/date -d "$etime" +%s) - $(/bin/date -d "$btime" +%s)))
+    days=$((eseconds/86400))
+    hours=$(((eseconds - $((days*86400)))/3600))
+    minutes=$(((eseconds - $((days*86400)) - $((hours*3600)))/60))
+    seconds=$((eseconds - $((days*86400)) - $((hours*3600)) - $((minutes*60))))
+    #echo "$days:$hours:$minutes:$seconds"
+    [ $days -ne 0 ] && printf "%02d:%02d:%02d:%02d\n" "$days" "$hours" "$minutes" "$seconds" || printf "%02d:%02d:%02d\n" "$hours" "$minutes" "$seconds"
+}
+
 function getgbstr() {
     #
     # $1: # of bytes in partition
@@ -75,12 +99,15 @@ function checkdev() {
 function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev)
+    local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
     pmsg "Save rootfs '$rootfs' to '$sdisk'"
     pbytes=$((partsize*4096))
     pgb=$(((pbytes / 1073741824)+1))
-    pmsg "rootfs Save should take less than $pgb minutes"
+    pmsg "rootfs save should take less than $pgb minutes"
+    starttime="$(getcbbdate)"
     dd bs=4k count=$partsize if=$rootfs of=$sdisk
+    pmsg "rootfs Save elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     return 0
 }
 
@@ -89,30 +116,30 @@ if [ ! -e /mnt ]; then
     sleep 1
 fi
 
-function config_keyfile() {
-    local kfl="" kfn
+function find_keyfile() {
+    local kfl=""
 
     if [ -f /etc/sdmkeyfile ]
     then
-	read kfn < /etc/sdmkeyfile
-	if [ "$kfn" != "" ]
-	then
-	    kfn=$(basename $kfn)
-	    if [ -f /etc/$kfn ]
-	    then
-		kfl="/etc/$kfn"
-	    else
-		echo "? Internal error: keyfile $kfn not found"
-	    fi
-	    if [ "$kfl" != "" ]
-	    then
-		pmsg "Add LUKS key '$kfn' from file $kfl"
-		pmsg "When prompted for an existing passphrase use the one you just created"
-		cryptsetup luksAddKey $rootfs $kfl
-		[ $? -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $?"
-		rm -f $kfl
-	    fi
-	fi
+	read kfl < /etc/sdmkeyfile
+	[[ "$kfl" != "" ]] && [[ -f /etc/$kfl ]] && kfl="/etc/$(basename $kfl)"
+    fi
+    echo "$kfl"
+}
+
+function config_keyfile() {
+    local kfl="" kfn=""
+
+    [ -f /etc/sdmkeyfile ] || return
+    kfl=$(find_keyfile)
+    [ "$kfl" == "" ] || kfn=$(basename $kfl)
+    if [ "$kfn" != "" ]
+    then
+	pmsg "Add LUKS key '$kfn' from file $kfl"
+	pmsg "When prompted for an existing passphrase enter the one you just created"
+	cryptsetup luksAddKey $rootfs $kfl
+	[ $? -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $?"
+	rm -f $kfl
     fi
 }
 
@@ -161,10 +188,15 @@ function restore_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev)
     local cpartnum cpartstart cpartend cpartsize etc
+    local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
     pmsg "Restore '$rootfs' from '$sdisk'"
-    pmsg "rootfs Restore should take about the same time as the rootfs Save"
+    pbytes=$((partsize*4096))
+    pgb=$(((pbytes / 1073741824)+1))
+    pmsg "rootfs restore should take less than $pgb minutes"
+    starttime="$(getcbbdate)"
     dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
+    pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     pmsg "Restore complete; Expand rootfs..."
     resize2fs -f /dev/mapper/$cryptdevice
     while read line
