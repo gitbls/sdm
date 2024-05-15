@@ -237,7 +237,11 @@ if [ -f /etc/sdm/apt.log ]
 then
     grep -q "^E:" /etc/sdm/apt.log && logtoboth "? apt reported errors; review /etc/sdm/apt.log"
 fi
-
+#
+# Report run time
+#
+customizeend="$(getcdate)"
+logtoboth "> Customize elapsed time: $(datediff $customizestart $customizeend)"
 if [ $fbatch -eq 0 ]
 then
     if [ -t 0 ]
