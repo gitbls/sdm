@@ -1,5 +1,19 @@
 # Changelog
 
+## V12.1
+
+* New Features
+  * Add `zeroconf` argument to `network` plugin which will automatically configure a 169.254.x.x address if the ethernet device does not acquire an IP address (NetworkManager only). Idea from: https://github.com/thagrol/Guides/blob/main/bookworm.pdf
+  * New tool sdm-ssh-initramfs adds SSH capability to an already installed and encrypted RasPiOS/Debian system
+* Improvements
+  * Remove restriction identified in V12.0 if encrypted rootfs with a USB key but key not inserted AND no keyboard
+  * `network` plugin code improvements
+  * Add more host diagnostic information in /etc/sdm/history
+  * Print elapsed time for copies in `sdmcryptfs`
+* Bug Fixes
+  * Correct inverted null string test in `apt-addrepo` plugin
+  * Enable `trim-enable` to continue on a couple of errors that it formerly died on
+
 ## V12.0
 
 * New Features
