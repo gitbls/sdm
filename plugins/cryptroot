@@ -9,6 +9,12 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function converty() {
+    [ -v noauto ] && noauto=y
+    [ -v ssh ] && ssh=y
+    [ -v uniquesshkey ] && unisquesshkey=y
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -30,6 +36,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
+    converty
     mkdir -p $assetdir
     if [ "$authkeys" != "" ]
     then
@@ -42,7 +49,7 @@ then
 	    exit 1
 	fi
     else
-	[ "$ssh" != "" ] && { logtoboth "? Plugin $pfx: 'ssh' requires 'authkeys'" ; exit 1 ; }
+	[ "$ssh" == "y" ] && { logtoboth "? Plugin $pfx: 'ssh' requires 'authkeys'" ; exit 1 ; }
     fi
     if [ "$keyfile" != "" ]
     then
@@ -62,9 +69,9 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    converty
     [ "$mappername" == "" ] && mappername="cryptroot"
     [ "$crypto" == "" ] && xcrypto="aes" || xcrypto=$crypto
-    [ -v ssh ] && ssh="y"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
     # These are only for tracking, not used by sdm-cryptconfig
@@ -86,8 +93,8 @@ then
     [ "$keyfile" != "" ] && osw="${osw} --keyfile $keyfile"
     [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
     [ "$ssh" != "" ] && osw="${osw} --ssh"
-    [ -v uniquesshkey ] && osw="${osw} --unique-ssh"
-    [ -v noauto ] && escript0=".099-enable-auto-encrypt.sh" || escript0="099-enable-auto-encrypt.sh"
+    [ "$uniquesshkey" == "y" ] && osw="${osw} --unique-ssh"
+    [ "$noauto" == "y" ] && escript0=".099-enable-auto-encrypt.sh" || escript0="099-enable-auto-encrypt.sh"
     cat > /etc/sdm/0piboot/$escript0 <<EOF
 #!/bin/bash
 logger "sdm FirstBoot: Create automatic disk encryption service"
@@ -98,7 +105,7 @@ After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/sdm-cryptconfig --sdm --reboot $osw
+ExecStart=/usr/local/bin/sdm-cryptconfig --sdm $osw --reboot
 #ExecStart=/usr/local/bin/sdm-cryptconfig --sdm $osw
 
 [Install]
@@ -120,7 +127,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    [ -v ssh ] && ssh="y"
+    converty
     used1k=$(getfsdf "/" used) 
     usedby=$((used1k*1024))
     logtoboth ""
@@ -130,7 +137,7 @@ then
     plugin_addnote ""
     plugin_addnote "*** cryptroot notes ***"
     plugin_addnote ""
-    if [ ! -v noauto ]
+    if [ "$noauto" != "y" ]
     then
 	plugin_addnote "* Next steps"
 	plugin_addnote "  * When the system initial boot process has completed, the sdm-auto-encrypt service will run"
@@ -171,7 +178,7 @@ then
 	plugin_addnote ""
 	plugin_addnote "    * On the way back up you'll once again be prompted for the rootfs passphrase (Without the 30 tries)"
 	plugin_addnote "    * The system will ask for the rootfs passphrase in this manner every time the system boots"
-	if [[ -v ssh ]] || [[ -v keyfile ]]
+	if [[ "$ssh" == "y" ]] || [[ "$keyfile" == "y" ]]
 	then
 	    plugin_addnote ""
 	    plugin_addnote "    NOTE: You have configured SSH or a LUKS encryption keyfile"
