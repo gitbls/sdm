@@ -222,7 +222,7 @@ sleep 2
 reboot
 EOF
     chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
-    systemctl daemon-reload
+    pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
     systemctl enable sdm-cryptfs-cleanup > /dev/null 2>&1
 }
 
@@ -307,27 +307,47 @@ EOF
 # called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
 #
 set -e
+trydisks()
+{
+    for usbpartition in /dev/disk/by-id/usb-*-part1; do
+        usbdevice=\$(readlink -f \$usbpartition)
+        if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
+            if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
+                cat /mnt/\$CRYPTTAB_KEY.lek
+                umount \$usbdevice || continue
+                exit
+            fi
+            umount \$usbdevice || continue
+        fi
+    done
+    return 0
+}
+
 if [ ! -e /mnt ]; then
     mkdir -p /mnt
 fi
 if [ "\$CRYPTTAB_TRIED" == "0" ] ; then
     sleep 4 # Wait a bit for disk to appear
 fi
-for usbpartition in /dev/disk/by-id/usb-*-part1; do
-    usbdevice=\$(readlink -f \$usbpartition)
-    if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
-        if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
-             cat /mnt/\$CRYPTTAB_KEY.lek
-            umount \$usbdevice
-            exit
-        fi
-        umount \$usbdevice
-    fi
-done
-# Only print message and pause for ENTER if there is a keyboard
-#if [ -e /dev/input/by-id ] ; then
-    /lib/cryptsetup/askpass "Insert USB key and press ENTER (or type password then ENTER): "
-#fi
+set +e
+trydisks
+kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
+set -e
+if [ "\$kbd" != "" ] ; then
+    trydisks
+    /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
+else
+    while :; do
+        set +e
+        kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
+        set -e
+        [ "\$kbd" != "" ] && break
+        trydisks
+        echo "Insert USB Keyfile Disk" >/dev/console
+        sleep 1
+    done
+    /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
+fi
 EOF
     chmod 755 /bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks_hooks"
@@ -425,14 +445,9 @@ function domkinitramfs() {
 }
 
 function doupdateconfig() {
-    local rootfs sd kfu="" kfuuid="none"
+    local rootfs kfu="" kfuuid="none"
 
     rootfs=$(findmnt --noheadings --output source /)
-    sd=$(lsblk -dpno pkname $rootfs)
-    if [ "$sd" == "" ] #snh but the code was here!
-    then
-	sd="$(getspname $rootfs 2)"
-    fi
     echo "> Update root statement in cmdline.txt"
     sed -i "s#root=[0-9a-zA-Z-]*[ =][0-9a-zA-Z-]* #root=/dev/mapper/$xmapper #" /boot/firmware/cmdline.txt
     echo "> Add cryptdevice '$xmapper' to cmdline.txt"
@@ -504,7 +519,7 @@ then
 	fi
     fi
 fi
-logifsdm "Starting; System will restart automatically when completed"
+logifsdm "Starting; System will restart automatically when complete"
 
 for o in doapt config mkinitramfs updateboot
 do
@@ -517,7 +532,7 @@ do
 	    then
 		echo ""
 		echo "** Ignore dropbear WARNINGs about authorized_keys file **"
-		echo "   initramfs will be rebuilt with the authorize_keys file later"
+		echo "   initramfs will be rebuilt with the authorized_keys file later"
 		echo ""
 		sleep 5
 	    fi
