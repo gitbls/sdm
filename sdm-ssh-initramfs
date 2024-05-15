@@ -1,0 +1,197 @@
+#!/bin/bash
+#
+# Run on a system to enable ssh into initramfs
+#
+
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
+function ispdevp() {
+    local dev="$1"
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
+}
+
+function getspname() {
+    local dev="$1" pn="$2"
+    ispdevp $dev && echo "${dev}p${pn}" || echo "${dev}${pn}"
+}
+
+function getpartname() {
+    local dev="$1" pn="$2"
+    ispdevp $dev && echo "p${pn}" || echo "$pn"
+}
+
+function ispkginstalled() {
+    #
+    # $1 has package name
+    #
+    iver=$(apt-cache policy $1 | grep Installed: 2> /dev/null)
+    if [ "$iver" == "" ]
+    then
+        return 1
+    else
+        [[ "$iver" =~ "(none)" ]] && return 1 || return 0
+    fi
+    return
+}
+
+function printhelp() {
+    echo $"
+sdm-ssh-initramfs has several command line switches. All are optional except --authorized-keys, which is required
+
+* --authorized-keys keyfile -- Provides SSH authorized_keys file for the initramfs. Required
+* --dns dnsaddr -- Set IP Address of DNS server
+* --gateway gatewayaddr -- Set IP address of gateway
+* --hostname hostname -- Set hostname
+* --ipaddr ipaddr -- set IP address to use in initramfs
+* --mask netmask -- Set network mask for initramfs
+* --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
+
+The network configuration switches (dns, gateway, hostname, ipaddr, and mask) are only needed
+and should only be used if you know that the system is unable to get an IP address and network
+configuration information from the network (e.g., via DHCP). These settings are ONLY used in the
+initramfs if SSH is enabled and are not automatically removed, so each time the system restarts
+the initramfs will use these settings.
+"
+}
+
+function printinfo() {
+    echo $"
+NOTE: You have enabled  SSH in initramfs
+      Please review https://github.com/gitbls/sdm/blob/master/Docs/Disk-Encryption.md
+"
+
+}
+
+function parsecmd() {
+    local cmd="$1" args="$2"
+    local longopts="authorized-keys:,dns:,gateway:,help,hostname:,ipaddr:,mask:,netmask:,ssh,unique-ssh"
+
+    OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
+    [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
+    eval set -- "$OARGS"
+    while true
+    do
+	case "${1,,}" in
+	    # 'shift 2' if switch has argument, else just 'shift'
+	    --authorized-keys) xauthkeys=$2 ; shift 2 ;;
+	    --dns)             xdns=$2      ; shift 2 ;;
+	    --gateway)         xgateway=$2  ; shift 2 ;;
+	    --hostname)        xhostname=$2 ; shift 2 ;;
+	    --ipaddr)          xipaddr=$2   ; shift 2 ;;
+	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	    --unique-ssh)      xunique=1    ; shift 1 ;;
+	    --)                shift ; break ;;
+	    -h|--help)         printhelp ; shift ; exit ;;
+	    *) errexit "? $0: Internal error" ;;
+	esac
+    done
+
+    if [ "$xauthkeys" != "" ]
+    then
+	! [ -f $xauthkeys ] && errexit "? --authorized-keys file '$xauthkeys' not found"
+    else
+	[ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
+    fi
+}
+
+function doconfiginitramfs() {
+    #
+    # Configure the network in initramfs.conf if requested
+    #
+    if [[ $xssh -eq 1 ]] && [[ "${xipaddr}${xgateway}${xnetmask}${xhostname}" != "" ]]
+    then
+	ips="IP="   # Configure DNS, gateway, hostname, ipaddr, netmask
+	[ "$xipaddr" != "" ] && ips="${ips}${xipaddr}:" || ips="${ips}:"
+	ips="${ips}:"   # For the mystery 'server' value
+	[ "$xgateway" != "" ] && ips="${ips}${xgateway}:" || ips="${ips}:"
+	[ "$xnetmask" != "" ] && ips="${ips}${xnetmask}:" || ips="${ips}:"
+	[ "$xhostname" != "" ] && ips="${ips}${xhostname}:" || ips="${ips}:"
+	ips=${ips%:}
+	echo "ipstatement: $ips"
+	echo "$ips" >> /etc/initramfs-tools/initramfs.conf
+    fi
+    #
+    # Configure dropbear
+    #
+    if [ $xssh -eq 1 ]
+    then
+	echo "> Configure SSH"
+	sed -i "s#\#DROPBEAR_OPTIONS=\"\"#DROPBEAR_OPTIONS=\"-I 300 -j -k -s -p 22 -c cryptroot-unlock -r /etc/dropbear/dropbear_ed25519_host_key\"#" /etc/dropbear/initramfs/dropbear.conf
+	echo "> Copy authorized keys file from '$xauthkeys'"
+	cp $xauthkeys /etc/dropbear/initramfs/authorized_keys
+	if [ $xunique -eq 0 ]
+	then
+	    echo "> Convert openSSH host key for use in dropbear/initramfs"
+	    dropbearconvert openssh dropbear /etc/ssh/ssh_host_ed25519_key /etc/dropbear/initramfs/dropbear_ed25519_host_key
+	else
+	    echo "> Use unique SSH host key in dropbear/initramfs"
+	fi
+    fi
+}
+
+function domkinitramfs() {
+    echo "> Update initramfs with the rootfs encryption settings in place"
+    update-initramfs -u
+}
+
+#
+# Main code
+#
+xauthkeys=""
+xdns=""
+xgateway=""
+xhostname=""
+xipaddr=""
+xnetmask=""
+xreboot=0
+xssh=1
+xunique=0
+src=$(dirname "$(realpath "$0")")
+parsecmd $0 "$*"
+
+! ispkginstalled cryptsetup || ! ispkginstalled cryptsetup-initramfs && errexit "? cryptsetup and/or cryptsetup-initramfs not installed"
+
+for o in doapt config mkinitramfs
+do
+    case "$o" in
+	doapt)
+	    apps="dropbear-initramfs dropbear-bin"
+	    echo "Install $apps"
+	    if [ $xssh -eq 1 ]
+	    then
+		echo ""
+		echo "** Ignore dropbear WARNINGs about authorized_keys file **"
+		echo "   initramfs will be rebuilt with the authorized_keys file later"
+		echo ""
+		sleep 5
+	    fi
+	    apt install --no-install-recommends --yes $apps
+	    ;;
+	config)
+	    doconfiginitramfs
+	    ;;
+	mkinitramfs)
+	    domkinitramfs
+	    ;;
+    esac
+done
+
+printinfo
+
+if [ $xreboot -eq 1 ]
+then
+    wait_startup_complete "sdm-ssh-initramfs: Wait for system startup to complete"
+    secs=10
+    logger "sdm-ssh-initramfs: System will reboot in $secs seconds"
+    echo "" > /dev/console
+    echo "sdm-ssh-initramfs: System will reboot in $secs seconds" > /dev/console
+    sleep $secs
+    logger "sdm-ssh-initramfs: System will reboot now"
+    echo "sdm-ssh-initramfs: System will reboot now" > /dev/console
+    sleep 2
+    reboot
+fi
+exit 0
