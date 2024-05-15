@@ -480,6 +480,7 @@ Use the network plugin to configure various network settings
 * **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). If `netman` is not specified, by default sdm will use dhcpcd on Bullseye (Debian 11) and earlier, while on Bookworm (Debian 12) sdm will use NetworkManager.
 * **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
 * **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
+* **ifname** &mdash; Specifies ethernet device name to configure. Default is `eth0`
 * **ssh** &mdash; Accepts one of the values `service`, `socket`, or `none`. The default if `ssh` is not specified is to enable the SSH service
 * **wifissid** &mdash; Specifies the WiFi SSID to enable. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`), or will use nmcli during First Boot to establish the specified WiFi connection.
 * **wifipassword** &mdash; Password for the `wifissid` network. See `wifissid`
@@ -488,6 +489,11 @@ Use the network plugin to configure various network settings
 * **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
 * **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
 * **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+* **zeroconf** &mdash; (NetworkManager only) If eth0 does not properly connect (e.g., doesn't get a DHCP address) then bring up zeroconf (169.254.x.y) on the adapter.
+
+  This can take some time due to NetworkManager default settings and timeouts. You can use the NetworkManager settings `ipv4.dhcp-timeout` and `connection.autoconnect-retries`  on the eth0 nmconnection to reduce the delay if desired.
+
+  See <a="https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html">Network Manager nmcli settings</a> for complete details on connection settings.
 
 #### Examples
 
