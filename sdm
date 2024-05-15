@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.0"
+version="V12.1"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -728,6 +728,7 @@ then
 	    runplugins_exit "$plugins" 0
 	    sdm_runspawncmd Phase1 run-plugin-list 1 "$plugins" || exit
 	    sdm_runspawncmd Phase1 run-plugin-list post-install "$plugins" || exit
+	    printnotes
 	fi
 	exit 0
     elif [ "$burnplugins" != "" ]
@@ -782,6 +783,7 @@ else
 	    echo ""
 	fi
     fi
+    customizestart="$(getcdate)"
     #
     # Extend image if requested
     #
@@ -833,12 +835,23 @@ else
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
 	setfileownmode $SDMPT/$sdmdir/1piboot/*.sh 755
     fi
+    [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
+    if [ -e /proc/meminfo ]
+    then
+	memline=$(grep -i MemTotal /proc/meminfo)
+	memsize="${memline##*:}"
+	memsize="${memsize#"${memsize%%[![:space:]]*}"}"
+    else
+	memsize=""
+    fi
     is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
     raspiosver="$(getosinfo VERSION_ID $SDMPT)"
     logtoboth "> Command Line: $cmdline"
     logtoboth "* Host Information"
-    logtoboth "   Hostname: $(hostname)"
-    logtoboth "   uname: $(uname -a)"
+    logtoboth "   Hostname:  $(hostname)"
+    [ "$memsize" != "" ] && logtoboth "   Memory:    $memsize"
+    logtoboth "   uname:     $(uname -a)" nosplit
+    [ "$pimodel" != "" ] && logtoboth "   Raspberry Pi Model: $pimodel"
     os_name="$(getosinfo PRETTY_NAME)"
     [ "$os_name" == "" ] && os_name="$(getosinfo NAME)"
     logtoboth "   os-release Name: $os_name"
@@ -934,4 +947,3 @@ sts=$?
 [ $icolors -eq 1 ] && resetcolors xt
 
 exit $sts
-
