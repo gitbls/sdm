@@ -33,7 +33,7 @@ then
     if [[ -v repo ]] && [[ "$repo" != "" ]]
     then
 	logtoboth "> Plugin $pfx: Add repo '$repo' to apt sources"
-	[ "$name" != "" ] && name="sdm-sourced-repo"
+	[ "$name" == "" ] && name="sdm-sourced-repo"
 	if [ -f  $SDMPT/etc/apt/sources.list.d/$name.list ]
 	then
 	    logtoboth "? Plugin $pfx: Repo '$name' already exists; Add argument 'name=somename' to this apps plugin invocation"
