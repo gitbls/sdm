@@ -96,7 +96,7 @@ function gfxcfgpostinstall() {
 	# Lite with no known Desktop
 	if [ $reboot -eq 1 ]
 	then
-	    logtoboth "> Plugin $pfx: No known Display Manager found"
+	    logtoboth "> Plugin $pfx: No sdm-configurable Display Manager found"
 	    logtoboth "> Plugin $pfx: Set RasPiOS to B1:'console no login' for sdm FirstBoot"
 	    #SUDO_USER="$userx" raspi-config do_boot_behaviour B1 nonint > /dev/null 2>&1
 	    do_raspiconfig do_boot_behaviour B1
