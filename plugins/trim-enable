@@ -38,14 +38,16 @@ function trimcfg() {
 		then
 		    logtoboth "> Device '$diskname' already has trim enabled"
 		else
-		    logtoboth "? Device '$diskname' cannot be enabled for trim"
+		    logtoboth "% Device '$diskname' cannot be enabled for trim"
 		fi
 	    fi
 	    if [[ $trimenb -eq 1 ]] && [[ -f $pmfile ]]  # If trim not enabled, but can be
 	    then
-		lbacount=$(sg_vpd -p bl $diskname | grep "unmap LBA" | (read w1 w2 w3 w4 lbc rest; echo $lbc))
-		unmapsupp=$(sg_vpd -p lbpv $diskname | grep "Unmap command supported" | (read w1 w2 w3 w4 ws ; echo $ws))
-		if [ $lbacount -gt 0 -a $unmapsupp -eq 1 ]
+		lbacount=$(sg_vpd -p bl $diskname 2>/dev/null| grep "unmap LBA" | (read w1 w2 w3 w4 lbc rest; echo $lbc))
+		unmapsupp=$(sg_vpd -p lbpv $diskname 2>/dev/null | grep "Unmap command supported" | (read w1 w2 w3 w4 ws ; echo $ws))
+		[ "$lbacount" == "" ] && lbacount=0
+		[ "$unmapsupp" == "" ] && unmapsupp=0
+		if [[ $lbacount -gt 0 ]] && [[ $unmapsupp -eq 1 ]]
 		then
 		    maxbytes=$((lbacount*512))
 		    read pmode < $pmfile
@@ -116,12 +118,10 @@ EOF
 			logtoboth "> Plugin $pfx: Write udev rule $udevrule"
 			logtoboth "> Plugin $pfx:  with contents: $(cat $udevrule)"
 		    else
-			logtoboth "? Plugin $pfx: Did not find idProduct and idVendor for $diskname"
-			exit 1
+			logtoboth "% Plugin $pfx: Did not find idProduct and idVendor for $diskname"
 		    fi
 		else
-		    logtoboth "? Plugin $pfx: Device '$diskname' does not support trim"
-		    exit 1
+		    logtoboth "% Plugin $pfx: Device '$diskname' does not support trim"
 		fi
 	    fi
 	fi
@@ -191,7 +191,9 @@ then
     # Based on: https://www.jeffgeerling.com/blog/2020/enabling-trim-on-external-ssd-on-raspberry-pi
 
     # disks="" [all], "all", or a list of disks ("/dev/sda,/dev/sdb", etc)
+    disks="$args"
     [ "$disks" == "" ] && disks="all"
+    logtoboth "> Plugin $pfx: Start trim-enable on disks '$disks'"
     trimcfg "$disks"
     #logfreespace "at end of $pfx Custom Phase post-install"
 fi
