@@ -26,31 +26,53 @@ kfn=$(basename $keyfn)
 #
 if [ ! -f /bin/sdmluksunlock ]
 then
-    # How to determine if keyboard attached? 
     cat > /bin/sdmluksunlock <<EOF
 #!/bin/sh
 #
 # called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
 #
 set -e
+trydisks()
+{
+    for usbpartition in /dev/disk/by-id/usb-*-part1; do
+        usbdevice=\$(readlink -f \$usbpartition)
+        if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
+            if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
+                cat /mnt/\$CRYPTTAB_KEY.lek
+                umount \$usbdevice || continue
+                exit
+            fi
+            umount \$usbdevice || continue
+        fi
+    done
+    return 0
+}
+
 if [ ! -e /mnt ]; then
     mkdir -p /mnt
 fi
 if [ "\$CRYPTTAB_TRIED" == "0" ] ; then
     sleep 4 # Wait a bit for disk to appear
 fi
-for usbpartition in /dev/disk/by-id/usb-*-part1; do
-    usbdevice=\$(readlink -f \$usbpartition)
-    if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
-        if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
-             cat /mnt/\$CRYPTTAB_KEY.lek
-            umount \$usbdevice
-            exit
-        fi
-        umount \$usbdevice
-    fi
-done
-/lib/cryptsetup/askpass "Insert USB key and press ENTER (or type password then ENTER): "
+set +e
+trydisks
+kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
+set -e
+if [ "\$kbd" != "" ] ; then
+    trydisks
+    /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
+else
+    while :; do
+        set +e
+        kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
+        set -e
+        [ "\$kbd" != "" ] && break
+        trydisks
+        echo "Insert USB Keyfile Disk" >/dev/console
+        sleep 1
+    done
+    /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
+fi
 EOF
     chmod 755 /bin/sdmluksunlock
 fi
@@ -62,7 +84,7 @@ mapname=$(basename $mapname)
 read mapname rootfs rest <<< "$(grep $mapname /etc/crypttab)"
 kfuuid=${kfn%.lek}
 pmsg "> Update /etc/crypttab for USB unlock"
-cp /etc/crypttab /etc/sdm.crypttab.orig
+cp /etc/crypttab /etc/crypttab.orig.sdm
 sed -i /etc/crypttab -e "s|$mapname.*|$mapname  $rootfs $kfuuid luks,discard,keyscript=/bin/sdmluksunlock|"
 
 pmsg "> Add LUKS key '$kfn' from file $keyfn"
