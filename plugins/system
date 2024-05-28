@@ -19,7 +19,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 maxsys=32                #Max number times system plugin can be invoked
 loadparams
-vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|swap|sysctl|systemd-config|udev|"
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|service-mask|swap|sysctl|systemd-config|udev|"
 rqdargs=""
 argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
 eepromvals="|critical|stable|beta|"
@@ -324,6 +324,14 @@ EOF
 			#echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
 			systemctl enable -q $c
 		    fi
+		done
+		;;
+	    service-mask)
+		IFS="," read -a ssvc <<< "$cval"
+		for c in "${ssvc[@]}"
+		do
+		    logtoboth "> Plugin $pfx: Mask service '$c'"
+		    systemctl mask -q $c
 		done
 		;;
 	    swap)
