@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.1"
+version="V12.2"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -277,7 +277,7 @@ vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
 vdebug="|all|apt|"          #Valid --debug settings
-vpoptions="|noupdate|noupgrade|noautoremove|none|" #Valid --poptions
+vpoptions="|noupdate|noupgrade|noautoremove|nologdates|none|" #Valid --poptions
 #vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vloadopts="|wifi|"          #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
@@ -494,7 +494,7 @@ debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
 exitiferr "$debugs"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--apt-options|--poptions")
 exitiferr "$poptions"
-[[ "$poptions" =~ "none" ]] && poptions="noupdate|noupgrade|noautoremove"
+[[ "$poptions" =~ "none" ]] && poptions="${poptions/none/noupdate|noupgrade|noautoremove}"
 loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
@@ -533,12 +533,16 @@ then
 	    then
 		while read line
 		do
-		    IFS=":" read -r p pargs <<< "$line"
-		    # Strip quotes surrounding the arg list
-		    pargs=$(stripquotes "$pargs")
-		    [ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
-		    [ "$pargs" == "" ] && line=$p || line="${p}:${pargs}"
-		    plugins=$(appendvalue "$plugins" "$line" "~") 
+		    line=$(stripbcline "$line")
+		    if [ "$line" != "" ]
+		    then
+			IFS=":" read -r p pargs <<< "$line"
+			# Strip quotes surrounding the arg list
+			pargs=$(stripquotes "$pargs")
+			[ "$pargs" == "$p" ] && pargs=""      #Really a null argument list
+			[ "$pargs" == "" ] && line=$p || line="${p}:${pargs}"
+			plugins=$(appendvalue "$plugins" "$line" "~")
+		    fi
 		done < "$pluglist"
 		pluglistlist=$(appendvalue "$pluglistlist" "$pluglist" "~")
 	    else

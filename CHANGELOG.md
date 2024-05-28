@@ -1,5 +1,21 @@
 # Changelog
 
+## V12.2
+
+* New Features
+  * Encrypted rootfs can now be configured with only a keyfile (no passphrase). See <a href="Docs/Disk-Encryption.md">Disk Encryption</a>
+  * New argument `service-mask` for `system` plugin (Thanks  @ytret!)
+* Improvements
+  * By default /etc/sdm/apt.log lines are now time-stamped. Disable with `--apt-options nologdates`
+  * `--apt-options none` means `--apt-options noupdate,noupgrade,noautoremove` (does not affect `nologdates`)
+  * Update `btwifiset` plugin to V2 (See <a href="https://github.com/nksan/Rpi-SetWiFi-viaBluetooth/tree/main">btwifiset</a>)
+  * Strip comment lines starting with `#` from `--plugin @file`
+  * `sdmcryptfs` gives the option to zap the temporary disk in order to remove unencrypted rootfs copy
+  * `bootconfig` plugin will report config.txt line too long (>96) to prevent boot mystery
+* Bug Fixes
+  * Correctly handle boot_behavior when set via `raspiconfig` plugin
+  * Burn time is now correctly logged
+
 ## V12.1
 
 * New Features
