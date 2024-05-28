@@ -242,6 +242,7 @@ function sdm_burndevfile() {
     declare -a burnmsg
     fpartcopy=0
     write_burnmsg "* Start Burn"
+    burnstart="$(getcdate)"
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
     if [ $burn -eq 1 ]
     then
@@ -255,7 +256,6 @@ function sdm_burndevfile() {
 	    pdev="$(getpartname $burndev $p)"
 	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
 	done
-	burnstart="$(getcdate)"
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
 	ismounted $burndev && errexit "? Device '$burndev' is mounted"
 	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
