@@ -82,6 +82,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --keyfile keyfile -- Key file for USB-based key unlock
 * --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --mask netmask -- Set network mask for initramfs
+* --nopwd -- No password on encrypted rootfs; keyfile (required) is only unlock
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
 * --ssh -- Enable SSH in initramfs
 * --reboot -- Reboot the system (into initramfs) when sdm-cryptconfig is complete
@@ -132,11 +133,12 @@ sdmcryptfs will:
 
 * Print the size of rootfs $rootfs
 * Save the contents of $rootfs to /dev/sdX
+* NOTE: There will be no prompts for passphrases if --nopwd specified
 * Enable encryption on $rootfs
   * You will be prompted to enter YES (all in upper case) to continue
-  * You will then be prompted to provide the passphrase for $rootfs
+  * You will then be prompted to provide the passphrase for $rootfs (unless --nopwd)
     ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **
-* After a short pause you'll be prompted for the passphrase again to unlock $rootfs
+* After a short pause you'll be prompted for the passphrase again to unlock $rootfs (unless --nopwd)
 * The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs
 * When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt
 * Type 'exit' to continue the boot sequence
@@ -144,10 +146,16 @@ sdmcryptfs will:
 * Once the system boots the sdm-cryptfs-cleanup service will run which:
   * Removes some one-time content and rebuilds initramfs
   * Reboots the system one last time
-
-* As the system reboots you'll once again be prompted for the rootfs passphrase (Without the 30 tries)
+"
+    if [ $xnopwd -eq 0 ]
+    then
+	echo $"* As the system reboots you'll once again be prompted for the rootfs passphrase (Without the 30 tries)
   ** The system will now ask for the rootfs passphrase like this every time the system boots **
 "
+    else
+	echo $"* As the system reboots it will hang until the USB keyfile disk is found in a USB drive
+"
+    fi
     if [ $xssh -eq 1 ]
     then
 	echo $"
@@ -200,7 +208,7 @@ source /etc/sdm/sdm-readparams
 echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
 logger "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
-grep -v -E "bash|sdmcryptfs|mappername|sdmcrypto|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
+grep -v -E "bash|sdmcryptfs|mappername|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
 [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
 echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
@@ -213,11 +221,12 @@ rm -f /etc/systemd/system/sdm-auto-encrypt.service
 systemctl daemon-reload
 wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
 secs=10
-logger "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds"
-echo "sdm-cryptfs-cleanup: The system will reboot in \$secs seconds" > /dev/console
+logger "sdm-cryptfs-cleanup: The system will restart in \$secs seconds"
+echo "sdm-cryptfs-cleanup: The system will restart in \$secs seconds" > /dev/console
 sleep \$secs
-logger "sdm-cryptfs-cleanup: The system will reboot now!"
-echo "sdm-cryptfs-cleanup: The system will reboot now!" > /dev/console
+logger "sdm-cryptfs-cleanup: System restarting now"
+echo "sdm-cryptfs-cleanup: System restarting now" > /dev/console
+rm -f /usr/local/bin/sdm-cryptfs-cleanup
 sleep 2
 reboot
 EOF
@@ -228,7 +237,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,ssh,reboot,sdm,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,nopwd,ssh,reboot,sdm,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -246,6 +255,7 @@ function parsecmd() {
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
 	    --mapper|--mappername) xmapper=$2   ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	    --nopwd)           xnopwd=1     ; shift 1 ;;
 	    --quiet)           xquiet=1     ; shift 1 ;;
 	    --reboot)          xreboot=1    ; shift 1 ;;
 	    --ssh)             xssh=1       ; shift 1 ;;
@@ -263,12 +273,14 @@ function parsecmd() {
     else
 	[ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
     fi
+    [[ $xnopwd -eq 1 ]] && [[ "$xkeyfile" == "" ]] && errexit "? --nopwd requires --keyfile"
 }
 
 function doconfiginitramfs() {
-    local kcmd=""
+    local kcmd="" knopwd="" kskip=""
 
     echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
+    [ $xnopwd -eq 1 ] && kskip="&& /bin/false"
     cat >> /etc/kernel/postinst.d/initramfs-rebuild <<EOF
 #!/bin/sh -e
 
@@ -301,6 +313,7 @@ update-initramfs -u
 EOF
     chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
 
+    echo "> Create /bin/sdmluksunlock; runs in initramfs to unlock rootfs"
     cat > /bin/sdmluksunlock <<EOF
 #!/bin/sh
 #
@@ -333,7 +346,7 @@ set +e
 trydisks
 kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
 set -e
-if [ "\$kbd" != "" ] ; then
+if [ "\$kbd" != "" ] $kskip ; then
     trydisks
     /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
 else
@@ -341,7 +354,7 @@ else
         set +e
         kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
         set -e
-        [ "\$kbd" != "" ] && break
+        [ "\$kbd" != "" ] $kskip && break
         trydisks
         echo "Insert USB Keyfile Disk" >/dev/console
         sleep 1
@@ -352,6 +365,7 @@ EOF
     chmod 755 /bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks_hooks"
     [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
+    [ $xnopwd -eq 1 ] && knopwd="copy_file text /usr/local/bin/sdmnull /etc/sdmnopwd"
     cat > /etc/initramfs-tools/hooks/luks_hooks <<EOF
 #!/bin/sh -e
 PREREQS=""
@@ -371,6 +385,7 @@ copy_file text /etc/mappername
 copy_file text /etc/sdmcrypto
 copy_file text /etc/sdmkeyfile
 $kcmd
+$knopwd
 exit 0
 EOF
     chmod 755 /etc/initramfs-tools/hooks/luks_hooks
@@ -416,7 +431,7 @@ EOF
 	[ "$xnetmask" != "" ] && ips="${ips}${xnetmask}:" || ips="${ips}:"
 	[ "$xhostname" != "" ] && ips="${ips}${xhostname}:" || ips="${ips}:"
 	ips=${ips%:}
-	echo "ipstatement: $ips"
+	#echo "ipstatement: $ips"
 	echo "$ips" >> /etc/initramfs-tools/initramfs.conf
     fi
     #
@@ -441,7 +456,9 @@ EOF
 function domkinitramfs() {
     echo "> Update initramfs with the rootfs encryption settings in place"
     logifsdm "Update initramfs with the rootfs encryption settings in place"
+    touch /usr/local/bin/sdmnull  # Used for nopwd
     update-initramfs -u
+    rm -f /usr/local/bin/sdmnull
 }
 
 function doupdateconfig() {
@@ -482,6 +499,7 @@ xipaddr=""
 xkeyfile=""
 xmapper=""
 xnetmask=""
+xnopwd=0
 xquiet=0
 xreboot=0
 xsdm=0
@@ -583,12 +601,12 @@ if [ $xreboot -eq 1 ]
 then
     wait_startup_complete "sdm-cryptoconfig: Wait for system startup to complete"
     secs=10
-    logger "sdm-cryptconfig: System will reboot in $secs seconds"
+    logger "sdm-cryptconfig: System will restart in $secs seconds"
     echo "" > /dev/console
-    echo "sdm-cryptconfig: System will reboot in $secs seconds" > /dev/console
+    echo "sdm-cryptconfig: System will restart in $secs seconds" > /dev/console
     sleep $secs
-    logger "sdm-cryptconfig: System will reboot now"
-    echo "sdm-cryptconfig: System will reboot now" > /dev/console
+    logger "sdm-cryptconfig: System restarting now"
+    echo "sdm-cryptconfig: System restarting now" > /dev/console
     sleep 2
     reboot
 fi

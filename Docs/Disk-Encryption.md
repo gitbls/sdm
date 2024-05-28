@@ -101,9 +101,10 @@ Switches to sdm-cryptconfig include:
 * `--gateway gatewayaddr` &mdash; Set IP address of gateway
 * `--hostname hostname` &mdash; Set hostname
 * `--ipaddr ipaddr` &mdash; set IP address to use in initramfs
-* `--keyfile /path/to/keyfile` &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile">Unlocking rootfs with a USB Keyfile Disk</a> for details
+* `--keyfile /path/to/keyfile` &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * `--mapper cryptmapname` &mdash; Set cryptroot mapper name [Default: cryptroot]
 * `--mask netmask` &mdash; Set network mask for initramfs
+* `--nopwd` &mdash; Do not configure passphrase unlock; a keyfile is required
 * `--quiet` &mdash; Keep graphical desktop startup quiet (see 'known issues' below)
 * `--ssh` &mdash; Enable SSH in initramfs. Requires `--authorized-keys` to provide an authorized keys file for SSH security
 * `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
@@ -140,9 +141,9 @@ sdmcryptfs will then:
 * Save the contents of the rootfs to the scratch disk
 * Enable encryption on the rootfs
   * You will be prompted to enter YES (all in upper case) to continue
-  * You will then be prompted to provide the passphrase for $rootfs
+  * You will then be prompted to provide the passphrase for $rootfs unless `nopwd` was specified
   *  **Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!!**
-* After a short pause you'll be prompted for the passphrase again to unlock the now-encrypted rootfs
+* After a short pause you'll be prompted for the passphrase again to unlock the now-encrypted rootfs unless `nopwd` was specified
 * If you provided an encryption keyfile to `sdm-cryptconfig` or the `cryptroot` plugin it will be installed into the encrypted rootfs
 * The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs
 * When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt

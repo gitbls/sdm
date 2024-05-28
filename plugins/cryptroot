@@ -11,6 +11,7 @@ function loadparams() {
 
 function converty() {
     [ -v noauto ] && noauto=y
+    [ -v nopwd ] && nopwd=y
     [ -v ssh ] && ssh=y
     [ -v uniquesshkey ] && unisquesshkey=y
 }
@@ -24,7 +25,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|uniquesshkey|noauto|"
+vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|uniquesshkey|noauto|nopwd|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -56,6 +57,8 @@ then
 	[ -f $keyfile ] || { logtoboth "? Plugin $pfx: keyfile '$keyfile' not found" ; exit 1 ; }
 	logtoboth "> Plugin $pfx: Save keyfile to /etc/sdm/assets/cryptroot (deleted later)"
 	cp $keyfile $assetdir
+    else
+	[ "$nopwd" == "y" ] && { logtoboth "? Plugin $pfx: 'nopwd' requires 'keyfile'" ; exit 1 ; }
     fi
     if [ "$crypto" != "" ]
     then
@@ -72,6 +75,7 @@ then
     converty
     [ "$mappername" == "" ] && mappername="cryptroot"
     [ "$crypto" == "" ] && xcrypto="aes" || xcrypto=$crypto
+    logtoboth "> Plugin $pfx: Copy sdm-cryptconfig and sdmcryptfs to /usr/local/bin"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
     # These are only for tracking, not used by sdm-cryptconfig
@@ -92,6 +96,7 @@ then
     [ "$ipaddr" != "" ] && osw="${osw} --ipaddr $ipaddr"
     [ "$keyfile" != "" ] && osw="${osw} --keyfile $keyfile"
     [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
+    [ "$nopwd" == "y" ] && osw="${osw} --nopwd"
     [ "$ssh" != "" ] && osw="${osw} --ssh"
     [ "$uniquesshkey" == "y" ] && osw="${osw} --unique-ssh"
     [ "$noauto" == "y" ] && escript0=".099-enable-auto-encrypt.sh" || escript0="099-enable-auto-encrypt.sh"
@@ -115,7 +120,7 @@ systemctl enable sdm-auto-encrypt
 EOF
     if [ -f /etc/sdm/assets/gfxbbh ]
     then
-	logtoboth "> Configure boot behavior for disk encryption"
+	logtoboth "> Plugin $pfx: Configure boot behavior for disk encryption"
 	mv /etc/sdm/assets/gfxbbh /etc/sdm/assets/cryptbbh
 	echo "B1" > /etc/sdm/assets/gfxbbh
     fi
@@ -155,19 +160,24 @@ then
 	plugin_addnote ""
 	plugin_addnote "  * Where:"
 	plugin_addnote ""
-	plugin_addnote "      'sd' is the name of your system disk (typically /dev/mmcblk0 or /dev/sda)"
+	plugin_addnote "      'sd' is the name of your system disk (typically /dev/mmcblk0,  /dev/sda, or /dev/nvme0n1)"
 	plugin_addnote "      '/dev/sdX' is the name of your scratch disk"
 	plugin_addnote ""
 	plugin_addnote "  * sdmcryptfs will:"
-	plugin_addnote ""
 	plugin_addnote "    * Shrink and then print the size of the rootfs"
 	plugin_addnote "    * Save the contents of rootfs to /dev/sdX"
 	plugin_addnote "    * Enable encryption on rootfs"
 	plugin_addnote "      You will be prompted to enter YES (all in upper case) to continue"
-	plugin_addnote "    * You will then be prompted to provide the passphrase for rootfs"
-	plugin_addnote "      ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **"
-	plugin_addnote "      ** And remember your passphrase as it is not recoverable **"
-	plugin_addnote "    * After a short pause you'll be prompted for the passphrase again to unlock rootfs"
+	if [ "$nopwd" != "y" ]
+	then
+	    plugin_addnote "    * You will then be prompted to provide the passphrase for rootfs"
+	    plugin_addnote "      ** Be sure that your CapsLock is set correctly (in case you changed it to type YES)!!! **"
+	    plugin_addnote "      ** And remember your passphrase as it is not recoverable **"
+	    plugin_addnote "    * After a short pause you'll be prompted for the passphrase again to unlock rootfs"
+	else
+	    plugin_addnote "    * The provided keyfile will be used to encrypt and unlock the rootfs"
+	    plugin_addnote "      * There is no passphrase so ** DON'T LOSE your ENCRYPTION KEY **"
+	fi
 	plugin_addnote "    * The saved rootfs content will be restored from /dev/sdX to the encrypted rootfs"
 	plugin_addnote "    * When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt"
 	plugin_addnote "    * Type 'exit' to continue the boot sequence"
@@ -176,8 +186,11 @@ then
 	plugin_addnote "      * Removes some one-time content and rebuilds initramfs"
 	plugin_addnote "      * Reboots the system one last time"
 	plugin_addnote ""
-	plugin_addnote "    * On the way back up you'll once again be prompted for the rootfs passphrase (Without the 30 tries)"
-	plugin_addnote "    * The system will ask for the rootfs passphrase in this manner every time the system boots"
+	if [ "$nopwd" != "y" ]
+	then
+	    plugin_addnote "    * On the way back up you'll once again be prompted for the rootfs passphrase (Without the 30 tries)"
+	    plugin_addnote "    * The system will ask for the rootfs passphrase in this manner every time the system boots"
+	fi
 	if [[ "$ssh" == "y" ]] || [[ "$keyfile" == "y" ]]
 	then
 	    plugin_addnote ""
@@ -188,6 +201,7 @@ then
     else
 	plugin_addnote " * Manual steps"
 	plugin_addnote "   * After the system completes the sdm boot process, login and run sdm-cryptoconfig:"
+	plugin_addnote "     (Before starting review the sdm-cryptconfig switches: sudo /usr/local/sdm/sdm-cryptconfig --help)"
 	plugin_addnote "     bash$ sudo /usr/local/sdm/sdm-cryptoconfig"
 	plugin_addnote "   * Reboot the system"
 	plugin_addnote "   * After looking for the root device 30 times initramfs will prompt"
@@ -198,11 +212,17 @@ then
 	plugin_addnote "           sdmcryptfs /dev/mmcblk0 /dev/sda"
 	plugin_addnote "           sdmcryptfs /dev/sda /dev/sdb"
 	plugin_addnote ""
-	plugin_addnote "   * You will be prompted for the partition passphrase; ** Remember what you enter here **"
+	if [ "$nopwd" != "y" ]
+	then
+	    plugin_addnote "   * You will be prompted for the partition passphrase; ** Remember what you enter here **"
+	fi
 	plugin_addnote "   * Type 'exit' to exit initramfs and continue the system boot"
 	plugin_addnote "   * After the system finishes booting the sdm-cryptfs-cleanup script will run"
 	plugin_addnote "     This script removes some one-time content, rebuilds initramfs, and reboots one final time"
-	plugin_addnote "   * Every time the system starts you'll be prompted for the rootfs partition passphrase"
+	if [ "$nopwd" != "y" ]
+	then
+	   plugin_addnote "   * Every time the system starts you'll be prompted for the rootfs partition passphrase"
+	fi
 	plugin_addnote ""
     fi
     logtoboth "* Plugin $pfx: Complete Phase post-install"

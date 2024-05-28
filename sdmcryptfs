@@ -3,6 +3,7 @@
 # Runs in initramfs to create an encrypted rootfs
 # Requires a second drive larger than the rootfs
 #
+
 function usage() {
     echo $"Usage: sdmcryptfs rootdev scratchdev
 
@@ -24,6 +25,15 @@ function thisdate() {
 function pmsg() {
     local msg="$1"
     echo "> $(thisdate) $msg"
+}
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/N]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 function getcbbdate() {
@@ -89,11 +99,37 @@ function getpartsize() {
     echo $partsize
 }
 
+function diskindrive() {
+    local dev=$1
+    # parted print will fail if disk partitions are borked
+    # so try to mklabel the disk in that case
+    # NOTE: Destructive; only use on scratch disk
+    parted -ms $dev print >/dev/null 2>&1 && return 0
+    parted $dev mklabel msdos >/dev/null 2>&1 < <(echo C) && return 0
+    return 1
+}
+
 function checkdev() {
     local dev=$1
-    [[ -b $dev ]] && parted -ms $dev print >/dev/null 2>&1 && return 0
+    [[ -b $dev ]] && diskindrive $dev && return 0
     echo "? Unrecognized device or no disk in drive '$dev'"
     return 1
+}
+
+function wipescratch() {
+    local starttime partsize=$1
+
+    if askyn "Wipe scratch disk '$sdisk'"
+    then
+	pmsg "> Write random data on '$sdisk'"
+	starttime="$(getcbbdate)"
+	dd bs=4k count=$partsize if=/dev/random of=$sdisk
+	pmsg "rootfs Wipe elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
+    else
+	pmsg "> Scratch disk '$sdisk' has an unencrypted copy of rootfs"
+	pmsg "  Clean it up after rootfs encryption cleanup completes if that concerns you"
+	pmsg "  One way: sudo dd bs=4k count=$partsize if=/dev/random of=$sdisk"
+    fi
 }
 
 function save_rootfs() {
@@ -162,12 +198,17 @@ function cryptpart() {
     pmsg "Enabling encryption could take a while"
     pmsg "OK to ignore superblock signature warning"
 
-    while [ 0 ]
-    do
-	cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $rootfs
-	[ $? -eq 0 ] && break
-    done
-    config_keyfile $dev
+    if [ $xnopwd -eq 1 ]
+    then
+	cryptsetup luksFormat --type luks2 $rootfs $(find_keyfile)
+    else
+	while [ 0 ]
+	do
+	    cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $rootfs
+	    [ $? -eq 0 ] && break
+	done
+	config_keyfile $dev
+    fi
     return 0
 }
 
@@ -176,11 +217,16 @@ function cryptopen() {
     local rootfs=$(getpartname $dev)
     pmsg "Unlock encrypted partition '$rootfs'"
     pmsg "Unlock will take several seconds"
-    while [ 0 ]
-    do
-	cryptsetup luksOpen $rootfs $cryptdevice
-	[ $? -eq 0 ] && break
-    done
+    if [ $xnopwd -eq 1 ]
+    then
+	cryptsetup luksOpen $rootfs $cryptdevice --key-file $(find_keyfile)
+    else
+	while [ 0 ]
+	do
+	    cryptsetup luksOpen $rootfs $cryptdevice
+	    [ $? -eq 0 ] && break
+	done
+    fi
     return 0
 }
 
@@ -215,7 +261,7 @@ function restore_rootfs() {
 }
 
 function runall() {
-    local dev=$1 sdisk=$2 partsize pbytes pgb
+    local dev=$1 sdisk=$2 pbytes pgb
     local rootfs=$(getpartname $dev)
     checkdev $dev || return 1
     checkdev $sdisk || return 1
@@ -232,14 +278,21 @@ function runall() {
 dev="$1"
 sdisk="$2"
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
+
 xcrypto=""
 [ -f /etc/sdmcrypto ] && read xcrypto < /etc/sdmcrypto
 [ "$xcrypto" == "" ] && xcrypto="aes"
 [[ "aes|xchacha" =~ "$xcrypto" ]] || [[ "$xcrypto" =~ "aes-" ]] || errexit "? Supported cryptos: 'aes' and 'xchacha'"
+
+[ -f /etc/sdmnopwd ] && xnopwd=1 || xnopwd=0
+
+partsize=""
 cryptdevice="nomappername"
 datefmt="%Y-%m-%d %H:%M:%S"
 [ -f /etc/mappername ] && read cryptdevice < /etc/mappername || echo "% Where is /etc/mappername?; Using cryptdevice 'nomappername'"
 runall $dev $sdisk 
+wipescratch $partsize
+
 sleepsecs=10
 if [ "$SSH_CLIENT" == "" ]
 then
