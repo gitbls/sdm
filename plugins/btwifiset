@@ -19,7 +19,7 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|country|localsrc|btwifidir|timeout|logfile|"
+vldargs="|country|localsrc|btwifidir|password|timeout|logfile|"
 loadparams
 
 if [ "$phase" == "0" ]
@@ -33,12 +33,12 @@ then
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
-    #plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
     #
     # Copy the btwifiset files
     #
     [ "$btwifidir" == "" ] && btwifidir="/usr/local/btwifiset"
-    srcurl="https://raw.githubusercontent.com/nksan/Rpi-SetWiFi-viaBluetooth/main"
+    branch="main"
+    srcurl="https://raw.githubusercontent.com/nksan/Rpi-SetWiFi-viaBluetooth/$branch"
     mkdir -p $SDMPT/$btwifidir
     if [ "$localsrc" != "" ]
     then
@@ -52,7 +52,7 @@ then
 	done
     else
 	logtoboth "> Plugin $pfx: Download btwifiset from the internet to $btwifidir"
-	for f in btwifiset.py
+	for f in btwifiset.py btpassword.py passwordREADME.txt
 	do
 	    wget $srcurl/$f --output-document=$SDMPT/$btwifidir/$f
 	    wsts=$?   # Need to fix this if more files ever added
@@ -74,20 +74,51 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "|country|"
     #logfreespace "at start of Plugin $pfx Phase 1"
 
-    logtoboth "> Plugin $pfx: Install required Python components"
+    #
+    # set up password
+    #
+    [ "$btwifidir" == "" ] && btwifidir="/usr/local/btwifiset"
+    bt0="/etc/sdm/0piboot/010-btwifiset-password.sh"
+    cat >$bt0 <<EOF
+#!/bin/bash
+#
+# Configure btwifiset password
+#
+source /etc/sdm/sdm-readparams
+logger "sdm FirstBoot: Complete btwifiset configuration"
+pwd=\$(hostname)
+[ "$password" != "" ] && pwd="$password"
+running=0
+if systemctl --quiet is-active btwifiset
+then
+    logger "sdm FirstBoot: Stop btwifiset service"
+    running=1
+    systemctl stop btwifiset >/dev/null 2>&1
+fi
+logger "sdm FirstBoot: Set btwifiset host bluetooth password to '\$pwd'"
+printf "\$pwd\n" >>$btwifidir/crypto
+# Restart service if it was running and system is not going to reboot
+[[ \$running -eq 1 ]] && [[ \$reboot -eq 0 ]] && logger "Restart btwifiset service" && systemctl start btwifiset
+EOF
     # V Assumes Python versions in the form of nn.nn.nn (which they all seem to be)
     pyver=$((python3 --version) | (read p version junk ; echo ${version%.*}))
-    doaptrpterror "install python3-gi libdbus-glib-1-dev python3-pip libpython${pyver}-dev --yes" $showapt 
-    logtoboth "> Plugin $pfx: Install python3-dbus"
-    doaptrpterror "install python3-dbus --no-install-recommends --yes" $showapt
-#    logtoboth "> Plugin $pfx: Install Python dbus module using python pip"
-#    cat >> /etc/sdm/apt.log <<EOF
-#
-#$(thisdate) pip install dbus-python
-#
-#EOF
-#    pip install dbus-python >> /etc/sdm/apt.log 2>&1
-#    [ ! $? ] && logtoboth "% Plugin $pfx: Error returned from 'pip install dbus-python'; Review /etc/sdm/apt.log"
+    pymajver=${pyver%.*}
+
+    pycomponents=""
+    for pkg in python${pymajver}-gi libdbus-glib-1-dev libpython${pyver}-dev python3-dbus
+    do
+	! ispkginstalled $pkg && pycomponents="${pycomponents}${pkg} "
+    done
+    if pkgexists python${pymajver}-cryptography
+    then
+	! ispkginstalled $pkg && pycomponents="${pycomponents}python${pymajver}-cryptography "
+    fi
+
+    if [ "$pycomponents" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Install required Python components: $pycomponents"
+	doaptrpterror "install --no-install-recommends --yes $pycomponents" $showapt
+    fi
 
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
@@ -129,7 +160,7 @@ update_config=1
 EOF
     fi
     # Modify bluetooth service
-    logtoboth "> Plugin $pfx: Update ExecStart for bluetooth service as needed"
+    logtoboth "> Plugin $pfx: Update bluetooth service ExecStart"
     if ! sed -n '/^ExecStart/p' /lib/systemd/system/bluetooth.service | grep -q '\-\-experimental'
     then
 	# Append --experimental to end of command line
@@ -148,11 +179,8 @@ EOF
     [ -f /etc/sdm/0piboot/050-disable-bt.sh ]   && mv /etc/sdm/0piboot/050-disable-bt.sh /etc/sdm/0piboot/.050-disable-bt.sh-btwifiset
     [ -f /etc/sdm/0piboot/055-disable-wifi.sh ] && mv /etc/sdm/0piboot/055-disable-wifi.sh /etc/sdm/0piboot/.055-disable-wifi.sh-btwifiset
 
-    # Enable hciuart service
-    systemctl enable hciuart > /dev/null 2>&1
-
     # Create btwifiset service
-    logtoboth "> Plugin $pfx: Create btwifiset service"
+    logtoboth "> Plugin $pfx: Create and enable btwifiset service"
     [ "$timeout" != "" ] && switches="--timeout $timeout" || switches=""
     [ "$logfile" != "" ] && switches="$switches --logfile $logfile" || switches="$switches --syslog"
     cat >> /etc/systemd/system/btwifiset.service <<EOF
@@ -170,7 +198,7 @@ EOF
     #
     # Link bluetooth.target.wants to the correct copy of bluetooth.service
     #
-    systemctl enable btwifiset.service
+    systemctl enable btwifiset.service >/dev/null 2>&1
     if [ -f /etc/systemd/system/bluetooth.target.wants/bluetooth.service ]
     then
 	rm -f /etc/systemd/system/bluetooth.target.wants/bluetooth.service
