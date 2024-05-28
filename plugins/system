@@ -304,26 +304,16 @@ EOF
 		IFS="," read -a ssvc <<< "$cval"
 		for c in "${ssvc[@]}"
 		do
-		    sed -i "/^service-enable=$c/d" /etc/sdm/auto-1piboot.conf   #Delete enables of this service
-		    if ! grep -q "service-disable=$c" /etc/sdm/auto-1piboot.conf
-		    then
-			logtoboth "> Plugin $pfx: Disable service '$c'"
-			#echo "service-disable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-			systemctl disable -q $c > /dev/null 2>&1
-		    fi
+		    logtoboth "> Plugin $pfx: Disable service '$c'"
+		    systemctl disable -q $c > /dev/null 2>&1
 		done
 		;;
 	    service-enable)
 		IFS="," read -a ssvc <<< "$cval"
 		for c in "${ssvc[@]}"
 		do
-		    sed -i "/^service-disable=$c/d" /etc/sdm/auto-1piboot.conf   #Delete disables of this service
-		    if ! grep -q "service-enable=$c" /etc/sdm/auto-1piboot.conf
-		    then
-			logtoboth "> Plugin $pfx: Enable service '$c'"
-			#echo "service-enable=$c" >> $mnt/etc/sdm/auto-1piboot.conf
-			systemctl enable -q $c
-		    fi
+		    logtoboth "> Plugin $pfx: Enable service '$c'"
+		    systemctl enable -q $c
 		done
 		;;
 	    service-mask)
