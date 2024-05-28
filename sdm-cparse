@@ -96,8 +96,8 @@ function outlong () {
     # Write the string in $1 to the file in $2
     # If the line is too long, it will be split up
     #
-    local str=() i spc=""
-    if [ ${#1} -le 96 ]
+    local str=() i spc="" lw=${logwidth:-96}
+    if [ ${#1} -le $lw ]
     then
 	echo "$(date +'%Y-%m-%d %H:%M:%S') $1" >> $2
     else
@@ -121,7 +121,15 @@ function doapt() {
     # $2 is $showapt value
     # $3 is optional apt command [D:apt-get]
     #
-    local aptcmd="$3" sts line
+    function pline() {
+	local line
+	while read line
+	do
+            echo "$(thisdate) $line" >> /etc/sdm/apt.log
+	done
+    }
+
+    local aptcmd="$3" sts td
     [ "$aptcmd" == "" ] && aptcmd="apt-get -qq"
     echo "" >> /etc/sdm/apt.log
     outlong "$aptcmd $1" "/etc/sdm/apt.log"
@@ -131,15 +139,18 @@ function doapt() {
 	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
 	sts=$?
     else
-	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
-	sts=$?
-	#while read line
-	#do
-	#    echo "$(thisdate) $line" >> /etc/sdm/apt.log
-	#done < <(DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1)
-	#ls -l | (while read line; do echo $(date) ":" $line ; done)
+	if [[ "$poptions" =~ "nologdates" ]]
+	then
+	    DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
+	    sts=$?
+	else
+	    # Techique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
+	    { { { { DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+	    sts=$?
+	fi
     fi
-    echo "[Done]" >> /etc/sdm/apt.log
+    [[ "$poptions" =~ "nologdates" ]] && td="" || td="$(thisdate) "
+    echo "${td}[Done]" >> /etc/sdm/apt.log
     return $sts
 }
 
@@ -161,6 +172,14 @@ function setfileownmode() {
     [ "$fo" == "" ] && fo="root:root"
     chown $fo $fp
     chmod $fm $fp
+}
+
+function pkgexists() {
+    #
+    # $1 has apt package name to check
+    #
+    pkg=$1
+    [ "$($sudo apt-cache showpkg $pkg 2>/dev/null)" != "" ] && return 0 || return 1
 }
 
 function ispkginstalled() {
@@ -305,7 +324,7 @@ function doconfigitem() {
 	boot_behavior|boot_behaviour)  # Allow US spelling as well ;)
 	    configitemlog "Set boot_behaviour '$value'" $msgfn
 	    #SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
-	    do_raspiconfig do_boot_behaviour $value
+	    [ "$msgfun" == "bootlog" ] && do_raspiconfig do_boot_behaviour $value || setdelayedbbh "$value"
 	    ;;
 	powerled)
 	    ssys=0
@@ -1191,7 +1210,7 @@ function setdelayedbbh() {
 
 function getfinalbbh() {
     #
-    # Get boot_behaviour from auto-1piboot if provided
+    # Get boot_behaviour if it's been set
     # If not, return $1
     #
     aval=$(cat /etc/sdm/assets/gfxbbh 2>/dev/null)
@@ -1286,11 +1305,7 @@ function getapplist() {
 	fn="${1:1:999}"
 	while read line
 	do
-	    #
-	    # Strip trailing spaces, tabs, and comments
-	    #
-            newapp="${line%%\#*}"    # Del EOL comments
-            newapp="${newapp%"${newapp##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+	    newapp=$(stripbcline "$line")
 	    [ "$newapp" != "" ] && lapps="$lapps $newapp"
 	done < $fn
     else
@@ -1375,13 +1390,18 @@ function extendimage() {
     #
     local ldimg=$1 limgext=$2
     local line
+    # Imager will complain if the image is not an integer multiple
+    # of 512 bytes
+    local limgextb=$((limgext*1048576))
+    local limgcb=$(stat --printf="%s" $ldimg)
+    local limgextb=$((limgextb + 512 - (limgcb%512)))
     if [ "$ddextend" == "1" ]
     then
 	trap "ctrlcexit" SIGINT
-	dd if=/dev/zero bs=1M count=$limgext status=progress >> $ldimg || errexit "? Exiting due to dd error ?$"
+	dd if=/dev/zero bs=1 count=$limgextb status=progress >> $ldimg || errexit "? Exiting due to dd error ?$"
 	trap SIGINT
     else
-        truncate --size +${limgext}M $ldimg || errexit "? Exit due to truncate resize error $?"
+        truncate --size +${limgextb} $ldimg || errexit "? Exit due to truncate resize error $?"
     fi
     # Get partition 2 start and IMG size from parted and compute new partition size
     while read line ; do
@@ -1832,6 +1852,17 @@ function appendvalue() {
     local  oldval=$1 addval=$2 sep=$3
     [ "$oldval" == "" ] && echo "$addval" || echo "${oldval}${sep}${addval}"
     return
+}
+
+function stripbcline() {
+    #
+    # Strip trailing blanks and comments
+    #
+    local line="$1"
+
+    line="${line%%\#*}"    # Del EOL comments
+    line="${line%"${line##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+    echo "$line"
 }
 
 function stripquotes() {
