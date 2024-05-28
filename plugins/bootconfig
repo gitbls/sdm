@@ -9,13 +9,19 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function writecfg() {
+    local msg="$1"
+    [ ${#msg} -gt 96 ] && { logtoboth "? Plugin $pfx: config.txt line too long (${#msg}>96): $msg" ; exit 1 ; }
+    printf "$1" >>$cfgdir/config.txt
+}
+
 function updateconfigtxt() {
     local c="$1" value="$2" pfx="$3" inline="$4" newsection="$2" dnm drest dsep sname sval
     if [ "$c" == "section" ]
     then
 	logtoboth "> ${pfx}Append section '$value' to $cfgdir/config.txt"
 	[ "$newsection" == "${newsection#[}" ] && newsection="[$newsection]"
-	printf "\n${newsection}\n" >> $cfgdir/config.txt
+	writecfg "\n${newsection}\n"
     else
 	# assume not dtoverlay/dtparam
 	sname="$c"
@@ -70,7 +76,7 @@ function updateconfigtxt() {
 		else
 		    # Not in config.txt
 		    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $cfgdir/config.txt"
-		    printf "${sname}${dsep}${sval}\n" >> $cfgdir/config.txt
+		    writecfg "${sname}${dsep}${sval}\n"
 		fi
 	    fi
 	else
@@ -78,7 +84,7 @@ function updateconfigtxt() {
 	    # Not inline, so always append
 	    #
 	    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $cfgdir/config.txt"
-	    printf "${sname}${dsep}${sval}\n" >> $cfgdir/config.txt
+	    writecfg "${sname}${dsep}${sval}\n"
 	fi
     fi
 
@@ -125,7 +131,7 @@ then
 		comment)
 		    logtoboth "> Plugin $pfx: Add comment to $cfgdir/config.txt: $value"
 		    #[ "$value" != "${value#\\n}" ] && value="\n#${value#\\n}" || value="#${value}"
-		    printf "$value\n" >> $cfgdir/config.txt
+		    writecfg "$value\n"
 		    ;;
 		#inline)
 		    #inline="1"  # Already set above of course
