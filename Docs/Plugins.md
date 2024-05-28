@@ -47,6 +47,7 @@ See below for plugin-specific examples and important information.
 
 All files that you provide to sdm, whether on the command line or in arguments to a plugin, must use full paths. For instance, to use a file in your home directory, don't use `file` or `~/file`, use `/home/<mylogin>/file`. Relative file paths may not work because the current directory in which any sdm function is running may change.
 
+NOTE: An argument can only be used once per plugin invocation. This is not a problem with most plugins, but you might find a use for multiple uses in some plugins, such as bootconfig. This is discussed in the <a href="#bootconfig">`bootconfig` plugin</a>.
 
 ## Burn Plugins
 
@@ -62,7 +63,12 @@ sdm --runonly plugins --burn-plugin extractfs:"rootfs=/path/to/rootfs|bootfs=/pa
 
 There are a couple of plugin ordering issues to be aware of.
 * The `user` plugin(s) should be the first plugin. Several other plugins expect this.
-* The `cryptroot` plugin must be after the graphics plugin.
+* The `cryptroot` plugin must be after the graphics plugin in order to properly manage boot behavior during the encryption process
+* The `boot_behavior` final setting is order-sensitive. The last modification wins.
+  * During the post-install phase, if `--plugin graphics` is used, the `graphics` plugin will set the boot behavior. If the `graphics` plugin is not used, this will run automatically at the end of the post-install phase.
+    * If the display manager is lightdm, `boot_behavior` is set: B3 or B4 per the `--autologin` switch
+    * If the display manager is xdm or wdm, `boot_behavior` is set: B1 or B3 per the setting of `nodmconsole`
+  * Calling the `raspiconfig` plugin during burn and specifying the `boot_behavior` argument will unconditionally set the new boot behavior
 
 ## Plugin-specific documentation
 
@@ -142,23 +148,39 @@ The `bootconfig` plugin configures the contents of /boot/firmware/config.txt.
 * **reset** &mdash; If `reset` is provided /boot/firmware/config.txt will be saved as /boot/firmware/config.txt.sdm. If no value is provided for `reset` then /boot/firmware/config.txt will be set to a null file. If `reset=/path/to/file` is provided, the specified file will replace /boot/firmware/config.txt. To work correctly, `reset` must be specified before any other arguments (this is not enforced or specifically logged by sdm).
 * **section** &mdash; The `section` argument takes a value like `pi4` or `[pi4]`, and appends the appropriately-bracketed section value to the end of config.txt preceded by a blank line.
 
-* **somename=somevalue** &mdash; All other key/value settings are presumed to be settings in config.txt and added to it. There is no validity checking, so typos are propagated. But, on the other hand, the `bootconfig` plugin doesn't need to be updated every time a brand new setting is added to config.txt.
+* **somename=somevalue** &mdash; All other key/value settings are presumed to be settings in config.txt and added to it. There is no validity checking, so typos are propagated. But, on the other hand, the `bootconfig` plugin doesn't need to be updated every time a brand new setting is added to config.txt.  **NOTE:** Each `somename` can only be used once per `bootconfig` plugin invocation. See the examples in the following section for further details.
 
 #### Examples
 
 * `--plugin bootconfig:"section=[pi4]|somesetting=somevalue"`
 * `--plugin bootconfig:"inline|hdmi_group=72|hdmi_force_hotplug=1|hdmi_mode=40|hdmi_ignore_edid"` &mdash; The plugin adds the correct value for `hdmi_ignore_edid` (0xa5000080)
 * `--plugin bootconfig:"reset|dtparam=audio=on|camera_auto_detect=1|display_auto_detect=1|dtoverlay=vc4-kms-v3d|max_framebuffers=2|arm_64bit=1|disable_overscan=1|section=cm4|otg_mode=1|section=pi4|arm_boost=1|section=all"` &mdash; An identical replacement for the Bullseye /boot/config.txt but with no comments or blank lines
-  
+
+You may want to add multiple `dtparam` items to config.txt, and be tempted to put all of them in a single invocation, such as:
+```
+--plugin bootconfig:"dtparam=fan_temp1=62500,fan_temp1_hyst=5000,fan_temp1_speed=128|dtparam=fan_temp0=55000,fan_temp0_hyst=5000,fan_temp0_speed=75"
+```
+This does not work. These must be broken up into separate plugin invocations:
+```
+--plugin bootconfig:"dtparam=fan_temp1=62500,fan_temp1_hyst=5000,fan_temp1_speed=128"
+--plugin bootconfig:"dtparam=fan_temp0=55000,fan_temp0_hyst=5000,fan_temp0_speed=75"
+```
+Alternatively, you can use:
+```
+--plugin bootconfig:"dtparam=fan_temp1=62500,fan_temp1_hyst=5000,fan_temp1_speed=128,fan_temp0=55000,fan_temp0_hyst=5000,fan_temp0_speed=75"
+```
+RasPiOS has a line length limit of 98 for config.txt, and silently ignores characters beyond that length. The bootconfig plugin limits lines to 96 characters.
+
 ### btwifiset
 
-btwifiset is a service that enables WiFi SSID and password configuration over Bluetooth using an iOS app. Once the service is running, you can use the BTBerryWifi iOS app to connect to the service running on your Pi and configure the WiFi. See https://github.com/nksan/Rpi-SetWiFi-viaBluetooth for details on btwifiset itself.
+btwifiset is a service that enables WiFi SSID and password configuration over Bluetooth using an iOS app (Author working on Android app). Once the service is running, you can use the BTBerryWifi iOS app to connect to the service running on your Pi and configure the WiFi. See https://github.com/nksan/Rpi-SetWiFi-viaBluetooth for details on btwifiset itself.
 
 #### Arguments
 
 * **country** &mdash; The WiFi country code. This argument is mandatory
 * **localsrc** &mdash; Locally accessible directory where the btwifiset.py can be found, instead of downloading from GitHub
 * **btwifidir** &mdash; Directory where btwifiset will be installed. [Default: */usr/local/btwifiset*]
+* **password** &mdash; Password to use for encrypted bluetooth communication [Default: Host name on which btwifiset runs after boot]
 * **timeout** &mdash; After *timeout* seconds the btwifiset service will exit [Default: *15 minutes*]
 * **logfile** &mdash; Full path to btwifiset log file [Default: *Writes to syslog*]
 
@@ -244,8 +266,10 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 * **gateway** &mdash; gateway address for the intramfs network client to use
 * **ihostname** &mdash; hostname for the intramfs network client to use
 * **ipaddr** &mdash; IP address for the intramfs network client to use
-* **netmask** &mdash; Network mask for the intramfs network client to use
+* **keyfile** &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * **mapper** &mdash; Mapper name for the rootfs encryption (shows up, for instance, in the `df` listing)
+* **netmask** &mdash; Network mask for the intramfs network client to use
+* **nopwd** &mdash; Configure only a keyfile to unlock the rootfs. No passphrase will be configured. The `keyfile` argument is required
 * **ssh** &mdash; Enable SSH in the initramfs
 * **uniquesshkey** &mdash; Use a unique SSH key in the initramfs. Default is to use the host SSH key (of the system being encrypted)
 
@@ -754,12 +778,13 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 
 #### Arguments
 
-* **cron-d** &mdash; Comma-separated list of files to copy to /etc/cron.d
-* **cron-daily** &mdash; Comma-separated list of files to copy to /etc/cron.daily
-* **cron-hourly** &mdash; Comma-separated list of files to copy to /etc/cron.hourly
-* **cron-weekly** &mdash; Comma-separated list of files to copy to /etc/cron.weekly
-* **cron-monthly** &mdash; Comma-separated list of files to copy to /etc/cron.monthly
-* **cron-systemd** &mdash; Takes no value. Switches from using cron to systemd-based cron timers
+* Cron control arguments
+  * **cron-d** &mdash; Comma-separated list of files to copy to /etc/cron.d
+  * **cron-daily** &mdash; Comma-separated list of files to copy to /etc/cron.daily
+  * **cron-hourly** &mdash; Comma-separated list of files to copy to /etc/cron.hourly
+  * **cron-weekly** &mdash; Comma-separated list of files to copy to /etc/cron.weekly
+  * **cron-monthly** &mdash; Comma-separated list of files to copy to /etc/cron.monthly
+  * **cron-systemd** &mdash; Takes no value. Switches from using cron to systemd-based cron timers
 * **eeprom** &mdash; Supported values are ***critical***, ***stable***, and ***beta***
 * **exports** &mdash; Comma-separated list of files to append to /etc/exports
 * **fstab** &mdash; Comma-separated list of files to append to /etc/fstab
@@ -772,8 +797,10 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 * **motd** &mdash; Single /path/to/file to use for /etc/motd. /dev/null results in an empty motd
 * **name** &mdash; Name of this invocation. This **must** be included if the `system` plugin is invoked more than once in an IMG, including between customize and burn. Best practice to avoid problems is to give each and every invocation a name.
 * **rclocal** &mdash; Comma-separated list of ordered commands to add to /etc/rc.local. An item starting with '@' is interpeted as a file whose contents will be included.
-* **service-disable** &mdash; Comma-separated list of services to disable
-* **service-enable** &mdash; Comma-separated list of services to enable
+* Service control arguments
+  * **service-disable** &mdash; Comma-separated list of services to disable
+  * **service-enable** &mdash; Comma-separated list of services to enable
+  * **service-mask** &mdash; Comma-separated list of services to mask
 * **swap** &mdash; **disable** or integer swapsize in MB to set
 * **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
 * **systemd-config** &mdash; Comma-separated list of `type:file`, where type is one of *login*, *network*, *resolve*, *system*, *timesync*, or *user*. Copies the provided file to /etc/systemd/*type*.conf.d
