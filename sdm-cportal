@@ -307,6 +307,7 @@ class cpcontrol:
         self.sdm = self.connected = self.iconnected = self.isresult = False
         self.runflag = True
         self.usenm = False
+        self.uapname = "uap0"
         self.formdone = self.inprogress = self.debug = False
         self.l10nhandler = self.defaults = self.allerrors = self.wlanip = self.apip = ""
         self.apssid = self.logmsg = self.facname = self.netns = self.apname = self.netdev = self.apdev = self.phydev = ""
@@ -799,6 +800,7 @@ class sdmRequestHandler(BaseHTTPRequestHandler):
         return
 
 def updatewifi(pd):
+    return
     if pd.usenm:
         reportcmd("nmcli c up sdmap", "Restart Access Point")
     else:
@@ -809,10 +811,11 @@ def updatewifi(pd):
 def docleanup(pd, resetcmd=False):
     if pd.usenm:
         runcmd(f"nmcli c down sdmap")
+        runcmd(f"iw dev {pd.uapname} del")
         runcmd(f"systemctl stop wpa_supplicant@{pd.netdev}", msg=f"Stop {pd.netdev} wpa_supplicant")
         #qdelfile(f"/etc/NetworkManager/system-connections/sdmap.nmconnection")
-        runcmd("nmcli c reload", "Reload NetworkManager connections")
-        runcmd(f"nmcli c up {pd.netdev}")
+        #runcmd("nmcli c reload", "Reload NetworkManager connections")
+        #runcmd(f"nmcli c up {pd.netdev}")
     else:
         if gocmd(f"iw dev {pd.apname} info") != "":
             if f"tmp-{pd.facname}" in gocmd(f"ip netns"):
@@ -856,13 +859,25 @@ def runclean(pd):
 
 def apconfigure(pd):
     if pd.usenm:
+        #**
+        # iw dev wlan0 interface add uap0 type __ap
+        #
+        # nmcli con add type wifi ifname wlan0 mode ap con-name sdm ssid sdm-pt
+        # nmcli con modify sdm wifi.band bg autoconnect false wifi.cloned-mac-address 00:12:34:56:78:9a
+        # nmcli con modify sdm wifi-sec.key-mgmt wpa-psk wifi-sec.proto rsn wifi-sec.group ccmp wifi-sec.pairwise ccmp
+        # nmcli con modify sdm wifi-sec.psk "password"
+        # nmcli con modify sdm ipv4.method shared ipv4.address 10.1.1.1/24
+        # nmcli con modify sdm ipv6.method disabled
+        # nmcli con modify sdm connection.interface-name uap0
+        # nmcli con up sdm
+
         with open(f"/etc/NetworkManager/system-connections/sdmap.nmconnection", 'w') as f:
             f.write(f"[connection]\n\
 id=sdmap\n\
 uuid={uuid.uuid4()}\n\
 type=wifi\n\
 autoconnect=false\n\
-interface-name={pd.netdev}\n\
+interface-name={pd.uapname}\n\
 \n\
 [wifi]\n\
 band=bg\n\
@@ -882,6 +897,15 @@ method=shared\n\
 addr-gen-mode=default\n\
 method=disabled\n")
         os.chmod("/etc/NetworkManager/system-connections/sdmap.nmconnection", 0o600)
+        #
+        # dnsmasq configuration
+        #
+        with open(f"/etc/NetworkManager/conf.d/sdm-dnsconfig.conf", 'w') as f:
+            f.write(f"dns=dnsmasq\n")
+        with open(f"/etc/NetworkManager/dnsmasq.d/redirect.conf", 'w') as f:
+            f.write(f"address=/#/10.1.1.1\n")
+        runcmd(f"iw dev {pd.uapname} del")
+        reportcmd(f"iw dev {pd.netdev} interface add {pd.uapname} type __ap", "Create AP network device")
         reportcmd("nmcli c reload", "Reload NetworkManager connections")
         reportcmd("nmcli c up sdmap", "Start Access Point")
     else:
