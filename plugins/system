@@ -306,6 +306,7 @@ EOF
 		do
 		    logtoboth "> Plugin $pfx: Disable service '$c'"
 		    systemctl disable -q $c > /dev/null 2>&1
+		    warnifrc $? "% Plugin $pfx: Error disabling service '$c'"
 		done
 		;;
 	    service-enable)
@@ -314,6 +315,7 @@ EOF
 		do
 		    logtoboth "> Plugin $pfx: Enable service '$c'"
 		    systemctl enable -q $c
+		    warnifrc $? "% Plugin $pfx: Error enabling service '$c'"
 		done
 		;;
 	    service-mask)
@@ -322,6 +324,7 @@ EOF
 		do
 		    logtoboth "> Plugin $pfx: Mask service '$c'"
 		    systemctl mask -q $c
+		    warnifrc $? "% Plugin $pfx: Error masking service '$c'"
 		done
 		;;
 	    swap)
