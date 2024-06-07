@@ -60,12 +60,20 @@ function gfxcfgpostinstall() {
 	bbhandled=1
 	# VV This overrides default LISTEN * ; 127.0.0.1 disables xdmcp finder, finder enabled with 0.0.0.0. By default xdmcp finder is enabled
 	#echo "LISTEN 0.0.0.0" >> /etc/X11/xdm/Xaccess
+	logtoboth "> Plugin $pfx: Update xdm.service so it can be enabled with systemctl"
+	cp /lib/systemd/system/xdm.service /etc/systemd/system
+	cat >> /etc/systemd/system/xdm.service <<EOF
+
+[Install]
+WantedBy=multi-user.target
+EOF
 	if [ $nodmconsole -eq 1 ]
 	then
 	    logtoboth "> Plugin $pfx: Disable xdm on console"
 	    sed -i "s/\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/\#\:0 local \/usr\/bin\/X :0 vt7 -nolisten tcp/"  /etc/X11/xdm/Xservers
 	    [ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
 	    systemctl set-default multi-user.target
+	    delaydmenable xdm B1
 	else
 	    delaydmenable xdm B3
 	fi
@@ -84,6 +92,7 @@ function gfxcfgpostinstall() {
 	    # RealVNC server operation with wdm unknown, so disable RealVNC 
 	    [ -f /etc/sdm/0piboot/040-realvnc-server.sh ] && mv -f /etc/sdm/0piboot/040-realvnc-server.sh /etc/sdm/0piboot/.040-realvnc-server.sh
 	    systemctl set-default multi-user.target
+	    delaydmenable xdm B1
 	else
 	    delaydmenable wdm B3
 	fi
