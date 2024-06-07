@@ -248,11 +248,14 @@ then
     then
 	logtoboth "* Enter Shell Command Prompt"
 	logtoboth "  'exit' to exit back to host system"
-	IFS=":" read efg ebg ecursor <<< $ecolors
-	stermcolors "$efg" "$ebg" "$ecursor" x1
+	if [ "$ecolors" != "0" ]
+	then
+	    IFS=":" read efg ebg ecursor <<< $ecolors
+	    stermcolors "$efg" "$ebg" "$ecursor" x1
+	fi
 	bash -i
 	logtoboth "* Customization complete"
-	resetcolors x1
+	[ "$ecolors" != "0" ] && resetcolors x1
     else
 	logtoboth "* Run bash on non-terminal standard input"
 	bash
