@@ -20,8 +20,13 @@ function exitiferr() {
     [ "${1:0:1}" == "?" ] && errexit "$1"
 }
 
-errifrc() {
-    [ $1 -ne 0 ] && errexit "$2 $1"
+function errifrc() {
+    [ $1 -ne 0 ] && errexit "$2"
+}
+
+function warnifrc() {
+    # Requires logtoboth active
+    [ $1 -ne 0 ] && logtoboth "$2 ($1)"
 }
 
 function logit {
@@ -632,20 +637,6 @@ function isarginpluginlist() {
     [[ "$args" =~ "$lookarg" ]] && return 0 || return 1
 }
 
-function getpluginargvalue() {
-    #
-    # $1 is plugin name
-    # $2 is plugin list
-    # $3 is the arg name
-    local pn="$1" plist="$2" lookarg="$3"
-    args=$(getpluginargs "$pn" "$plist")
-    if [[ "$args" =~ "$lookarg" ]]
-    then
-	# do what plugin_getargs does but only for a single arg15
-	logtoboth "?? Plugin not done yet"
-    fi
-}
-
 function plugin_getargs() {
     #
     # Handles input data in the form: arg1=val1|arg2=val2|arg3=val3| ...
@@ -1072,12 +1063,16 @@ function sdm_spawn() {
     #    [[ -z "${SDMPT+z}" ]] test will work since it is defined
     #
     local nspawnsw="$1" nsp="$2" cmd="$3" spcmd="$4" args="" ta
-    local wtf wtfelf wtfarch rest sts hostarch hostpagesz pcor
+    local wtf wtfelf wtfarch rest sts hostarch hostpagesz pcor pat vers junk
     if [[ "$virtmode" =~ "nspawn" ]]
     then
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
-	read s vers junk <<< $(systemctl --version)
-	[[ "$vers" -lt "242" ]] && cmode=""
+	pat="[[:digit:]]+"
+	vers="$(systemctl --version)"   # Assume first digit string in the version is the version #
+	if [[ "$vers" =~ $pat ]]
+	then
+	    [[ ${BASH_REMATCH[0]} -lt 242 ]] && cmode=""
+	fi
 	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
 	for i in 5 6 7 8
 	do
@@ -1243,7 +1238,7 @@ function do_delayed_boot_behavior {
 		    systemctl enable lightdm
 		fi
 	    else
-		[ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm > /dev/null 2>&1 && sleep 3
+		[ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now display-manager > /dev/null 2>&1 && sleep 3
 		[ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
 		bootlog "Set systemd default to graphical.target"
 		systemctl set-default graphical.target
@@ -1253,6 +1248,11 @@ function do_delayed_boot_behavior {
 	    then
 		configitemlog "set boot behaviour to $bbh" bootlog
 		do_raspiconfig do_boot_behaviour $bbh
+		if compgen -G /etc/systemd/system/xvnc*.socket >/dev/null
+		then
+		    [ -d /etc/X11/xdm ] && bootlog "Re-enable xdm" && systemctl enable $now xdm >/dev/null 2>&1 && sleep 3
+		    [ -d /etc/X11/wdm ] && bootlog "Re-enable wdm" && systemctl enable $now wdm && sleep 3
+		fi
 	    fi
 	fi
     fi
@@ -1926,6 +1926,7 @@ function stermcolors() {
     [ "$2" != "" ] && os="${os}\e]11;$2\a"
     [ "$3" != "" ] && os="${os}\e]12;$3\a"
     printf "$os"
+    return 0
 }
 
 function resetcolors() {
@@ -1939,6 +1940,7 @@ function resetcolors() {
     printf -v tbg "%s" "${!tbgn}"
     printf -v tcursor "%s" "${!tcn}"
     stermcolors "$tfg" "$tbg" "$tcursor"
+    return 0
 }
 
 function flashled0() {
