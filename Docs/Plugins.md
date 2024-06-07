@@ -24,7 +24,7 @@ sdm --plugin samba:"args" --plugin postfix:"args" . . .
 
 Multiple `--plugin` switches can be used on the command line. This includes specifying the same plugin multiple times (the `apps` plugin, for example).
 
-Another way to specify plugins is via the `--plugin @/path/to/filelist`, where `filelist` consists of plugin invocations, one per line, without the `--plugin` switch. For example:
+Another way to specify plugins is via the `--plugin @/path/to/pluglist`, where `pluglist` consists of plugin invocations, one per line, without the `--plugin` switch. For example:
 ```
 user:userlist=/rpi/etc/sdm/bls-users
 system:name=0|systemd-config=timesyncd=/rpi/systemd/timesyncd.conf|eeprom=stable|sysctl=/rpi/etc/sysctl.d/01-disable-ipv6.conf|fstab=/rpi/etc/fstab.lan|motd=/dev/null
@@ -34,6 +34,8 @@ disables:triggerhappy|wifi|bluetooth|piwiz
 quietness:consoleblank=300|noquiet=keep|nosplash=keep|noplymouth
 L10n:host
 ```
+
+When using a pluglist file the argument list should not be quoted (`"`). This is only needed on the command line to keep bash from doing silly things.
 
 Plugins are run in the order they are encountered on the command line or the plugin @file,
 
@@ -937,7 +939,12 @@ The above userlist can be equivalently placed on the command line:
 ```
 Plugins are run in the order they are specified on the command line. I recommend that the `user` plugin be as close to the first plugin run as possible, so that the first created user ($myuser) is available to other plugins.
 
-**NOTE:** If you add any users and/or add a password for the user `pi` you probably don't want the RasPiOS services to run at first system boot that help you configure a user. That is exactly what this plugin does, so you can and **should** disable the RasPiOS services with `--plugin disables:piwiz`.
+#### Notes
+
+* If you add any users and/or add a password for the user `pi` you probably don't want the RasPiOS services to run at first system boot that help you configure a user. That is exactly what this plugin does, so you can and **should** disable the RasPiOS services with `--plugin disables:piwiz`.
+* If you want to set a username or password that contains the dollar sign (`$`) special treatment is required:
+  * If using `--plugin` on the command line, the dollar sign characters must be quoted using a backslash (`\$`)
+  * Alternatively, use a `userlist` file as described <a href="#overview-and-handling-multiple-accounts">here</a>, or use `--plugin @/path/to/pluglist` as described <a href="#invoking-a-plugin-on-the-sdm-command-line">here.</a>
 
 ### vnc
 
