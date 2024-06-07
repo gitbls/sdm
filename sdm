@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.2"
+version="V12.3"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -608,11 +608,14 @@ fi
 # parse and set ecolors
 #
 [ "$ecolors" == "" ] && ecolors="blue:gray:red"
-IFS=":" read efg ebg ecursor <<< $ecolors
-[ "$efg" == "" ] && efg="blue"
-[ "$ebg" == "" ] && ebg="gray"
-[ "$ecursor" == "" ] && ecursor="red"
-ecolors="$efg:$ebg:$ecursor"
+if [ "$ecolors" != "0" ]
+then
+    IFS=":" read efg ebg ecursor <<< $ecolors
+    [ "$efg" == "" ] && efg="blue"
+    [ "$ebg" == "" ] && ebg="gray"
+    [ "$ecursor" == "" ] && ecursor="red"
+    ecolors="$efg:$ebg:$ecursor"
+fi
 #
 # Process the command. Actions are burn, customize, mount, runonly, and standalone --extend
 #
@@ -670,16 +673,19 @@ then
 	echo $"** BE VERY CAREFUL!! **
 ** Precede all path references by '$SDMPT' or you WILL modify your running system **
 ** Use 'exit' to Exit the bash shell and unmount the $dimgdevname"
-	IFS=":" read mfg mbg mcursor <<< $mcolors
-	[ "$mfg" == "" ] && mfg="black"
-	[ "$mbg" == "" ] && mbg="LightSalmon1"
-	[ "$mcursor" == "" ] && mcursor="blue"
-	stermcolors "$mfg" "$mbg" "$mcursor" xt
+	if [ "$mcolors" != "0" ]
+	then
+	    IFS=":" read mfg mbg mcursor <<< $mcolors
+	    [ "$mfg" == "" ] && mfg="black"
+	    [ "$mbg" == "" ] && mbg="LightSalmon1"
+	    [ "$mcursor" == "" ] && mcursor="blue"
+	    stermcolors "$mfg" "$mbg" "$mcursor" xt
+	fi
     fi
     cd $SDMPT
     bash
     cd - > /dev/null
-    [ -t 0 ] && resetcolors xt
+    [ -t 0 ] && [ "$mcolors" != "0" ] && resetcolors xt
     exit 0
 fi
 #
@@ -944,10 +950,11 @@ fi
 
 
 [ $icolors -eq 1 -a -t 0 -a "$spawncmd" == "" ] || icolors=0
+[[ "$ecolors" == "0" ]] || [[ $fbatch -eq 1 ]] && icolors=0
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 [ "$spawncmd" == "" ] && spawncmd="/bin/bash"
 sdm_spawn "$nspawnsw" Phase1 $spawncmd
 sts=$?
-[ $icolors -eq 1 ] && resetcolors xt
+[ $icolors -eq 1 ] && icolors=0 && resetcolors xt
 
 exit $sts

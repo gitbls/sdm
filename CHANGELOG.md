@@ -1,5 +1,15 @@
 # Changelog
 
+## V12.3
+
+* New Features
+* Improvements
+  * Don't change terminal colors if `--ecolors 0` (for explore and customize) or `--mcolors 0` (for mount); useful for terminal emulators that don't correctly handle terminal coloring escape sequences (https://www.xfree86.org/current/ctlseqs.html)
+  * Documentation improvements
+  * Issue a warning if systemctl commands fail in the `system` plugin
+* Bug Fixes
+  * Accomodate systemd version string variations
+
 ## V12.2
 
 * New Features
