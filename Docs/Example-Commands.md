@@ -1,20 +1,102 @@
 # Example: Commands
 
-* `sudo sdm --customize --plugin apps:"apps=@myapps" 2020-08-20-raspios-buster-armhf-full.img`
+* `sudo sdm --customize --plugin apps:"apps=@/path/to/myapps" 2024-03-15-raspios-bookworm-arm64.img`
 
-    Installs the apps from the list in the file myapps (one line per app) into the image.
+    Installs the apps from the list in the file myapps (one app per line) into the image.
 
-* `sudo sdm --burn /dev/sdc --host sky 2020-08-20-raspios-buster-armhf-full.img`
+* `sudo sdm --burn /dev/sdc --host sky --expand-root --regen-ssh-host-keys 2024-03-15-raspios-bookworm-arm64.img`
 
-    sdm burns the image to the SD Card in /dev/sdc and sets the hostname to 'sky'.
+    sdm burns the image to the SD Card in /dev/sdc and sets the hostname to 'sky'. `--expand-root` expands the rootfs to fill the remainder of the disk, and `--regen-ssh-host-keys` has sdm's First Boot take care of these, and disables the RasPiOS firstboot service that then not needed.
 
     **NOTE:** While sdm does check that the device is a block device and is not mounted, it is still a good idea to double check that you're writing to the device you think you are before pressing ENTER.
 
-* `sudo sdm --explore 2020-08-20-raspios-buster-armhf-full.img`
+* `sudo sdm --burn /dev/sdc --host sky --plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|crypto=aes|ssh" 2024-03-15-raspios-bookworm-arm64.img --expand-root --regen-ssh-host-keys`
 
-    sdm enters the nspawn container for the IMG so you can work on it. For example, you might want to do an *apt update* and *apt upgrade*, install additional packages, or make other configuration or customization changes, before you burn a new SD Card.
+    As above, burn the IMG to the disk. After the burn completes, run the `cryptroot` plugin to prepare to encrypt the rootfs. See <a href="Docs/DiskEncryption.md">Disk Encryption</a> for complete details on this plugin. Running `cryptroot` at burn time facilitates easily building Pi systems with or without rootfs encryption.
 
-This is an example that can be copied and used. Following that is an annotated version with some explanations.
+* `sudo sdm --explore 2024-03-15-raspios-bookworm-arm64.img`
+
+    sdm enters the nspawn container for the IMG so you can work on it. For example, you might want to do an *apt update* and *apt upgrade*, install additional packages, or make other configuration or customization changes, before you burn a new SD Card. Use the `exit` command to leave the container.
+
+* `sudo sdm --runonly plugins --plugin piapps 2024-03-15-raspios-bookworm-arm64.img`
+
+    Run the plugin `piapps` in the specified IMG. This runs all 3 phases of the plugin, so it's exactly like running the plugin during an install.
+
+# Official Getting Started with sdm script
+
+This script is a great way to get started sdm. It makes use of a list of plugins which is easier to manage for some.
+
+This example can be copied and used, or of course create your own 'list of plugins' file and sdm command script
+
+```sh
+#!/bin/bash
+#
+# Simple script to use sdm with plugins
+# Edit the text inside the EOF/EOF as appropriate for your configuration
+# ** Suggestion: Copy this file to somewhere in your path and edit your copy
+#    (~/bin is a good location)
+#
+
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
+[ $EUID -eq 0 ] && sudo="" || sudo="sudo"
+
+img="$1"
+[ "$img" == "" ] && errexit "? No IMG specified"
+
+[ "$(type -t sdm)" == "" ] && errexit "? sdm is not installed"
+
+[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
+[ -f $assets/my.plugins ] &&  mv $assets/my.plugins $assets/my.plugins.1
+
+(cat <<EOF
+# Plugin List generated $(date +"%Y-%m-%d %H:%M:%S")
+
+# Delete user pi if it exists
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#user
+user:deluser=pi
+
+# Add a new user
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#user
+user:adduser=myuser|password=mypassword
+
+# Install btwifiset (Control Pi's WiFi from your phone)
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#btwifiset
+btwifiset:country=US|timeout=30
+
+# Install apps
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#apps
+apps:name=mybrowsers|apps=firefox,chromium-browser
+apps:name=mytools|apps=keychain,lsof,iperf3,dnsutils
+
+# Configure network
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#network
+network:wifissid=myssid|wifipassword=mypassword|wificountry=US
+
+# This configuration eliminates the need for piwiz so disable it
+disables:piwiz
+
+# Uncomment to enable trim on all disks
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#trim-enable
+#trim-enable
+
+# Configure localization settings to the same as this system
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
+L10n:host
+EOF
+    ) | $sudo bash -c "cat >|$assets/my.plugins"
+
+$sudo sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --regen-ssh-host-keys $img
+```
+
+# Specifying plugins on the command line
+
+Here is another example that can be copied and used. It uses the `--plugin` switch on the command line, as opposed to the previous example of using a list of plugins file.
+
+Any/all these plugin invocations can be used in the above script if desired, without the `--plugin`. An annotated version follows with some explanations. 
 
 ```sh
 
@@ -43,7 +125,7 @@ sudo sdm \
 
 ```
 
-Annotated version
+Annotated version of above script
 ```sh
 
 sudo sdm \
@@ -67,7 +149,6 @@ sudo sdm \
      --reboot 20                                              
 
 ```
-
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
