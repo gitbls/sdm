@@ -21,8 +21,6 @@ With `sdm` you'll spend a lot less time rebuilding SSDs/SD Cards, configuring yo
 
 Have questions about sdm? Please don't hesitate to ask in the Issues section of this github. If you don't have a github account (so can't post an issue/question here), please feel free to email me at: [gitbls@outlook.com](mailto:gitbls@outlook.com).
 
-Need more details? Watch sdm in action [here](https://youtu.be/CpntmXK2wpA)
-
 If you find sdm useful, please consider starring it to help me understand how many people are using it. Thanks!
 
 ## Usage overview
@@ -45,7 +43,7 @@ curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bas
 
 ## Customize the image with sdm
 ```sh
-sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disables:piwiz --regen-ssh-host-keys --restart 2023-12-05-raspios-bookworm-arm64.img
+sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disables:piwiz --expand-root --regen-ssh-host-keys --restart 2023-12-05-raspios-bookworm-arm64.img
 ```
 
 sdm will make the following changes to your IMG file:
@@ -84,13 +82,17 @@ You can review the output of the sdm first boot script on the newly-booted syste
 sudo journalctl -b -1 | grep FirstBoot
 ```
 
+## Next steps
+
+If you want to adopt sdm into your RasPiOS management tools, a great way to get started is to use the <a href="Docs/Example-Commands.md#official-getting-started-with-sdm-script">Official Getting Started With sdm script</a> to quickly and easily learn how to customize an IMG.
+
+The most important new user docs are: <a href="Docs/Command-Details.md">Command Details</a> and <a href="Docs/Plugins.md">Plugins</a>.
+
 ## What else can sdm do?
 
 Here are a few examples:
 
-* **Install applications**  &mdash; Editors (emacs, vim, zile, etc), and any other packages you always install in a new system. You direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps">the apps plugin</a> for details.
-
-    See <a href="Docs/Example-Commands.md">Example Commands</a> for some examples, and also see the files sdm-apps-example and sdm-xapps-example in this GitHub.
+* **Install applications**  &mdash; Editors (emacs, vim, zile, etc), and any other packages you always install in a new system. Direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps">the apps plugin</a> for details.
 
 * **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">the VNC plugin</a>.
 
@@ -98,11 +100,10 @@ Here are a few examples:
 
 * **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation. See <a href="Docs/Plugins.md#raspiconfig">raspiconfig plugin </a>.
 
-* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system. This can be done easily with a personal Plugin. See <a href="Docs/Example-Plugin.md">my personal plugin</a> for an example.
+* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system. This can be done easily using <a href="Docs/Plugins.md#copyfile">the `copyfile` plugin</a> or with a personal Plugin. See <a href="Docs/Example-Plugin.md">my personal plugin</a> for an example.
 
 * **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab. See <a href="Docs/Plugins.md#system">system plugin for details</a>.
 
-* **Complex function disables** &mdash; Disable complex functions such as bluetooth, piwiz, swap, triggerhappy, and WiFi. See <a href="Docs/Plugins.md#disables">here</a>.
 * **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm. See the description of the `service-disable` and `service-enable` arguments to <a href="Docs/Plugins.md#system">the system plugin</a>.
 
 * **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>.
@@ -117,4 +118,6 @@ Here are a few examples:
 
 ## Complete sdm Documentation
 
-Need more details? You'll find complete details on sdm in the <a href="Docs/Index.md">online documentation</a>. You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a> NOTE: It's an slightly old video and doesn't use plugins, but will give you a good idea of how sdm works.
+Need more details? You'll find complete details about sdm in the <a href="Docs/Index.md">online documentation</a> and plugin-specific documentation <a href="Docs/Plugins.md">here.</a>
+
+You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a> It's an older video and doesn't use plugins, but will give you a good idea of how sdm works.
