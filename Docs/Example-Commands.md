@@ -26,7 +26,7 @@
 
 This script is a great way to get started sdm. It makes use of a list of plugins which is easier to manage for some.
 
-This example can be copied and used, or of course create your own 'list of plugins' file and sdm command script
+This example can be copied and used, or of course create your own 'list of plugins' file and sdm command script. This file is also available here: <a href="../ezsdm">ezsdm</a>
 
 ```sh
 #!/bin/bash
@@ -87,7 +87,7 @@ disables:piwiz
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
 L10n:host
 EOF
-    ) | $sudo bash -c "cat >|$assets/my.plugins"
+    ) | bash -c "cat >|$assets/my.plugins"
 
 $sudo sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --regen-ssh-host-keys $img
 ```
