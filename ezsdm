@@ -1,0 +1,59 @@
+#!/bin/bash
+#
+# Simple script to use sdm with plugins
+# Edit the text inside the EOF/EOF as appropriate for your configuration
+# ** Suggestion: Copy this file to somewhere in your path and edit your copy
+#    (~/bin is a good location)
+
+
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
+[ $EUID -eq 0 ] && sudo="" || sudo="sudo"
+
+img="$1"
+[ "$img" == "" ] && errexit "? No IMG specified"
+
+[ "$(type -t sdm)" == "" ] && errexit "? sdm is not installed"
+
+[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
+[ -f $assets/my.plugins ] &&  mv $assets/my.plugins $assets/my.plugins.1
+
+(cat <<EOF
+# Plugin List generated $(date +"%Y-%m-%d %H:%M:%S")
+
+# Delete user pi if it exists
+user:deluser=pi
+
+# Add a new user ** change 'myuser' and 'mypassword' **
+user:adduser=myuser|password=mypassword
+
+# Install btwifiset (Control Pi's WiFi from your phone)
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#btwifiset
+btwifiset:country=US|timeout=30
+
+# Install apps
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#apps
+apps:name=mybrowsers|apps=firefox,chromium-browser
+apps:name=mytools|apps=keychain,lsof,iperf3,dnsutils
+
+# Configure network ** change 'myssid' and 'mywifipassword' **
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#network
+network:wifissid=myssid|wifipassword=mywifipassword|wificountry=US
+
+# This configuration eliminates the need for piwiz so disable it
+disables:piwiz
+
+# Uncomment to enable trim on all disks
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#trim-enable
+#trim-enable
+
+# Configure localization settings to the same as this system
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
+L10n:host
+EOF
+    ) | bash -c "cat >|$assets/my.plugins"
+
+$sudo sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --regen-ssh-host-keys $img
