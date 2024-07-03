@@ -112,7 +112,7 @@ args="$2"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/network"
 
-vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|wificountry|ifname|noipv6|nmconf|nmconn|nowifi|zeroconf|"
+vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|powersave|wificountry|ifname|noipv6|nmconf|nmconn|nowifi|zeroconf|"
 rqdargs=""
 
 if [ "$phase" == "0" ]
@@ -393,6 +393,15 @@ EOF
 		    logtoboth "> Plugin $pfx: Create connection '$ifname-zeroconf'"
 		    echo "nmcli $addzeroconf" >> $nmdcfg
 		fi
+	    fi
+	    # Configure powersave if requested
+	    if [ "$powersave" != "" ]
+	    then
+		logtoboth "> Plugin $pfx: Configure WiFi powersave to '$powersave'"
+		cat > /etc/NetworkManager/conf.d/010-sdm-powersave.conf <<EOF
+[connection]
+wifi.powersave = $powersave
+EOF
 	    fi
 	    # If noipv6 requested set it on $ifname's connection(s). Create if it doesn't exist.
 	    if [ "$noipv6" == "y" ]
