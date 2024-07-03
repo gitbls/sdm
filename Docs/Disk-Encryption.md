@@ -107,6 +107,9 @@ Switches to sdm-cryptconfig include:
 * `--nopwd` &mdash; Do not configure passphrase unlock; a keyfile is required
 * `--quiet` &mdash; Keep graphical desktop startup quiet (see 'known issues' below)
 * `--ssh` &mdash; Enable SSH in initramfs. Requires `--authorized-keys` to provide an authorized keys file for SSH security
+* `--sshbash` &mdash; Leave bash enabled in the SSH session rather than switching to the captive `cryptroot-unlock` (DEBUG only!)
+* `--sshport portnum` &mdash; Use the specified port rather than the Default 22
+* `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 300 seconds
 * `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * `--sdm` &mdash; sdm `cryptroot` plugin sets this. Not for manual use
 * `--unique-ssh` &mdash; Use a different SSH host key in initramfs than the host OS SSH key
@@ -216,6 +219,9 @@ Note that once you've enabled SSH in the initramfs, sdm does not provide an easy
 `sdm-cryptconfig` switches relevant for SSH are:
 
 * `--authorized-keys keyfile` &mdash; Specifies an SSH authorized_keys file to use in the initramfs. This is required with SSH, since there is no password authentication in initramfs
+* `--sshbash` &mdash; Leave bash enabled in the SSH session rather than switching to the captive `cryptroot-unlock`
+* `--sshport portnum` &mdash; Use the specified port rather than the Default 22
+* `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 300 seconds
 * `--unique-ssh` &mdash; Use a different SSH host key in the initramfs. The default is to use the host OS SSH key
 * Network configuration settings &mdash; You may need to use some or all of these depending on your network configuration
 

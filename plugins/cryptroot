@@ -13,6 +13,7 @@ function converty() {
     [ -v noauto ] && noauto=y
     [ -v nopwd ] && nopwd=y
     [ -v ssh ] && ssh=y
+    [ -v sshbash ] && sshbash=y
     [ -v uniquesshkey ] && unisquesshkey=y
 }
 
@@ -25,7 +26,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|uniquesshkey|noauto|nopwd|"
+vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|sshbash|sshport|sshtimeout|uniquesshkey|noauto|nopwd|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -98,6 +99,9 @@ then
     [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
     [ "$nopwd" == "y" ] && osw="${osw} --nopwd"
     [ "$ssh" != "" ] && osw="${osw} --ssh"
+    [ "$sshbash" != "" ] && osw="${osw} --sshbash"
+    [ "$sshport" != "" ] && osw="${osw} --sshport $sshport"
+    [ "$sshtimeout" != "" ] && osw="${osw} --sshtimeout $sshtimeout"
     [ "$uniquesshkey" == "y" ] && osw="${osw} --unique-ssh"
     [ "$noauto" == "y" ] && escript0=".099-enable-auto-encrypt.sh" || escript0="099-enable-auto-encrypt.sh"
     cat > /etc/sdm/0piboot/$escript0 <<EOF

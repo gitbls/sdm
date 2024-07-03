@@ -85,6 +85,9 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --nopwd -- No password on encrypted rootfs; keyfile (required) is only unlock
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
 * --ssh -- Enable SSH in initramfs
+* --sshbash -- Leave ssh session bash enabled (Default: use cryptroot-unlock)
+* --sshport port -- Specify initramfs SSH port (Default: 22)
+* --sshtimeout timeout -- Specify initramfs SSH timeout (Default: 300)
 * --reboot -- Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * --sdm -- sdm cryptroot plugin sets this
 * --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
@@ -207,9 +210,11 @@ source /etc/sdm/sdm-readparams
 [ -f /etc/sdm/assets/cryptbbh ] && cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot
 echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
 logger "sdm-cryptfs-cleanup: Clean up initramfs content"
-mv /etc/initramfs-tools/hooks/luks_hooks /etc/initramfs-tools/hooks/.sdm.luks_hooks.old
-grep -v -E "bash|sdmcryptfs|mappername|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks_hooks.old > /etc/initramfs-tools/hooks/luks_hooks
-[ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
+mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-hooks.old
+# Leave bash in initramfs rather than special case remove if no --sshbash
+grep -v -E "sdmcryptfs|mappername|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
+chmod 755 /etc/initramfs-tools/hooks/luks-hooks
+[ $xsshbash -eq 0 ] && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
 echo "sdm-cryptfs-cleanup: Rebuild initramfs" > /dev/console
 logger "sdm-cryptfs-cleanup: Rebuild initramfs"
@@ -237,7 +242,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,nopwd,ssh,reboot,sdm,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -253,12 +258,15 @@ function parsecmd() {
 	    --hostname)        xhostname=$2 ; shift 2 ;;
 	    --ipaddr)          xipaddr=$2   ; shift 2 ;;
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
-	    --mapper|--mappername) xmapper=$2   ; shift 2 ;;
+	    --mapper|--mappername) xmapper=$2 ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
 	    --nopwd)           xnopwd=1     ; shift 1 ;;
 	    --quiet)           xquiet=1     ; shift 1 ;;
 	    --reboot)          xreboot=1    ; shift 1 ;;
 	    --ssh)             xssh=1       ; shift 1 ;;
+	    --sshbash)         xsshbash=1   ; shift 1 ;;
+	    --sshport)         xsshport=$2  ; shift 2 ;;
+	    --sshtimeout)      xsshtimeout=$2 ; shift 2 ;;
 	    --sdm)             xsdm=1       ; shift 1 ;;
 	    --unique-ssh)      xunique=1    ; shift 1 ;;
 	    --)                shift ; break ;;
@@ -363,10 +371,10 @@ else
 fi
 EOF
     chmod 755 /bin/sdmluksunlock
-    echo "> Create /etc/initramfs-tools/hooks/luks_hooks"
+    echo "> Create /etc/initramfs-tools/hooks/luks-hooks"
     [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
     [ $xnopwd -eq 1 ] && knopwd="copy_file text /usr/local/bin/sdmnull /etc/sdmnopwd"
-    cat > /etc/initramfs-tools/hooks/luks_hooks <<EOF
+    cat > /etc/initramfs-tools/hooks/luks-hooks <<EOF
 #!/bin/sh -e
 PREREQS=""
 case "\$1" in
@@ -388,7 +396,7 @@ $kcmd
 $knopwd
 exit 0
 EOF
-    chmod 755 /etc/initramfs-tools/hooks/luks_hooks
+    chmod 755 /etc/initramfs-tools/hooks/luks-hooks
 
     echo "> Update /etc/initramfs-tools/modules to include crypto '$xcrypto' modules"
     case "$xcrypto" in
@@ -440,7 +448,7 @@ EOF
     if [ $xssh -eq 1 ]
     then
 	echo "> Configure SSH"
-	sed -i "s#\#DROPBEAR_OPTIONS=\"\"#DROPBEAR_OPTIONS=\"-I 300 -j -k -s -p 22 -c bash -r /etc/dropbear/dropbear_ed25519_host_key\"#" /etc/dropbear/initramfs/dropbear.conf
+	sed -i "s#\#DROPBEAR_OPTIONS=\"\"#DROPBEAR_OPTIONS=\"-I $xsshtimeout -j -k -s -p $xsshport -c bash -r /etc/dropbear/dropbear_ed25519_host_key\"#" /etc/dropbear/initramfs/dropbear.conf
 	echo "> Copy authorized keys file from '$xauthkeys'"
 	cp $xauthkeys /etc/dropbear/initramfs/authorized_keys
 	if [ $xunique -eq 0 ]
@@ -504,6 +512,9 @@ xquiet=0
 xreboot=0
 xsdm=0
 xssh=0
+xsshbash=0
+xsshport="22"
+xsshtimeout="300"
 xunique=0
 src=$(dirname "$(realpath "$0")")
 parsecmd $0 "$*"
