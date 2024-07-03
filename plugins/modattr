@@ -1,0 +1,155 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: modattr
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function dodirmods() {
+    # path, chown, chmod, verbose
+    local path="$1" chown="$2" chmod="$3" verbose="$4" recurs="$5"
+
+    #logtoboth "dodirmods: path:$path chown:|$chown| chmod:|$chmod| verbose:|$verbose| recurs:|$recurs|"
+    [ "$verbose" != "" ] && verbose="--$verbose"
+    
+    if [ "$chown" != "" ]
+    then
+	[ "$recurs" == "" ] && rdir="to" || rdir="subtree to"
+	logtoboth "Plugin $pfx: Change owner of '$path' $rdir '$chown"
+	chown $verbose $chown $recurs $path
+	warnifrc $? "% Plugin $pfx: chown command returned an error"
+    fi
+    if [ "$chmod" != "" ]
+    then
+	[ "$recurs" == "" ] && rdir="to" || rdir="subtree to"
+	logtoboth "Plugin $pfx: Change protection of '$path' $rdir '$chmod'"
+	chmod $verbose $chmod $recurs $path
+	warnifrc $? "% Plugin $pfx: chmod command returned an error"
+    fi
+}
+
+function dofilemods() {
+    local path="$1" chown="$2" chmod="$3" verbose="$4" recurs="$5"
+
+    #logtoboth "dofilemods: path:$path chown:|$chown| chmod:|$chmod| verbose:|$verbose| recurs:|$recurs|"
+    [ "$verbose" != "" ] && verbose="--$verbose"
+
+    if [ "$chown" != "" ]
+    then
+	logtoboth "Plugin $pfx: Change owner of file '$path' to '$chown"
+	chown $verbose $chown $path
+	warnifrc $? "% Plugin $pfx: chown command returned an error"
+    fi
+    if [ "$chmod" != "" ]
+    then
+	logtoboth "Plugin $pfx: Change protection of file '$path' to '$chmod'"
+	chmod $verbose $chmod $path
+	warnifrc $? "% Plugin $pfx: chmod command returned an error"
+    fi
+}
+
+function dowildcardmods() {
+    # path, chown, chmod, verbose, recurs
+    local path="$1" chown="$2" chmod="$3" verbose="$4" recurs="$5"
+    local fns
+
+    #logtoboth "dowildcardmods: path:$path chown:|$chown| chmod:|$chmod| verbose:|$verbose| recurs:|$recurs|"
+    while read fns
+    do
+	#logtoboth "dowildcardmods: fns:|$fns|"
+	if [ -d $fns ]
+	then
+	    #logtoboth "call dodirmods '$fns'"
+	    dodirmods "$fns" "$chown" "$chmod" "$verbose" "$recurs"
+	else
+	    #logtoboth "call dofilemods '$fns'"
+	    dofilemods "$fns" "$chown" "$chmod" "$verbose"
+	fi
+    done < <(compgen -G "$path")
+}
+
+function doallmods() {
+    #
+    # Runs the requested modifications
+    #
+    # path chown, chmod verbose, 
+    local path="$1" chown="$2" chmod="$3" verbose="$4" recurs="$5"
+
+    #logtoboth "doallmods: path:$path chown:|$chown| chmod:|$chmod| verbose:|$verbose| recurs:|$recurs|"
+    
+    if [ "$(compgen -G "$path")" != "$path" ]
+    then
+	#logtoboth "calling dowildcardmods"
+	dowildcardmods "$path" "$chown" "$chmod" "$verbose" "$recurs"
+    elif [ -d $path ]
+    then
+	#logtoboth "calling dodirmods"
+	dodirmods "$path" "$chown" "$chmod" "$verbose" "$recurs"
+    else
+	#logtoboth "call dofilemods"
+	dofilemods "$path" "$chown" "$chmod" "$verbose" "$recurs"
+    fi
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|chmod|chown|path|R|recursive|runphase|verbose|"
+rqdargs="|path|"              # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+logtoboth "* Plugin $pfx: Start Phase $phase"
+plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+[[ "$chmod" == "" ]] && [[ "$chown" == "" ]] && errexit "? Plugin $pfx: At least one of chmod or chown must be specified"
+if [ "$runphase" != "" ]
+then
+    runphase="${runphase,,}"
+    if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
+    then
+        [ "$phase" == "0" ] && logtoboth "% Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
+        runphase="phase1"
+    fi
+else
+    runphase="phase1"
+fi
+
+if [ "$verbose" != "" ]
+then
+    [[ "changes|silent|verbose" =~ "$verbose" ]] || errexit "? Plugin $pfx: Invalid 'verbose' keyword value '$verbose'"
+fi
+[ -v R ] || [ -v recursive ] && recurs="-R" || recurs=""
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    plugin_printkeys
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    #
+    [ "$runphase" == "phase1" ] && doallmods "$path" "$chown" "$chmod" "$verbose" "$recurs"
+    #
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    [ "$runphase" == "post-install" ] && doallmods "$path" "$chown" "$chmod" "$verbose" "$recurs"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
