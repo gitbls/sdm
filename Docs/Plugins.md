@@ -175,7 +175,7 @@ RasPiOS has a line length limit of 98 for config.txt, and silently ignores chara
 
 ### btwifiset
 
-btwifiset is a service that enables WiFi SSID and password configuration over Bluetooth using an iOS app (Author working on Android app). Once the service is running, you can use the BTBerryWifi iOS app to connect to the service running on your Pi and configure the WiFi. See https://github.com/nksan/Rpi-SetWiFi-viaBluetooth for details on btwifiset itself.
+btwifiset is a service that enables WiFi SSID and password configuration over Bluetooth using a mobile app. Once the service is running, you can use the `BTBerryWifi` iOS app to connect to the service running on your Pi and configure the WiFi. See https://github.com/nksan/Rpi-SetWiFi-viaBluetooth for details on btwifiset itself.
 
 #### Arguments
 
@@ -273,6 +273,9 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 * **netmask** &mdash; Network mask for the intramfs network client to use
 * **nopwd** &mdash; Configure only a keyfile to unlock the rootfs. No passphrase will be configured. The `keyfile` argument is required
 * **ssh** &mdash; Enable SSH in the initramfs
+* **sshbash** &mdash; Leave bash enabled in the SSH session rather than switching to the captive cryptroot-unlock (DEBUG only!)
+* **sshport** &mdash; Use the specified port rather than the Default 22
+* **sshtimeout** &mdash; Use the specified timeout rather than the Default 300 seconds
 * **uniquesshkey** &mdash; Use a unique SSH key in the initramfs. Default is to use the host SSH key (of the system being encrypted)
 
 `authkeys` is required with `ssh`
@@ -485,6 +488,33 @@ Create the specified directory and optionally set directory owner and protection
 
 NOTE: The directory is created in Phase 0, so it is available as early as during customization. The owner and protection are not set until the post-install phase, since it's possible that the owner account may not be created until Phase 1.
 
+### modattr
+
+Use the `modattr` plugin to change file attributes such as the file owner and file protection.
+
+#### Arguments
+
+* **path** &mdash; File specification (see below)
+* **chmod** &mdash; Directory protection
+* **chown** &mdash; Directory owner:group
+* **R** &mdash; Perform the chmod and/or chown recursively
+* **recursive** &mdash; Same as `R`
+* **runphase** &mdash; Specify the phase in which the attribute modifications will be done (`phase1` or `post-install`). Default is `phase1`
+* **verbose** &mdash; Specify the verbosity level (`changes`, `silent`, or `verbose`), corresponding to the chown/chmod switches `--changes`, `--silent`, and `--verbose`
+
+#### Path argument processing notes
+
+The `path` argument is processed as follows:
+* **Single file:** Attributes of that file will be modified
+* **Directory:**  Attributes of the directory will be modified, using `--recursive` if `R` or `recursive` provided
+* **Wildcard specification:** each expanded element is examined and processed as either a directory or file
+
+#### Examples
+
+* `--plugin modattr:"path=/path/to/file|chown=user:group|chmod=644"` &mdash; Change the file owner and protection of the specified file
+* `--plugin modattr:"path=/path/to/dir|chown=user:group|chmod=755|R"` &mdash; Change the file owner and protection recursively of the specified directory. If recursive is not specified, only the given directory will be modified.
+* `--plugin modattr:"path=/path/to/dir/*|chmod=755|R"` &mdash; Change the file protection on all files matching the provided `path`. Matches that are directories will be processed per above.
+
 ### ndm
 
 The `ndm` plugin installs ndm (https://github.com/gitbls/ndm), named (bind9) and isc-dhcp-server which enables the resulting system to operate as a full DHCP/DNS server with an easy-to-use command-line interface. ndm makes it super-simple to run your own DHCP/DNS server on RasPiOS with useful logging capabilities.
@@ -515,6 +545,7 @@ Use the network plugin to configure various network settings
 * **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
 * **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
 * **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+* **powersave** &mdash; Specify the WiFi powersave setting. Values: **0**:Use default value; **1**:Leave as is; **2**:Disable powersave; **3**:Enable powersave
 * **zeroconf** &mdash; (NetworkManager only) If eth0 does not properly connect (e.g., doesn't get a DHCP address) then bring up zeroconf (169.254.x.y) on the adapter.
 
   This can take some time due to NetworkManager default settings and timeouts. You can use the NetworkManager settings `ipv4.dhcp-timeout` and `connection.autoconnect-retries`  on the eth0 nmconnection to reduce the delay if desired.
@@ -546,8 +577,17 @@ Using the `parted` burn plugin implicitly sets `--no-expand-root` when used on a
 #### Examples
 
 * `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4"` &mdash; Expand the RasPiOS root partition by 2048MiB and add a 1024MiB ext4 partition
-* `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4+2048,btrfs"`  &mdash; Expand the RasPiOS root partition by 2048MiB and add a 1024MiB ext4 partition and a 2048MiB btrfs partition
-* `--burn-plugin parted:"rootexpand=1024|addpartition=@/path/to/partition-list"` where the file partition-list has one line for each partition to be added in the form: `nnnn,fstype,partitiontype`
+* `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4+2048,btrfs"`  &mdash; Expand the RasPiOS root partition by 2048MiB and add: a 1MiB ext4 partition and a 1024MiB btrfs partition
+* `--burn-plugin parted:"rootexpand=1024|addpartition=@/path/to/partition-list"` where the file partition-list has one line for each partition to be added in the form: `nnnn,fstype,partitiontype,label`
+
+#### Example partition-list file
+
+This is a sample file for the addpartition=@/path/to/partition-list directive. It will expand the root partition by 2048MiB (2GiB) add a 1MiB partition and ext4 file system, and a 4MiB partition and btrfs file system. This method enables easily adding multiple partitions with a single plugin invocation, so the ability to use `+` for multiple partitions mentioned above does not work in a partition-list file.
+
+```
+1024,ext4,,ext4label
+4096,btrfs,,btrfslabel
+```
 
 ### piapps
 
@@ -805,7 +845,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
   * **service-mask** &mdash; Comma-separated list of services to mask
 * **swap** &mdash; **disable** or integer swapsize in MB to set
 * **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
-* **systemd-config** &mdash; Comma-separated list of `type:file`, where type is one of *login*, *network*, *resolve*, *system*, *timesync*, or *user*. Copies the provided file to /etc/systemd/*type*.conf.d
+* **systemd-config** &mdash; Comma-separated list of `type:/path/to/file.conf`, where type is one of *login*, *network*, *resolve*, *system*, *timesync*, or *user*. Copies the provided file to /etc/systemd/*type*.conf.d NOTE: file must be specified as a full /path/to/file.conf and the file type MUST be `.conf`
 * **udev** &mdash; Comma-separated list of files to copy to /etc/udev/rules.d
 
 #### Examples
