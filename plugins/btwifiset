@@ -11,6 +11,123 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function installreqs() {
+    # VV This section from btwifisetInstall.sh
+    # V Assumes Python versions in the form of nn.nn.nn (which they all seem to be)
+    pyver=$((python3 --version) | (read p version junk ; echo ${version%.*}))  # This gets, for example, 3.11
+    pymajver=${pyver%.*}
+    pycomponents=""
+    echo "> Plugin $pfx: Determine python components to install"
+    for pkg in python${pymajver}-gi libdbus-glib-1-dev libpython${pyver}-dev
+    do
+	ispkginstalled $pkg || pycomponents="${pycomponents}${pkg} "
+    done
+    #
+    # Examine apt and pip-installed cryptography and dbus components
+    # to decide what should be used
+    #
+    pipcrypto=0
+    pipdbus=0
+
+    logtoboth "> Plugin $pfx: btwifset requires specific minimum versions for cryptography and dbus modules"
+    logtoboth "> Plugin $pfx: Determine python cryptography install method"
+    cryptover="$(getpipver cryptography)"
+    if [[ "$cryptover" != "" ]]
+    then
+	[[ ${cryptover:0:1} -lt 3 ]] && pipcrypto=1
+    else
+	cryptover="$(getaptver python${pymajver}-cryptography installed)"
+	if [ "$cryptover" != "" ]
+	then
+	    # if installed crypto version lt 3 then pip install latest
+	    [[ ${cryptover:0:1} -lt 3 ]] && pipcrypto=1
+	fi
+    fi
+
+    if [ $pipcrypto -eq 0 ]
+    then
+	if ! ispkginstalled python${pymajver}-cryptography
+	then
+	    cryptover=$(getaptver python${pymajver}-cryptography candidate)
+	    if [ "$cryptover" != "" ]
+	    then
+		# if candidate version ge 3 then apt install, else pip install
+		if [[ ${cryptover:0:1} -ge 3 ]]
+		then
+		    pycomponents="${pycomponents}python${pymajver}-cryptography "
+		else
+		    pipcrypto=1
+		fi
+	    fi
+	fi
+    fi
+    [ $pipcrypto -eq 1 ] && logtoboth "> Plugin $pfx: Python cryptography will be installed in the btwifiset venv via pip3" \
+	    || logtoboth "> Plugin $pfx: Python cryptography will be installed via apt (or is already installed)"
+
+    echo "> Plugin $pfx: Determine python dbus install method"
+    dbusver="$(getpipver dbus)"
+    if [[ "$dbusver" != "" ]]
+    then
+	[[ "${dbusver:0:3}" < "1.3" ]] && pipdbus=1
+    else
+	dbusver="$(getaptver python${pymajver}-dbus installed)"
+	if [ "$dbusver" != "" ]
+	then
+	    [[ "${dbusver:0:3}" < "1.3" ]] && pipdbus=1
+	fi
+    fi
+
+    if [ $pipdbus -eq 0 ]
+    then
+	if ! ispkginstalled python${pymajver}-dbus
+	then
+	    dbusver=$(getaptver python${pymajver}-dbus candidate)
+	    if [ "$dbusver" != "" ]
+	    then
+		# if candidate version ge 1.3 then apt install, else pip install
+		[[ "${dbusver:0:3}" < "1.3" ]] && pipdbus=1 || pycomponents="${pycomponents}python${pymajver}-dbus "
+	    fi
+	fi
+    fi
+    [ $pipdbus -eq 1 ] && logtoboth "> Plugin $pfx: Python dbus will be installed in the btwifiset venv via pip3" \
+	    || logtoboth "> Plugin $pfx: Python dbus will be installed via apt (or is already installed)"
+
+    # If we need to install dbus or cryptography with pip and pip is not installed, install it
+    if [[ $((pipdbus+pipcrypto)) -gt 0 ]]
+    then
+	ispkginstalled python${pymajver}-pip  || pycomponents="${pycomponents}python${pymajver}-pip "
+	ispkginstalled python${pymajver}-venv || pycomponents="${pycomponents}python${pymajver}-venv "
+    fi
+
+    # Install the apt-installed components
+    if [ "$pycomponents" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Install required Python components: $pycomponents"
+	doaptrpterror "install --yes $pycomponents"
+	sts=$?
+	[ $sts -ne 0 ] && errexit "? Error returned from apt install ($sts)"
+    fi
+
+    # Create the venv if installing cryptography or dbus with pip
+    if [[ $((pipdbus+pipcrypto)) -gt 0 ]]
+    then
+	vpip3="$btwifidir/venv/bin/pip3"
+	$sudo python3 -m venv --system-site-packages $btwifidir/venv 
+	# Install (if needed) pip-installed cryptography and dbus
+	if [ $pipcrypto -eq 1 ]
+	then
+	    sts=$(installviapip cryptography $vpip3 "" "> Plugin $pfx: Install 'cryptography' in the btwifiset venv via pip3")
+	    [ $sts -ne 0 ] && errexit "? Error returned from '$vpip3 install cryptography' ($sts)"
+	fi
+	if [ $pipdbus   -eq 1 ]
+	then
+	    sts=$(installviapip dbus-python  $vpip3 "" "> Plugin $pfx: Install 'dbus-python' in the btwifiset venv via pip3")
+	    [ $sts -ne 0 ] && errexit "? Error returned from '$vpip3 install dbus-python' ($sts)"
+	fi
+    fi
+    # ^^ Above code from btwifisetInstall.sh
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -46,18 +163,20 @@ then
 	# Copy the btwifiset files from local stash
 	#
 	logtoboth "> Plugin $pfx: Copy btwifiset from $localsrc to $btwifidir"
-	for f in btwifiset.py
+	for f in btwifiset.py btpassword.py passwordREADME.txt
 	do
+	    logtoboth "    $f"
 	    cp -a $localsrc/$f $SDMPT/$btwifidir/$f
 	done
     else
 	logtoboth "> Plugin $pfx: Download btwifiset from the internet to $btwifidir"
 	for f in btwifiset.py btpassword.py passwordREADME.txt
 	do
-	    wget $srcurl/$f --output-document=$SDMPT/$btwifidir/$f
+	    wget -qO- $srcurl/$f --output-document=$SDMPT/$btwifidir/$f
 	    wsts=$?   # Need to fix this if more files ever added
+	    [ $wsts -ne 0 ] && break
 	done
-	if [ ! $wsts ]
+	if [ $wsts -ne 0 ]
 	then
 	    logtoboth "? Plugin $pfx: Unable to download btwifiset from $srcurl (Error $wsts)"
 	    logtoboth "  btwifiset cannot be installed"
@@ -78,7 +197,7 @@ then
     # set up password
     #
     [ "$btwifidir" == "" ] && btwifidir="/usr/local/btwifiset"
-    bt0="/etc/sdm/0piboot/010-btwifiset-password.sh"
+    bt0="/etc/sdm/0piboot/015-btwifiset-password.sh"
     cat >$bt0 <<EOF
 #!/bin/bash
 #
@@ -88,38 +207,23 @@ source /etc/sdm/sdm-readparams
 logger "sdm FirstBoot: Complete btwifiset configuration"
 pwd=\$(hostname)
 [ "$password" != "" ] && pwd="$password"
-running=0
 if systemctl --quiet is-active btwifiset
 then
     logger "sdm FirstBoot: Stop btwifiset service"
-    running=1
     systemctl stop btwifiset >/dev/null 2>&1
 fi
 logger "sdm FirstBoot: Set btwifiset host bluetooth password to '\$pwd'"
 printf "\$pwd\n" >>$btwifidir/crypto
-# Restart service if it was running and system is not going to reboot
-[[ \$running -eq 1 ]] && [[ \$reboot -eq 0 ]] && logger "Restart btwifiset service" && systemctl start btwifiset
+if [[ \$reboot -eq 0 ]]
+then
+    logger "sdm FirstBoot: Enable and start btwifiset service"
+    systemctl enable --now btwifiset
+else
+    logger "sdm FirstBoot: Enable btwifiset service"
+    systemctl enable btwifiset
+fi
 EOF
-    # V Assumes Python versions in the form of nn.nn.nn (which they all seem to be)
-    pyver=$((python3 --version) | (read p version junk ; echo ${version%.*}))
-    pymajver=${pyver%.*}
-
-    pycomponents=""
-    for pkg in python${pymajver}-gi libdbus-glib-1-dev libpython${pyver}-dev python3-dbus
-    do
-	! ispkginstalled $pkg && pycomponents="${pycomponents}${pkg} "
-    done
-    if pkgexists python${pymajver}-cryptography
-    then
-	! ispkginstalled $pkg && pycomponents="${pycomponents}python${pymajver}-cryptography "
-    fi
-
-    if [ "$pycomponents" != "" ]
-    then
-	logtoboth "> Plugin $pfx: Install required Python components: $pycomponents"
-	doaptrpterror "install --no-install-recommends --yes $pycomponents" $showapt
-    fi
-
+    chmod 755 $bt0
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
@@ -159,6 +263,12 @@ country=$country
 update_config=1
 EOF
     fi
+
+    installreqs
+
+    [ -f $btwifidir/venv/bin/pip3 ] && venv="$btwifidir/venv/bin/pip3" || venv=""
+    vpip3="$btwifidir/venv/bin/pip3"
+
     # Modify bluetooth service
     logtoboth "> Plugin $pfx: Update bluetooth service ExecStart"
     if ! sed -n '/^ExecStart/p' /lib/systemd/system/bluetooth.service | grep -q '\-\-experimental'
@@ -183,6 +293,7 @@ EOF
     logtoboth "> Plugin $pfx: Create and enable btwifiset service"
     [ "$timeout" != "" ] && switches="--timeout $timeout" || switches=""
     [ "$logfile" != "" ] && switches="$switches --logfile $logfile" || switches="$switches --syslog"
+    [ "$venv" != "" ] && spython="$btwifidir/venv/bin/python3" || spython="python3"
     cat >> /etc/systemd/system/btwifiset.service <<EOF
 [Unit]
 Description=btwifi Configure Wi-Fi over Bluetooth
@@ -190,7 +301,7 @@ After=hciuart.service bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=/bin/python3 $btwifidir/btwifiset.py $switches
+ExecStart=$spython $btwifidir/btwifiset.py $switches
 
 [Install]
 WantedBy=multi-user.target
@@ -198,7 +309,7 @@ EOF
     #
     # Link bluetooth.target.wants to the correct copy of bluetooth.service
     #
-    systemctl enable btwifiset.service >/dev/null 2>&1
+    systemctl disable btwifiset.service >/dev/null 2>&1  # will be enabled/started during FirstBoot
     if [ -f /etc/systemd/system/bluetooth.target.wants/bluetooth.service ]
     then
 	rm -f /etc/systemd/system/bluetooth.target.wants/bluetooth.service
