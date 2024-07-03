@@ -149,7 +149,7 @@ function doapt() {
 	    DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
 	    sts=$?
 	else
-	    # Techique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
+	    # Technique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
 	    { { { { DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
 	    sts=$?
 	fi
@@ -199,6 +199,71 @@ function ispkginstalled() {
         [[ "$iver" =~ "(none)" ]] && return 1 || return 0
     fi
     return
+}
+
+function getaptver() {
+    # $1: package name
+    # $2: 'installed' or 'candidate'
+    #
+    # returns requested version string or "" if doesn't exist
+    local pkg="$1" vertype="$2" sstr
+
+    case $vertype in
+	installed) sstr="Installed:"
+		   ;;
+	candidate) sstr="Candidate:"
+		   ;;
+    esac
+    while read line
+    do
+        if [[ "$line" =~ "$sstr" ]]  && [[ ! "$line" =~ "(none)" ]]
+            then
+                ver="${line#*: }"
+		echo "$ver"
+		return
+        fi
+    done < <($sudo apt policy $pkg 2>/dev/null)
+    echo ""
+    return
+}
+
+function getpipver() {
+    # $1: package name
+    [ "$(type -p pip3)" == "" ] && echo "" && return
+    echo "$($sudo pip3 list 2>>/dev/null | grep $1 | (read mname mver ; echo $mver))"
+    return
+}
+
+function installviapip() {
+    function pline() {
+	local line
+	while read line
+	do
+            echo "$(thisdate) $line" >> /etc/sdm/apt.log
+	done
+    }
+    # $1: package name
+    # $2: /path/to/pip3 in the venv
+    # $3: pip install options
+    # $4: Message to logtoboth
+    local pkg=$1 vpip3="$2" options="$3" msg="$4"
+    # Use --ignore-installed b/c we def want it to be installed!
+    logtoboth "$msg"
+    echo "" >> /etc/sdm/apt.log
+    outlong "$vpip3 install --ignore-installed $pkg" /etc/sdm/apt.log
+    echo "" >> /etc/sdm/apt.log
+    if [[ "$poptions" =~ "nologdates" ]]
+    then
+	$vpip3 install --ignore-installed $pkg 2>&1 | tee -a /etc/sdm/apt.log
+	sts=$?
+    else
+	# Technique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
+	{ { { { $vpip3 install --ignore-installed $pkg 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+	sts=$?
+    fi
+    [[ "$poptions" =~ "nologdates" ]] && td="" || td="$(thisdate) "
+    echo "${td}[Done] [$sts]" >> /etc/sdm/apt.log
+    return $sts
 }
 
 function thisdate() {
@@ -274,6 +339,7 @@ function logfreespace() {
 	logtoboth "% $dimgdevname '$dimg' is ${dused}% full" nosplit
 	logtoboth "% Review /etc/sdm/apt.log in the IMG for insufficient disk space errors" nosplit
 	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space in the IMG" nosplit
+	logtoboth "% Customization terminated due to low disk space condition" nosplit
 	logtoboth "!!!"
 	exit 1
     fi
@@ -463,7 +529,8 @@ function datediff() {
     hours=$(((eseconds - $((days*86400)))/3600))
     minutes=$(((eseconds - $((days*86400)) - $((hours*3600)))/60))
     seconds=$((eseconds - $((days*86400)) - $((hours*3600)) - $((minutes*60))))
-    printf "%02d:%02d:%02d:%02d\n" "$days" "$hours" "$minutes" "$seconds"
+    #printf "%02d:%02d:%02d:%02d\n" "$days" "$hours" "$minutes" "$seconds"
+    [ $days -ne 0 ] && printf "%02d:%02d:%02d:%02d\n" "$days" "$hours" "$minutes" "$seconds" || printf "%02d:%02d:%02d\n" "$hours" "$minutes" "$seconds"
 }
 
 function writeconfig() {
@@ -1702,7 +1769,7 @@ function domount() {
 	then
 	    mount -v $rootfsd $mpoint
 	else
-	    if [ $fencrypted -eq 1 ]
+	    if [ "$fencrypted" == "1" ]
 	    then
 		[ "$keyfile" != "" ] && kf="--key-file $keyfile"
 		cryptsetup luksOpen ${dmimg}${p2} sdmcrypt $kf
