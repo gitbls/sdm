@@ -156,7 +156,7 @@ then
 	# need to figure out what to install
 	# probably need to force lightdm?
 	#;;
-	x11)
+	x11|X11)
 	    logtoboth "> Plugin $pfx: X11 requested"
 	    if [ ! -x /bin/Xorg ]
 	    then
