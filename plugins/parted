@@ -53,10 +53,13 @@ function imgmakepartition() {
     # $2: partition size
     # $3: partition type
     # $4: fs type
-    local dimg="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" pstart pend pdname pname="" loopdev
+    # $5: fs label
+    #
+    local dimg="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" fslabel="$5" pstart pend pdname pname="" loopdev mkfslabel=""
     #
     # Figure out end of last partition in the img
     #
+    fstype=${fstype,,}
     while read line
     do
         IFS=":;" read partnum partstart partend partsize pfstype etc etc2 etc3 <<< $line
@@ -79,9 +82,20 @@ function imgmakepartition() {
     logtoboth "> Plugin $pfx: Wipe existing file system on ${loopdev}p${partnum}"
     wipefs -a ${loopdev}p${partnum}
     logtoboth "> Plugin $pfx: Make '$fstype' file system on IMG '$dimg'"
-    case "${fstype,,}" in
+    if [ "$fslabel" != "" ]
+    then
+	case "$fstype" in
+	    fat16|fat32|vfat)
+		mkfslabel="-n $fslabel"
+		;;
+	    *)
+		mkfslabel="-L $fslabel"
+		;;
+	esac
+    fi
+    case "$fstype" in
 	*)
-	    mkfs.${fstype} ${loopdev}p${partnum}
+	    mkfs.${fstype} $mkfslabel ${loopdev}p${partnum}
 	    errifrc $? "? mkfs.${fstype} error"
 	    ;;
     esac
@@ -96,11 +110,14 @@ function makepartition() {
     # $2: partition size
     # $3: partition type
     # $4: fs type
-    local pdev="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" pstart pend pdname pname=""
+    # $5: fs label
+    #
+    local pdev="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" fslabel="$5" pstart pend pdname pname="" mkfslabel=""
     local pdevnm=${pdev#/dev/}
     local partnum partstart partend partsize pfstype etc etc2 etc3
     local spartnum spartstart spartend spartsize etc etc2 etc3
 
+    fstype=${fstype,,}
     if [ ! -f /sbin/mkfs.${fstype} ]
     then
 	logtoboth "? Plugin $pfx: Unrecognized file system '$fstype' or missing mkfs.${fstype}"
@@ -178,13 +195,24 @@ function makepartition() {
     logtoboth "> Plugin $pfx: Wipe existing file system on $pdname"
     wipefs -a $pdname
     logtoboth "> Plugin $pfx: Make '$fstype' file system on partition $pdname"
-    case "${fstype,,}" in
+    if [ "$fslabel" != "" ]
+    then
+	case "$fstype" in
+	    fat16|fat32|vfat)
+		mkfslabel="-n $fslabel"
+		;;
+	    *)
+		mkfslabel="-L $fslabel"
+		;;
+	esac
+    fi
+    case "$fstype" in
 	#swap)
 	    #mkswap $pdname
 	    #errifrc $? "? mkswap error"
 	    #;;
 	*)
-	    mkfs.${fstype} $pdname
+	    mkfs.${fstype} $mkfslabel $pdname
 	    errifrc $? "? mkfs.${fstype} error"
 	    ;;
     esac
@@ -194,20 +222,21 @@ function makepartition() {
 
 function dopartition() {
     #
-    # $1: value: size[,partitiontype,fstype]
+    # $1: value: size[,partitiontype][,fstype][,fslabel]
     # $2: burndev
     # $3: burnfilefile
     #
     local pinfo="$1" bdev="$2" bfile="$3"
-    local psize ptype fstype
+    local psize ptype fstype fslabel
     
-    IFS="," read -r psize fstype ptype <<< "$pinfo"
+    IFS="," read -r psize fstype ptype fslabel <<< "$pinfo"
+    #logtoboth "> Plugin $pfx: Do Partition: psize:'$psize' ptype:'$ptype' fstype:'$fstype' fslabel:'$fslabel'"
     [ "$(type -p mkfs.${fstype})" == "" ] && errexit "? Unrecognized file system type '$fstype'"
     if [ "$bdev" != "" ]
     then
-	makepartition $bdev "$psize" "$ptype" "$fstype"
+	makepartition $bdev "$psize" "$ptype" "$fstype" "$fslabel"
     else
-	imgmakepartition $bfile "$psize" "$ptype" "$fstype"
+	imgmakepartition $bfile "$psize" "$ptype" "$fstype" "$fslabel"
     fi
 }
 
@@ -256,9 +285,10 @@ then
 	fi
     fi
     if [[ -v addpartition ]] && [[ "$addpartition" != "" ]]
-       # value: size[,fstype][,partitiontype]
+       # value: size[,fstype][,partitiontype][,label]
        # type: primary|logical|extended
        # fstype: btrfs|ext2|ext3|ext4|fat16|fat32|hfs|hfs+|linux-swap|ntfs|reiserfs|udf|xfs
+       # label: string
     then
 	if [ "${addpartition:0:1}" == "@" ]
 	then
