@@ -92,7 +92,7 @@ The most important new user docs are: <a href="Docs/Command-Details.md">Command 
 
 Here are a few examples:
 
-* **Install applications**  &mdash; Editors (emacs, vim, zile, etc), and any other packages you always install in a new system. Direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps">the apps plugin</a> for details.
+* **Install applications**  &mdash; Editors (emacs, vim, zile, etc), and any other packages (browsers, etc) you always install in a new system. Direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps">the apps plugin</a> for details.
 
 * **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">the VNC plugin</a>.
 
