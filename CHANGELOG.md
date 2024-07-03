@@ -1,5 +1,21 @@
 # Changelog
 
+## V12.4
+
+* New Features
+  * New plugin `modattr` to modify directory and file protection/owner
+* Improvements
+  * Add the official Getting Started with sdm script to <a href="Docs/Example-Commands.md">Example sdm commands</a>
+  * New `powersave` argument for the `network` plugin to control WiFi power save setting (2:Disable, 3:Enable)
+  * `--expand-root` and `--regen-ssh-host-keys` can be set on customize (and are automatically passed to --burn)
+  * Ability to configure encrypted rootfs initramfs Port and Timeout for SSH
+  * Enable setting fslabel in `parted` plugin (Thanks @ykharuzhy!)
+  * Plugin `graphics` now accepts `graphics=X11` as well as `graphics=x11`
+  * Make it clearer that customization terminated if IMG fills up ("Customization terminated due to low disk space condition")
+  * `btwifiset` plugin updates
+  * Only print days in elapsed times if non-zero
+* Bug Fixes
+
 ## V12.3
 
 * New Features

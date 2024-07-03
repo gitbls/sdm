@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.3"
+version="V12.4"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -452,7 +452,6 @@ cscript="$(fndotfullpath $cscript)"
 [ $fcustomize -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --customize and --shrink"
 [ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
 [ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
-[ $expandroot -eq 1 -a $burn -eq 0 -a $burnfile -eq 0 ] && errexit "? Switch conflict: --expand-root only valid with --burn and --burnfile"
 [ $fgpt -eq 1 -a $burn -ne 1 ] && errexit "? Switch conflict: --gpt only valid with --burn"
 [ "$cvtrootfs" != "" -a $burning -ne 1 ] && errexit "? Switch conflict: --convert-root only valid with --burn"
 [ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
