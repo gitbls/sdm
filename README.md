@@ -121,3 +121,8 @@ Here are a few examples:
 Need more details? You'll find complete details about sdm in the <a href="Docs/Index.md">online documentation</a> and plugin-specific documentation <a href="Docs/Plugins.md">here.</a>
 
 You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a> It's an older video and doesn't use plugins, but will give you a good idea of how sdm works.
+
+## Platform Support Notes
+
+Several people have run into issues with using sdm on a Mac. Unless you are technical enough to sort out how to make it work, or care enough to permanently donate a Mac to the sdm project, <b>sdm is not supported on the Mac</b>.
+
