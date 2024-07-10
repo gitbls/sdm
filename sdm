@@ -903,8 +903,8 @@ else
 	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"
 	cp -a $pi1bootconf $SDMPT/etc/sdm/1piboot.conf
 	setfileownmode $SDMPT/etc/sdm/1piboot.conf 644
-	cp -a $pi1bootconf $SDMPT/$sdmdir/1piboot                                         #Drop a copy in $sdmdir in the IMG
-	setfileownmode $SDMPT/etc/sdm/1piboot/$(basename $pi1bootconf) 644
+	# cp -a $pi1bootconf $SDMPT/$sdmdir/1piboot                                         #Drop a copy in $sdmdir in the IMG
+	# setfileownmode $SDMPT/etc/sdm/1piboot/$(basename $pi1bootconf) 644
     else
 	if [ -d $src/1piboot -a -f $src/1piboot/1piboot.conf ]
 	then
