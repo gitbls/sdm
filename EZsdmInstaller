@@ -128,6 +128,7 @@ for f in sdm sdm-phase0 \
 	     plugins/L10n \
 	     plugins/lxde \
 	     plugins/mkdir \
+	     plugins/modattr \
 	     plugins/ndm \
 	     plugins/network \
 	     plugins/parted \
