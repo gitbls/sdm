@@ -63,8 +63,7 @@ then
 	su $buser -c 'wget -qO- https://raw.githubusercontent.com/Botspot/pi-apps/master/install | bash'
 	hostname sdm
     else
-	logtoboth "? Plugin $pfx: User not specified with 'user' argument nor established with the 'user' plugin"
-	exit 1
+	logtobothex "? Plugin $pfx: User not specified with 'user' argument nor established with the 'user' plugin"
     fi
     plugin_addnote ""
     plugin_addnote "*** piapps notes ***"

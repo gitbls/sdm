@@ -51,11 +51,10 @@ if [ ! -d $dest ]
 then
     if [ -f $dest ]
     then
-        logtoboth "? Plugin $pfx: Destination '$dest' is a file but must be a directory"
-        exit 1
+        logtobothex "? Plugin $pfx: Destination '$dest' is a file but must be a directory"
     else
 	dirflag="mkdir-${dest//\/}"   # strip slashes to make a nice flag file name
-	[ -f /etc/sdm/assets/copyfile/$dirflag ] || { logtoboth "? Plugin $pfx: Destination directory '$dest' does not exist and mkdirif not specified" ; exit 1 ; }
+	[ -f /etc/sdm/assets/copyfile/$dirflag ] || logtobothex "? Plugin $pfx: Destination directory '$dest' does not exist and mkdirif not specified"
     fi
     logtoboth "> Plugin $pfx: Create destination directory '$dest'"
 fi
@@ -114,7 +113,7 @@ then
     plugin_printkeys
     if [ "$filelist" == "" ]
     then
-	[[ "$from" == "" ]] || [[ "$to" == "" ]] && logtoboth "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided" && exit 1
+	[[ "$from" == "" ]] || [[ "$to" == "" ]] && logtobothex "? Plugin $pfx: Nothing to do! One or both of 'from' or 'to' missing and no 'filelist' provided"
     fi
     if [ "$runphase" != "" ]
     then
@@ -156,8 +155,7 @@ then
 		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" $runphase
 	    done < $filelist
 	else
-	    logtoboth "? Plugin $pfx: File for filelist '$filelist' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: File for filelist '$filelist' not found"
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"

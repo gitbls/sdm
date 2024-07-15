@@ -110,7 +110,7 @@ assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
 logtoboth "* Plugin $pfx: Start Phase $phase"
 plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
-[[ "$chmod" == "" ]] && [[ "$chown" == "" ]] && errexit "? Plugin $pfx: At least one of chmod or chown must be specified"
+[[ "$chmod" == "" ]] && [[ "$chown" == "" ]] && logtobothex "? Plugin $pfx: At least one of chmod or chown must be specified"
 if [ "$runphase" != "" ]
 then
     runphase="${runphase,,}"
@@ -125,7 +125,7 @@ fi
 
 if [ "$verbose" != "" ]
 then
-    [[ "changes|silent|verbose" =~ "$verbose" ]] || errexit "? Plugin $pfx: Invalid 'verbose' keyword value '$verbose'"
+    [[ "changes|silent|verbose" =~ "$verbose" ]] || logtobothex "? Plugin $pfx: Invalid 'verbose' keyword value '$verbose'"
 fi
 [ -v R ] || [ -v recursive ] && recurs="-R" || recurs=""
 

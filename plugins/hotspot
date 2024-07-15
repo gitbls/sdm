@@ -55,8 +55,7 @@ function parsehsconfig() {
 		    printf -v "$rpifun" "%s" "$value"
 		    ;;
 		*)
-		    logtoboth "? Plugin $pfx: Unrecognized hotspot option '$rpifun' in '$fhotspot'"
-		    exit 1
+		    logtobothex "? Plugin $pfx: Unrecognized hotspot option '$rpifun' in '$fhotspot'"
 		    ;;
 	    esac
 	fi

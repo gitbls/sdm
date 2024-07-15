@@ -11,7 +11,7 @@ function loadparams() {
 
 function writecfg() {
     local msg="$1"
-    [ ${#msg} -gt 96 ] && { logtoboth "? Plugin $pfx: config.txt line too long (${#msg}>96): $msg" ; exit 1 ; }
+    [ ${#msg} -gt 96 ] && logtobothex "? Plugin $pfx: config.txt line too long (${#msg}>96): $msg"
     printf "$1" >>$cfgdir/config.txt
 }
 
@@ -53,8 +53,7 @@ function updateconfigtxt() {
 		fi
 	    else
 		logtoboth "? ${pfx}Error detected in updateconfigtxt. Please report error along with command line on GitHub"
-		logtoboth "  Details: c:|$c| value:|$value|"
-		exit 1
+		logtobothex "  Details: c:|$c| value:|$value|"
 	    fi
 	    sname="${c}=${dnm}"
 	    sval="${drest}"
@@ -147,8 +146,7 @@ then
 			    cp -a $reset $cfgdir/config.txt
 			    setfileownmode $cfgdir/config.txt 644  #Doesn't matter on FAT, but wth
 			else
-			    logtoboth "? Plugin $pfx: $cfgdir/config.txt reset file '$reset' not found"
-			    exit 1
+			    logtobothex "? Plugin $pfx: $cfgdir/config.txt reset file '$reset' not found"
 			fi
 		    else
 			logtoboth "% Plugin $pfx: Reset $cfgdir/config.txt to null file"

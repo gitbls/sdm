@@ -37,8 +37,7 @@ then
 	if [ -f  $SDMPT/etc/apt/sources.list.d/$name.list ]
 	then
 	    logtoboth "? Plugin $pfx: Repo '$name' already exists; Add argument 'name=somename' to this apps plugin invocation"
-	    logtoboth "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
-	    exit 1
+	    logtobothex "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
 	fi
 	echo "$repo" >> $SDMPT/etc/apt/sources.list.d/$name.list
     fi
@@ -47,12 +46,11 @@ then
 	if [ -f $repofile ]
 	then
 	    rbn=$(basename $repofile)
-	    [[ "${rbn##*.}" != "list" ]] && errexit "? Plugin $pfx: apt Repo file '$repofile' must have file type '.list'"
+	    [[ "${rbn##*.}" != "list" ]] && logtobothex "? Plugin $pfx: apt Repo file '$repofile' must have file type '.list'"
 	    logtoboth "> Plugin $pfx: Add apt repo sources file '$repofile'"
 	    cp $repofile $SDMPT/etc/apt/sources.list.d
 	else
-	    logtoboth "? Plugin $pfx: Repo source file '$repofile' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: Repo source file '$repofile' not found"
 	fi
     fi
     if [[ -v gpgkey ]] && [[ -f $gpgkey ]]
@@ -62,7 +60,7 @@ then
 	logtoboth "> Plugin $pfx: Copy gpg key '$gpgkey' to $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg"
 	cp $gpgkey $SDMPT/etc/apt/trusted.gpg.d
     else
-	[[ "$(type -p gpg)" == "" ]] && errexit "? Please sudo apt install gpg"
+	[[ "$(type -p gpg)" == "" ]] && logtobothex "? Please sudo apt install gpg"
 	logtoboth "> Plugin $pfx: Download gpg key from $gpgkey and add to apt trusted keys"
 	curl -sS $gpgkey | gpg --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg
     fi

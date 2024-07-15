@@ -38,8 +38,7 @@ then
     then
 	if [ ! -f $smbconf ]
 	then
-	    logtoboth "? Plugin $pfx: Cannot find samba smbconf file '$smbconf'"
-	    exit 1
+	    logtobothex "? Plugin $pfx: Cannot find samba smbconf file '$smbconf'"
 	else
 	    logtoboth "> Plugin $pfx: Copy samba smbconf '$smbconf' into IMG $assetdir/$(basename $smbconf)"
 	    rm -f $assetdir/$(basename $smbconf)

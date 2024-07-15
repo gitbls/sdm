@@ -47,23 +47,22 @@ then
 	    logtoboth "> Plugin $pfx: Copy authkeys file '$authkeys' to $assetdir"
 	    cp -a $authkeys $assetdir
 	else
-	    logtoboth "? Plugin $pfx: authkeys file '$authkeys' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: authkeys file '$authkeys' not found"
 	fi
     else
-	[ "$ssh" == "y" ] && { logtoboth "? Plugin $pfx: 'ssh' requires 'authkeys'" ; exit 1 ; }
+	[ "$ssh" == "y" ] && logtobothex "? Plugin $pfx: 'ssh' requires 'authkeys'"
     fi
     if [ "$keyfile" != "" ]
     then
-	[ -f $keyfile ] || { logtoboth "? Plugin $pfx: keyfile '$keyfile' not found" ; exit 1 ; }
+	[ -f $keyfile ] || logtobothex "? Plugin $pfx: keyfile '$keyfile' not found"
 	logtoboth "> Plugin $pfx: Save keyfile to /etc/sdm/assets/cryptroot (deleted later)"
 	cp $keyfile $assetdir
     else
-	[ "$nopwd" == "y" ] && { logtoboth "? Plugin $pfx: 'nopwd' requires 'keyfile'" ; exit 1 ; }
+	[ "$nopwd" == "y" ] && logtobothex "? Plugin $pfx: 'nopwd' requires 'keyfile'"
     fi
     if [ "$crypto" != "" ]
     then
-	[[ "aes|xchacha" =~ "$crypto" ]] || [[ "$crypto" =~ "aes-" ]] || { logtoboth "? Plugin $pfx: Supported cryptos: aes and xchacha" ; exit 1 ; }
+	[[ "aes|xchacha" =~ "$crypto" ]] || [[ "$crypto" =~ "aes-" ]] || logtobothex "? Plugin $pfx: Supported cryptos: aes and xchacha"
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]

@@ -35,13 +35,11 @@ then
 
     if [[ "$apps" == "" ]] && [[ "$remove" == "" ]]
     then
-	logtoboth "? Plugin $pfx: Neither 'apps' nor 'remove' specified; Nothing to do"
-	exit 1
+	logtobothex "? Plugin $pfx: Neither 'apps' nor 'remove' specified; Nothing to do"
     fi
     if [[ -f $assetdir/default ]] && [[ "$name" == "" ]]
     then
-	logtoboth "? Plugin $pfx: Default apps list already set; this and subsequent apps plugins must provide 'name' argument"
-	exit 1
+	logtobothex "? Plugin $pfx: Default apps list already set; this and subsequent apps plugins must provide 'name' argument"
     else
 	[ "$name" == "" ] && name="default"
 	mkdir -p $assetdir
@@ -53,8 +51,7 @@ then
 	    if [ -f $assetdir/$name ]
 	    then
 		logtoboth "? Plugin $pfx: Apps list '$name' already exists; Add argument 'name=somename' to this apps plugin invocation"
-		logtoboth "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
-		exit 1
+		logtobothex "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
 	    fi
 	    echo "$apps" > $assetdir/$name
             logtoboth "> Plugin $pfx [$name]: Saved apps list: $apps"

@@ -40,8 +40,7 @@ then
 	    logtoboth "> Plugin $pfx: Copy postfix maincf file '$maincf' into IMG $assetdir/$(basename $maincf)"
 	    cp -a $maincf $assetdir/$(basename $maincf)
 	else
-	    logtoboth "? Plugin $pfx: Cannot find maincf file '$maincf'"
-	    exit 1
+	    logtobothex "? Plugin $pfx: Cannot find maincf file '$maincf'"
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"

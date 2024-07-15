@@ -36,8 +36,7 @@ then
 	    logtoboth "> Plugin $pfx: copy ndm config '$config' to $SDMPT/etc/dbndm.json"
 	    cp -a $config $SDMPT/etc/dbndm.json
 	else
-	    logtoboth "? Plugin $pfx: config file '$config' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: config file '$config' not found"
 	fi
     fi
 

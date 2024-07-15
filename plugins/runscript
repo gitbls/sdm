@@ -32,7 +32,7 @@ function do_runscript() {
 	[ "$stderr" == "" ] && stderr="$xdir/$script.error"
 	if [ "$user" != "" ]
 	then
-	    [ "$(getent passwd $user)" == "" ] && { logtoboth "? Plugin $pfx: User '$user' not found" ; exit 1 ; }
+	    [ "$(getent passwd $user)" == "" ] && logtobothex "? Plugin $pfx: User '$user' not found"
 	    xu="as user $user"
 	    xdo="sudo -u $user"
 	    xo="$user"
@@ -46,7 +46,7 @@ function do_runscript() {
 	echo "[ Run script $script at $(date +"%Y-%m-%d") ]" >>$stderr
 	echo "" >> $stderr
 	pushd $rundir >/dev/null
-	${xdo} /tmp/$script $thisphase >>$stdout 2>>$stderr || { logtoboth "? Plugin $pfx: Script $script exited with error" ; exit 1 ; }
+	${xdo} /tmp/$script $thisphase >>$stdout 2>>$stderr || logtobothex "? Plugin $pfx: Script $script exited with error"
 	popd >/dev/null
 	hostname $savehost
     fi
@@ -74,7 +74,7 @@ then
     plugin_getargs $pfx "$allargs" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
     [ "$runphase" == "" ] && runphase="1"
-    [[ "1|post-install" =~ "$runphase" ]] || { logtoboth "? Plugin $pfx: Phase '$runphase' not recognized" ; exit 1 ; }
+    [[ "1|post-install" =~ "$runphase" ]] || logtobothex "? Plugin $pfx: Phase '$runphase' not recognized"
     mkdir -p $assetdir
     if [ -f $script ]
     then
@@ -84,8 +84,7 @@ then
 	logtoboth "> Plugin $pfx: Script '$sbn' will be run during Phase '$runphase'"
 	echo "${sbn}|$runphase|$dir|$user|$stdout|$stderr|" >> $assetdir/$sbn-info
     else
-	logtoboth "? Plugin $pfx: Script file '$script' not found"
-	exit 1
+	logtobothex "? Plugin $pfx: Script file '$script' not found"
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]

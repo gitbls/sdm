@@ -105,7 +105,7 @@ function installreqs() {
 	logtoboth "> Plugin $pfx: Install required Python components: $pycomponents"
 	doaptrpterror "install --yes $pycomponents"
 	sts=$?
-	[ $sts -ne 0 ] && errexit "? Error returned from apt install ($sts)"
+	[ $sts -ne 0 ] && logtobothex "? Error returned from apt install ($sts)"
     fi
 
     # Create the venv if installing cryptography or dbus with pip
@@ -117,12 +117,12 @@ function installreqs() {
 	if [ $pipcrypto -eq 1 ]
 	then
 	    sts=$(installviapip cryptography $vpip3 "" "> Plugin $pfx: Install 'cryptography' in the btwifiset venv via pip3")
-	    [ $sts -ne 0 ] && errexit "? Error returned from '$vpip3 install cryptography' ($sts)"
+	    [ $sts -ne 0 ] && logtobothex "? Error returned from '$vpip3 install cryptography' ($sts)"
 	fi
 	if [ $pipdbus   -eq 1 ]
 	then
 	    sts=$(installviapip dbus-python  $vpip3 "" "> Plugin $pfx: Install 'dbus-python' in the btwifiset venv via pip3")
-	    [ $sts -ne 0 ] && errexit "? Error returned from '$vpip3 install dbus-python' ($sts)"
+	    [ $sts -ne 0 ] && logtobothex "? Error returned from '$vpip3 install dbus-python' ($sts)"
 	fi
     fi
     # ^^ Above code from btwifisetInstall.sh

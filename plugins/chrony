@@ -48,8 +48,7 @@ then
 		mkdir -p $assetdir/$did
 		cp -a $idf $assetdir/$did
 	    else
-		logtoboth "? Plugin $pfx: '$id' config file '$idf' not found"
-		exit 1
+		logtobothex "? Plugin $pfx: '$id' config file '$idf' not found"
 	    fi
 	fi
     done

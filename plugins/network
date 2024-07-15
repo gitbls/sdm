@@ -34,8 +34,7 @@ function cfgdhcpcdwifi() {
 	then
             IFS="=" read a wificountry <<< $(grep 'country=' $assetdir/wpa.conf | head -n 1)
 	else
-	    logtoboth "? Plugin $pfx: Cannot find $assetdir/wpa.conf"
-	    exit 1
+	    logtobothex "? Plugin $pfx: Cannot find $assetdir/wpa.conf"
 	fi
     else
 	if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
@@ -135,8 +134,7 @@ then
 	    logtoboth "> Plugin $pfx: Copy wpa_supplicant config file '$wpa' to $assetdir/wpa.conf"
 	    tr -d '\r' < $wpa > $assetdir/wpa.conf
 	else
-	    logtoboth "? Plugin $pfx: wpa file '$wpa' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: wpa file '$wpa' not found"
 	fi
     fi
     case "${netman}" in
@@ -148,8 +146,7 @@ then
 		    logtoboth "> Plugin $pfx: Copy dhcpcdappend file '$dhcpcdappend' to $assetdir/dhcpcd-append.conf"
 		    cp -a $dhcpcdappend $assetdir/dhcpcd-append.conf
 		else
-		    logtoboth "? Plugin $pfx: dhcpcdappend file '$dhcpcdappend' not found"
-		    exit 1
+		    logtobothex "? Plugin $pfx: dhcpcdappend file '$dhcpcdappend' not found"
 		fi
 	    fi
 	    cfgdhcpcdwifi
@@ -171,8 +168,7 @@ then
 			    logtoboth "> Plugin $pfx: Copy $conf '$c' to $assetdir/$conf"
 			    cp -a $c $assetdir/$conf
 			else
-			    logtoboth "% Plugin $pfx: $conf file '$c' not found"
-			    exit 1
+			    logtobothex "? Plugin $pfx: $conf file '$c' not found"
 			fi
 		    done
 		fi

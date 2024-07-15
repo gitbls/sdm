@@ -90,7 +90,7 @@ then
 	    logtoboth "> Plugin $pfx: Copy preclone file '$fn' to $assetdir"
 	    cp $fn $assetdir
 	else
-	    errexit "? preclone file '$fn' not found"
+	    logtobothex "? preclone file '$fn' not found"
 	fi
     fi
     if [ "${postclone:0:1}" == "@" ]
@@ -101,7 +101,7 @@ then
 	    logtoboth "> Plugin $pfx: Copy postclone file '$fn' to $assetdir"
 	    cp $fn $assetdir
 	else
-	    errexit "? postclone file '$fn' not found"
+	    logtobothex "? postclone file '$fn' not found"
 	fi
     fi
     if [ "$cert" != "" ]
@@ -113,7 +113,7 @@ then
 	    logtoboth "> Plugin $pfx: Copy cert '$cert' to $assetdir"
 	    cp -a $cert $assetdir
 	else
-	    errexit "? Cert '$cert' not found"
+	    logtobothex "? Cert '$cert' not found"
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"

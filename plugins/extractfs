@@ -32,8 +32,8 @@ then
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
-    [ -d $bootfs ] || { logtoboth "? Plugin $pfx: bootfs target '$bootfs' must be a directory" ; exit 1 ; }
-    [ -d $rootfs ] || { logtoboth "? Plugin $pfx: rootfs target '$rootfs' must be a directory" ; exit 1 ; }
+    [ -d $bootfs ] || logtobothex "? Plugin $pfx: bootfs target '$bootfs' must be a directory"
+    [ -d $rootfs ] || logtobothex "? Plugin $pfx: rootfs target '$rootfs' must be a directory"
     dimg=$burndev
     [ "$dimg" == "" ] && dimg="$burnfilefile"
     declare -x SDMPT=$(makemtpt)

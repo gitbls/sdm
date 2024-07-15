@@ -55,8 +55,7 @@ else
     then
 	doapt update $showapt apt-file || logapterror
     else
-	logtoboth "? Plugin $pfx: apt-file appears to not be installed"
-	exit 1
+	logtobothex "? Plugin $pfx: apt-file appears to not be installed"
     fi
 
     #

@@ -62,6 +62,15 @@ function logtoboth() {
     fi	
 }
 
+function logtobothex() {
+    #
+    # Write message via logtoboth and then exit 1
+    #
+    local msg="$1" nosplit="$2"
+    logtoboth "$msg" "$nosplit"
+    exit 1
+}
+
 function bootlog() {
     # Write string in $1 to the system log/journal and /etc/sdm/history.log
     logger "sdm FirstBoot: $1"

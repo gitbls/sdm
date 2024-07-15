@@ -145,8 +145,7 @@ function setpassword_user() {
 		getpassword $user
 		pswd="$userpwd"
 	    else
-		logtoboth "? Plugin $pfx: Blank password and prompt not enabled for user '$user'"
-		exit 1
+		logtobothex "? Plugin $pfx: Blank password and prompt not enabled for user '$user'"
 	    fi
 	fi
 	printf "${pswd}\n" >> $assetdir/redact-passwords  # Save for redaction
@@ -155,8 +154,7 @@ function setpassword_user() {
 $user:$pswd
 EOF
     else
-	logtoboth "? Plugin $pfx: User '$user' not found for setpassword"
-	exit 1
+	logtobothex "? Plugin $pfx: User '$user' not found for setpassword"
     fi
 }
 
@@ -210,8 +208,7 @@ function add_user() {
 	logtoboth "> Plugin $pfx: Add user '$user'"
 	if ! useradd $hdsw $uidsw $user
 	then
-	    logtoboth "? Plugin $pfx: useradd returned an error"
-	    return
+	    logtobothex "? Plugin $pfx: useradd returned an error"
 	fi
 	uhomedir="$homedir"
 	[[ "$nohomedir" =~ "y" ]] && [[ "$homedir" == "" ]] && uhomedir="/dev/null"
@@ -312,8 +309,7 @@ function addp0user() {
 	    then
 		loguseraction setpassword root "$password" "$prompt"
 	    else
-		logtoboth "? Plugin $pfx: Root password not set: user '$adduser' has blank password and prompt not enabled"
-		exit 1
+		logtobothex "? Plugin $pfx: Root password not set: user '$adduser' has blank password and prompt not enabled"
 	    fi
 	fi
     elif [ "$deluser" != "" ]
@@ -444,8 +440,7 @@ case "$phase" in
 		logtoboth "> Plugin $pfx: Process userlist '$ul' for Phase 1"
 		do_userlist $ul addp1user
 	    else
-		logtoboth "? Plugin $pfx: Cannot find userlist file '$ul'"
-		exit 1
+		logtobothex "? Plugin $pfx: Cannot find userlist file '$ul'"
 	    fi
 	else
 	    converty
@@ -497,7 +492,6 @@ case "$phase" in
 	fi
 	;;
     *)
-	logtoboth "? Plugin $pfx: Unrecognized phase '$phase'"
-	exit 1
+	logtobothex "? Plugin $pfx: Unrecognized phase '$phase'"
 	;;
 esac

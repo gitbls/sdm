@@ -120,8 +120,7 @@ function makepartition() {
     fstype=${fstype,,}
     if [ ! -f /sbin/mkfs.${fstype} ]
     then
-	logtoboth "? Plugin $pfx: Unrecognized file system '$fstype' or missing mkfs.${fstype}"
-	exit 1
+	logtobothex "? Plugin $pfx: Unrecognized file system '$fstype' or missing mkfs.${fstype}"
     fi
 
     #
@@ -186,8 +185,8 @@ function makepartition() {
 	logtoboth "> Plugin $pfx: free_space_end: $free_space_end"
 	logtoboth "> Plugin $pfx: free_space_amount: $free_space_amount"
     fi
-    [[ $partend -gt $free_space_end ]] && errexit "? Partition problem; Try again with --no-expand-root"
-    [[ $partstart -gt $partend ]] && errexit "? Partition problem; Insufficient space for partition '$partnum'"
+    [[ $partend -gt $free_space_end ]] && logtobothex "? Partition problem; Try again with --no-expand-root"
+    [[ $partstart -gt $partend ]] && logtobothex "? Partition problem; Insufficient space for partition '$partnum'"
     logtoboth "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}s end: ${partend}s"
     parted $pdev mkpart $ptype $pname $fstype ${partstart}s ${partend}s
     errifrc $? "? parted mkpart error"
@@ -231,7 +230,7 @@ function dopartition() {
     
     IFS="," read -r psize fstype ptype fslabel <<< "$pinfo"
     #logtoboth "> Plugin $pfx: Do Partition: psize:'$psize' ptype:'$ptype' fstype:'$fstype' fslabel:'$fslabel'"
-    [ "$(type -p mkfs.${fstype})" == "" ] && errexit "? Unrecognized file system type '$fstype'"
+    [ "$(type -p mkfs.${fstype})" == "" ] && logtobothex "? Unrecognized file system type '$fstype'"
     if [ "$bdev" != "" ]
     then
 	makepartition $bdev "$psize" "$ptype" "$fstype" "$fslabel"
@@ -273,14 +272,13 @@ then
 	    #
 	    updategptrootfs $burndev
 	else
-	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && errexit "? Invalid rootexpand value '$rootexpand'"
+	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && logtobothex "? Invalid rootexpand value '$rootexpand'"
 	    if [ $rootexpand -ne 0 ]
 	    then
 		checknumeric $rootexpand
 		expandpartitionfile "$burnfilefile" "$rootexpand" || exit
 	    else
-		logtoboth "? Plugin $pfx: rootexpand=0 is not supported on a --burnfile"
-		exit 1
+		logtobothex "? Plugin $pfx: rootexpand=0 is not supported on a --burnfile"
 	    fi
 	fi
     fi
@@ -302,8 +300,7 @@ then
 		    [ "$line" != "" ] && dopartition "$line" "$burndev" "$burnfilefile"
 		done < $fn
 	    else
-		logtoboth "? Plugin $pfx: Unable to read addpartition file '$fn'"
-		exit 1
+		logtobothex "? Plugin $pfx: Unable to read addpartition file '$fn'"
 	    fi
 	else
 	    IFS="+" read -a items <<< "$addpartition"

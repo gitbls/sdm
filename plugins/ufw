@@ -47,8 +47,7 @@ then
 		cp -a $c $SDMPT/$savescriptdir/$bnc
 		setfileownmode $SDMPT/$savescriptdir/$bnc 755
 	    else
-		logtoboth "? Plugin $pfx: Cannot find ufwscript '$c'"
-		exit 1
+		logtobothex "? Plugin $pfx: Cannot find ufwscript '$c'"
 	    fi
 	done
     else

@@ -45,12 +45,10 @@ then
 			logtoboth "> Plugin $pfx: Copy '$lxfname' to $assetdir/$lxname/$username"
 			cp -a $lxfname $assetdir/$lxname/$username
 		    else
-			logtoboth "? Plugin $pfx: lxde-config type '$lxname' file '$lxfname' not found"
-			exit 1
+			logtobothex "? Plugin $pfx: lxde-config type '$lxname' file '$lxfname' not found"
 		    fi
 		    ;;
-		*) logtoboth "? Plugin $pfx: lxde-config item '$lxname' is unknown"
-		   exit 1
+		*) logtobothex "? Plugin $pfx: lxde-config item '$lxname' is unknown"
 		   ;;
 	    esac
 	done
@@ -63,8 +61,7 @@ then
 	    logtoboth "> Plugin $pfx: copy '$wayfire__ini' to $assetdir/wayfire-ini/$username"
 	    cp -a $wayfire__ini $assetdir/wayfire-ini/$username/wayfire.ini
 	else
-	    logtoboth "? Plugin $pfx: wayfire-ini file '$wayfire__ini' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: wayfire-ini file '$wayfire__ini' not found"
 	fi
     fi
     if [ "$wf__panel__pi" != "" ]
@@ -75,8 +72,7 @@ then
 	    logtoboth "> Plugin $pfx: copy '$wf__panel__pi' to $assetdir/wf-panel-pi/$username"
 	    cp -a $wf__panel__pi $assetdir/wf-panel-pi/$username/wf-panel-pi.ini
 	else
-	    logtoboth "? Plugin $pfx: wf-panel-pi file '$wf__panel__pi' not found"
-	    exit 1
+	    logtobothex "? Plugin $pfx: wf-panel-pi file '$wf__panel__pi' not found"
 	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -106,8 +102,7 @@ else
     [ "$dstuser" == "" ] && dstuser=$myuser
     if [ "$dstuser" == "" ]
     then
-	logtoboth "% Plugin $pfx: No users created with user plugin"
-	exit 1
+	logtobothex "? Plugin $pfx: No users created with user plugin"
     fi
     #logfreespace "at start of Plugin $pfx Phase post-install"
 
