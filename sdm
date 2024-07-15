@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.4"
+version="V12.5"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -480,7 +480,7 @@ fi
 [ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
 [ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
 [ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase Script '$cscript' not executable"
-p1bootconf="$(fndotfullpath $p1bootconf)"
+pi1bootconf="$(fndotfullpath $pi1bootconf)"
 [ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
 [ "$rebootwait" != "" ] && checknumeric "$rebootwait" "--reboot"
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
@@ -898,23 +898,25 @@ else
 
     logfreespace
     logtoboth "> Copy sdm to $sdmdir in the $dimgdevname"   # Yes, already done above ;)
+
     if [ "$pi1bootconf" != "" ]
     then
 	logtoboth "> Copy Custom 1piboot.conf '$pi1bootconf' to the $dimgdevname"
 	cp -a $pi1bootconf $SDMPT/etc/sdm/1piboot.conf
 	setfileownmode $SDMPT/etc/sdm/1piboot.conf 644
 	cp -a $pi1bootconf $SDMPT/$sdmdir/1piboot                                         #Drop a copy in $sdmdir in the IMG
-	setfileownmode $SDMPT/etc/sdm/1piboot/$(basename $pi1bootconf) 644
+	setfileownmode $SDMPT/$sdmdir/1piboot/$(basename $pi1bootconf) 644
     else
 	if [ -d $src/1piboot -a -f $src/1piboot/1piboot.conf ]
 	then
 	    cp -a $src/1piboot/1piboot.conf $SDMPT/etc/sdm/
 	    setfileownmode $SDMPT/etc/sdm/1piboot.conf 644
-	    cp -a $src/1piboot/1piboot.conf $SDMPT/$sdmdir/1piboot
-	    setfileownmode $SDMPT/$sdmdir/1piboot/1piboot.conf 644
 	fi
     fi
-    [ -f $SDMPT/etc/sdm/1piboot.conf ] && chmod 644 $SDMPT/etc/sdm/1piboot.conf
+    # Also copy the original version into $sdmdir/1piboot
+    cp -a $src/1piboot/1piboot.conf $SDMPT/$sdmdir/1piboot
+    setfileownmode $SDMPT/$sdmdir/1piboot/1piboot.conf 644
+
     if [ "$cscript" != "" ]
     then
 	logtoboth "> Copy Custom Phase Script '$cscript' to $sdmdir in the $dimgdevname"

@@ -1,5 +1,13 @@
 # Changelog
 
+## V12.5
+
+* Improvements
+  * Error handling improvements in several plugins
+  * `user` plugin now fails (as it should) if the useradd command fails
+* Bug Fixes
+  * Correct 1piboot.conf handling
+
 ## V12.4
 
 * New Features
