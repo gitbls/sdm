@@ -111,7 +111,7 @@ args="$2"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/network"
 
-vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|powersave|wificountry|ifname|noipv6|nmconf|nmconn|nowifi|zeroconf|"
+vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|powersave|wificountry|ifname|iwname|noipv6|nmconf|nmconn|nowifi|zeroconf|"
 rqdargs=""
 
 if [ "$phase" == "0" ]
@@ -219,6 +219,7 @@ then
     xwificountry="$wificountry"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
+    [ "$iwname" == "" ] && iwname="wlan0"
     netman=$(getdefnm "$netman")
     plugin_printkeys
     # If no wificountry in plugin args, use previous setting
@@ -323,7 +324,7 @@ EOF
 	    [[ $nmvermaj -gt 1 ]] || [[ $nmvermin -ge 42 ]] && newnm=1 || newnm=0
 	    nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot if newnm=0
 	    [ $newnm -eq 0 ] && echo "#!/bin/bash" > $nmdcfg
-	    if ! compgen -G "/etc/NetworkManager/system-connections/*.nmconnection" >/dev/null && ! grep -qs interface-name=wlan0 /etc/NetworkManager/system-connections/*.nmconnection >/dev/null 2>&1
+	    if ! compgen -G "/etc/NetworkManager/system-connections/*.nmconnection" >/dev/null && ! grep -qs interface-name=$iwname /etc/NetworkManager/system-connections/*.nmconnection >/dev/null 2>&1
 	    then
 		if [ "$nowifi" != "y" ]
 		then
@@ -344,14 +345,14 @@ EOF
 			    # --offline should work
 			    logtoboth "> Plugin $pfx: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
 			    nmcli --offline c add type wifi con-name $wificname \
-				  ifname wlan0 ssid $wifissid wifi-sec.key-mgmt \
+				  ifname $iwname ssid $wifissid wifi-sec.key-mgmt \
 				  wpa-psk wifi-sec.psk "$wifipassword" | tee /tmp/$wificname.nmconnection >/dev/null
 			    rm -f /etc/NetworkManager/system-connections/$wificname.nmconnection
 			    mv /tmp/$wificname.nmconnection /etc/NetworkManager/system-connections/$wificname.nmconnection
 			else
 			    cat >> $nmdcfg <<EOF
 logger "sdm FirstBoot: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
-nmcli c add type wifi con-name $wificname ifname wlan0 ssid $wifissid
+nmcli c add type wifi con-name $wificname ifname $iwname ssid $wifissid
 nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$wifipassword"
 EOF
 			fi
