@@ -82,9 +82,9 @@ function modnmconn() {
     then
 	[ "$fname" != "" ] && fname="$(basename "$fname")" || fname="$cname"
 	fname="${fname%.nmconnection}"
-	nmcli --offline c modify $cattr </etc/NetworkManager/system-connections/$fname.nmconnection | tee /tmp/$fname.nmconnection >/dev/null
-	rm -f /etc/NetworkManager/system-connections/$fname.nmconnection
-	mv /tmp/$fname.nmconnection /etc/NetworkManager/system-connections/$fname.nmconnection
+	nmcli --offline c modify $cattr </etc/NetworkManager/system-connections/"$fname".nmconnection | tee /tmp/"$fname".nmconnection >/dev/null
+	rm -f /etc/NetworkManager/system-connections/"$fname".nmconnection
+	mv /tmp/"$fname".nmconnection /etc/NetworkManager/system-connections/"$fname".nmconnection
     else
 	echo "nmcli c modify $cname $cattr" >> $nmdcfg
     fi
@@ -180,7 +180,7 @@ then
 	    if [ -d $assetdir/nmconn ]
 	    then
 		# Did any of the nm connection definitions define a wifi connection?
-		grep -qs type=wifi $assetdir/nmconn/* >/dev/null && nmwifi=1
+		grep -qs type=wifi $assetdir/nmconn/* && nmwifi=1
 	    fi
 	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
 	    if [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ]
@@ -324,9 +324,9 @@ EOF
 	    [[ $nmvermaj -gt 1 ]] || [[ $nmvermin -ge 42 ]] && newnm=1 || newnm=0
 	    nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot if newnm=0
 	    [ $newnm -eq 0 ] && echo "#!/bin/bash" > $nmdcfg
-	    if ! compgen -G "/etc/NetworkManager/system-connections/*.nmconnection" >/dev/null && ! grep -qs interface-name=$iwname /etc/NetworkManager/system-connections/*.nmconnection >/dev/null 2>&1
+	    if [ "$nowifi" != "y" ]
 	    then
-		if [ "$nowifi" != "y" ]
+		if ! compgen -G "/etc/NetworkManager/system-connections/*.nmconnection" >/dev/null || ! grep -qs interface-name=$iwname /etc/NetworkManager/system-connections/*.nmconnection
 		then
 		    if [ "$wpa" != "" ]
 		    then
@@ -339,20 +339,22 @@ EOF
 		    then
 			logtoboth "> Plugin $pfx: Create NetworkManager WiFi configuration"
 			logtoboth "  with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
-			wificname=${wifissid,,}
+			# Wifi connection name all lower case and no spaces
+			wificname="${wifissid,,}"
+			wificname="${wificname// /}"
 			if [ $newnm -eq 1 ]
 			then
 			    # --offline should work
 			    logtoboth "> Plugin $pfx: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
 			    nmcli --offline c add type wifi con-name $wificname \
-				  ifname $iwname ssid $wifissid wifi-sec.key-mgmt \
+				  ifname $iwname ssid "$wifissid" wifi-sec.key-mgmt \
 				  wpa-psk wifi-sec.psk "$wifipassword" | tee /tmp/$wificname.nmconnection >/dev/null
 			    rm -f /etc/NetworkManager/system-connections/$wificname.nmconnection
 			    mv /tmp/$wificname.nmconnection /etc/NetworkManager/system-connections/$wificname.nmconnection
 			else
 			    cat >> $nmdcfg <<EOF
 logger "sdm FirstBoot: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
-nmcli c add type wifi con-name $wificname ifname $iwname ssid $wifissid
+nmcli c add type wifi con-name $wificname ifname $iwname ssid "$wifissid"
 nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$wifipassword"
 EOF
 			fi
@@ -360,11 +362,12 @@ EOF
 		    fi
 		fi
 	    fi
+
 	    if [ "$zeroconf" == "y" ]
 	    then
 		logtoboth "> Plugin $pfx: Create zeroconf network configuration for $ifname"
 		newdhcp=1  # Assume we'll enable $ifname-dhcp connection
-		if grep -qs interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection >/dev/null 2>&1
+		if grep -qs interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection
 		then
 		    newdhcp=0
 		    excname=$(grep -l interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
@@ -403,7 +406,7 @@ EOF
 	    # If noipv6 requested set it on $ifname's connection(s). Create if it doesn't exist.
 	    if [ "$noipv6" == "y" ]
 	    then
-		if ! grep -qs interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null
+		if ! grep -qs interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection
 		then
 		    lancname="Wired-connection-$ifname"
 		    logtoboth "> Plugin $pfx: Add network LAN connection '$lancname' on device '$ifname'"
