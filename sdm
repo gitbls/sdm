@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.5"
+version="V12.6"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -635,7 +635,11 @@ then
 	    ;;
 	lvm)
 	    [ "$(type -p pvs)" == "" ] && errexit  "? Cannot find lvm; Do 'sudo apt install lvm2' and then rerun sdm"
-	    [ $fgpt -eq 0 ] && fgpt=1 && echo "% Forcing --gpt for --convert-root lvm"
+	    [ $fgpt -eq 0 ] && fgpt=1 && echo "% Force --gpt for --convert-root lvm"
+	    ;;
+	zfs)
+	    [ "$(type -p zfs)" == "" ] && errexit "? Cannot find zfs; Follow the Disks-Partitions sdm doc (zfs section) and then rerun sdm"
+	    [ $fgpt -eq 0 ] && fgpt=1 && echo "% Force --gpt for --convert-root zfs"
 	    ;;
     esac
     source $src/sdm-cmdsubs

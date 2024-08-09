@@ -1,5 +1,19 @@
 # Changelog
 
+## V12.6
+
+* New Features
+  * `ndm` plugin supports dnsmasq as well as bind9/isc-dhcp-server, and build/install of service config files if an ndm config file provided
+* Improvements
+  * Rework `hotspot` plugin: Bookworm only. Bridged or routed with NetworkManager internal, `ndm`, or roll-your-own on-host DHCP server
+  * `network` plugin
+      * Add `iwname` parameter to control which wireless interface is configured. Default is `wlan0`
+      * Add `nowifi` to disable automatic WiFi network configuration
+      * Improve logic that decides whether to create a WiFi nmconnection file
+  * Add `vnc_resolution` parameter to `raspiconfig` plugin
+* Bug Fixes
+  * Correct SSID with space handling in `network` plugin
+
 ## V12.5
 
 * Improvements
