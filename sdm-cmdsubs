@@ -157,13 +157,14 @@ function copybypart() {
 	errifrc $? "? Error creating boot partition on $dstdev"
 	sgdisk --typecode 1:0700 $dstdev >/dev/null
 	errifrc $? "? Error modifying partition 1 type on $dstdev"
-	sgdisk --new 2:$extstart:$extend $dstdev >/dev/null
+	[ "$fstype" == "zfs" ] && tc="bf00" || tc="8300"
+	sgdisk --new 2:$extstart:$extend $dstdev --typecode 2:$tc >/dev/null
 	errifrc $? "? Error creating root partition on $dstdev"
-	sgdisk --typecode 2:8300 $dstdev >/dev/null
-	errifrc $? "? Error modifying partition 2 type on $dstdev"
     fi
     partprobe
 
+    #declare -x SDMPT=$(makemtpt)
+    #declare -x SDMPX=$(makemtptX)
     write_burnmsg "> Create bootfs file system on $dstdev"
     mkfs.vfat -F 32 ${dstdev}$p1 #>/dev/null 2>&1
     errifrc $? "? Error creating bootfs file system on $dstdev"
@@ -208,28 +209,77 @@ function copybypart() {
 	    mkfs.ext4 -F $rootfs >/dev/null 2>&1
 	    errifrc $? "? Error creating ext4 rootfs file system on $rootfs"
 	    ;;
+	zfs)
+	    write_burnmsg "> Create 'zfs' rootfs file system on $rootdev"
+
+	    zfsoptimized=0
+	    rpool=rpool
+	    p2name="${dstdev##/dev/}${p2}"
+	    # *** NOTE *** -f
+	    zpool create -f -o ashift=12 -o autotrim=on -O acltype=posixacl -O canmount=off -O compression=lz4 -O dnodesize=auto -O normalization=formD -O relatime=on -O xattr=sa  $rpool $p2name
+	    errifrc $? "? Error creating zfs pool"
+	    zfs create -o canmount=off -o mountpoint=none $rpool/ROOT
+	    zfs create -o canmount=noauto -o mountpoint=$SDMPT $rpool/ROOT/debian
+	    zfs mount $rpool/ROOT/debian
+	    if [ $zfsoptimized -eq 1 ]
+	    then
+		zfs create $rpool/home
+		zfs create -o mountpoint=/root $rpool/home/root
+		chmod 700 $SDMPT/root
+		zfs create -o canmount=off -o mountpoint=/var $rpool/var
+		zfs create -o canmount=off  $rpool/var/lib
+		zfs create $rpool/var/log
+		zfs create $rpool/var/spool
+		zfs create -o com.sun:auto-snapshot=false $rpool/var/cache
+		zfs create -o com.sun:auto-snapshot=false $rpool/var/lib/nfs
+		zfs create -o com.sun:auto-snapshot=false $rpool/var/tmp
+		chmod 1777 $SDMPT/var/tmp
+		zfs create $rpool/srv
+		zfs create -o canmount=off $rpool/usr
+		zfs create $rpool/usr/local
+		zfs create $rpool/var/lib/AccountsService
+		zfs create $rpool/var/lib/NetworkManager
+		zfs create -o com.sun:auto-snapshot=false $rpool/var/lib/docker
+		zfs create -o com.sun:auto-snapshot=false $rpool/tmp
+		chmod 1777 $SDMPT/tmp
+		mkdir -m 755 $SDMPT/run
+		mkdir -m 1777 $SDMPT/run/lock
+		zfs create $rpool/var/mail
+		zfs create $rpool/var/lib/apt
+		zfs create $rpool/var/lib/dpkg
+		zfs create $rpool/boot
+		mkdir -p -m 755 $SDMPT/boot/firmware
+	    fi
+	    zfs unmount $rpool/ROOT/debian
+	    ;;
 	*)
 	    errexit "? Unrecognized fstype '$fstype'"
 	    ;;
     esac
 
-    declare -x SDMPT=$(makemtpt)
-    domount $srcdev IMG
+    domount $srcdev IMG $SDMPX
 
-    [ -d $SDMPT/boot/firmware ] && msdir="$SDMPT/boot/firmware" || msdir="$SDMPT/boot"
-    [ -d $SDMPT/boot/firmware ] && mddir="$SDMPX/boot/firmware" || mddir="$SDMPX/boot"
+    [ -d $SDMPX/boot/firmware ] && msdir="$SDMPX/boot/firmware" || msdir="$SDMPX/boot"
+    [ -d $SDMPX/boot/firmware ] && mddir="$SDMPT/boot/firmware" || mddir="$SDMPT/boot"
     # Create the bootfs so domount works
-    mount $rootfs $SDMPX
-    mkdir -p $mddir
-    umount $SDMPX
+    if [ "$fstype" != "zfs" ]
+    then
+	mount $rootfs $SDMPT
+	mkdir -p $mddir
+	umount $SDMPT
+    else
+	zfs mount rpool/ROOT/debian
+	mkdir -p $mddir
+	zfs unmount rpool/ROOT/debian
+    fi
 
-    domount $dstdev "Device" $SDMPX
+    domount $dstdev "Device" $SDMPT $fstype
     write_burnmsg "> Copy bootfs to $dstdev"
     rsync -aH $msdir/ $mddir
     errifrc $? "? Error copying bootfs partition to $dstdev"
 
     write_burnmsg "> Copy rootfs to $dstdev"
-    rsync -aH $SDMPT/ $SDMPX
+    rsync -aH $SDMPX/ $SDMPT
     errifrc $? "? Error copying rootfs partition to $dstdev"
     sync ; sync
     write_burnmsg "> rootfs copy complete"
@@ -303,6 +353,7 @@ EOF
 	    fi
 	else
 	    [ $fgpt -eq 0 ] && pt=dos || pt=gpt
+	    declare -x SDMPT=$(makemtpt)
 	    declare -x SDMPX=$(makemtptX)
 	    [ "$hname" == "" ] && vgname="vg1" || vgname=$hname
 	    mapper="/dev/mapper/$vgname-rootfs"
@@ -315,7 +366,7 @@ EOF
 	partprobe
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
-	domount "$burndev" "Device"
+	domount "$burndev" "Device" $SDMPT $cvtrootfs
     else
 	#
 	# Burning to a file
@@ -351,7 +402,7 @@ EOF
 	losetup -d $loopdev
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
-	domount "$burnfilefile" "IMG"
+	domount "$burnfilefile" "IMG" $SDMPT $cvtrootfs
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
     #
@@ -433,6 +484,10 @@ EOF
 		write_burnmsg "> Set file system type 'btrfs' in cmdline.txt and /etc/fstab"
 		sed -i 's/ext4/btrfs/' $SDMPT/etc/fstab
 		sed -i 's/ext4/btrfs/' $SDMPT/boot/firmware/cmdline.txt
+		;;
+	    zfs)
+		write_burnmsg "> Configure zfs file system in cmdline.txt"
+		sed -i 's%root=.*rootwait%root=ZFS=rpool/ROOT/debian rootwait%' $SDMPT/boot/firmware/cmdline.txt
 		;;
 	esac
 
@@ -566,6 +621,16 @@ EOF
 		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
 	    fi
 	    ;;
+	zfs)
+	    if [ ! -x $SDMPT/bin/zfs ]
+	    then
+		write_burnmsg "> Install zfs onto burned disk"
+		sdm_runspawncmd Burn1 run-command "debconf-set-selections <<< 'zfs-dkms zfs-dkms/note-incompatible-licenses boolean false'"
+		#sdm_runspawncmd Burn1 run-command "apt install --yes  --no-install-recommends zfsutils-linux zfs-dkms zfs-zed zfs-initramfs"
+	    else
+		write_burnmsg "> Enable zfs in initramfs"
+		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
+	    fi
     esac
     write_burnmsg "* Burn Completed"
     logtoboth "> Burn elapsed time: $(datediff "$burnstart" "$(getcdate)")"
