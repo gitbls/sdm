@@ -373,42 +373,48 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 ### hotspot
 
-The hotspot plugin configures the system to be a WiFi hotspot. On Bullseye and earlier the hotspot is implemented with hostapd/dnsmasq. On Bookworm it's implemented using NetworkManager (nm).
+The hotspot plugin configures the specified wireless device to be a WiFi hotspot. The hotspot plugin only supports Bookworm and is implemented using NetworkManager. In most situations a routed hotspot is preferable, but both are provided.
 
 #### Arguments
 
-* **channel** &mdash; Channel to use (hostapd/dnsmasq only) [D:36]
 * **config** &mdash; Config file with all the arguments (see Example)
-* **country** &mdash; Country code [D:US]
 * **device** &mdash; WiFi device name [D:wlan0]
-* **dhcprange** &mdash; DHCP range to use for connected devices (hostapd/dnsmasq only) [D:192.168.4.2,192.168.4.32,255.255.255.0]
-* **domain** &mdash; Domain name (hostapd/dnsmasq only) [D:wlan.net]
-* **enable** &mdash; If **enable=true** set the hotspot to enable as part of system boot [D:true]
-* **hwmode** &mdash; WiFi mode (hostapd/dnsmasq only) [D:a]
-* **leastime** &mdash; DHCP lease time (hostapd/dnsmasq only) [D:24h]
-* **passphrase** &mdash; WiFi hotspot passphrase [D:password]
-* **ssid** &mdash; WiFi hotspot SSID [D:MyPiNet]
-* **wlanip** &mdash; IP address of the WiFi hotspot [D:192.168.4.1]
+* **dhcpmode** &mdash; Mode for DHCP server. Controls whether NetworkManager uses its internal dnsmasq DHCP server or not. Valid settings are `none` and `nm`. If set to `none`, you must configure a DHCP server for the hotspot. [D:nm] If `dhcpmode` == `none` then `wlanip must be provided.
+* **hsenable** &mdash; If **hsenable=y** set the hotspot to enable as part of system boot [D:y]. Can be specified as simply `hsenable`. To disable, use `hsenable=n`
+* **hsname** &mdash; Set the hotspot name [D:Hotspot]
+* **ipforward** &mdash; For routed hotspots, controls whether IP forwarding is enabled. If specified, must be the name of the network device to which network traffic is forwarded. [D:""] For bridged hotspots `ipforward` controls the network device to which the WiFi traffic is bridged [D:eth0]
 * **type** &mdash; Type of hotspot (*routed* or *bridged*) [D:routed]
-
-**Notes:**
-* The Network Manager support is complete except not all the `hotspot` plugin arguments are supported yet.
-* The best way to use nm in my opinion is to have pre-created .nmconf and .nmconn files, and then simply dump them into the appropriate nm directories by providing them as `nmconf` and `nmconn` arguments to the `network` plugin.
-* FWIW `type=local` hotspot is supported with hostapd/dnsmasq, but not for nm
+* **wifipassword** &mdash; WiFi hotspot password [D:password]
+* **wifissid** &mdash; WiFi hotspot SSID [D:MyPiNet]
+* **wlanip** &mdash; IP address of the WiFi hotspot in routed mode when `dhcpmode` == `none` [D:""]. `wlanip` is ignored in bridged mode and routed mode if `dhcpmode` == `nm` (the default)
 
 #### Examples
 
-* `--plugin hotspot:"type=routed|wlanip=192.168.4.1|hwmode=a"`
-* `--plugin hotspot:"config=/path/to/config-file"`
+* `--plugin hotspot &mdash; Create a routed hotspot named Hotspot on wlan0 with WiFi SSID 'MyPiNet', password 'password'. NetworkManager will use its internal DHCP server. wlan0's IP address will be set to the NetworkManager default (10.42.0.1). No IP forwarding is configured. The hotspot will be enabled.
+* `--plugin hotspot:"hsname=myhotspot|ssid=myssid|password=mypassword|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot named `myhotspot` on wlan0 (the default), with SSID `myssid` and password `mypassword`, forwarding IP traffic to `eth0`.
+* `--plugin hotspot:"device=wlan1|hsname=myhotspot|ipforward=eth0|hsenable|type=routed|dhcpmode=none|wlanip=10.6.0.1"` &mdash; Configure a routed hotspot on wlan1. wlan1's IP address will be set to 10.6.0.1, and you must configure your own DHCP server using, for instance, dnsmasq or the sdm plugin `ndm`
 
-The Config file consists of the above arguments (except for `config`), one per line. e.g.,
+    **Example** using the ndm plugin to configure dnsmasq:
+    `ndm:dhcpserver=dnsmasq|dnsserver=dnsmasq|dobuild|doinstall|dhcprange=10.6.0.2,10.6.0.100|domain=me|externaldns=1.1.1.1|gateway=10.6.0.1|myip=10.6.0.1|hostname=myap|dnsfqdn=myap.me|mxfqdn=myap.me|timeserver=10.6.0.1|netdev=wlan0|enablesvcs`
+
+* `--plugin hotspot:"hsname=myhotspot|hsenable|type=bridged"` &mdash; Configure a bridged hotspot
+
+The Config file consists of the above arguments (except for `config`), one per line. Arguments that are not provided are defaulted as specified above.
 ```
-channel=10
 device=wlan0
-enable=true
-wlanip=192.168.10.1
-type=bridged
+hsenable=true
+hsname=myhotspot
+ipforward=eth0
+type=routed
+wifipassword=SecretPassword
+wifissid=myhotspot
 ```
+
+#### Notes
+
+The `hotspot` plugin does not configure a firewall. Adding an appropriate firewall is important in *risky* environments.
+
+The wireless device (specified with `device` and defaults to `wlan0`) cannot be both an Access Point and a WiFi client. If you need both the Access Point and WiFi client (to another WiFi network), you will need to use a second WiFi adapter.
 
 ### imon
 
@@ -522,10 +528,45 @@ The `ndm` plugin installs ndm (https://github.com/gitbls/ndm), named (bind9) and
 #### Arguments
 
 * **config** &mdash; Existing ndm config file (dbndm.json) to build a new server with an existing ndm config file
+* **dhcplease** &mdash; Sets the DHCP lease time in seconds (Default: ndm defaults to 86400)
+* **dhcpserver** &mdash; Specifies which DHCP server to use (dnsmasq or isc-dhcp-server) (Default: isc-dhcp-server)
+* **dnsserver** &mdash;  Specifies which DNS server to use (bind9 or dnsmasq). (Default: bind9). If dnsmasq is chosen for either dhcpserver or dnsserver they both must be set to dnsmasq.
+* **dobuild** &mdash; Do an `ndm build` after the system has been configured. See <a href="Plugins.md#building-installing-and-enabling-services">building, installing and enabling services</a>
+* **doinstall** &mdash; Do an `ndm install` after the system has been configured. See <a href="Plugins.md#building-installing-and-enabling-services">building, installing and enabling services</a>
+* **enablesvcs** &mdash; Enable the DHCP and DNS server services after configuration. See <a href="Plugins.md#building-installing-and-enabling-services">building, installing and enabling services</a>
+* **importnet** &mdash; Provides /path/to/import-host-list.txt, which is a list of host definitions to import. See <a href="https://github.com/gitbls/ndm#importing-a-network-database"> importing a network database</a> for details on the host definition format.
+* **localsrc** &mdash; Specifies the directory containing the already-downloaded ndm files
+
+In addition, these arguments, which control the ndm DHCP and DNS configuration, are also accepted. See the <a href="https://github.com/gitbls/ndm">ndm documentation </a> for details.
+
+* **dhcprange** &mdash; Sets the range of addresses that the DHCP server will serve dynamically
+* **dnsfqdn** &mdash; FQDN of the host on which ndm will be running [D:`hostname`.`domain`]
+* **domain** &mdash; Domain name [D:my.sdm]
+* **externaldns** &mdash; IP address of the external (internet) DNS server
+* **gateway** &mdash; Gateway IP from LAN to the internet
+* **hostname** &mdash; Hostname of the host on which ndm will be running
+* **mxfqdn** &mdash; Mail server FQDN. Use the DNS server FQDN if you don't have a mail server
+* **myip** &mdash; IP address of host on which ndm will be running. **NOTE:** This does NOT configure the network. Use the `network` plugin for that.
+* **netdev** &mdash; Network device that the DNS and DHCP servers listen on [D:eth0]
+* **timeserver** &mdash; IP address of timeserver to provide to DHCP clients
+
+The `ndm` plugin will install the requested DHCP and DNS server services, and configure them appropriately per the provided arguments.
+
+#### Building, installing, and enabling services
+
+The `dobuild` argument requires one of:
+* An ndm config file via argument `config`
+* OR all of these arguments: `dhcprange`, `dnsfqdn`, `domain`, `externaldns`, `gateway`, `hostname`, `mxfqdn`, `myip`, `netdev`, and `timeserver`
+
+The `doinstall` argument requires a satisfied `dobuild`
+
+The `enablesvcs` argument requires satisfied `dobuild` and `doinstall` arguments
 
 #### Examples
 
 * `--plugin ndm` &mdash; Installs ndm, named, and isc-dhcp-server. Both named and isc-dhcp-server services are disabled, and must be re-enabled once ndm has been used to generate the config files for these two services.
+* `--plugin ndm:"config=/path/to/dbndm.json|dhcpserver=dnsmasq|dnsserver=dnsmasq|dobuild|doinstall|netdev=eth0"` &mdash; Installs dnsmasq, performs an `ndm build` and `ndm install`, but does not enable the services.
+* Also see the example <a href="#hotspot">used in conjunction with the `hotspot` plugin</a>
 
 ### network
 
@@ -537,12 +578,14 @@ Use the network plugin to configure various network settings
 * **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
 * **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
 * **ifname** &mdash; Specifies ethernet device name to configure. Default is `eth0`
+* **iwname** &mdash; Specifies wireless device name to configure if WiFi configuration requested (`wifissid` and `wifipassword` provided). Default is `wlan0`
 * **ssh** &mdash; Accepts one of the values `service`, `socket`, or `none`. The default if `ssh` is not specified is to enable the SSH service
 * **wifissid** &mdash; Specifies the WiFi SSID to enable. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`), or will use nmcli during First Boot to establish the specified WiFi connection.
 * **wifipassword** &mdash; Password for the `wifissid` network. See `wifissid`
 * **wificountry** &mdash; WiFi country for the `wifissid` network. See `wifissid`
 * **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. NetworkManager does not use wpa_supplicant.conf
 * **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
+* **nowifi** &mdash; Do not do WiFi configuration
 * **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
 * **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
 * **powersave** &mdash; Specify the WiFi powersave setting. Values: **0**:Use default value; **1**:Leave as is; **2**:Disable powersave; **3**:Enable powersave
