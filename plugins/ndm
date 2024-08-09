@@ -9,6 +9,47 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function converty() {
+    [ -v dobuild ] && dobuild=y
+    [ -v doinstall ] && doinstall=y
+    [ -v enablesvcs ] && enablesvcs=y
+}
+
+function addvldargs() {
+    local addlist="$1"
+    for f in $addlist
+    do
+	vldargs="${vldargs}|${f}"
+    done
+    # ensure a trailing "|" on the vldargs list
+    [ "${vldargs:${#vldargs}-1}" == "|" ] || vldargs="${vldargs}|"
+}
+
+function dobuildinstall() {
+    if [ "$dobuild" == "y" ]
+    then
+	logtoboth "> Plugin $pfx: Perform 'ndm build'"
+	ndm build
+	if [ "$doinstall" == "y" ]
+	then
+	    logtoboth "> Plugin $pfx: Perform 'ndm install'"
+	    ndm install
+	    if [ "$enablesvcs" == "y" ]
+	    then
+		if [ "$dhcpserver" == "dnsmasq" ]
+		then
+		    logtoboth "> Plugin $pfx: Enable dnsmasq"
+		    systemctl enable dnsmasq >/dev/null 2>&1
+		else
+		    logtoboth "> Plugin $pfx: Enable isc-dhcp-server and bind9"
+		    systemctl enable isc-dhcp-server #>/dev/null 2>&1
+		    systemctl enable named #>/dev/null 2>&1
+		fi
+	    fi
+	fi
+    fi
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -17,8 +58,11 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|localsrc|config|"
+vldargs="|config|dhcplease|dhcpserver|dnsserver|dobuild|doinstall|enablesvcs|importnet|localsrc|"
+ndmcfgargs="dhcprange dnsfqdn domain externaldns gateway hostname mxfqdn myip netdev timeserver"
 loadparams
+assetdir="$SDMPT/etc/sdm/assets/ndm"
+mkdir -p $assetdir
 
 if [ "$phase" == "0" ]
 then
@@ -27,18 +71,52 @@ then
     #
 
     logtoboth "* Plugin $pfx: Start Phase 0"
+    addvldargs "$ndmcfgargs"
     plugin_getargs $pfx "$args" "$vldargs" || exit
     plugin_printkeys
+    converty
+    if [ "$dnsserver" != "" ]
+    then
+	! [[ "|bind9|dnsmasq|" =~ "$dnsserver" ]] && logtobothex "? Plugin $pfx: Invalid value for 'dnsserver': $dnsserver"
+    fi
+    if [ "$dhcpserver" != "" ]
+    then
+	! [[ "|isc-dhcp-server|dnsmasq|" =~ "$dhcpserver" ]] && logtobothex "? Plugin $pfx: Invalid value for 'dhcpserver': $dhcpserver"
+    fi
+    if [[ "$dnsserver" == "dnsmasq" ]]
+    then
+	[ "$dhcpserver" == "" ] && dhcpserver=dnsmasq
+	[ "$dhcpserver" != "dnsmasq" ] && logtobothex "? Plugin $pfx: Both 'dhcpserver' and 'dnsserver' must be 'dnsmasq'"
+    fi
+    if [[ "$dhcpserver" == "dnsmasq" ]]
+    then
+	[ "$dnsserver" == "" ] && dnsserver=dnsmasq
+	[ "$dnsserver" != "dnsmasq" ] && logtobothex "? Plugin $pfx: Both 'dhcpserver' and 'dnsserver' must be 'dnsmasq'"
+    fi
     if [ "$config" != "" ]
     then
 	if [ -f $config ]
 	then
 	    logtoboth "> Plugin $pfx: copy ndm config '$config' to $SDMPT/etc/dbndm.json"
 	    cp -a $config $SDMPT/etc/dbndm.json
+	    setfileownmode $SDMPT/etc/dbndm.json 644
 	else
 	    logtobothex "? Plugin $pfx: config file '$config' not found"
 	fi
     fi
+    if [ "$importnet" != "" ]
+    then
+	if [ -f $importnet ]
+	then
+	    logtoboth "> Plugin $pfx: Copy network host definitions from '$importnet' to $assetdir/importnet.txt"
+	    cp -a $importnet $assetdir/importnet.txt
+	else
+	    logtobothex "? Plugin $pfx: importnet file '$importnet' not found"
+	fi
+    fi
+
+    [[ "$dobuild" == "" ]] && [[ "$doinstall" == "y" ]] && logtobothex "? Plugin $pfx: 'doinstall' requires 'dobuild'"
+    [[ "$enablesvcs" == "y" ]] && [[ "${dobuild}${doinstall}" != "yy" ]] && logtobothex "? Plugin $pfx: 'enablesvcs' requires both 'dobuild' and 'doinstall'"
 
     if [ "$localsrc" != "" ]
     then
@@ -59,17 +137,84 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
-    logtoboth "> Plugin $pfx: Install isc-dhcp-server and bind9"
-    doaptrpterror "install --no-install-recommends --yes isc-dhcp-server bind9"
-    logtoboth "> Plugin $pfx: Disable services pending configuration"
-    systemctl disable isc-dhcp-server > /dev/null 2>&1
-    systemctl disable bind9 > /dev/null 2>&1
+    addvldargs "$ndmcfgargs"
+    plugin_getargs $pfx "$args" "$vldargs" || exit
+    converty
+    [ "$dnsserver" == "" ] && dnsserver="bind9"
+    [ "$dhcpserver" == "" ] && dhcpserver="isc-dhcp-server"
+    if [ "$dnsserver" == "bind9" ]
+    then
+	logtoboth "> Plugin $pfx: Install isc-dhcp-server and bind9"
+	doaptrpterror "install --no-install-recommends --yes isc-dhcp-server bind9"
+	logtoboth "> Plugin $pfx: Disable services pending configuration"
+	systemctl disable isc-dhcp-server >/dev/null 2>&1
+	systemctl disable bind9 >/dev/null 2>&1
+    else
+	logtoboth "> Plugin $pfx: Install dnsmasq"
+	doaptrpterror "install --no-install-recommends --yes dnsmasq"
+	logtoboth "> Plugin $pfx: Disable services pending configuration"
+	systemctl disable dnsmasq >/dev/null 2>&1
+    fi
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
     # Plugin Post-install edits
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
-
+    addvldargs "$ndmcfgargs"
+    plugin_getargs $pfx "$args" "$vldargs" || exit
+    converty
+    # default a few things if needed
+    [ "$dnsserver" == "" ] && dnsserver="bind9"
+    [ "$dhcpserver" == "" ] && dhcpserver="isc-dhcp-server"
+    [ "$hostname" == "" ] && hostname=$hname
+    [ "$hostname" == "" ] && hostname=sdm
+    [ "$domain" == "" ] && domain="my.sdm"
+    [ "$dnsfqdn" == "" ] && dnsfqdn="${hostname}.${domain}"
+    [ "$netdev" == "" ] && netdev="eth0"
+    if [ "$config" != "" ]
+    then
+	dobuildinstall
+    else
+	cfgok=1
+	for f in $ndmcfgargs
+	do
+	    [ "${!f}" != "" ] && cmdex="${cmdex} --$f ${!f}" || cfgok=0
+	done
+	[ "$dhcplease" != "" ] && cmdex="${cmdex} --dhcplease $dhcplease"
+	cat > /etc/dbndm.json <<EOF
+{"cfg": {"bindoptions": "","blockdomains": "","dbversion": "2","dhcp": "","dhcpglobalinclude": "","dhcpglobalopt": "","dhcphostopt": {},"dhcpinclude": "","dhcplease": "86400","dhcppoolinclude": "","dhcpsubnet": "","dns": "","dnsfqdn": "","dnsinclude": "","dnsip": "","dnslistenport": "53","domain": "","externaldns": "","gateway": "","hostfqdn": "","hostname": "","internals": "","mxfqdn": "","myip": "","netdev": "","os": "debian","subnet": "","subnetmask": "/24","timeserver": "","version": "V2.12"},
+"cname": {},"hosts": {"127.0.0.1": {"dhcphostopt": "","hostname": {"localhost": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}},
+"::1": {"dhcphostopt": "","hostname": {"localhost ipv6-localhost ipv6loopback": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}},
+"fe00::0": {"dhcphostopt": "","hostname": {"ipv6-localnet": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}},
+"ff00::0": {"dhcphostopt": "","hostname": {"ipv6-mcastprefix": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}},
+"ff02::1": {"dhcphostopt": "","hostname": {"ipv6-allnodes": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}},
+"ff02::2": {"dhcphostopt": "","hostname": {"ipv6-allrouters": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}},
+"ff02::3": {"dhcphostopt": "","hostname": {"ipv6-allhosts": {"flags": "+hostsonly+nodomain","macaddr": "","note": ""}}}}}
+EOF
+	chmod 644 /etc/dbndm.json
+	ndm config --dns $dnsserver --dhcp $dhcpserver --dnsip $myip $cmdex 
+	logtoboth "> Plugin $pfx: ndm configuration"
+	logtoboth "$(ndm config)"
+	if [ -f $assetdir/importnet.txt ]
+	then
+	    logtoboth "> Plugin $pfx: Import network host definitions from $assetdir/importnet.txt"
+	    ndm config --importnet $assetdir/importnet.txt --verbose
+	fi
+	if [ $cfgok -eq 1 ]
+	then
+	    dobuildinstall
+	else
+	    [ "$dobuild" == "y" ] && logtoboth "> Plugin $pfx: Cannot build: One or more required arguments missing"
+	fi
+    fi
+    if [ "$dhcpserver" == "isc-dhcp-server" ]
+    then
+	if [ "$netdev" != "" ]
+	then
+	    logtoboth "> Plugin $pfx: Enable isc-dhcp-server for ipv4 on $netdev"
+	    sed -i "s/INTERFACESv4=\"\"/INTERFACESv4=\"$netdev\"/" /etc/default/isc-dhcp-server
+	fi
+    fi
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
