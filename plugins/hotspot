@@ -4,6 +4,7 @@
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
+# https://www.raspberrypi.com/documentation/computers/configuration.html#host-a-wireless-network-from-your-raspberry-pi
 
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
@@ -12,20 +13,6 @@ function loadparams() {
 #TODO
 #  a pre-filled config file
 #
-
-function saveorig() {
-    #
-    # $1 = filename to save
-    # $2 = "" (move file to .orig) or 1 (keep original and copy to .orig)
-    # Only renames it to $1.orig if $1.orig doesn't already exist
-    # If $1.orig already exists, the file $1 is simply deleted
-    #
-    [ ! -f $1 ] && return
-    [ -f $1.orig ] && ( [ "$2" != "1" ] && rm -f $1 ; return )
-    [ "$2" == "1" ] && cp $1 $1.orig || mv $1 $1.orig
-    return
-}
-
 
 function writehsconfig() {
     rm -f $assetdir/config
@@ -41,7 +28,15 @@ function writehsconfig() {
 }
 
 function parsehsconfig() {
-    local fhotspot="$1"
+    local fhotspot="$1" sextglob okargs
+
+    sextglob=$(shopt -p extglob)
+    shopt -s extglob
+    # Remove 'config' arg and leading/trailing vbar
+    okargs=${vldargs//config|}
+    okargs=${okargs#|}
+    okargs=${okargs%|}
+    okargs="@($okargs)"
 
     while IFS=":=" read rpifun value
     do
@@ -51,7 +46,7 @@ function parsehsconfig() {
 	    value="${value%"${value##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
 	    value=$(stripquotes "$value" qd)
 	    case "${rpifun,,}" in
-		channel|country|device|dhcprange|domain|enable|hwmode|leasetime|passphrase|ssid|type|wlanip|hostapd|hsmode)
+		$okargs)
 		    printf -v "$rpifun" "%s" "$value"
 		    ;;
 		*)
@@ -60,99 +55,24 @@ function parsehsconfig() {
 	    esac
 	fi
     done < $fhotspot
-}
 
-function writehostapd() {
-    logtoboth "> Plugin $pfx: Configure hostapd '$type' mode"
-    logtoboth "> Plugin $pfx: Create hostapd configuration"
-    saveorig /etc/hostapd/hostapd.conf  #Deletes previous file if any
-    echo "# sdm hostapd configuration $(thisdate)" > /etc/hostapd/hostapd.conf
-    echo "interface=$device" >> /etc/hostapd/hostapd.conf
-    if [ "$type" == "bridged" ]
-    then
-	echo "bridge=br0" >> /etc/hostapd/hostapd.conf
-    fi
-    cat >> /etc/hostapd/hostapd.conf <<EOF
-country_code=${country^^}
-# use ssid2 for double-quoted string, hexdump, or printf-escaped string
-ssid=$ssid
-hw_mode=$hwmode
-# See https://en.wikipedia.org/wiki/List_of_WLAN_channels for list of WLAN channels
-channel=$channel
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase=$passphrase
-wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
-rsn_pairwise=CCMP
-#
-# hostapd event logger configuration (from /usr/share/doc/hostapd/examples/hostapd.conf)z
-#
-# Two output method: syslog and stdout (only usable if not forking to
-# background).
-#
-# Module bitfield (ORed bitfield of modules that will be logged; -1 = all
-# modules):
-# bit 0 (1) = IEEE 802.11
-# bit 1 (2) = IEEE 802.1X
-# bit 2 (4) = RADIUS
-# bit 3 (8) = WPA
-# bit 4 (16) = driver interface
-# bit 5 (32) = IAPP
-# bit 6 (64) = MLME
-#
-# Levels (minimum value for logged events):
-#  0 = verbose debugging
-#  1 = debugging
-#  2 = informational messages
-#  3 = notification
-#  4 = warning
-#
-logger_syslog=-1
-logger_syslog_level=1
-logger_stdout=-1
-logger_stdout_level=1
-
-EOF
-#    # Cat the include file to the end of hostapd.conf if specified
-#    [ "$hotinclude" != "" ] && cat $hotinclude >> /etc/hostapd/hostapd.conf
-
-}
-
-function writednsmasq() {
-    if [ "$type" != "bridged" ]
-    then
-	sed -i '/^# sdm hotspot dnsmasq/,$d' /etc/dnsmasq.conf       #Delete any previous
-	logtoboth "> Plugin $pfx: Create dnsmasq configuration"
-	saveorig /etc/dnsmasq.conf 1
-	cat >> /etc/dnsmasq.conf <<EOF
-
-# sdm hotspot dnsmasq configuration $(thisdate)
-interface=$device
-dhcp-range=$dhcprange,$leasetime
-domain=$domain
-address=/gw.$domain/$wlanip
-EOF
-    fi
+    $sextglob
 }
 
 function enablerouting() {
-    # if routed enable sysctl ip forwarding
-    if [ "$type" == "routed" ]
-    then
-	logtoboth "> Plugin $pfx: Enable routing and masquerading for WiFi clients onto LAN"
-	cat > /etc/sysctl.d/10-sdm-aprouted.conf <<EOF
+    logtoboth "> Plugin $pfx: Enable routing and masquerading for WiFi clients"
+    logtoboth "> Plugin $pfx: Install iptables"
+    #doaptrpterror "install --no-install-recommends --yes iptables" $showapt
+    cat > /etc/sysctl.d/10-sdm-aprouted.conf <<EOF
 # sdm hotspot routing configuration $(thisdate)
 # https://www.raspberrypi.org/documentation/configuration/wireless/access-point-routed.md
 # Enable IPv4 routing
 net.ipv4.ip_forward=1
 EOF
-	logtoboth "> Plugin $pfx: Configure service sdm-hostapd-iptables to enable iptables routing"
-	cat > /etc/systemd/system/sdm-hostapd-iptables.service <<EOF
+    logtoboth "> Plugin $pfx: Configure service sdm-hotspot-masquerade to enable nftables routing to '$ipforward'"
+    cat > /etc/systemd/system/sdm-hotspot-masquerade.service <<EOF
 [Unit]
-Description=sdm-hostapd-iptables
+Description=sdm-hotspot-masquerade
 After=network.target
 
 [Service]
@@ -161,71 +81,17 @@ After=network.target
 #  Enabled for a routed access point
 #  Disabled for a local or bridged access point
 #
-ExecStart=/sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+ExecStartPre=/sbin/nft add table nat
+ExecStartPre=/sbin/nft 'add chain nat postrouting { type nat hook postrouting priority 100 ; }'
+ExecStart=/sbin/nft add rule nat postrouting masquerade
+##NOTUSED#ExecStart=/sbin/iptables -t nat -A POSTROUTING -o $ipforward -j MASQUERADE
 RemainAfterExit=true
 Type=oneshot
 
 [Install]
 WantedBy=multi-user.target
 EOF
-	systemctl enable sdm-hostapd-iptables
-    else
-	if [ -f /etc/systemd/system/sdm-hostapd-iptables.service ]
-	then
-	    rm -f /etc/sysctl.d/040-sdm-aprouted.conf
-	    systemctl disable sdm-hostapd-iptables
-	    rm -f /etc/systemd/system/sdm-hostapd-iptables.service
-	fi
-    fi
-}
-
-function createbridge() {
-    if [ "$type" == "bridged" ]
-    then
-	logtoboth "> Plugin $pfx: Configure network bridge br0 and enable systemd-networkd"
-	cat > /etc/systemd/network/bridge-br0.netdev <<EOF
-[NetDev]
-Name=br0
-Kind=bridge
-EOF
-	cat > /etc/systemd/network/br0-member-eth0.network <<EOF
-[Match]
-Name=eth0
-
-[Network]
-Bridge=br0
-EOF
-	systemctl enable systemd-networkd
-    else
-	rm -f /etc/systemd/network/bridge-br0.netdev
-	rm -f /etc/systemd/network/br0-member-eth0.network
-	systemctl disable systemd-networkd
-    fi
-}
-
-function enablesvcs() {
-    local now=""
-    if [ "$enable" == "true" -o "$enable" == "y" ]
-    then
-	logtoboth "> Plugin $pfx: sdm FirstBoot will enable services 'hostapd' and 'dnsmasq'"
-	[ $reboot -eq 0 ] && now="--now"
-	cat > /etc/sdm/0piboot/040-hotspot-enable.sh <<EOF
-#!/bin/bash
-#source /etc/sdm/sdm-readparams  #Not needed at the moment
-logger "sdm FirstBoot: Enable hostapd"
-rfkill unblock wlan
-systemctl enable $now hostapd
-EOF
-	if [ "$type" != "bridged" ]
-	then
-	    echo "logger \"sdm FirstBoot: Enable dnsmasq\"" >> /etc/sdm/0piboot/040-hotspot-enable.sh
-	    echo "systemctl enable $now dnsmasq" >> /etc/sdm/0piboot/040-hotspot-enable.sh
-	fi
-    else
-	se="sudo systemctl enable hostapd"
-	[ "$type" != "bridged" ] && se="$se ; sudo systemctl enable dnsmasq"
-	logtoboth "> Plugin $pfx: Use '$se' to enable the hotspot"
-    fi
+    systemctl -q enable sdm-hotspot-masquerade
 }
 
 function dodefault() {
@@ -251,135 +117,88 @@ function fillupcfg() {
 		#
 		# Default for missing args
 		#
-		channel)
-		    dodefault channel 36
-		    ;;
-		country)
-		    dodefault country US
-		    ;;
 		device)
 		    dodefault device wlan0
 		    ;;
-		dhcprange)
-		    dodefault dhcprange "192.168.4.2,192.168.4.32,255.255.255.0"
+		dhcpmode)
+		    dodefault dhcpmode nm
 		    ;;
-		domain)
-		    dodefault domain "wlan.net"
+		hsenable)
+		    dodefault hsenable y
 		    ;;
-		enable)
-		    dodefault enable true
+		hsname)
+		    dodefault hsname Hotspot
 		    ;;
-		hsmode)
-		    if [ ${raspiosver} -ge 12 ]
-		    then
-			dodefault hsmode nm
-		    else
-			dodefault hsmode hostapd
-		    fi
+		ipforward)
+		    dodefault ipforward ""
 		    ;;
-		hwmode)
-		    dodefault hwmode a
+		wifipassword)
+		    dodefault wifipassword password
 		    ;;
-		leasetime)
-		    dodefault leasetime 24h
-		    ;;
-		passphrase)
-		    dodefault passphrase password
-		    ;;
-		ssid)
-		    dodefault ssid MyPiNet
+		wifissid)
+		    dodefault wifissid MyPiNet
 		    ;;
 		type)
 		    dodefault type routed
 		    ;;
 		wlanip)
-		    dodefault wlanip "192.168.4.1"
+		    dodefault wlanip ""
 		    ;;
 	    esac
 	else
-	    [ "$a" != "config" ] && logtoboth "   $a: ${!a}"
+	    [ "$a" != "config" ] && logtoboth  "$(printf "   %-60s [Argument]" "${a}: ${!a}")"
 	fi
     done
 }
 
-function cfgdhcpcd() {
-    logtoboth "> Prefix $pfx: Configure hotspot with hostapd and dhcpcd"
-    writehostapd
-    writednsmasq
-    enablerouting
-    createbridge
-    enablesvcs
-    if [ "$type" == "bridged" ]
-    then
-	saveorig /etc/dhcpcd.conf 1
-	sed -i '1 i\denyinterfaces wlan0 eth0' /etc/dhcpcd.conf
-	echo -e "\n# sdm bridged network configuration $(thisdate)" >> /etc/dhcpcd.conf
-	echo 'interface br0' >> /etc/dhcpcd.conf
-    else
-	# update dhcpcd config for local or routed hotspot
-	logtoboth "> Plugin $pfx: Disable wpa_supplicant configuration for $device in dhcpcd"
-	cat >> /etc/dhcpcd.conf <<EOF
-# sdm hotspot network configuration $(thisdate)
-interface $device
-    static ip_address=$wlanip/24
-    nohook wpa_supplicant
-EOF
-    fi
-}
+function cfgnetman() {
+    local fwdev ipad
 
-# channel 802-11-wireless.channel
-# dhcprange chosen from IP address (routed)
-# domain ???
-# hwmode
-# leasetime
-
-function cfgnm() {
-    logtoboth "> Prefix $pfx: Configure hotspot 'Hotspot' with Network Manager"
-    [ "$enable" == "true" ] && acsts="yes" || acsts="no"
+    logtoboth "> Prefix $pfx: Configure hotspot '$hsname' with Network Manager"
+    [ "$hsenable" == "y" ] && acsts="yes" || acsts="no"
     if [ "$type" == "routed" ]
     then
+	[ "$dhcpmode" == "nm" ] && ipv4method="shared" || ipv4method="manual"
+	logtoboth "> Plugin $pfx: Write sdm First Boot script to configure routed hotspot '$hsname' with method=$ipv4method"
+	[ "$wlanip" != "" ] && ipad="ipv4.addresses $wlanip/24" || ipad=""
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-routed.sh <<EOF
 #!/bin/bash
 logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
 rfkill unblock wlan
-nmcli device wifi hotspot ifname $device con-name Hotspot ssid $ssid band bg password "$passphrase"
-nmcli c down Hotspot
-nmcli c modify Hotspot ipv4.method shared ipv6.method disabled ipv4.addresses $wlanip/24
-nmcli c modify Hotspot autoconnect $acsts
+nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+nmcli c down "$hsname"
+nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad
+nmcli c modify "$hsname" autoconnect $acsts
 EOF
     else
+	logtoboth "> Plugin $pfx: Write sdm First Boot script to configure bridged hotspot '$hsname'"
+	[ "$ipforward" == "" ] && fwdev="eth0" || fwdev="$ipforward"
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-bridged.sh <<EOF
 #!/bin/bash
 logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
 rfkill unblock wlan
 
-nmcli device wifi hotspot ifname wlan0 con-name Hotspot ssid $ssid band bg # password "$passphrase"
-nmcli c down Hotspot
+nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
+nmcli c down "$hsname"
 nmcli c down "Wired connection 1"
-nmcli c modify Hotspot autoconnect no ipv6.method disabled # ipv4.addresses $wlanip/24 
+nmcli c modify "$hsname" autoconnect no ipv6.method disabled    # ipv4.addresses $wlanip/24
 
 nmcli c add ifname br0 type bridge con-name br0 bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1
 nmcli c down br0
 
-nmcli c add type bridge-slave ifname eth0 master br0 autoconnect $acsts
+nmcli c add type bridge-slave ifname $fwdev master br0 autoconnect $acsts
 
-nmcli c add type ethernet slave-type bridge con-name bridge-br0 ifname eth0 master br0 
-nmcli c modify Hotspot slave-type bridge master br0 wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$passphrase" #?needed? connection.autoconnect-slave yes
+nmcli c add type ethernet slave-type bridge con-name bridge-br0 ifname $fwdev master br0
+nmcli c modify "$hsname" slave-type bridge master br0 wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword" #?needed? connection.autoconnect-slave yes
 
-#Set this via network plugin if desired nmcli c modify "Wired connection 1" ipv6.method disabled
-nmcli c modify Hotspot autoconnect $acsts
+nmcli c modify "$hsname" autoconnect $acsts
 nmcli c modify br0 autoconnect $acsts
 EOF
     fi
 }
 
-function cfgnetman() {
-    if [ "$hsmode" == "hostapd" ]
-    then
-	cfgdhcpcd
-    else
-	cfgnm
-    fi
+function converty() {
+    [ -v hsenable ] && hsenable=y
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -391,7 +210,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|channel|config|country|device|dhcprange|domain|enable|hwmode|leasetime|passphrase|ssid|wlanip|type|hsmode|"
+vldargs="|config|device|dhcpmode|hsenable|hsname|ipforward|type|wifipassword|wifissid|wlanip|"
 rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/hotspot"
 
@@ -408,6 +227,7 @@ then
     #
     plugin_printkeys
     mkdir -p $assetdir
+    converty
     if [ "$config" != "" ]
     then
 	if [ -f $config ]
@@ -426,21 +246,11 @@ then
 	# config file not provided. Make one from what we were given
 	logtoboth "% Plugin $pfx: No 'config' provided; Generate config from arguments and defaults:"
 	fillupcfg
-	if [ ${raspiosver} -lt 12 ]
-	then
-	    if [ "$hsmode" == "nm" ]
-	    then
-		logtoboth "? Plugin $pfx: Network Manager hotspot support requires Bookworm or later; Using hostapd"
-		hsmode="hostapd"
-	    fi
-	else
-	    if [ "$hsmode" == "hostapd" ]
-	    then
-		logtoboth "? Plugin $pfx: Only Network Manager supported for hotspot on Bookworm or later"
-		hsmode="nm"
-	    fi
-	fi
 	writehsconfig
+    fi
+    if [ "$dhcpmode" != "nm" ]
+    then
+	[ "$wlanip" == "" ] && logtobothex "? Plugin $pfx: Argument 'wlanip' required unless dhcpmode is 'nm'"
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
@@ -451,31 +261,8 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    parsehsconfig $assetdir/config
-    if [ "$hsmode" == "hostapd" ]
-    then
-	svcs="'hostapd'"
-	logtoboth "> Plugin $pfx: Install 'hostapd' and install 'iptables'"
-	doaptrpterror "install --no-install-recommends --yes hostapd iptables" "$showapt"
-	systemctl unmask hostapd
-	systemctl disable hostapd
-	if [ "$type" != "bridged" ]
-	then
-	    logtoboth "> Plugin $pfx: Install dnsmasq"
-	    svcs="'hostapd' and 'dnsmasq'"
-	    doaptrpterror "install --no-install-recommends --yes dnsmasq" "$showapt"
-	    systemctl disable dnsmasq
-	fi
-    else
-	! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doaptrpterror "install --no-install-recommends --yes network-manager" "$showapt"
-    fi
-    if [ "$enable" == "true" ]
-    then
-	logtoboth "> Plugin $pfx: Hotspot will be enabled by sdm FirstBoot"
-    else
-	logtoboth "% Plugin $pfx: Hotspot will not be enabled by sdm FirstBoot"
-    fi
-    #
+    converty
+    ! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doaptrpterror "install --no-install-recommends --yes network-manager" "$showapt"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
@@ -483,12 +270,17 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    converty
     if [ -f $assetdir/config ]
     then
 	parsehsconfig $assetdir/config
 	cfgnetman
+	[[ "$ipforward" != "" ]] && [[ "$type" == "routed" ]] && enablerouting
     else
-	logtoboth "? Plugin $pfx: Hotspot config file '$assetdir/config' not found"
+	logtoboth "? Plugin $pfx: Hotspot '$hsname' config file '$assetdir/config' not found"
     fi
+    # Delete WiFi disable if present
+    rm -f /etc/sdm/0piboot/055-disable-wifi.sh
+
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
