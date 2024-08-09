@@ -125,8 +125,7 @@ function outlong () {
 }
 
 function logapterror() {
-    logtoboth "? apt returned an error; review /etc/sdm/apt.log"
-    exit 1
+    logtobothex "? apt returned an error; review /etc/sdm/apt.log"
 }
 
 function doapt() {
@@ -405,6 +404,11 @@ function doconfigitem() {
 	    configitemlog "Set boot_behaviour '$value'" $msgfn
 	    #SUDO_USER=${myuser:-pi} raspi-config do_boot_behaviour $value nonint
 	    [ "$msgfun" == "bootlog" ] && do_raspiconfig do_boot_behaviour $value || setdelayedbbh "$value"
+	    ;;
+	vnc_resolution)
+	    configitemlog "Set VNC resolution to '$value'" $msgfn
+	    #SUDO_USER=${myuser:-pi} raspi-config do_vnc_resolution $value nonint
+	    do_raspiconfig do_vnc_resolution $value nonint
 	    ;;
 	powerled)
 	    ssys=0
@@ -1562,7 +1566,7 @@ function expandpartition() {
     fi
     $msgrtn "* Mount $fulldevname to resize the root file system"
     [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
-    domount $fulldevname "Device"
+    domount $fulldevname "Device" "$SDMPT" $rootfstype
     $msgrtn "* Resize the $rootfstype root file system"
     $msgrtn "% (Ignore 'on-line resizing required' message)"
     case "$rootfstype" in
@@ -1577,6 +1581,9 @@ function expandpartition() {
 	    lvresize --extents 100%VG $(lvmfind $fulldevname vg)/$(lvmfind $fulldevname lv)
 	    resize2fs $(lvmgetmapper $fulldevname)
 	    ;;
+	zfs)
+	    zpool online -e rpool sdb2
+	    ;;
     esac
     #echo ",+" | sfdisk -N 2 $fulldevname
     #errifrc $? "? sfdisk expand last partition failed with status"
@@ -1584,7 +1591,7 @@ function expandpartition() {
 
 function expandpartitionx() {
     local rc
-    expandpartition "$1" "$2" "$3"
+    expandpartition "$1" "$2" "$3" "$4"
     rc=$?
     docleanup
     return $rc
@@ -1707,9 +1714,10 @@ function domount() {
     # $1: device name/IMG Name/directory name
     # $2: "Directory" "IMG" or "Device"
     # $3: mount point (D:$SDMPT)
+    # $4: fstype
     # Tree will be mounted on the mountpoint, which must be set with makemtpt or makemtptX
     #
-    local dmimg=$1 imgtype=$2 mpoint=${3}
+    local dmimg=$1 imgtype=$2 mpoint=${3} fstype=$4
     local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0 kf=""
 
     [ "$mpoint" == "" ] && mpoint=$SDMPT
@@ -1785,7 +1793,12 @@ function domount() {
 		errifrc $? "? Cryptsetup failed to open ${dmimg}${p2}"
 		mount -v /dev/mapper/sdmcrypt $mpoint
 	    else
-		mount -v ${dmimg}${p2} $mpoint
+		if [ "$fstype" != "zfs" ]
+		then
+		    mount -v ${dmimg}${p2} $mpoint
+		else
+		    zfs mount rpool/ROOT/debian
+		fi
 	    fi
 	fi
 	notmounted $mpoint && errexit "? Error mounting device '$dmimg'"
@@ -1799,22 +1812,32 @@ function docleanup() {
     #
     # $1: if 'keep' (don't unset SDMPT)
     local mnt=$SDMPT loopdev1 loopdev2 bp
+    local zfsp zfsmpt
+
+    zfsp="$(type -p zfs)"
+    zfsmpt="$(zfs list -o mountpoint -H rpool/ROOT/debian 2>/dev/null)"
 
     for mnt in "${SDMPT:-/mnt/sdm}" "$SDMPX"
     do
 	if [ "$mnt" != "" ]
 	then
-	    # Find loop device names and delete them after dismounting if not automatically deleted
-	    [ -d $mnt/boot/firmware ] && bp="$mnt/boot/firmware" || bp="$mnt/boot"
-	    loopdev1=$(findmnt $bp --noheadings --output source)
-	    [ "$loopdev1" != "/dev/loop1" ] && loopdev1=${loopdev1%p1}
-	    loopdev2=$(findmnt $mnt --noheadings --output source)
-	    loopdev2=${loopdev1%p2}
-	    ismounted $bp && umount -v $bp
-	    ismounted $mnt && umount -v $mnt
-	    [ "$loopdev1" == "" ] || losetup --detach $loopdev1 >/dev/null 2>&1
-	    [ "$loopdev2" == "" ] || losetup --detach $loopdev2 >/dev/null 2>&1
-	    [ "$fencrypted" == "1" ] && cryptsetup luksClose /dev/mapper/sdmcrypt >/dev/null 2>&1
+	    if [ "$zfsmpt" != "$mnt" ]
+	    then
+		# Find loop device names and delete them after dismounting if not automatically deleted
+		[ -d $mnt/boot/firmware ] && bp="$mnt/boot/firmware" || bp="$mnt/boot"
+		loopdev1=$(findmnt $bp --noheadings --output source)
+		[ "$loopdev1" != "/dev/loop1" ] && loopdev1=${loopdev1%p1}
+		loopdev2=$(findmnt $mnt --noheadings --output source)
+		loopdev2=${loopdev1%p2}
+		ismounted $bp && umount -v $bp
+		ismounted $mnt && umount -v $mnt
+		[ "$loopdev1" == "" ] || losetup --detach $loopdev1 >/dev/null 2>&1
+		[ "$loopdev2" == "" ] || losetup --detach $loopdev2 >/dev/null 2>&1
+		[ "$fencrypted" == "1" ] && cryptsetup luksClose /dev/mapper/sdmcrypt >/dev/null 2>&1
+	    else
+		umount -v /dev/sdb1
+		zfs unmount rpool/ROOT/debian
+	    fi
 	fi
     done
     if [ "$1" != "keep" ]
