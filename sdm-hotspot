@@ -16,6 +16,9 @@
 # * Invoke with 'sudo sdm-hotspot config-file`
 # * See https://github.com/gitbls/sdm/README.md for details on the --hotspot config-file
 #
+# NOTE: This file is obsolete, although it should work on Bullseye
+#       For Bookworm, see the sdm plugin 'hotspot'
+#
 
 function saveorig() {
     #
