@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|audio|audioconf|blanking|boot_behavior|boot_behaviour|boot_order|boot_splash|boot_wait|camera|composite|glamor|gldriver|i2c|memory_split|legacy|net_names|onewire|overclock|overscan|pixdub|pi4video|powerled|leds|overlayfs|rgpio|serial|spi|xcompmgr|"
+vldargs="|audio|audioconf|blanking|boot_behavior|boot_behaviour|boot_order|boot_splash|boot_wait|camera|composite|glamor|gldriver|i2c|memory_split|legacy|net_names|onewire|overclock|overscan|pixdub|pi4video|powerled|leds|overlayfs|rgpio|serial|spi|xcompmgr|vnc_resolution|"
 # These take 2 args, need more research: overscan_kms, fan, boot_rom, resolution, proxy
 rqdargs=""
 immedargs="|serial|"
