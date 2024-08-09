@@ -28,29 +28,28 @@ The `--b1script` script will be copied to /etc/sdm/assets on the SD Card/image b
 
 See <a href="Example-Burn-Scripts.md">Example Burn Scripts</a> for examples of b0script and b1script
 
-## Switches that work with --burn
+## Switches that work with --burn and --burnfile
 
-These switches can be used with `--burn`. When used this way, they affect only the output SSD/SD Card, and not the IMG file.
+These switches can be used with `--burn` and `--burnfile`. When used this way, they affect only the output IMG/SSD/SD Card, and not the source IMG file.
 
 * `--autologin`
 * `--b0script`
 * `--b1script`
 * `--bootscripts`
+* `--burn-plugin`
 * `--expand-root`
+* `--no-expand-root`
 * `--hostname`
-* `--noreboot`
+* `--noreboot` and `--norestart`
 * `--nowait-timesync`
-* `--rebootwait`
 * `--plugin`
 * `--plugin-debug`
-* `--rclocal`
 * `--reboot`
 * `--redact`
-* `--regen-ssh-keys`
+* `--regen-ssh-host-keys`
 * `--update-plugins`
-* `--wifi-country`
 
-In addition to the above switches, any plugin can be run from the `--burn` command line, exactly as you can when customizing an IMG.
+In addition to the above switches, any plugin can be run from the `--burn` or `--burnfile` command line, exactly as you can when customizing an IMG.
 <br>
 <br>
 <form>
