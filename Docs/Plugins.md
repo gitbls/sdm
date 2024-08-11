@@ -855,6 +855,27 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 * `--plugin serial:pi5|enableshell` &mdash; Configure the serial port for a Pi5 and enable a login shell on it
 * `--plugin serial:pi5debug` &mdash; Configure the debug serial port for a Pi5
 
+### syncthing
+
+The `syncthing` plugin installs <a href="">syncthing </a>.
+
+#### Arguments
+vldargs="|enablesvc|gui-address|gui-password|gui-user|homedir|release|runasuser|runwait|synchost|"
+
+* **enablesvc** &mdash; Enable the syncthing service during sdm FirstBoot
+* **gui-address** &mdash; GUI listen address, which by default is set to 127.0.0.1:8384 For example: 0.0.0.0:8384 or http://0.0.0.0:8384
+* **gui-password** &mdash; GUI authentication password used in conjunction with the `gui-user`
+* **gui-user** &mdash; GUI authentication username
+* **homedir** &mdash; Home directory to use. Default is the `runasuser` home directory
+* **release** &mdash; syncthing release to install. Default: `stable`
+* **runasuser** &mdash; Username to be used to run the syncthing service. Default: First user created with the `user` plugin
+* **synchost** &mdash; Hostname that will eventually be used for this host. (Sorry that you need to specify this here)
+
+#### Examples
+
+* `--plugin syncthing` &mdash; Install syncthing. GUI username/password will not be set. GUI will only be accessible from browsers running on the same host as syncthing. syncthing will run as the first user created with the `user` plugin. Hostname will be set to `sdm`, which can be edited in config.xml
+* `--plugin syncthing:"enablesvc|gui-address=0.0.0.0:8384|gui-password=asecret|gui-user=syncuser|synchost=mysyncserver"` &mdash; Install syncthing. GUI username/password will be set. GUI will be accessible from browsers running on any LAN host. syncthing will run as the first user created with the `user` plugin. Hostname will be set to `mysyncserver`, presumably the same hostname used on the target system.
+
 ### system
 
 The `system` plugin is a collection of system-related configuration settings. You are responsible for using correct file types expected by each function (e.g., .conf, .rules, etc). The plugin does no checking/modification of file types.
