@@ -1,0 +1,118 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: syncthing
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function converty() {
+    [ -v enablesvc ] && enablesvc=y
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|enablesvc|gui-address|gui-password|gui-user|homedir|release|runasuser|runwait|synchost|"
+rqdargs=""                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    # Add the release PGP keys:
+    mkdir -p /etc/apt/keyrings
+    curl -L -o $SDMPT/etc/apt/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
+    mkdir -p $assetdir
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    [ "$release" == "" ] && release=stable
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    logtoboth "> Plugin $pfx: Add syncthing release '$release' to apt sources"
+    echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing $release" > /etc/apt/sources.list.d/syncthing.list
+    logtoboth "> Plugin $pfx: Perform update and install syncthing"
+    doaptrpterror "update" $showapt
+    doaptrpterror "install --no-install-recommends --yes syncthing"
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then 
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    [ "$runasuser" == "" ] && runasuser=$myuser
+    [ "$runwait" == "" ] && runwait=3
+    if [ "$homedir" == "" ]
+    then
+	[ "$runasuser" == "root" ] && homedir="/root" || homedir="/home/$runasuser"
+    fi
+    [[ "$gui__user" == "" ]] || [[ "$gui__password" == "" ]] && gui_user=""
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    logtoboth "> Plugin $pfx: Configure sysctl to increase UDP receive buffer size"
+    echo "net.core.rmem_max=7500000" >  /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
+    echo "net.core.wmem_max=7500000" >> /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
+    #
+    # Run syncthing so config directories get created, then tweak them
+    #
+    logtoboth "> Plugin $pfx: Run syncthing as user '$runasuser' to create config files"
+    cat > $assetdir/cfgsyncthing <<EOF
+#!/bin/bash
+echo "> Plugin $pfx: Generate syncthing config dir '$homedir/.local/state/syncthing'"
+syncthing --generate $homedir/.local/state/syncthing
+[ "$gui__user" != "" ] && echo "> Plugin $pfx: Set gui user '$gui__user' and password" && syncthing generate --gui-user "$gui__user" --gui-password "$gui__password"
+#DOESNTWORK[ "$guid__address" != "" ] && syncthing --gui-address $gui__address
+EOF
+    chmod 755 $assetdir/cfgsyncthing
+    # Use /tmp b/c runasuser can't read/write $assetdir
+    cp $assetdir/cfgsyncthing /tmp
+    [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Set syncthing hostname to '$synchost'" && savehost=$(hostname) && hostname $synchost
+    logtoboth "> Plugin $pfx: Perform syncthing configuration as user '$runasuser' using '$assetdir/cfgsyncthing'"
+    su $runasuser /tmp/cfgsyncthing </dev/null >/tmp/cfgsyncthing.log 2>&1
+    mv /tmp/cfgsyncthing.log $assetdir
+    rm -f /tmp/cfgsyncthing
+    if [ "$gui__address" != "" ]
+    then
+	if [ -f $homedir/.local/state/syncthing/config.xml ]
+	then
+	    logtoboth "> Plugin $pfx: Enable syncthing for user '$runasuser' to listen on IP '$gui__address'"
+	    sed -i "s#<address>127.0.0.1:8384</address>#<address>$gui__address:8384</address>#" $homedir/.local/state/syncthing/config.xml
+	else
+	    logtobothex "? Plugin $pfx: Cannot find ${runasuser}'s syncthing's config.xml; Please review $assetdir/cfgsyncthing.log / file an issue on sdm GitHub"
+	fi
+    fi
+    logtoboth "> Plugin $pfx: Configure the syncthing service for user '$runasuser'"
+    systemctl disable syncthing@$runasuser
+    [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Restore hostname '$savehost'" && hostname $savehost
+    # Configure to start syncthing service at end of FirstBoot
+    [ "$enablesvc" == "y" ] && cat > /etc/sdm/0piboot/098-enable-syncthing <<EOF
+#!/bin/bash
+logger "sdm FirstBoot: Enable service: syncthing@$runasuser"
+systemctl enable syncthing@$runasuser
+EOF
+
+    #
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
