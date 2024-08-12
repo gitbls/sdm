@@ -77,34 +77,33 @@ then
     # Run syncthing so config directories get created, then tweak them
     #
     logtoboth "> Plugin $pfx: Run syncthing as user '$runasuser' to create config files"
+    [ "$gui__address" == "" ] && gui__address="127.0.0.1:8384"
     cat > $assetdir/cfgsyncthing <<EOF
 #!/bin/bash
-echo "> Plugin $pfx: Generate syncthing config dir '$homedir/.local/state/syncthing'"
+mkdir -p $homedir/.local/state/syncthing
+chmod 700 $homedir/.local $homedir/.local/state $homedir/.local/state/syncthing
+cat > $homedir/.local/state/syncthing/config.xml <<ZEOF
+<configuration version="37">
+    <gui enabled="true" tls="false" debugging="false">
+        <address>$gui__address</address>
+    </gui>
+</configuration>
+ZEOF
+chmod 600 $homedir/.local/state/syncthing/config.xml
 syncthing --generate $homedir/.local/state/syncthing
 [ "$gui__user" != "" ] && echo "> Plugin $pfx: Set gui user '$gui__user' and password" && syncthing generate --gui-user "$gui__user" --gui-password "$gui__password"
-#DOESNTWORK[ "$guid__address" != "" ] && syncthing --gui-address $gui__address
 EOF
     chmod 755 $assetdir/cfgsyncthing
     # Use /tmp b/c runasuser can't read/write $assetdir
     cp $assetdir/cfgsyncthing /tmp
     [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Set syncthing hostname to '$synchost'" && savehost=$(hostname) && hostname $synchost
-    logtoboth "> Plugin $pfx: Perform syncthing configuration as user '$runasuser' using '$assetdir/cfgsyncthing'"
+    logtoboth "> Plugin $pfx: Configure syncthing as user '$runasuser' using '$assetdir/cfgsyncthing'"
     su $runasuser /tmp/cfgsyncthing </dev/null >/tmp/cfgsyncthing.log 2>&1
     mv /tmp/cfgsyncthing.log $assetdir
-    rm -f /tmp/cfgsyncthing
-    if [ "$gui__address" != "" ]
-    then
-	if [ -f $homedir/.local/state/syncthing/config.xml ]
-	then
-	    logtoboth "> Plugin $pfx: Enable syncthing for user '$runasuser' to listen on IP '$gui__address'"
-	    sed -i "s#<address>127.0.0.1:8384</address>#<address>$gui__address:8384</address>#" $homedir/.local/state/syncthing/config.xml
-	else
-	    logtobothex "? Plugin $pfx: Cannot find ${runasuser}'s syncthing's config.xml; Please review $assetdir/cfgsyncthing.log / file an issue on sdm GitHub"
-	fi
-    fi
+    rm -f /tmp/cfgsyncthing  # be neat
+    [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Restore hostname '$savehost'" && hostname $savehost
     logtoboth "> Plugin $pfx: Configure the syncthing service for user '$runasuser'"
     systemctl disable syncthing@$runasuser
-    [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Restore hostname '$savehost'" && hostname $savehost
     # Configure to start syncthing service at end of FirstBoot
     [ "$enablesvc" == "y" ] && cat > /etc/sdm/0piboot/098-enable-syncthing <<EOF
 #!/bin/bash

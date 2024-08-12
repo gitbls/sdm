@@ -860,10 +860,9 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 The `syncthing` plugin installs <a href="">syncthing </a>.
 
 #### Arguments
-vldargs="|enablesvc|gui-address|gui-password|gui-user|homedir|release|runasuser|runwait|synchost|"
 
 * **enablesvc** &mdash; Enable the syncthing service during sdm FirstBoot
-* **gui-address** &mdash; GUI listen address, which by default is set to 127.0.0.1:8384 For example: 0.0.0.0:8384 or http://0.0.0.0:8384
+* **gui-address** &mdash; GUI listen address, which by default is set by syncthing to 127.0.0.1:8384 For example: 0.0.0.0:8384 or http://0.0.0.0:8384
 * **gui-password** &mdash; GUI authentication password used in conjunction with the `gui-user`
 * **gui-user** &mdash; GUI authentication username
 * **homedir** &mdash; Home directory to use. Default is the `runasuser` home directory
