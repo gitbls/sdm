@@ -121,6 +121,7 @@ for f in sdm sdm-phase0 \
 	     plugins/disables \
 	     plugins/explore \
 	     plugins/extractfs \
+	     plugins/git-clone \
 	     plugins/graphics \
 	     plugins/hotspot \
 	     plugins/imon \
