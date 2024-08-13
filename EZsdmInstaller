@@ -112,6 +112,7 @@ for f in sdm sdm-phase0 \
 	     plugins/apt-cacher-ng \
 	     plugins/apt-file \
 	     plugins/bootconfig \
+	     plugins/burnpwd \
 	     plugins/btwifiset \
 	     plugins/chrony \
 	     plugins/clockfake \
@@ -121,11 +122,11 @@ for f in sdm sdm-phase0 \
 	     plugins/disables \
 	     plugins/explore \
 	     plugins/extractfs \
+	     plugins/git-clone \
 	     plugins/graphics \
 	     plugins/hotspot \
 	     plugins/imon \
 	     plugins/knockd \
-	     plugins/L10n \
 	     plugins/lxde \
 	     plugins/mkdir \
 	     plugins/modattr \
