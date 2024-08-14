@@ -183,16 +183,16 @@ nmcli c down "$hsname"
 nmcli c down "Wired connection 1"
 nmcli c modify "$hsname" autoconnect no ipv6.method disabled    # ipv4.addresses $wlanip/24
 
-nmcli c add ifname br0 type bridge con-name br0 bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1
-nmcli c down br0
+nmcli c add ifname "$hsname"-br0 type bridge con-name "$hsname"-br0 bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1
+nmcli c down "$hsname"-br0
 
-nmcli c add type bridge-slave ifname $fwdev master br0 autoconnect $acsts
+nmcli c add type bridge-slave ifname $fwdev con-name "$hsname"-bridge-slave-$fwdev master "$hsname"-br0 autoconnect $acsts
 
-nmcli c add type ethernet slave-type bridge con-name bridge-br0 ifname $fwdev master br0
-nmcli c modify "$hsname" slave-type bridge master br0 wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword" #?needed? connection.autoconnect-slave yes
+nmcli c add type ethernet slave-type bridge con-name "$hsname"-bridge-br0 ifname $fwdev master "$hsname"-br0
+nmcli c modify "$hsname" slave-type bridge master "$hsname"-br0 wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword" #?needed? connection.autoconnect-slave yes
 
 nmcli c modify "$hsname" autoconnect $acsts
-nmcli c modify br0 autoconnect $acsts
+nmcli c modify "$hsname"-br0 autoconnect $acsts
 EOF
     fi
 }
