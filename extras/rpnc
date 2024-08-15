@@ -1,0 +1,173 @@
+#!/bin/bash
+#
+# Install sdm on an already-running system and configure it so that sdm plugins can be run
+#
+# Note: Only plugins tested as working and noted here are supported
+#       If you validate a plugin using this, please report it via the sdm github: https://github.com/gitbls/sdm
+#        so that the list can be updated
+#
+# Validated plugins:
+#       hotspot
+#
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+[ $EUID -eq 0 ] && sudo="" || sudo="sudo"
+
+if [ ! -d /etc/sdm ]
+then
+    echo $"
+This script will install sdm onto your running system in /usr/local/sdm. You can use it to:
+
+a) Customize RasPiOS IMGs per the documentation at https://github.com/gitbls/sdm
+b) Run plugins on this system that modify the running system
+
+Presumably you are using this script for b). If your goal is only to achieve a) above, please
+consider exiting this script and doing:
+
+    curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+
+For b), please be aware of the following:
+  * Only a small set of the sdm plugins are tested and supported. Specifically, the hotspot plugin
+
+  * Others may work. If you're interested in using a different plugin on your system, please
+    consider raising an issue in the sdm github before you try it. Or, try it, on a COPY of
+    your system. If it works for you, I'd be interested in knowing so that the information
+    can be shared with other users.
+
+  * Using sdm in this mode with an untested plugin could impact your system configuration. As such,
+    the sdm author accepts no responsibility for what might happen to your system if you
+    use it in an unsupported manner. If this happens to you, you might consider using sdm
+    when you rebuild your system, so that future system disk disasters are merely an
+    inconvenience.
+"
+    askyn "Continue" || exit 0
+fi
+
+echo "> Install sdm into /usr/local/sdm"
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+echo "> Create /etc/sdm/cparams"
+(cat <<EOF
+version:"V12.6"
+thishost:""
+aptcache:""
+aptdistupgrade:""
+autologin:"0"
+fbatch:"0"
+b0script:""
+b1script:""
+bootscripts:"0"
+burnplugins:""
+cscript:""
+csrc:""
+datefmt:"%Y-%m-%d %H:%M:%S"
+debugs:""
+dimg:""
+dimgdev:"0"
+dimgdevname:""
+domain:""
+ecolors:"blue:gray:red"
+expandroot:""
+exports:""
+fchroot:"0"
+fdirtree:"0"
+fnoexpandroot:"0"
+hname:""
+hostname:""
+loadlocal:""
+logwidth:"192"
+dgroups:"dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio"
+myuser:""
+nowaittimesync:"0"
+os:""
+pi1bootconf:""
+plugindebug:"0"
+poptions:""
+raspiosver:""
+reboot:""
+fredact:"0"
+regensshkeys:""
+noreboot:"0"
+rebootwait:"20"
+redocustomize:"0"
+sdmdir:"/usr/local/sdm"
+sdmflist:"sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
+showapt:"0"
+src:"/usr/local/sdm"
+swapsize:"0"
+timezone:""
+virtmode:"nspawn"
+vqemu:""
+wificountry:""
+custom1:""
+custom2:""
+custom3:""
+custom4:""
+plugins:""
+allplugins:""
+EOF
+    ) | $sudo bash -c "cat >/etc/sdm/cparams"
+#$sudo sed -i "s/\\\//g" /etc/sdm/cparams
+
+$sudo mkdir -p /etc/sdm/assets /etc/sdm/0piboot /etc/sdm/xpiboot /etc/sdm/local-assets /etc/sdm/1piboot
+$sudo touch /etc/sdm/history
+
+cat <<EOF
+How to run a plugin (generally) and the hotspot plugin (specifically):
+
+
+To run a plugin use the following commands:
+  sudo sdm --runonly plugins --directory / --plugin pluginname:"args if there are any"
+  sudo ls -l /etc/sdm/0piboot/*
+
+Then for each file in /etc/sdm/0piboot:
+
+sudo chmod 755 /etc/sdm/0piboot/000-long-hyphenated-name.sh    # For example. Do each one individually
+# Run the file
+sudo /etc/sdm/0piboot/000-long-hyphenated-name.sh
+# Rename the file so you don't accidentally run it again
+sudo mv /etc/sdm/0piboot/000-long-hyphenated-name.sh /etc/sdm/0piboot/.000-long-hyphenated-name.sh
+
+NOTE: Re-doing a hotspot with a different 'type' argument (e.g. switching from bridged to routed or vice versa)
+      is NOT supported. It will require manual intervention. Choose wisely.
+
+
+Complete example for 'hotspot' plugin creating a routed hotspot:
+
+sudo sdm --runonly plugins --directory / --plugin hotspot:"type=routed|ipforward=eth0|hsenable"
+sudo ls -l /etc/sdm/0piboot
+sudo chmod 755 /etc/sdm/0piboot/092-nm-hotspot-routed.sh
+sudo /etc/sdm/0piboot/092-hotspot-routed.sh
+sudo mv /etc/sdm/0piboot/092-nm-hotspot-routed.sh /etc/sdm/0piboot/.092-nm-hotspot-routed.sh
+#
+# View the new hotspot connections
+#
+sudo nmcli c show
+
+
+Complete example for 'hotspot' plugin creating a bridged hotspot:
+
+sudo sdm --runonly plugins --directory / --plugin hotspot:"type=bridged|hsenable"
+sudo ls -l /etc/sdm/0piboot
+sudo chmod 755 /etc/sdm/0piboot/092-nm-hotspot-bridged.sh
+sudo /etc/sdm/0piboot/092-hotspot-bridged.sh
+sudo mv /etc/sdm/0piboot/092-nm-hotspot-bridged.sh /etc/sdm/0piboot/.092-nm-hotspot-bridged.sh
+sudo nmcli c show
+#
+# Reboot to fully activate the hotspot
+#
+sudo reboot
+#
+# View the new hotspot connections after reboot
+#
+EOF
+
+exit
+
