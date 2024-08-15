@@ -166,9 +166,10 @@ function cfgnetman() {
 logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
 rfkill unblock wlan
 nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts
 nmcli c down "$hsname"
-nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad
-nmcli c modify "$hsname" autoconnect $acsts
+nmcli c reload
+[ "$acsts" == "on" ] && nmcli c up "$hsname"
 EOF
     else
 	logtoboth "> Plugin $pfx: Write sdm First Boot script to configure bridged hotspot '$hsname'"
@@ -178,21 +179,68 @@ EOF
 logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
 rfkill unblock wlan
 
-nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
-nmcli c down "$hsname"
+#logger "sdm FirstBoot: \$(nmcli c show)"
+
+# Disable autoconnect on any connections for $fwdev that are not part of the hotspot
+while read nmfile
+do
+    if grep -qs interface-name=$fwdev \$nmfile
+    then
+        IFS="=" read idx cname < <(grep ^id= \$nmfile)
+        if ! [[ "\$cname" =~ "$hsname" ]]
+        then
+            logger "sdm FirstBoot: Disable connection '\$cname'"
+            nmcli c down "\$cname"
+            nmcli c modify "\$cname" autoconnect off
+        fi
+    fi
+    if grep -qs interface-name=$device \$nmfile
+    then
+        IFS="=" read idx cname < <(grep ^id= \$nmfile)
+        if ! [[ "\$cname" =~ "$hsname" ]]
+        then
+            logger "sdm FirstBoot: Disable connection '\$cname'"
+            nmcli c down "\$cname"
+            nmcli c modify "\$cname" autoconnect off
+        fi
+    fi
+done < <(compgen -G "/etc/NetworkManager/system-connections/*.nmconnection")
+
+logger "sdm FirstBoot: Stop 'Wired connnection 1'"
 nmcli c down "Wired connection 1"
-nmcli c modify "$hsname" autoconnect no ipv6.method disabled    # ipv4.addresses $wlanip/24
 
-nmcli c add ifname "$hsname-br0" type bridge con-name "$hsname-br0" bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1
-nmcli c down "$hsname-br0"
+logger "sdm FirstBoot: Create bridge '$hsname-br0'"
+nmcli c add ifname "$hsname-br0" type bridge con-name "$hsname-br0" bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1 autoconnect $acsts
+#nmcli c show "$hsname-br0"  > /root/"$hsname-br0".nmcli
+#nmcli c down "$hsname-br0"
 
+logger "sdm FirstBoot: Create bridge slave '$hsname-bridge-slave-$fwdev'"
 nmcli c add type bridge-slave ifname $fwdev con-name "$hsname-bridge-slave-$fwdev" master "$hsname-br0" autoconnect $acsts
+#nmcli c show "$hsname-bridge-slave-$fwdev"  > /root/"$hsname-bridge-slave-$fwdev".nmcli
 
+logger "sdm FirstBoot: Create bridge '$hsname-bridge-br0'"
 nmcli c add type ethernet slave-type bridge con-name "$hsname-bridge-br0" ifname $fwdev master "$hsname-br0"
-nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword" #?needed? connection.autoconnect-slave yes
+#nmcli c show "$hsname-bridge-br0"  > /root/"$hsname-bridge-br0".nmcli
 
-nmcli c modify "$hsname" autoconnect $acsts
-nmcli c modify "$hsname"-br0 autoconnect $acsts
+#?needed? connection.autoconnect-slave yes
+logger "sdm FirstBoot: create wifi hotspot '$hsname'"
+nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
+#nmcli c show "$hsname"  > /root/"$hsname".nmcli
+nmcli c down "$hsname"
+logger "sdm FirstBoot: Modify hotspot '$hsname' for bridge configuration"
+nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword" autoconnect $acsts
+#nmcli c show "$hsname"  > /root/"$hsname"-after-modify.nmcli
+# ipv4.addresses $wlanip/24
+
+logger "sdm FirstBoot: After configuration: \$(nmcli c show)"
+
+if [ "$acsts" == "yes" ]
+then
+    nmcli c reload
+    nmcli c up "$hsname"
+    nmcli c up "$hsname-br0"
+    nmcli c up "$hsname-bridge-slave-$fwdev"
+fi
 EOF
     fi
 }
