@@ -11,6 +11,9 @@ function loadparams() {
 
 function converty() {
     [ -v enablesvc ] && enablesvc=y
+    [ -v nolinger ] && nolinger=y
+    [ "$runasuser" == "" ] && runasuser=$myuser
+    assetdir="$assetdir/$runasuser"
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -22,7 +25,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|enablesvc|gui-address|gui-password|gui-user|homedir|release|runasuser|runwait|synchost|"
+vldargs="|enablesvc|connect-address|gui-address|gui-password|gui-user|homedir|nolinger|release|runasuser|runwait|sendstats|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -34,10 +37,24 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
+    converty
     # Add the release PGP keys:
     mkdir -p /etc/apt/keyrings
-    curl -L -o $SDMPT/etc/apt/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
+    notfirst=0
+    if [ ! -f $SDMPT/etc/apt/keyrings/syncthing-archive-keyring.gpg ]
+    then
+	logtoboth "> Plugin $pfx: Download syncthing release key"
+	curl -L https://syncthing.net/release-key.gpg -o $SDMPT/etc/apt/keyrings/syncthing-archive-keyring.gpg
+    else
+	[ "$(compgen -G "$SDMPT/etc/sdm/assets/syncthing/*")" != "" ] && notfirst=1
+    fi
     mkdir -p $assetdir
+    if [ $notfirst -eq 1 ]
+    then
+	#logtobothex "? Plugin $pfx: Currently unable to configure multiple syncthing users"
+	[ "$gui__address" == "" ] && logtobothex "? Plugin $pfx: User '$runasuser' is not the first user; argument 'gui-address' is required"
+	[ "$connect__address" == "" ] && logtobothex "? Plugin $pfx: User '$runasuser' is not the first user; argument 'connect-address' is required"
+    fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
@@ -46,13 +63,17 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    converty
     [ "$release" == "" ] && release=stable
     #logfreespace "at start of Plugin $pfx Phase 1"
-    logtoboth "> Plugin $pfx: Add syncthing release '$release' to apt sources"
-    echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing $release" > /etc/apt/sources.list.d/syncthing.list
-    logtoboth "> Plugin $pfx: Perform update and install syncthing"
-    doaptrpterror "update" $showapt
-    doaptrpterror "install --no-install-recommends --yes syncthing"
+    if [ ! -f /etc/apt/sources.list.d/syncthing.list ]
+    then
+	logtoboth "> Plugin $pfx: Add syncthing release '$release' to apt sources"
+	echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing $release" > /etc/apt/sources.list.d/syncthing.list
+	logtoboth "> Plugin $pfx: Perform apt update and install syncthing"
+	doaptrpterror "update" $showapt
+	doaptrpterror "install --no-install-recommends --yes syncthing"
+    fi
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 elif [ "$phase" == "post-install" ]
@@ -62,24 +83,39 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    [ "$runasuser" == "" ] && runasuser=$myuser
+    converty
     [ "$runwait" == "" ] && runwait=3
     if [ "$homedir" == "" ]
     then
 	[ "$runasuser" == "root" ] && homedir="/root" || homedir="/home/$runasuser"
     fi
     [[ "$gui__user" == "" ]] || [[ "$gui__password" == "" ]] && gui_user=""
+    [ "$runasuser" == "" ] && logtobothex "? Plugin $pfx: No runasuser specified"
+    [ "$(getent passwd $runasuser)" == "" ] && logtobothex "? Plugin $pfx: Unknown runasuser '$runasuser'"
+    [ "$sendstats" == "" ] && sendstats=1
+    logtoboth "> Plugin $pfx: Configure syncthing"
+    logtoboth "  User: $runasuser"
+    logtoboth "  Home Directory: $homedir"
+    logtoboth "  Send Statistics: $sendstats"
+    [ "$enablesvc" == "y" ] && s1="yes" || s1="no"
+    logtoboth "  Service Enabled: $s1"
+    [ "$nolinger" == "y" ] && s1="no" || s1="yes"
+    logtoboth "  Start service for user at boot: $s1"
     #logfreespace "at start of Plugin $pfx Phase post-install"
-    logtoboth "> Plugin $pfx: Configure sysctl to increase UDP receive buffer size"
-    echo "net.core.rmem_max=7500000" >  /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
-    echo "net.core.wmem_max=7500000" >> /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
-    #
-    # Run syncthing so config directories get created, then tweak them
-    #
-    logtoboth "> Plugin $pfx: Run syncthing as user '$runasuser' to create config files"
+    if [ ! -f /etc/sysctl.d/062-syncthing-receive-buffer-size.conf ]
+    then
+	logtoboth "> Plugin $pfx: Configure sysctl to increase UDP receive buffer size"
+	echo "net.core.rmem_max=7500000" >  /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
+	echo "net.core.wmem_max=7500000" >> /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
+    fi
+
+    logtoboth "> Plugin $pfx: Prepare sdm FirstBoot script for user '$runasuser' to complete syncthing configuration"
     [ "$gui__address" == "" ] && gui__address="127.0.0.1:8384"
+    [ "$connect__address" != "" ] && [[ "${connect__address##*://}" == "$connect__address" ]] && connect__address="tcp://$connect__address"
     cat > $assetdir/cfgsyncthing <<EOF
 #!/bin/bash
+echo $"cfgsyncthing for user '$runasuser' Created: $(thisdate) Run: \$(date +"$datefmt")
+"
 mkdir -p $homedir/.local/state/syncthing
 chmod 700 $homedir/.local $homedir/.local/state $homedir/.local/state/syncthing
 cat > $homedir/.local/state/syncthing/config.xml <<ZEOF
@@ -90,25 +126,36 @@ cat > $homedir/.local/state/syncthing/config.xml <<ZEOF
 </configuration>
 ZEOF
 chmod 600 $homedir/.local/state/syncthing/config.xml
+# Get user's group and then chown .local subtree
+IFS=":" read xuser xpw xuid gx rest <<< \$(getent passwd $runasuser)
+chown -R $runasuser:\$gx $homedir/.local
+# Generate full syncthing config.txt and configure gui-user/password
 syncthing --generate $homedir/.local/state/syncthing
-[ "$gui__user" != "" ] && echo "> Plugin $pfx: Set gui user '$gui__user' and password" && syncthing generate --gui-user "$gui__user" --gui-password "$gui__password"
+[ "$connect__address" != "" ] && sed -i "s#<listenAddress>default#<listenAddress>$connect__address#" $homedir/.local/state/syncthing/config.xml
+# Update send stats accept in xml
+sed -i "s/<urAccepted>0/<urAccepted>$sendstats/" $homedir/.local/state/syncthing/config.xml
+[ "$gui__user" != "" ] && syncthing generate --gui-user "$gui__user" --gui-password "$gui__password"
 EOF
+    [ "$enablesvc" == "y" ] && echo "systemctl enable --user syncthing" >> $assetdir/cfgsyncthing
     chmod 755 $assetdir/cfgsyncthing
-    # Use /tmp b/c runasuser can't read/write $assetdir
-    cp $assetdir/cfgsyncthing /tmp
-    [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Set syncthing hostname to '$synchost'" && savehost=$(hostname) && hostname $synchost
-    logtoboth "> Plugin $pfx: Configure syncthing as user '$runasuser' using '$assetdir/cfgsyncthing'"
-    su $runasuser /tmp/cfgsyncthing </dev/null >/tmp/cfgsyncthing.log 2>&1
-    mv /tmp/cfgsyncthing.log $assetdir
-    rm -f /tmp/cfgsyncthing  # be neat
-    [ "$synchost" != "" ] && logtoboth "> Plugin $pfx: Restore hostname '$savehost'" && hostname $savehost
-    logtoboth "> Plugin $pfx: Configure the syncthing service for user '$runasuser'"
-    systemctl disable syncthing@$runasuser
-    # Configure to start syncthing service at end of FirstBoot
-    [ "$enablesvc" == "y" ] && cat > /etc/sdm/0piboot/098-enable-syncthing <<EOF
+    # Run syncthing configuration script at end of sdm FirstBoot
+    cat > /etc/sdm/0piboot/098-enable-syncthing-$runasuser.sh <<EOF
 #!/bin/bash
-logger "sdm FirstBoot: Enable service: syncthing@$runasuser"
-systemctl enable syncthing@$runasuser
+logger "sdm FirstBoot: Configure and Enable syncthing for user $runasuser"
+# Use /tmp b/c runasuser can't read/write $assetdir
+cp $assetdir/cfgsyncthing /tmp/cfgsyncthing-$runasuser
+chmod 755 /tmp/cfgsyncthing-$runasuser
+logger "sdm FirstBoot: Configure syncthing as user '$runasuser' using '$assetdir/cfgsyncthing'"
+logger "               Log: $assetdir/cfgsyncthing-$runasuser.log"
+su $runasuser /tmp/cfgsyncthing-$runasuser </dev/null >/tmp/cfgsyncthing-$runasuser.log 2>&1
+mv /tmp/cfgsyncthing-$runasuser.log $assetdir
+rm -f /tmp/cfgsyncthing-$runasuser  # be neat
+if [ "$nolinger" != "y" ]
+then
+    logger "sdm FirstBoot: Enable linger for user '$runasuser'"
+    loginctl enable-linger $runasuser
+fi
+exit 0
 EOF
 
     #

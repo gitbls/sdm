@@ -857,23 +857,40 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 
 ### syncthing
 
-The `syncthing` plugin installs <a href="">syncthing </a>.
+The `syncthing` plugin installs <a href="">syncthing </a> and configures it for the user specified by `runasuser`.
 
 #### Arguments
 
+* **connect-address** &mdash; Address or host name to use when attempting to connect to this device. Must be fully specified. For example: tcp://0.0.0.0:22001. See <a href="https://docs.syncthing.net/users/config.html#listen-addresses">listen-addresses</a> for specfication details.
 * **enablesvc** &mdash; Enable the syncthing service during sdm FirstBoot
-* **gui-address** &mdash; GUI listen address, which by default is set by syncthing to 127.0.0.1:8384 For example: 0.0.0.0:8384 or http://0.0.0.0:8384
+* **gui-address** &mdash; GUI listen address. Default is 127.0.0.1:8384 For example: 0.0.0.0:8384 or http://0.0.0.0:8384
 * **gui-password** &mdash; GUI authentication password used in conjunction with the `gui-user`
 * **gui-user** &mdash; GUI authentication username
-* **homedir** &mdash; Home directory to use. Default is the `runasuser` home directory
+* **homedir** &mdash; Home directory to use. Default: `runasuser` home directory
+* **nolinger** &mdash; Do not start syncthing for user until user logs in. Default: syncthing started for user at system boot once enabled by `enablesvc` or manually via `systemctl enable --user syncthing` from the user account
+    * Can be controlled manually after system up and running. If modifying other than current user specify `username` and use `sudo`
+        * Enable linger:  `loginctl enable-linger [username]` 
+        * Disable linger: `loginctl disable-linger [username]`
 * **release** &mdash; syncthing release to install. Default: `stable`
 * **runasuser** &mdash; Username to be used to run the syncthing service. Default: First user created with the `user` plugin
+* **sendstats** &mdash; Send statistics setting (-1: Never, 0: Ask, 1: Always). Default: Always
 * **synchost** &mdash; Hostname that will eventually be used for this host. (Sorry that you need to specify this here)
 
 #### Examples
 
 * `--plugin syncthing` &mdash; Install syncthing. GUI username/password will not be set. GUI will only be accessible from browsers running on the same host as syncthing. syncthing will run as the first user created with the `user` plugin. Hostname will be set to `sdm`, which can be edited in config.xml
-* `--plugin syncthing:"enablesvc|gui-address=0.0.0.0:8384|gui-password=asecret|gui-user=syncuser|synchost=mysyncserver"` &mdash; Install syncthing. GUI username/password will be set. GUI will be accessible from browsers running on any LAN host. syncthing will run as the first user created with the `user` plugin. Hostname will be set to `mysyncserver`, presumably the same hostname used on the target system.
+* `--plugin syncthing:"enablesvc|gui-address=0.0.0.0:8384|gui-password=asecret|gui-user=syncuser"` &mdash; Install syncthing. GUI username/password will be set. GUI will be accessible from browsers running on any LAN host. syncthing will run as the first user created with the `user` plugin. The syncthing listenAddress will be set to the default (`tcp://0.0.0.0:22000`)
+* `--plugin syncthing:"enablesvc|gui-address=0.0.0.0:8384|gui-password=asecret|gui-user=syncuser" --plugin syncthing:"runasuser=syncuser2|enablesvc|gui-address=0.0.0.0:8385|gui-password=asecret|gui-user=syncuser2|connect-address=tcp://0.0.0.0:22001" `
+    * Install and configure syncthing for the first user created with the `user` plugin as in the previous example
+    * A second user, `syncuser2` will also be configured. The user `syncuser2` must be created using the `user` plugin before referencing it in the `syncthing` plugin. syncthing will listen on `tcp://0.0.0.0:22001` for the second user
+    * Each user must have a unique listenAddress
+
+#### Notes
+
+Final syncthing configuration is done during sdm FirstBoot. The script that will be run is in /etc/sdm/0piboot/098-enable-syncthing-`runasuser`.sh
+
+For a user's syncthing service to be started at boot `enablesvc` must be set and `nolinger` must NOT be set.
+
 
 ### system
 
