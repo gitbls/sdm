@@ -1,5 +1,13 @@
 # Changelog
 
+## V12.7
+
+* New Features
+* Improvements
+  * Run plugin's 0piboot scripts after running the plugin on live system, fully completing the plugin installation/configuration (Can't believe nobody ran into this!)
+  * Improve syncthing user service enablement
+* Bug Fixes
+
 ## V12.6
 
 * New Features

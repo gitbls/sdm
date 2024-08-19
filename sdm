@@ -193,7 +193,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V12.6"
+version="V12.7"
 sdmcommandline="$0 $@"      #Used in error messages
 apps=""                     #List of apps to install in sdm-base-installs
 aptcache=""                 #IP address of apt-cacher-ng server
@@ -725,6 +725,7 @@ then
 		fi
 	    fi
 	    # Either --oklive or said yes to modify running system
+	    live0scripts "/etc/sdm/0piboot/*.sh" clear
 	    logtoboth "* Run selected plugins on the host system"
 	    declare -x SDMPT=""
 	    declare -x SDMNSPAWN="Live0"
@@ -732,6 +733,7 @@ then
 	    declare -x SDMNSPAWN="Live1"
 	    runplugins_exit "$plugins" 1
 	    runplugins_exit "$plugins" post-install
+	    live0scripts "/etc/sdm/0piboot/*.sh" run
 	else
 	    # Operating on an IMG or disk
 	    declare -x SDMPT=$(makemtpt)
