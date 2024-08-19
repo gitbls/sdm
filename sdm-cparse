@@ -677,6 +677,30 @@ function runplugins_exit() {
     runplugins "$1" $phase "$xargv" && return || exit
 }
 
+function live0scripts() {
+    #
+    # Clear or run plugin boot scripts on the running system
+    #
+    # $1: path to clear or run (eg /etc/sdm/0piboot/*.sh)
+    #
+    local fni="$1" op=$2
+    local fbn ffn fpn
+
+    while read ffn
+    do
+	if [ "$op" == "run" ]
+	then
+            chmod 755 $ffn
+            logtoboth "* Run plugin FirstBoot script '$ffn'"
+            bash $ffn
+	fi
+        fbn=$(basename $ffn)
+        fpn=$(dirname $ffn)
+        rm -f $fpn/.$fbn
+        mv $ffn $fpn/.$fbn
+    done < <(compgen -G "$fni")
+}
+
 function ispluginselected() {
     #
     # Returns true if plugin name in $1 is on the command line
