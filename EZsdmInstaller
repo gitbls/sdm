@@ -84,7 +84,7 @@ fi
 
 echo "* Make directory '$dir' and download sdm files to it"
 
-$sudo mkdir -p $dir $dir/1piboot $dir/plugins $dir/local-plugins
+$sudo mkdir -p $dir $dir/0piboot $dir/1piboot $dir/xpiboot $dir/plugins $dir/local-plugins $dir/assets $dir/local-assets
 
 dlerrors=0
 for f in sdm sdm-phase0 \
