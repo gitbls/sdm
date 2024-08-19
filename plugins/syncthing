@@ -51,7 +51,6 @@ then
     mkdir -p $assetdir
     if [ $notfirst -eq 1 ]
     then
-	#logtobothex "? Plugin $pfx: Currently unable to configure multiple syncthing users"
 	[ "$gui__address" == "" ] && logtobothex "? Plugin $pfx: User '$runasuser' is not the first user; argument 'gui-address' is required"
 	[ "$connect__address" == "" ] && logtobothex "? Plugin $pfx: User '$runasuser' is not the first user; argument 'connect-address' is required"
     fi
@@ -98,9 +97,9 @@ then
     logtoboth "  Home Directory: $homedir"
     logtoboth "  Send Statistics: $sendstats"
     [ "$enablesvc" == "y" ] && s1="yes" || s1="no"
-    logtoboth "  Service Enabled: $s1"
+    logtoboth "  Enable syncthing user service: $s1"
     [ "$nolinger" == "y" ] && s1="no" || s1="yes"
-    logtoboth "  Start service for user at boot: $s1"
+    [ "$enablesvc" == "y" ] && logtoboth "  Start syncthing user service at boot: $s1"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     if [ ! -f /etc/sysctl.d/062-syncthing-receive-buffer-size.conf ]
     then
@@ -109,7 +108,7 @@ then
 	echo "net.core.wmem_max=7500000" >> /etc/sysctl.d/062-syncthing-receive-buffer-size.conf
     fi
 
-    logtoboth "> Plugin $pfx: Prepare sdm FirstBoot script for user '$runasuser' to complete syncthing configuration"
+    logtoboth "> Plugin $pfx: Create sdm FirstBoot script for user '$runasuser' to complete syncthing configuration"
     [ "$gui__address" == "" ] && gui__address="127.0.0.1:8384"
     [ "$connect__address" != "" ] && [[ "${connect__address##*://}" == "$connect__address" ]] && connect__address="tcp://$connect__address"
     cat > $assetdir/cfgsyncthing <<EOF
@@ -136,7 +135,6 @@ syncthing --generate $homedir/.local/state/syncthing
 sed -i "s/<urAccepted>0/<urAccepted>$sendstats/" $homedir/.local/state/syncthing/config.xml
 [ "$gui__user" != "" ] && syncthing generate --gui-user "$gui__user" --gui-password "$gui__password"
 EOF
-    [ "$enablesvc" == "y" ] && echo "systemctl enable --user syncthing" >> $assetdir/cfgsyncthing
     chmod 755 $assetdir/cfgsyncthing
     # Run syncthing configuration script at end of sdm FirstBoot
     cat > /etc/sdm/0piboot/098-enable-syncthing-$runasuser.sh <<EOF
@@ -147,17 +145,25 @@ cp $assetdir/cfgsyncthing /tmp/cfgsyncthing-$runasuser
 chmod 755 /tmp/cfgsyncthing-$runasuser
 logger "sdm FirstBoot: Configure syncthing as user '$runasuser' using '$assetdir/cfgsyncthing'"
 logger "               Log: $assetdir/cfgsyncthing-$runasuser.log"
-su $runasuser /tmp/cfgsyncthing-$runasuser </dev/null >/tmp/cfgsyncthing-$runasuser.log 2>&1
+su --login $runasuser /tmp/cfgsyncthing-$runasuser </dev/null >/tmp/cfgsyncthing-$runasuser.log 2>&1
 mv /tmp/cfgsyncthing-$runasuser.log $assetdir
 rm -f /tmp/cfgsyncthing-$runasuser  # be neat
+#mkdir -p $homedir/.config/systemd/user/multi-user.target.wants
+#IFS=":" read xuser xpw xuid gx rest <<< \$(getent passwd $runasuser)
+#chown -R $runasuser:\$gx $homedir/.config
 if [ "$nolinger" != "y" ]
 then
     logger "sdm FirstBoot: Enable linger for user '$runasuser'"
     loginctl enable-linger $runasuser
 fi
+if [ "$enablesvc" == "y" ]
+then
+    logger "sdm FirstBoot: Enable syncthing user service for '$runasuser'"
+    systemctl --machine "$runasuser@" --user enable syncthing
+    #ln -s /usr/lib/systemd/user/syncthing.service $homedir/.config/systemd/user/multi-user.target.wants
+fi
 exit 0
 EOF
-
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
