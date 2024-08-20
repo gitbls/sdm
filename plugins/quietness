@@ -33,7 +33,7 @@ then
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
-    plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
+    #plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
