@@ -646,12 +646,13 @@ function runplugins() {
     # If specified, $3 is a string to append to the plugin args (argname=value)
     # If Phase is not 0, caller must be in the container or use sdm_runspawn instead of calling this directly
     #
-    local mnt="$SDMPT" theseplugs="$1" phase=$2 xargv="$3" p pin pargs
+    local mnt="$SDMPT" theseplugs="$1" phase=$2 xargv="$3" p pin pargs plugs=()
 
     if [ "$theseplugs" != "" ]
     then
 	logtoboth "> Run Plugins Phase '$phase'"
-	IFS="~" read -r -a plugs <<< $theseplugs
+	IFS="~" read -r -a plugs <<< "$theseplugs"
+	#IFS="~" plugs=($theseplugs'')  # bash doesn't like this ;(
 	for p in "${plugs[@]}"
 	do
 	    if [ "$p" != "" ]
