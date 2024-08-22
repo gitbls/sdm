@@ -1151,7 +1151,7 @@ function sdm_runspawncmd() {
     # Commands are processed in sdm-phase1. See there.
     #
     local nspwn="$1" cmd="$2"
-    #logtoboth "DD sdm-runspawncmd: cmd=|$cmd| 3=|$3| 4=|$4| 5=|$5|"
+    #logtoboth "sdm-runspawncmd: cmd=|$cmd| 3=|$3| 4=|$4| 5=|$5| 6=|$6| 7=|$7| 8=|$8|" nosplit
     sdm_spawn "" "$nspwn" $sdmdir/sdm-phase1 "$cmd" "$3" "$4" "$5" "$6" "$7" "$8"
     return
 }
@@ -1169,6 +1169,14 @@ function sdm_spawn() {
     #
     local nspawnsw="$1" nsp="$2" cmd="$3" spcmd="$4" args="" ta
     local wtf wtfelf wtfarch rest sts hostarch hostpagesz pcor pat vers junk
+    for i in 6 7 8
+    do
+	ta="${!i}"
+	#echo "$i | $ta "
+	#[ "$ta" != "" ] && args="${args}\"$ta\" "
+	[ "$ta" != "" ] && args="${args}${ta} "
+    done
+
     if [[ "$virtmode" =~ "nspawn" ]]
     then
 	[ -t 0 ] && cmode="--console interactive" || cmode="--console pipe"
@@ -1178,16 +1186,17 @@ function sdm_spawn() {
 	then
 	    [[ ${BASH_REMATCH[0]} -lt 242 ]] && cmode=""
 	fi
+
 	nspawnsw="$nspawnsw --setenv=SDMNSPAWN=$nsp"
-	for i in 5 6 7 8
-	do
-	    ta="${!i}"
-	    #echo "$i | $ta "
-	    #[ "$ta" != "" ] && args="${args}\"$ta\" "
-	    [ "$ta" != "" ] && args="${args}${ta} "
-	done
-	#logtoboth "DD sdm-spawn: cmd=|$cmd| 4=|$4| 5=|$5| args=|$args| nspawnsw=|$nspawnsw| cmode=|$cmode|"
-	systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd $args
+
+        if [ "$cmd" == "/bin/bash" ]
+        then
+            # Bash is touchy for some reason. This works, so good for now
+	    systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd
+        else
+	    systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd "$5" "$args"
+        fi
+
 	sts=$?
 	if [ $sts -eq 127 ]
 	then
@@ -1241,7 +1250,12 @@ function sdm_spawn() {
 	declare -x SDMPT=""
 	declare -x SDMNSPAWN="$nsp"
 
-	chroot $OLDSDMPT $cmd
+	if [ "$cmd" == "/bin/bash" ]
+	then
+	    chroot $OLDSDMPT $cmd
+	else
+	    chroot $OLDSDMPT $cmd $spcmd "$5" "$args"
+	fi
 	sts=$?
 	declare -x SDMPT="$OLDSDMPT"
 	declare -x SDMNSPAWN="$OLDSDMNSPAWN"
