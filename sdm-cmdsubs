@@ -439,7 +439,7 @@ EOF
 	[ "$bhname" != "" ] && hname="$bhname"
 	plugins="$bplugins"
 	[ $bautologin -eq 1 ] && autologin=1
-	[ "$bburnplugins" != "" ] && burnplugins=$bburnplugins
+	[ "$bburnplugins" != "" ] && burnplugins="$bburnplugins"
 	expandroot=$((bexpandroot|expandroot))
 	fchroot=$((bfchroot|fchroot))
 	fnoexpandroot=$((bfnoexpandroot|fnoexpandroot))
