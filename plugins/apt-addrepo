@@ -53,16 +53,23 @@ then
 	    logtobothex "? Plugin $pfx: Repo source file '$repofile' not found"
 	fi
     fi
+
+    # Some key URLs just point to a directory, so getting key basename isn't always very helpful. Use name arg for naming control
+    if [ "$gpgkeyname" == "" ]
+    then
+	[ -f $gpgkey ] && gpgkeyname=$(basename "$gpgkey")
+    fi
+    gpgkeyname=${gpgkeyname%.*} # Strip file type
+    [ "$gpgkeyname" == "" ] && gpgkeyname="$name"
+
     if [[ -v gpgkey ]] && [[ -f $gpgkey ]]
     then
-	[ "$gpgkeyname" == "" ] && gpgkeyname=$(basename "$gpgkey")
-	gpgkeyname=${gpgkeyname%.*} # Strip file type
 	logtoboth "> Plugin $pfx: Copy gpg key '$gpgkey' to $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg"
 	cp $gpgkey $SDMPT/etc/apt/trusted.gpg.d
     else
 	[[ "$(type -p gpg)" == "" ]] && logtobothex "? Please sudo apt install gpg"
-	logtoboth "> Plugin $pfx: Download gpg key from $gpgkey and add to apt trusted keys"
-	curl -sS $gpgkey | gpg --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg
+	logtoboth "> Plugin $pfx: Download gpg key from $gpgkey and add to apt trusted keys as '$gpgkeyname.gpg'"
+	curl -sS $gpgkey | gpg --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg >/dev/null
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
