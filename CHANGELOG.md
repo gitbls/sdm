@@ -1,11 +1,17 @@
 # Changelog
 
+## V12.8
+
+* Bug Fixes
+  * Correct argument handling when spawning/chrooting into container. Args with spaces broke the world
+  * Correct `apt-addrepo` gpg key name handling
+
 ## V12.7
 
 * New Features
 * Improvements
   * Run plugin's 0piboot scripts after running the plugin on live system, fully completing the plugin installation/configuration (Can't believe nobody ran into this!)
-  * Improve syncthing user service enablement
+  * Improve new `syncthing` user service enablement
 * Bug Fixes
 
 ## V12.6
