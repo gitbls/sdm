@@ -155,7 +155,7 @@ function cfgnetman() {
     local fwdev ipad
 
     logtoboth "> Prefix $pfx: Configure hotspot '$hsname' with Network Manager"
-    [ "$hsenable" == "y" ] && acsts="yes" || acsts="no"
+    [ "$hsenable" == "y" ] && acsts="on" || acsts="off"
     if [ "$type" == "routed" ]
     then
 	[ "$dhcpmode" == "nm" ] && ipv4method="shared" || ipv4method="manual"
@@ -165,11 +165,37 @@ function cfgnetman() {
 #!/bin/bash
 logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
 rfkill unblock wlan
+# See if other connection exists that use this device
+if grep -qs interface-name=$device /etc/NetworkManager/system-connections/*.nmconnection
+then
+    excname=\$(grep -l interface-name=$device /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
+    [ "\$excname" != "" ] && excname="\$(basename $excname)" && excname="\${excname%.nmconnection}"
+else
+    # rpi-imager preconfigured wifi check
+    grep -qs id=preconfigured /etc/NetworkManager/system-connections/*.nmconnection && excname=preconfigured
+fi
+
+logger "sdm FirstBoot: Before configuration:"
+logger "\$(nmcli c show)"
+logger "sdm FirstBoot: Before configuration (active):"
+logger " \$(nmcli c show --active)"
+nmcli device down $device >/dev/null 2>&1
 nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
-nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts
+nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
 nmcli c down "$hsname"
+[[ "\$excname" != "" ]] && [[ "$acsts" == "on" ]] && logger "sdm FirstBoot: Stop connection '\$excname'" && nmcli c down "\$excname" >/dev/null 2>&1
 nmcli c reload
-[ "$acsts" == "on" ] && nmcli c up "$hsname"
+if [ "$acsts" == "on" ]
+then
+    logger "sdm FirstBoot: Enable IPV4 forwarding and nftables masquerade"
+    [ "$type" == "routed" ] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl start -q sdm-hotspot-masquerade
+    logger "sdm FirstBoot: Start hotspot '$hsname'"
+    nmcli c up "$hsname"
+fi
+logger "sdm FirstBoot: After configuration:"
+logger "\$(nmcli c show)"
+logger "sdm FirstBoot: After configuration (active):"
+logger "\$(nmcli c show --active)"
 EOF
     else
 	logtoboth "> Plugin $pfx: Write sdm First Boot script to configure bridged hotspot '$hsname'"
@@ -179,7 +205,10 @@ EOF
 logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
 rfkill unblock wlan
 
-#logger "sdm FirstBoot: \$(nmcli c show)"
+logger "sdm FirstBoot: Before configuration:"
+logger "\$(nmcli c show)"
+logger "sdm FirstBoot: Before configuration (active):"
+logger " \$(nmcli c show --active)"
 
 # Disable autoconnect on any connections for $fwdev that are not part of the hotspot
 while read nmfile
@@ -232,7 +261,10 @@ nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" wifi-sec.key-mgm
 #nmcli c show "$hsname"  > /root/"$hsname"-after-modify.nmcli
 # ipv4.addresses $wlanip/24
 
-logger "sdm FirstBoot: After configuration: \$(nmcli c show)"
+logger "sdm FirstBoot: After configuration:"
+logger "\$(nmcli c show)"
+logger "sdm FirstBoot: After configuration (active):"
+logger "\$(nmcli c show --active)"
 
 if [ "$acsts" == "yes" ]
 then
