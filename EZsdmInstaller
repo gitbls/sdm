@@ -84,7 +84,7 @@ fi
 
 echo "* Make directory '$dir' and download sdm files to it"
 
-$sudo mkdir -p $dir $dir/0piboot $dir/1piboot $dir/xpiboot $dir/plugins $dir/local-plugins $dir/assets $dir/local-assets
+$sudo mkdir -p $dir $dir/1piboot $dir/plugins $dir/local-plugins
 
 dlerrors=0
 for f in sdm sdm-phase0 \
@@ -178,7 +178,7 @@ fi
 
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
-$sudo mkdir -p /etc/sdm
+$sudo mkdir -p /etc/sdm/0piboot /etc/sdm/1piboot /etc/sdm/xpiboot /etc/sdm/assets /etc/sdm/local-assets
 $sudo chmod 700 /etc/sdm
 $sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
 $sudo cp -a $dir/sdm-readparams /etc/sdm
