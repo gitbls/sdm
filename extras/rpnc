@@ -5,7 +5,7 @@
 
 function askyn() {
     local ans
-    echo -n "$1" '[y/n]? ' ; read $2 ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans </dev/tty
     case "$ans" in
         y*|Y*) return 0 ;;
         *) return 1 ;;
