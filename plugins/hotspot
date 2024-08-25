@@ -172,7 +172,7 @@ then
     [ "\$excname" != "" ] && excname="\$(basename $excname)" && excname="\${excname%.nmconnection}"
 else
     # rpi-imager preconfigured wifi check
-    grep -qs id=preconfigured /etc/NetworkManager/system-connections/*.nmconnection && excname=preconfigured
+    grep -qs id=preconfigured /etc/NetworkManager/system-connections/*.nmconnection && [[ "$device" == "wlan0" ]] && excname=preconfigured
 fi
 
 logger "sdm FirstBoot: Before configuration:"
