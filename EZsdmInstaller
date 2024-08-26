@@ -184,12 +184,73 @@ $sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
 $sudo cp -a $dir/sdm-readparams /etc/sdm
 $sudo rm -f /etc/sdm/cparams.old
 $sudo mv /etc/sdm/cparams /etc/sdm/cparams.old 2>/dev/null
-cat <<EOF | $sudo tee /etc/sdm/cparams >/dev/null
-sdmdir:/usr/local/sdm
-src:/usr/local/sdm
-plugindebug:0
+if [ "$($sudo bash -c '[ -f /etc/sdm/cparams ] || echo "no"')" == "no" ]
+then
+    myuser=$(whoami)
+    hostname=$(hostname)
+    cat <<EOF | $sudo tee /etc/sdm/cparams >/dev/null
+# Written by EZsdmInstaller $(date +'%Y-%m-%d %H:%M:%S')
+version:"V12.6"
+thishost:""
+aptcache:""
+aptdistupgrade:""
+autologin:"0"
+fbatch:"0"
+b0script:""
+b1script:""
+bootscripts:"0"
+burnplugins:""
+cscript:""
+csrc:""
+datefmt:"%Y-%m-%d %H:%M:%S"
+debugs:""
+dimg:""
+dimgdev:"0"
+dimgdevname:""
+domain:""
+ecolors:"blue:gray:red"
+expandroot:""
+exports:""
+fchroot:"0"
+fdirtree:"0"
+fnoexpandroot:"0"
+hname:""
+hostname:"$hostname"
+loadlocal:""
+logwidth:"192"
+dgroups:"dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio"
+myuser:"$myuser"
+nowaittimesync:"0"
+os:""
+pi1bootconf:""
+plugindebug:"0"
+poptions:""
+raspiosver:""
+reboot:""
+fredact:"0"
+regensshkeys:""
+noreboot:"0"
+rebootwait:"20"
+redocustomize:"0"
+sdmdir:"$dir"
+sdmflist:"sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn"
+showapt:"0"
+src:"$dir"
+swapsize:"0"
+timezone:""
+virtmode:"nspawn"
+vqemu:""
+wificountry:""
+custom1:""
+custom2:""
+custom3:""
+custom4:""
+plugins:""
+allplugins:""
 EOF
-
+else
+    echo "* /etc/sdm/cparams exists; Not overwriting"
+fi
 pkgs="binfmt-support gdisk parted qemu-user-static rsync systemd-container uuid"
 echo "* Ensure required packages are installed: $pkgs"
 [[ $EUID -ne 0 ]] && sudo="sudo"
