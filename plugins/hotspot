@@ -169,7 +169,7 @@ rfkill unblock wlan
 if grep -qs interface-name=$device /etc/NetworkManager/system-connections/*.nmconnection
 then
     excname=\$(grep -l interface-name=$device /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
-    [ "\$excname" != "" ] && excname="\$(basename $excname)" && excname="\${excname%.nmconnection}"
+    [ "\$excname" != "" ] && excname="\$(basename \$excname)" && excname="\${excname%.nmconnection}"
 else
     # rpi-imager preconfigured wifi check
     grep -qs id=preconfigured /etc/NetworkManager/system-connections/*.nmconnection && [[ "$device" == "wlan0" ]] && excname=preconfigured
@@ -188,7 +188,7 @@ nmcli c reload
 if [ "$acsts" == "on" ]
 then
     logger "sdm FirstBoot: Enable IPV4 forwarding and nftables masquerade"
-    [ "$type" == "routed" ] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl start -q sdm-hotspot-masquerade
+    [[ "$ipforward" != "" ]] && [[ "$type" == "routed" ]] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl start -q sdm-hotspot-masquerade
     logger "sdm FirstBoot: Start hotspot '$hsname'"
     nmcli c up "$hsname"
 fi
