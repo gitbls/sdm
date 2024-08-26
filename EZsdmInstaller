@@ -180,10 +180,10 @@ $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 $sudo mkdir -p /etc/sdm/0piboot /etc/sdm/1piboot /etc/sdm/xpiboot /etc/sdm/assets /etc/sdm/local-assets
 $sudo chmod 700 /etc/sdm
-$sudo rm -f /etc/sdm/sdm-readparams /etc/sdm/cparams.old
+$sudo rm -f /etc/sdm/sdm-readparams #/etc/sdm/cparams.old
 $sudo cp -a $dir/sdm-readparams /etc/sdm
-$sudo rm -f /etc/sdm/cparams.old
-$sudo mv /etc/sdm/cparams /etc/sdm/cparams.old 2>/dev/null
+#$sudo rm -f /etc/sdm/cparams.old
+#$sudo mv /etc/sdm/cparams /etc/sdm/cparams.old 2>/dev/null
 if [ "$($sudo bash -c '[ -f /etc/sdm/cparams ] || echo "no"')" == "no" ]
 then
     myuser=$(whoami)
