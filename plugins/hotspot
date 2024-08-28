@@ -266,7 +266,7 @@ logger "\$(nmcli c show)"
 logger "sdm FirstBoot: After configuration (active):"
 logger "\$(nmcli c show --active)"
 
-if [ "$acsts" == "yes" ]
+if [ "$acsts" == "on" ]
 then
     nmcli c reload
     nmcli c up "$hsname"
