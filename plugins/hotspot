@@ -150,28 +150,12 @@ function fillupcfg() {
 	fi
     done
 }
-function getnwtype() {
-    #
-    # $1: network device name
-    #
-    # Return value:
-    #   ethernet if device is an ethernet device
-    #   wifi     if device is a wifi device
-    #   unknown  no clue
-    #
-    local nwdev="$1" nwtype
-    nwtype="$(nmcli device show $nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "$iftype"))"
-    [ "$nwtype" == "" ] && nwtype=unknown
-    echo $nwtype
-}
-
 
 function cfgnetman() {
-    local fwdev ipad nwtype
+    local fwdev ipad
 
     logtoboth "> Prefix $pfx: Configure hotspot '$hsname' with Network Manager"
     [ "$hsenable" == "y" ] && acsts="on" || acsts="off"
-    nwtype=$(getnwtype $device)
     if [ "$type" == "routed" ]
     then
 	[ "$dhcpmode" == "nm" ] && ipv4method="shared" || ipv4method="manual"
@@ -179,8 +163,24 @@ function cfgnetman() {
 	[ "$wlanip" != "" ] && ipad="ipv4.addresses $wlanip/24" || ipad=""
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-routed.sh <<EOF
 #!/bin/bash
+function getnwtype() {
+    #
+    # \$1: network device name
+    #
+    # Return value:
+    #   ethernet if device is an ethernet device
+    #   wifi     if device is a wifi device
+    #   unknown  no clue
+    #
+    local nwdev="\$1" nwtype
+    nwtype="\$(nmcli device show \$nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "\$iftype"))"
+    [ "\$nwtype" == "" ] && nwtype=unknown
+    echo \$nwtype
+}
+
 logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
 rfkill unblock wlan
+nwtype=\$(getnwtype $device)
 # See if other connection exists that use this device
 if grep -qs interface-name=$device /etc/NetworkManager/system-connections/*.nmconnection
 then
@@ -196,7 +196,7 @@ logger "\$(nmcli c show)"
 logger "sdm FirstBoot: Before configuration (active):"
 logger " \$(nmcli c show --active)"
        nmcli device down $device >/dev/null 2>&1
-if [ "$nwtype" == "wifi" ]
+if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
     nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
@@ -225,8 +225,23 @@ EOF
 	[ "$ipforward" == "" ] && fwdev="eth0" || fwdev="$ipforward"
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-bridged.sh <<EOF
 #!/bin/bash
+function getnwtype() {
+    #
+    # \$1: network device name
+    #
+    # Return value:
+    #   ethernet if device is an ethernet device
+    #   wifi     if device is a wifi device
+    #   unknown  no clue
+    #
+    local nwdev="\$1" nwtype
+    nwtype="\$(nmcli device show \$nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "\$iftype"))"
+    [ "\$nwtype" == "" ] && nwtype=unknown
+    echo \$nwtype
+}
 logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
 rfkill unblock wlan
+nwtype=\$(getnwtype $device)
 
 logger "sdm FirstBoot: Before configuration:"
 logger "\$(nmcli c show)"
@@ -275,7 +290,7 @@ nmcli c add type ethernet slave-type bridge con-name "$hsname-bridge-br0" ifname
 #nmcli c show "$hsname-bridge-br0"  > /root/"$hsname-bridge-br0".nmcli
 
 #?needed? connection.autoconnect-slave yes
-if [ "$nwtype" == "wifi" ]
+if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
     nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
@@ -287,7 +302,7 @@ fi
 #nmcli c show "$hsname"  > /root/"$hsname".nmcli
 nmcli c down "$hsname" >/dev/null 2>&1
 logger "sdm FirstBoot: Modify hotspot '$hsname' for bridge configuration"
-if [ "$nwtype" == "wifi" ]
+if [ "\$nwtype" == "wifi" ]
 then
     nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" autoconnect $acsts wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword"
 else
