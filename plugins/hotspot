@@ -150,12 +150,28 @@ function fillupcfg() {
 	fi
     done
 }
+function getnwtype() {
+    #
+    # $1: network device name
+    #
+    # Return value:
+    #   ethernet if device is an ethernet device
+    #   wifi     if device is a wifi device
+    #   unknown  no clue
+    #
+    local nwdev="$1" nwtype
+    nwtype="$(nmcli device show $nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "$iftype"))"
+    [ "$nwtype" == "" ] && nwtype=unknown
+    echo $nwtype
+}
+
 
 function cfgnetman() {
-    local fwdev ipad
+    local fwdev ipad nwtype
 
     logtoboth "> Prefix $pfx: Configure hotspot '$hsname' with Network Manager"
     [ "$hsenable" == "y" ] && acsts="on" || acsts="off"
+    nwtype=$(getnwtype $device)
     if [ "$type" == "routed" ]
     then
 	[ "$dhcpmode" == "nm" ] && ipv4method="shared" || ipv4method="manual"
@@ -179,10 +195,17 @@ logger "sdm FirstBoot: Before configuration:"
 logger "\$(nmcli c show)"
 logger "sdm FirstBoot: Before configuration (active):"
 logger " \$(nmcli c show --active)"
-nmcli device down $device >/dev/null 2>&1
-nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+       nmcli device down $device >/dev/null 2>&1
+if [ "$nwtype" == "wifi" ]
+then
+    logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
+    nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+else
+    logger "sdm FirstBoot: Create ethernet hotspot '$hsname'"
+    nmcli c add ifname $device con-name "$hsname" type ethernet
+fi
 nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
-nmcli c down "$hsname"
+nmcli c down "$hsname" >/dev/null 2>&1
 [[ "\$excname" != "" ]] && [[ "$acsts" == "on" ]] && logger "sdm FirstBoot: Stop connection '\$excname'" && nmcli c down "\$excname" >/dev/null 2>&1
 nmcli c reload
 if [ "$acsts" == "on" ]
@@ -236,7 +259,7 @@ do
 done < <(compgen -G "/etc/NetworkManager/system-connections/*.nmconnection")
 
 logger "sdm FirstBoot: Stop 'Wired connnection 1'"
-nmcli c down "Wired connection 1"
+nmcli c down "Wired connection 1" >/dev/null 2>&1
 
 logger "sdm FirstBoot: Create bridge '$hsname-br0'"
 nmcli c add ifname "$hsname-br0" type bridge con-name "$hsname-br0" bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1 autoconnect $acsts
@@ -252,12 +275,24 @@ nmcli c add type ethernet slave-type bridge con-name "$hsname-bridge-br0" ifname
 #nmcli c show "$hsname-bridge-br0"  > /root/"$hsname-bridge-br0".nmcli
 
 #?needed? connection.autoconnect-slave yes
-logger "sdm FirstBoot: create wifi hotspot '$hsname'"
-nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
+if [ "$nwtype" == "wifi" ]
+then
+    logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
+    nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
+    #nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+else
+    logger "sdm FirstBoot: Create ethernet hotspot '$hsname'"
+    nmcli c add ifname $device con-name "$hsname" type ethernet
+fi
 #nmcli c show "$hsname"  > /root/"$hsname".nmcli
-nmcli c down "$hsname"
+nmcli c down "$hsname" >/dev/null 2>&1
 logger "sdm FirstBoot: Modify hotspot '$hsname' for bridge configuration"
-nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword" autoconnect $acsts
+if [ "$nwtype" == "wifi" ]
+then
+    nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" autoconnect $acsts wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword"
+else
+    nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" autoconnect $acsts
+fi
 #nmcli c show "$hsname"  > /root/"$hsname"-after-modify.nmcli
 # ipv4.addresses $wlanip/24
 
