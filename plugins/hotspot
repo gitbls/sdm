@@ -61,8 +61,11 @@ function parsehsconfig() {
 
 function enablerouting() {
     logtoboth "> Plugin $pfx: Enable routing and masquerading for WiFi clients"
-    logtoboth "> Plugin $pfx: Install iptables"
+    #logtoboth "> Plugin $pfx: Install iptables"
     #doaptrpterror "install --no-install-recommends --yes iptables" $showapt
+    logtoboth "> Plugin $pfx: Install nftables"
+    install1pkg nftables
+    #doaptrpterror "install --no-install-recommends --yes nftables" $showapt
     cat > /etc/sysctl.d/10-sdm-aprouted.conf <<EOF
 # sdm hotspot routing configuration $(thisdate)
 # https://www.raspberrypi.org/documentation/configuration/wireless/access-point-routed.md
@@ -392,7 +395,8 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
-    ! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doaptrpterror "install --no-install-recommends --yes network-manager" "$showapt"
+    install1pkg network-manager
+    #! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && doaptrpterror "install --no-install-recommends --yes network-manager" "$showapt"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
