@@ -1008,6 +1008,8 @@ dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i
   * Syntax: `redact`
 * **nosudo** &mdash; Do not enable this account for `sudo`
   * Syntax: `nosudo`
+* **linger** &mdash; Enable service lingering for this user
+  * Syntax: `linger`
 * **samba** &mdash; Set a Samba username and password for this user
   * Syntax: `samba`
 * **smbpasswd** &mdash; Use the provided password for the Samba password instead of the user's password

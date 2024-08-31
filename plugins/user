@@ -284,6 +284,7 @@ EOF
 }
 
 function converty() {
+    [ -v linger ] && linger=y
     [ -v nochown ]   && nochown=y
     [ -v nohomedir ] && nohomedir=y
     [ -v noskel ]    && noskel=y
@@ -340,6 +341,13 @@ function addp1user() {
 	    [ "$password" == "" -a "$prompt" == "y" ] && password="$savedpwd" # savedpwd set in add_user if [prompt]
 	    [ "$password" != "" -o "$prompt" == "y" ] && setpassword_user root "$password" "$prompt"
 	fi
+	if [ "$linger" == "y" ]
+	then
+	    logtoboth "> Plugin $pfx: Enable linger for user '$adduser'"
+	    [ ! -f /etc/sdm/0piboot/091-enable-linger.sh ] && echo "#!/bin/bash" >/etc/sdm/0piboot/091-enable-linger.sh
+	    echo "logger 'sdm FirstBoot: Enable linger for user $adduser'" >>/etc/sdm/0piboot/091-enable-linger.sh
+	    echo "loginctl enable-linger $adduser" >>/etc/sdm/0piboot/091-enable-linger.sh
+	fi
     elif [ "$deluser" != "" ]
     then
 	delete_user "$deluser"
@@ -391,7 +399,7 @@ function user_plugin_printkeys() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|addgroup|adduser|deluser|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|samba|shell|smbpasswd|userlist|log|"
+vldargs="|addgroup|adduser|deluser|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|linger|samba|shell|smbpasswd|userlist|log|"
 redactargs="password"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/user"
