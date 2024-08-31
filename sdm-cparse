@@ -209,6 +209,12 @@ function ispkginstalled() {
     return
 }
 
+function install1pkg() {
+    local pkg="$1"
+
+    ispkginstalled $pkg || doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
+}
+
 function getaptver() {
     # $1: package name
     # $2: 'installed' or 'candidate'

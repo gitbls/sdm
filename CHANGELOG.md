@@ -1,5 +1,12 @@
 # Changelog
 
+## V12.9
+
+* Improvements
+  * Add `linger` argument to the `user` plugin to enable user services to run without login
+  * Improve `hotspot` plugin device flexibility
+  * Update `EZsdmInstaller` so that once sdm installed it can run plugins on the live running system
+
 ## V12.8
 
 * Bug Fixes
