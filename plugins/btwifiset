@@ -103,7 +103,7 @@ function installreqs() {
     if [ "$pycomponents" != "" ]
     then
 	logtoboth "> Plugin $pfx: Install required Python components: $pycomponents"
-	doaptrpterror "install --yes $pycomponents"
+	installpkgsif "$pycomponents"
 	sts=$?
 	[ $sts -ne 0 ] && logtobothex "? Error returned from apt install ($sts)"
     fi
