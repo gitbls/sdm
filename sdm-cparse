@@ -172,6 +172,8 @@ function doaptrpterror() {
     # $1 is apt command
     # $2 is $showapt value
     #
+    # Note: Reports and exits if error
+    #
     doapt "$1" "$2" || { sts=$? ; logapterror ; return $sts ; }
 }
 
@@ -209,10 +211,15 @@ function ispkginstalled() {
     return
 }
 
-function install1pkg() {
-    local pkg="$1"
+function installpkgsif() {
+    local pkglist="$1" pkgs=() newpkgs="" p
 
-    ispkginstalled $pkg || doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
+    IFS=" " read -a pkgs <<< $pkglist
+    for p in "${pkgs[@]}"
+    do
+	ispkginstalled $p || newpkgs="$newpkgs $p"
+    done
+    [ "$newpkgs" == "" ] || doaptrpterror "install --no-install-recommends --yes $newpkgs" $showapt
 }
 
 function getaptver() {
@@ -1286,7 +1293,7 @@ function deferqemu() {
 #
 source /etc/sdm/sdm-readparams
 bootlogx "Install qemu-user-static"
-doaptrpterror "install --yes --no-install-recommends qemu-user-static" $showapt
+installpkgsif qemu-user-static
 EOF
     fi
 }
@@ -1457,10 +1464,10 @@ function doinstalls() {
 	    for a in "${alist[@]}"
 	    do
 		logtoboth "> -- $a"
-		doaptrpterror "install --no-install-recommends --yes $a" $showapt || exit $?
+		installpkgsif "$a"
 	    done
 	else
-	    doaptrpterror "install --no-install-recommends --yes $1" $showapt || exit $?
+	    installpkgsif "$1"
 	fi
 	logtoboth "* $2 Completed"
     else
