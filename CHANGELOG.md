@@ -1,5 +1,15 @@
 # Changelog
 
+## V12.10
+
+* New Features
+  * `dovecot-imap` plugin installs a local imap server. Requires the postfix email server
+  * `logwatch` plugin installs logwatch, a system log analyzer and reporter
+* Improvements
+  * Internal coding simplification for apt app installs
+* Bug Fixes
+  * Update `sdm-cryptconfig`. keyfiles work with latest Debian `initramfs-tools` update
+
 ## V12.9
 
 * Improvements
