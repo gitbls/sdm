@@ -80,7 +80,7 @@ then
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
     logtoboth "> Plugin $pfx: Install knockd and iptables"
-    doaptrpterror "install knockd iptables --yes" $showapt
+    installpkgsif "knockd iptables"
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"

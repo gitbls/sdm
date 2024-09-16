@@ -85,7 +85,7 @@ then
     echo "$keyfile" > $assetdir/keyfile
 
     logtoboth "> Plugin $pfx: Install cryptsetup cryptsetup-initramfs cryptsetup-bin"
-    doaptrpterror "install --no-install-recommends --yes cryptsetup cryptsetup-initramfs cryptsetup-bin"
+    installpkgsif "cryptsetup cryptsetup-initramfs cryptsetup-bin"
     logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration with crypto '$xcrypto'"
     osw="--mappername $mappername"
     [ "$authkeys" != "" ] && osw="${osw} --authorized-keys $assetdir/$(basename $authkeys)"

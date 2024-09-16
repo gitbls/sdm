@@ -62,7 +62,7 @@ then
     plugin_getargs $pfx "$args" "$vargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
     logtoboth "> Plugin $pfx: Install strongswan VPN server"
-    doaptrpterror "install --no-install-recommends --yes strongswan-swanctl strongswan-pki charon-systemd libcharon-extauth-plugins libcharon-extra-plugins libstrongswan-standard-plugins libstrongswan-extra-plugins python3-pexpect iptables curl zip bind9-dnsutils" $showapt
+    installpkgsif "strongswan-swanctl strongswan-pki charon-systemd libcharon-extauth-plugins libcharon-extra-plugins libstrongswan-standard-plugins libstrongswan-extra-plugins python3-pexpect iptables curl zip bind9-dnsutils"
 
     systemctl disable strongswan > /dev/null 2>&1
 

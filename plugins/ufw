@@ -82,7 +82,7 @@ then
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
     logtoboth "> Plugin $pfx: install ufw"
-    doaptrpterror "install --no-install-recommends --yes ufw" $showapt
+    installpkgsif ufw
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"

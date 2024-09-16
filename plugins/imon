@@ -49,10 +49,10 @@ else
     logtoboth "* Plugin $pfx: Start Phase post-install"
 
     #logtoboth "> Plugin $pfx: pip install icmplib"
-    #[ "$(type -p pip)" == "" ] && doaptrpterror "install --no-install-recommends --yes python3-pip" $showapt
+    #[ "$(type -p pip)" == "" ] && installpkgsif python3-pip
     #pip install icmplib
     logtoboth "> Plugin $pfx: Install python3-icmplib"
-    doaptrpterror "install --no-install-recommends --yes python3-icmplib" $showapt
+    installpkgsif python3-icmplib
 
     plugin_addnote ""
     plugin_addnote "*** imon service notes ***"

@@ -75,7 +75,7 @@ then
     debconf-set-selections <<< "samba-common samba-common/dhcp boolean $dhcp"
     debconf-set-selections <<<  "samba-common samba-common/do_debconf boolean $do_debconf"
     logtoboth "> Plugin $pfx: Install samba"
-    doaptrpterror "install --no-install-recommends --yes samba" $showapt
+    installpkgsif samba
     if [ "$smbconf" != "" ]
     then
 	if [ -f $assetdir/$(basename $smbconf) ]

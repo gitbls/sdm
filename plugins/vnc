@@ -163,7 +163,7 @@ EOF
 	    [ -f /usr/bin/X${othervnc} ] && logtoboth "% Plugin $pfx: '$othervnc' is installed as well as the requested '$vncserver' ; '$othervnc' not configured"
 	    logtoboth "> Plugin $pfx: Install VNC server $vncp"
 	    logfreespace "at start of install VNC server $vncp"
-	    doaptrpterror "install --no-install-recommends -y $vncp" $showapt
+	    installpkgsif "$vncp"
 	    logfreespace "at end of install VNC server $vncp"
 	else
 	    logtoboth "> Plugin $pfx: VNC Server $vncp is already installed"
@@ -215,7 +215,7 @@ EOF
 	then
 	    logtoboth "> Plugin $pfx: Install RealVNC server '$realvncserver'"
 	    logfreespace "at start of RealVNC Server install"
-	    doaptrpterror "install --no-install-recommends --yes $realvncserver" $showapt
+	    installpkgsif "$realvncserver"
 	    logfreespace "at end of RealVNC Server install"
 	else
 	    logtoboth "> Plugin $pfx: RealVNC server is already installed"
@@ -239,10 +239,7 @@ systemctl disable vncserver-virtuald.service
 EOF
 	if [ "$realvnc" != "default" ]
 	then
-	    if ! ispkginstalled x11-xserver-utils
-	    then
-		doaptrpterror "install --yes x11-xserver-utils" $showapt
-	    fi
+	    installpkgsif x11-xserver-utils
 	    vres="|640x480|720x480|800x600|1024x768|1280x720|1280x1024|1600x1200|1920x1080|"
 	    if [[ "$vres" =~ "$realvnc" ]]
 	    then

@@ -78,7 +78,7 @@ then
     if [ ${raspiosver} -ge 12 ]
     then
 	logtoboth "> Plugin $pfx: Install wsdd"
-	doaptrpterror "install --no-install-recommends --yes wsdd" $showapt
+	installpkgsif wsdd
 	exit 0
     else
 	logtoboth "* Plugin $pfx: Add unprivileged user 'wsdd' in group 'wsdd'"

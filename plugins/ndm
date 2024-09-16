@@ -145,13 +145,13 @@ then
     if [ "$dnsserver" == "bind9" ]
     then
 	logtoboth "> Plugin $pfx: Install isc-dhcp-server and bind9"
-	doaptrpterror "install --no-install-recommends --yes isc-dhcp-server bind9"
+	installpkgsif "isc-dhcp-server bind9"
 	logtoboth "> Plugin $pfx: Disable services pending configuration"
 	systemctl disable isc-dhcp-server >/dev/null 2>&1
 	systemctl disable bind9 >/dev/null 2>&1
     else
 	logtoboth "> Plugin $pfx: Install dnsmasq"
-	doaptrpterror "install --no-install-recommends --yes dnsmasq"
+	installpkgsif dnsmasq
 	logtoboth "> Plugin $pfx: Disable services pending configuration"
 	systemctl disable dnsmasq >/dev/null 2>&1
     fi

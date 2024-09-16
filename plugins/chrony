@@ -62,7 +62,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs"
     logtoboth "> Plugin $pfx: Install chrony"
-    doaptrpterror "install --no-install-recommends --yes chrony" $showapt
+    installpkgsif chrony
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #

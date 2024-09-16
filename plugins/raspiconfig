@@ -68,7 +68,7 @@ then
 		    case "$chyp" in
 			overlayfs)
 			    logtoboth "> Plugin $pfx: Install overlayroot for overlayfs"
-			    doaptrpterror "install --no-install-recommends --yes overlayroot" $showapt
+			    installpkgsif overlayroot
 			    [ "$value" == "0" ] && value="ro"
 			    ;;
 		    esac

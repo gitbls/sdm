@@ -9,6 +9,10 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function converty() {
+    [ -v enablesvc ] && enablesvc="y"
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -17,7 +21,7 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|relayhost|main_mailer_type|mailname|maincf|domain|rootmail|"
+vldargs="|enablesvc|relayhost|main_mailer_type|mailname|maincf|domain|rootmail|"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/postfix"
 
@@ -61,7 +65,7 @@ then
     debconf-set-selections <<< "postfix postfix/relayhost string $relayhost"
 
     logtoboth "> Plugin $pfx: Install postfix and bsd-mailx"
-    doaptrpterror "install --no-install-recommends --yes postfix bsd-mailx libsasl2-modules" $showapt
+    installpkgsif "postfix bsd-mailx libsasl2-modules"
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
@@ -104,7 +108,7 @@ sed -i "s/myhostname = .*/myhostname = \${hostname}${dmn}/" /etc/postfix/main.cf
 #Rerun make-ssl-cert now that host name is known
 make-ssl-cert generate-default-snakeoil --force-overwrite
 newaliases
-#systemctl enable postfix
+[ "$enablesvc" != "" ] && systemctl enable --now postfix
 EOF
     fi
 

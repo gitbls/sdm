@@ -71,7 +71,7 @@ then
 	echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing $release" > /etc/apt/sources.list.d/syncthing.list
 	logtoboth "> Plugin $pfx: Perform apt update and install syncthing"
 	doaptrpterror "update" $showapt
-	doaptrpterror "install --no-install-recommends --yes syncthing"
+	installpkgsif syncthing
     fi
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"

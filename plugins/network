@@ -1,4 +1,4 @@
-#!/bin/bash
+!/bin/bash
 #
 # This is an sdm plugin for: network
 #
@@ -247,11 +247,8 @@ then
     case "${netman}" in
 	dhcpcd)
 	    [ "$raspiosver" -ge 12 ] && pkg="dhcpcd" || pkg="dhcpcd5"
-	    if ! ispkginstalled $pkg
-	    then
-		logtoboth "> Plugin $pfx: Install $pkg"
-		doaptrpterror "install --no-install-recommends --yes $pkg" $showapt
-	    fi
+	    logtoboth "> Plugin $pfx: Install $pkg"
+	    installpkgsif "$pkg"
 	    systemctl disable NetworkManager >/dev/null 2>&1
 	    if [ -f $assetdir/dhcpcd-append.conf ]
 	    then
@@ -293,10 +290,10 @@ EOF
 
 	nm|network-manager)
 	    [ "$ifname" == "" ] && ifname="eth0"
-	    if ! ispkginstalled network-manager
+	    if ! ispkginstalled network-manager     # so only print msg if it's really not installed. Less confusing
 	    then
 		logtoboth "> Plugin $pfx: Install Network Manager"
-		doaptrpterror "install --no-install-recommends --yes network-manager" $showapt
+		installpkgsif network-manager
 	    fi
 	    systemctl -q enable NetworkManager >/dev/null 2>&1
 	    systemctl -q disable dhcpcd >/dev/null 2>&1
