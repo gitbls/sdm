@@ -14,8 +14,6 @@ With those caveats, if rootfs encryption is useful for you, sdm makes it quite s
 
 **NOTE:** This tool only supports sdm-integrated encryption configuration using the `cryptroot` plugin on RasPiOS Bookworm and later. `sdm-cryptconfig` can be used on already-running RasPiOS systems as well as on Debian Bookworm (arm and X86_64) and derivatives.
 
-**IMPORTANT NOTE:** Something has changed in Debian cryptsetup/LUKs handling and has broken sdm's `keyfile` handling. I'm investigating. No ETA. 
-
 ## Overview
 
 There are many articles about rootfs disk encryption on the Internet. If you're interested in learning more about it, your favorite search engine will reveal a bazillion articles on the subject.
@@ -370,6 +368,10 @@ for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait p
 do
     sudo systemctl unmask $svc
 done
+```
+* systemd-cryptsetup-generator tries to do its thing at boot even though initramfs has already handled the encrypted rootfs. The resulting error in the system journal is innocucous, but if you don't like it, and your system only has an encrypted rootfs (i.e., no other encrypted partitions) you can disable this by appending `luks.crypttab=no` to the end of /boot/firmware/cmdline.txt. The error is similar to this:
+```
+Sep 16 10:05:08 pit systemd[1]: /run/systemd/generator/systemd-cryptsetup@cryptroot.service:14: RequiresMountsFor= path is not absolute, ignoring: 82a24bee-73dc-11ef-a1c0-2ccf6734bbee
 ```
 
 ## Acknowledgement

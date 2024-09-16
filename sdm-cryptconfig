@@ -321,8 +321,8 @@ update-initramfs -u
 EOF
     chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
 
-    echo "> Create /bin/sdmluksunlock; runs in initramfs to unlock rootfs"
-    cat > /bin/sdmluksunlock <<EOF
+    echo "> Create /usr/bin/sdmluksunlock; runs in initramfs to unlock rootfs"
+    cat > /usr/bin/sdmluksunlock <<EOF
 #!/bin/sh
 #
 # called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
@@ -370,7 +370,7 @@ else
     /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
 fi
 EOF
-    chmod 755 /bin/sdmluksunlock
+    chmod 755 /usr/bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks-hooks"
     [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
     [ $xnopwd -eq 1 ] && knopwd="copy_file text /usr/local/bin/sdmnull /etc/sdmnopwd"
@@ -383,12 +383,13 @@ esac
 
 . /usr/share/initramfs-tools/hook-functions
 
-copy_exec /sbin/resize2fs /sbin
-copy_exec /sbin/fdisk /sbin
-copy_exec /sbin/cryptsetup /sbin
+copy_exec /usr/sbin/resize2fs /usr/sbin
+copy_exec /usr/sbin/fdisk /usr/sbin
+copy_exec /usr/sbin/cryptsetup /usr/sbin
 copy_exec /usr/bin/bash /usr/bin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
-copy_file text /bin/sdmluksunlock
+# OK if this fails; means it was copied due to keyscript in crypttab and copied in /usr/share/initramfs-tools/hooks/cryptroot
+copy_file text /usr/bin/sdmluksunlock || true
 copy_file text /etc/mappername
 copy_file text /etc/sdmcrypto
 copy_file text /etc/sdmkeyfile
@@ -490,7 +491,7 @@ function doupdateconfig() {
     then
 	kfuuid=$(basename $xkeyfile)
 	kfuuid=${kfuuid%.lek}
-	kfu=",keyscript=/bin/sdmluksunlock"
+	kfu=",keyscript=/usr/bin/sdmluksunlock"
     fi
     echo "$xmapper	$rootfs $kfuuid luks,discard${kfu}" >> /etc/crypttab
 }
