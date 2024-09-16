@@ -125,6 +125,7 @@ for f in sdm sdm-phase0 \
 	     plugins/copyfile \
 	     plugins/cryptroot \
 	     plugins/disables \
+	     plugins/dovecot-imap \
 	     plugins/explore \
 	     plugins/extractfs \
 	     plugins/git-clone \
@@ -133,6 +134,7 @@ for f in sdm sdm-phase0 \
 	     plugins/imon \
 	     plugins/knockd \
 	     plugins/L10n \
+	     plugins/logwatch \
 	     plugins/lxde \
 	     plugins/mkdir \
 	     plugins/modattr \
