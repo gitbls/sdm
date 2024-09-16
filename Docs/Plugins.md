@@ -301,6 +301,23 @@ The disables plugin makes it easy to disable a few *complex* functions.
 
 * `--plugin disables:"bluetooth|piwiz|triggerhappy"` &mdash; Disable Bluetooth, Triggerhappy, and piwiz, but leave WiFi enabled
 
+### dovecot-imap
+
+The `dovecot-imap` installs and configures dovecot as an imap server.
+
+#### Arguments
+
+These arguments are for configuring the openssl cert that is generated. They are all optional at the moment.
+
+* **email-address** &mdash; Specify the email address to include in the generated SSL Cert
+* **common-name** &mdash; Specify the common name to include in the generated SSL Cert
+* **org-name** &mdash; Specify the org name to include in the generated SSL Cert
+
+#### Examples
+
+* `--plugin dovecot-imap:"email-address=root@mydomain.com|common-name=MyCommonName.com|org-name=MyOrgname"`
+* `--plugin dovecot-imap`
+
 ### explore
 
 The `explore` plugin is a `--burn-plugin` that can be used to explore or mount the newly-burned device after the burn has completed.
@@ -460,6 +477,18 @@ sudo sdm --info timezone   # Displays list of valid timezones
 
 * `--plugin L10n:"keymap=us|locale=en_US.UTF-8|timezone=Americas/Los_Angeles"`
 * `--plugin L10n:"host"`
+
+### logwatch
+
+Use the `logwatch` plugin to install the logwatch package.
+
+#### Arguments
+* **sendto** &mdash; Email address where logwatch report should be mailed. You must have a properly configured mail server to send the mail. See the `postfix` plugin
+* **sendfrom** &mdash; Email address for where the mail should be sent *from*
+
+#### Examples
+
+* `--plugin logwatch:"sendto=myname<myuser@myemail.com>|sendfrom=myhost-logwatch<myuser@myemail.com>"
 
 ### lxde
 
@@ -661,6 +690,7 @@ postfix installs the postfix mail server. This plugin installs the postfix serve
 
 #### Arguments
 
+* **enablesvc** &mdash; Enable the postfix service
 * **maincf** &mdash; The full /path/to/main.cf for an already-configured /etc/postfix/main.cf. If provided, it is placed into /etc/postfix after postfix has been installed.
 * **mailname** &mdash; Domain name [Default: *NoDomain.com*]
 * **main_mailer_type** &mdash; Type of mailer [Default: *Satellite system*]
