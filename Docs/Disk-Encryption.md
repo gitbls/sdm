@@ -68,7 +68,7 @@ When your system is running, simply download and run sdm-cryptconfig:
 # sdm-make-luks-usb-key and sdm-add-luks-key are only needed if you want to use a USB Keyfile Disk
 sudo curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdm-make-luks-usb-key -o /usr/local/bin/sdm-make-luks-usb-key
 sudo curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdm-add-luks-key -o /usr/local/bin/sdm-add-luks-key
-sudo chmod 755 /usr/local/bin/sdm-sdm-add-luks-key /usr/local/bin/sdm-make-luks-usb-key
+sudo chmod 755 /usr/local/bin/sdm-add-luks-key /usr/local/bin/sdm-make-luks-usb-key
 
 # sdm-cryptconfig is required for rootfs encryption
 sudo curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdm-cryptconfig -o /usr/local/bin/sdm-cryptconfig
