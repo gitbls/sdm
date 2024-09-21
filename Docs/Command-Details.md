@@ -58,7 +58,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--autologin` &mdash; Cause the user to autologin when the system restarts
 * `--b0script` *script* &mdash; Call the function `do_b0script` in *script* when burning. *script* will be called after the output has been burned, and operates in effectively a *Phase 0* environment. See <a href="Burn-Scripts.md">Burn Scripts</a>
 * `--b1script` *script* &mdash; Like `--b0script`, but is called in an nspawn container. See <a href="Burn-Scripts.md">Burn Scripts</a>
-* `--batch` &mdash; Do not provide an interactive command prompt inside the nspawn container
+* `--batch` &mdash; When customization completes do not drop to an interactive command prompt inside the nspawn container; instead, just exit
 * `--bootscripts` &mdash; Directs sdm-firstboot to run the boot scripts in /usr/local/sdm/1piboot/0*-*.sh. If `--bootscripts` is specified when creating the sdm-enhanced IMG, every SD Card burned will run the boot scripts on First Boot. If not specified on IMG creation, it can be also be specified when burning the SD Card to run the boot scripts on that SD Card. See <a href="First-Boot-Scripts-and-Configurations.md">First Boot Scripts and Congfigurations</a> for further details.
 * `--bupdate` *item* &mdash; Used only on `--burn` command. *item* can be **plugin**: Check and update plugins
     * Best to not include it always unless you know what you're doing
