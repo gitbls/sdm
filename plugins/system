@@ -77,6 +77,7 @@ then
 		    if [ -f $fl ]
 		    then
 			logtoboth "> Plugin $pfx: Copy '$fl' to $assetdir/$chyp"
+			[ -f $fl ] || logtobothex "? Plugin $pfx: '$chyp' file '$fl' not found"
 			cp -a $fl $assetdir/$chyp
 		    else
 			logtobothex "? Plugin $pfx: Argument $chyp file '$fl' not found"
@@ -96,6 +97,7 @@ then
 				logtoboth "> Plugin $pfx: Create directory $assetdir/$chyp"
 				mkdir -p $assetdir/$chyp/$lname
 				logtoboth "> Plugin $pfx: Copy '$fname' to $assetdir/$chyp/$lname"
+				[ -f $fname ] || logtobothex "? Plugin $pfx: systemd-config '$lname' file '$fname' not found"
 				cp -a $fname $assetdir/$chyp/$lname
 				;;
 			    *)
