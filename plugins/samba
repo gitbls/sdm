@@ -9,6 +9,10 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function converty() {
+    [ -v enablesvc ] && enablesvc=y
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1:arg2=val2:arg3=val3: ...
 
@@ -18,7 +22,7 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|workgroup|dhcp|do_debconf|shares|smbconf|"
+vldargs="|enablesvc|workgroup|dhcp|do_debconf|shares|smbconf|"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/samba"
 
@@ -122,6 +126,10 @@ else
     plugin_addnote ""
     plugin_addnote " * Ensure that /etc/samba/smb.conf is as you want it"
     plugin_addnote " * Add users and passwords using 'sudo smbpasswd'"
+    logtoboth "> Plugin $pfx: Disable nmbd and samba-ad-dc services; probably not needed"
+    systemctl disable -q nmbd
+    systemctl disable -q samba-ad-dc
+    [ "$enablesvc" == "y" ] && systemctl enable -q smbd
     if [[ "$smbconf" == "" ]] && [[ "$shares" == "" ]]
     then
 	systemctl disable smbd > /dev/null 2>&1
