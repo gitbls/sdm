@@ -218,9 +218,9 @@ then
     gfxcfgpostinstall yes
 fi
 
-if ! ispluginselected network "$plugins"
+if ! ispluginselected sshd "$plugins"
 then
-    logtoboth "> Enable SSH"
+    logtoboth "> Plugin phase1: Configure SSH"
     dosshsetup service phase1
 fi
 
@@ -231,11 +231,17 @@ logfreespace "at end of image customization"
 printnotes
 
 #
-# Check for apt errors in the apt log
+# Check for apt issues in the apt log
 #
 if [ -f /etc/sdm/apt.log ]
 then
-    grep -q "^E:" /etc/sdm/apt.log && logtoboth "? apt reported errors; review /etc/sdm/apt.log"
+    grep -q " E:" /etc/sdm/apt.log && logtobothex "? apt reported errors; review /etc/sdm/apt.log"
+    if grep -q " W: An error occurred" /etc/sdm/apt.log || grep -q " W: Failed to fetch" /etc/sdm/apt.log \
+	    || grep -q "signatures were invalid" /etc/sdm/apt.log || grep -q " W: Some index files failed to download" /etc/sdm/apt.log
+    then
+	[ "$aptcache" == "" ] && logtobothex "? apt reported warnings; review /etc/sdm/apt.log" \
+		|| logtobothex "? apt reported warnings; review /etc/sdm/apt.log and check your apt-cacher-ng server for problems"
+    fi
 fi
 #
 # Report run time
