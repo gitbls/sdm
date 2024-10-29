@@ -299,16 +299,16 @@ function sdm_burndevfile() {
 	#
 	# Burning to a device
 	#
+	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
 	[ "$burndev" == "" ] && errexit "? No storage device specified"
 	perr=0
-	for p in 1 2 3 4
+	for p in 1 2 3 4 5 6 7 8
 	do
 	    pdev="$(getpartname $burndev $p)"
-	    ismounted $pdev && echo "? Partition $pdev is mounted" && perr=1
+	    ismounted ${burndev}${pdev} && echo "? Partition ${burndev}${pdev} is mounted" && perr=1
 	done
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
-	ismounted $burndev && errexit "? Device '$burndev' is mounted"
-	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
+	notmounted $burndev || errexit "? Device '$burndev' is mounted"   # one last check
 	! sfdisk -l $burndev >/dev/null 2>&1 && errexit "? Cannot access '$burndev'; is there a disk in the drive?"
 	bsize=$(stat --printf %s $dimg)
 	write_burnmsg "> Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
@@ -410,7 +410,7 @@ EOF
     #
     if [ -d $SDMPT/etc/sdm ]
     then
-	write_burnmsg "> Flush accumulated burn log messages"
+	#write_burnmsg "> Flush accumulated burn log messages"
 	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
 	do
 	    echo "${burnmsg[$i]}" >> $SDMPT/etc/sdm/history
