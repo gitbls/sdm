@@ -103,6 +103,22 @@ echo "Acquire::http::proxy \"http://127.0.0.1:3142\";" >> /etc/apt/apt.conf.d/02
 systemctl enable apt-cacher-ng > /dev/null 2>&1
 EOF
 
+    logtoboth "> Plugin $pfx: Create cacher reset script /usr/local/bin/reset-apt-cacher"
+    cat > /usr/local/bin/reset-apt-cacher <<EOF
+#!/bin/bash
+
+echo "Stop apt-cacher-ng"
+sudo systemctl stop apt-cacher-ng
+echo "Clear apt-cacher-ng cache"
+sudo rm -rf /var/cache/apt-cacher-ng
+echo "Create apt-cacher-ng directory and set ownership"
+sudo mkdir -p /var/cache/apt-cacher-ng
+sudo chown -R apt-cacher-ng:apt-cacher-ng /var/cache/apt-cacher-ng
+echo "Start apt-cacher-ng"
+sudo systemctl start apt-cacher-ng
+echo "Done"
+EOF
+    setfileownmode /usr/local/bin/reset-apt-cacher 0755
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
