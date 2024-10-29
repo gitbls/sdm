@@ -177,6 +177,23 @@ function doaptrpterror() {
     doapt "$1" "$2" || { sts=$? ; logapterror ; return $sts ; }
 }
 
+function runcaptureout() {
+    #
+    # Run command, capturing output via logtoboth
+    #
+    local cmd="$1"
+
+    function pline() {
+        local line
+        while read line
+        do
+            logtoboth "$line"
+        done
+    }
+
+    { { { {  $cmd 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+}
+
 function setfileownmode() {
     #
     # $1 is full path to file
@@ -1673,6 +1690,7 @@ function zero1stlast() {
 }
 
 function ismounted() {
+    # Checks partitions but not devices
     if findmnt --noheadings --output source $1 > /dev/null
     then
 	return 0
@@ -1682,7 +1700,7 @@ function ismounted() {
 }
 
 function notmounted() {
-    # findmnt doesn't work here. Sort it someday
+    # Use for checking a device (/dev/sdX) rather than a partition
     if grep -qs $1 /proc/mounts
     then
 	return 1
