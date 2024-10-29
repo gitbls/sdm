@@ -27,10 +27,10 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
 
     logtoboth "> Plugin $pfx: download imon from GitHub to /usr/local/bin/imon and set protection"
-    curl https://raw.githubusercontent.com/gitbls/imon/main/imon -o $SDMPT/usr/local/bin/imon
-    curl https://raw.githubusercontent.com/gitbls/imon/main/imon-configure -o $SDMPT/usr/local/bin/imon-configure
-    curl https://raw.githubusercontent.com/gitbls/imon/main/imon-action.sample -o $SDMPT/usr/local/bin/imon-action.sample
-    curl https://raw.githubusercontent.com/gitbls/imon/main/imon@.service -o $SDMPT/etc/systemd/system/imon@.service
+    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon -o $SDMPT/usr/local/bin/imon
+    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon-configure -o $SDMPT/usr/local/bin/imon-configure
+    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon-action.sample -o $SDMPT/usr/local/bin/imon-action.sample
+    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon@.service -o $SDMPT/etc/systemd/system/imon@.service
     chmod 755 $SDMPT/usr/local/bin/{imon,imon-configure,imon-action.sample}
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -41,6 +41,12 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
+    # Install pip (if needed) then create create venv and install icmplib and requests into it
+    [ "$(type -p pip3)" == "" ] && logtoboth "> Plugin $pfx: Install python3-pip" && installpkgsif python3-pip
+    logtoboth "> Plugin $pfx: Create venv /root/.imon-venv"
+    python3 -m venv /root/.imon-venv
+    logtoboth "> Plugin $pfx: install icmplib and requests with pip3 into venv: /root/.imon-venv"
+    /root/.imon-venv/bin/pip3 install icmplib requests
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
@@ -48,17 +54,11 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
 
-    #logtoboth "> Plugin $pfx: pip install icmplib"
-    #[ "$(type -p pip)" == "" ] && installpkgsif python3-pip
-    #pip install icmplib
-    logtoboth "> Plugin $pfx: Install python3-icmplib"
-    installpkgsif python3-icmplib
-
     plugin_addnote ""
     plugin_addnote "*** imon service notes ***"
     plugin_addnote ""
-    plugin_addnote " * Use imon-configure to configure imon's service parameters"
-    plugin_addnote " * Then use sudo systemctl enable --now imon@instancename"
+    plugin_addnote " * Use 'sudo imon-configure' to configure imon's service parameters"
+    plugin_addnote " * Then use 'sudo systemctl enable --now imon@instancename'"
     plugin_addnote "   where 'instancename' is the name you created in imon-configure"
     plugin_addnote ""
     plugin_addnote " * See /usr/local/bin/imon-action.sample for a sample imon action script"
