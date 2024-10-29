@@ -247,11 +247,6 @@ function add_user() {
 	    echo "$user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/010_$user-nopasswd
 	    chmod 440 /etc/sudoers.d/010_$user-nopasswd
 	fi
-	if [[ "$samba" =~ "y" ]]
-	then
-	    [ "$smbpasswd" == "" ] && smbpasswd="$pswd"
-	    echo "$user:$smbpasswd" >> $assetdir/smbpasswords
-	fi
 	if [ "$noskel" == "" -a -d $uhomedir ]
 	then
 	    logtoboth "> Plugin $pfx: Copy skel files for user '$user'"
@@ -362,6 +357,29 @@ function addp1user() {
     fi
 }
 
+function setsmbpwd() {
+    #
+    # Set smb password for user if enabled to do so
+    #
+    if [[ "$samba" != "" ]] && [[ "$adduser" != "" ]]
+    then
+	if [ "$(type -p smbpasswd)" != "" ]
+	then
+	    [ "$smbpasswd" == "" ] && smbpasswd="$password"
+	    if [ "$smbpasswd" != "" ]
+	    then
+		logtoboth "> Plugin $pfx: Set smbpasswd for user '$adduser'"
+		(echo "$smbpasswd" ; echo "$smbpasswd") | smbpasswd -s -a "$adduser"
+	    fi
+	else
+	    if [ "$smbpasswd" != "" ]
+	    then
+		logtoboth "% Plugin $pfx: Samba not installed; Skip smbpasswd for user '$user'"
+	    fi
+	fi
+    fi
+}
+
 function do_userlist() {
     # $1: userlist file to process
     # $2: 'addp0user' or 'addp1user'
@@ -464,24 +482,19 @@ case "$phase" in
 	plugin_getargs $pfx "$args" "$vldargs"
 	converty
 	#plugin_printkeys
-	if [ -f $assetdir/smbpasswords ]
+	if [ "$userlist" != "" ]
 	then
-	    if dpkg-query -W samba > /dev/null 2>&1
+	    ul="$assetdir/userlist-$(basename $userlist)"
+	    if [ -f $ul ]
 	    then
-		while IFS=":" read user smbpasswd
-		do
-		    if [ "$smbpasswd" != "" ]
-		    then
-			logtoboth "> Plugin $pfx: Set smbpasswd for user '$user'"
-			(echo "$smbpasswd" ; echo "$smbpasswd") | smbpasswd -s -a "$user"
-		    else
-			logtoboth "> Plugin $pfx: Samba password for user '$user' is blank; not set"
-		    fi
-		done < $assetdir/smbpasswords
+		logtoboth "> Plugin $pfx: Process userlist '$ul' for Phase 1"
+		do_userlist $ul setsmbpwd
 	    else
-		logtoboth "% Plugin $pfx: Samba not installed; Skip smbpasswd for user '$user'"
+		logtobothex "? Plugin $pfx: Cannot find userlist file '$ul'"
 	    fi
-	    # ** rm -f $assetdir/smbpasswords
+	else
+	    converty
+	    setsmbpwd
 	fi
 	if [ $fredact -eq 1 -o "$redact" != "" ]
 	then
