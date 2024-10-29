@@ -143,6 +143,7 @@ for f in sdm sdm-phase0 \
 	     plugins/parted \
 	     plugins/piapps \
 	     plugins/pistrong \
+	     plugins/postburn \
 	     plugins/postfix \
 	     plugins/quietness \
 	     plugins/raspiconfig \
@@ -151,6 +152,8 @@ for f in sdm sdm-phase0 \
 	     plugins/rxapp \
 	     plugins/samba \
 	     plugins/serial \
+	     plugins/sshd \
+	     plugins/sshkey \
 	     plugins/sdm-plugin-template \
 	     plugins/syncthing \
 	     plugins/system \
