@@ -599,35 +599,52 @@ The `enablesvcs` argument requires satisfied `dobuild` and `doinstall` arguments
 
 ### network
 
-Use the network plugin to configure various network settings
+Use the network plugin to configure various network settings. Each invocation of the `network` plugin performs one of two functions:
+* Configure network settings using the `nmconf` and `nmconn` arguments to provide ready-to-go files for NetworkManager
+* Configure a single connection for a single device. A device can have more than one connnection configured for it, but pay attention to `autoconnect` and `autoconnect-priority` so that the proper connection is started by default.
+
+sdm does not pay attention to, nor do anything to improve or restrict multiple connections on a single device. They will work correctly when properly configured.
 
 #### Arguments
 
+All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid for NetworkManager. The only arguments valid for dhcpcd are these four plus `noipv6`
+
 * **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). If `netman` is not specified, by default sdm will use dhcpcd on Bullseye (Debian 11) and earlier, while on Bookworm (Debian 12) sdm will use NetworkManager.
+* **autoconnect** &mdash; Takes the value `true` or `false`. Sets the connection's autoconnect value
+* **autoconnect-priority** &mdash; Sets the connection's `autoconnect-priority` to the provided value
+* **cname** &mdash; Name the NetworkManager connection. Default is `ifname`, the interface name
+* **ctype** &mdash; If cname is a WiFi device with a name other than `wlan*`, specify `ctype=wifi`
 * **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
 * **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
-* **ifname** &mdash; Specifies ethernet device name to configure. Default is `eth0`
-* **iwname** &mdash; Specifies wireless device name to configure if WiFi configuration requested (`wifissid` and `wifipassword` provided). Default is `wlan0`
-* **ssh** &mdash; Accepts one of the values `service`, `socket`, or `none`. The default if `ssh` is not specified is to enable the SSH service
-* **wifissid** &mdash; Specifies the WiFi SSID to enable. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`), or will use nmcli during First Boot to establish the specified WiFi connection.
-* **wifipassword** &mdash; Password for the `wifissid` network. See `wifissid`
-* **wificountry** &mdash; WiFi country for the `wifissid` network. See `wifissid`
-* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. NetworkManager does not use wpa_supplicant.conf
-* **noipv6** &mdash; Specifies that IPv6 should be disabled. Works with both `netman=dhcpcd` and `netman=nm`
-* **nowifi** &mdash; Do not do WiFi configuration
+* **ifname** &mdash; Specifies network device name to configure. Default is `eth0`
+* **ipv4-route-metric** &mdash; Specify the route metric for the network
 * **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
 * **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+* **noipv6** &mdash; Specifies that IPv6 should be disabled for this connection. Works with both `netman=dhcpcd` and `netman=nm`
+* **nowifi** &mdash; If `netman=dhcpcd` and WiFi settings not configured, this prevents a warning message about no WiFi configured
 * **powersave** &mdash; Specify the WiFi powersave setting. Values: **0**:Use default value; **1**:Leave as is; **2**:Disable powersave; **3**:Enable powersave
+* **ipv4-static-ip** &mdash; Configure the connection with this static IP address
+* **ipv4-static-gateway** &mdash; Configure the connection with this static gateway
+* **ipv4-static-dns** &mdash; Configure the connection with this DNS server IP
+* **ipv4-static-dns-search** &mdash; Set DNS suffix search list for the configuration (Ex: `ipv4-static-dns-search=my.com,dyn.my.com`)
+* **wifissid** or **wifi-ssid** &mdash; Specifies the WiFi SSID for the connection. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will configure the WiFi connection (NetworkManager) or will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`).
+* **wifipassword** or **wifi-password** &mdash; Password for the `wifissid` network. See `wifissid`
+* **wificountry** or **wifi-country** &mdash; WiFi country for the `wifissid` network. See `wifissid`
+* **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. NetworkManager does not use wpa_supplicant.conf
 * **zeroconf** &mdash; (NetworkManager only) If eth0 does not properly connect (e.g., doesn't get a DHCP address) then bring up zeroconf (169.254.x.y) on the adapter.
 
   This can take some time due to NetworkManager default settings and timeouts. You can use the NetworkManager settings `ipv4.dhcp-timeout` and `connection.autoconnect-retries`  on the eth0 nmconnection to reduce the delay if desired.
 
-  See <a="https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html">Network Manager nmcli settings</a> for complete details on connection settings.
+  See <a href="https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html">Network Manager nmcli settings</a> for complete details on connection settings.
 
 #### Examples
 
-* `--plugin network:"netman=dhcpcd|noipv6"` &mdash; On Bookworm, set the network manager to dhcpcd (and disable NetworkManager), and direct dhcpcd to not request an IPv6 address.
-* `--plugin network:"netman=nm|wifissid=myssid|wifipassword=myssidpassword|wificountry=US|noipv6"` &mdash; Use NetworkManager to configure the network and also configure the specified WiFi network.
+* `--plugin network:"ifname=eth0"` &mdash; Configure network connection for device `eth0`. It will be configured for both IPV4 and IPV6 DHCP configuration. The connection will be named `eth0`
+* `--plugin network:"ifname=eth0|cname=myeth0"` &mdash; As above, but the connection will be named `myeth0`
+* `--plugin network:"nmconf=file1.conf,file2.conf|nmconn=/path/to/myconn1.nmconnection,/path/to/myconn2.nmconnection"` &mdash; Copy the provided NetworkManager config files and nmconnection files to their destination directories. No other network configuration is done.
+* `--plugin network:"ifname=wlp3s0|cname=wlan2|ctype=wifi|wifi-ssid=myssid|wifi-password=myssidpassword|wificountry=US"` &mdash; Configure a WiFi connection named `wlan2` configured with the provided SSID/Password/country for network device `wlp3s0`
+* `--plugin network:"ipv4-static-ip=192.168.14.32|ipv4-static-gateway=192.168.41.1|ipv4-static-dns=192.168.14.1|ipv4-static-dns-search=mydom.com"` &mdash; Configure `eth0` (default if no `ifname`specified) with the specified static IP configuration. The DNS search mechanism will search unqualified names in the domain `mydom.com`
+* `--plugin network:"netman=dhcpcd|noipv6"` &mdash; Set the network manager to dhcpcd (and disable NetworkManager), and do not request an IPv6 address.
 
 ### parted
 
@@ -680,9 +697,54 @@ Installs pi-apps (https://github.com/Botspot/pi-apps). That's it!
 * A fully-documented, easy-to-use Certificate Manager for secure VPN authentication with Android, iOS, Linux, MacOS, and Windows clients
 * Tools to fully configure a Client/Server Certificate Authority and/or site-to-site/host-to-host VPN Tunnels. Both can be run on the same VPN server instance
 
+In addition to simply installing pistrong and strongSwan, this plugin enables:
+* After FirstBoot system can be fully configured and operational with host/host tunnels and/or client/server VPNs with no intervention
+* Two hosts can be built up from scratch with an operational site/site host/host VPN tunnel with one sdm customize and 2 sdm burn commands
+
 #### Arguments
 
+* **calife** &mdash; Set the CA Certificate lifetime in days [Default: 3650 days]
+* **uclife** &mdash; Set the User Certificate lifetime in days [Default: 730 days]
+* **certpack** &mdash; Import an already-generated CertPack and install it in the customized IMG or burned disk
+* **enablesvc** &mdash; Enable the `strongswan` service to start on first system boot
 * **ipforward** &mdash; Enable IP forwarding from the VPN server onto the LAN. Value can be `yes` or `no` [Default: *no*]
+* **iptables** &mdash; Collect the iptables configuration from available CA and Tunnel definitions into /etc/swanctl/pistrong/iptables and enable the service pistrong-iptables-load
+* **makemyca** &mdash; Provide a configuration answer file for MakeMyCA to enable the CA to be automatically configured with no intervention
+* **maketunnel** &mdash; Provide a configuration answer file for makeTunnel to enable the tunnel to be automatically configured with no intervention
+* **hostname** &mdash; Provide the hostname that will ultimately be used for the host so makeTunnel recognizes that the Tunnel configuration is for this host
+* **vpnmon** &mdash; Enable the VPN monitor on this host, which tries to always keep the VPN tunnel connection up. Requires `vpnmonping`
+* **vpnmonping** &mdash; Specifies the IP address that the VPN monitor should test for the VPN tunnel being up. Typically this would be the LAN IP address of the VPN server at the other end of the tunnel
+
+#### Examples
+
+* `--plugin pistrong:"calife=7300|uclife=7300|makemyca=/path/to/makemyca.conf"` &mdash; Install strongSwan, create a CA with the specified Cert lifetimes, and configure the CA with the parameters provided in makemyca.conf
+* `--plugin pistrong:"maketunnel=/path/to/maketunnel.conf"` &mdash; Install pistrong and build a VPN tunnel with the parameters defined in maketunnel.conf
+* `--plugin pistrong:"certpack=/path/to/Tunnel-node1-node2.zip|enablesvc|vpnmon|vpnmonping=192.168.47.3"` &mdash; Install pistrong, import the VPN CertPack and install it. Enable the VPN monitor checking the LAN IP address on the other end of the tunnel specified by `vpnmonping`
+
+**NOTE:** Documentation on the makemyca and maketunnel config files is not yet available. If you're interested in using this capability, please post an issue on the sdm GitHub.
+
+### postburn
+
+postburn is a `--burn-plugin` that enables you to:
+* Copy files from the burned disk to the host OS file system
+* Run a script that has access to the burned disk in either Phase 0 or Phase 1 *mode*
+
+#### Arguments
+
+* `savefrom` &mdash; /path/to/file for the file(s) to be copied from the burned disk. `*` is supported for use in the filename
+* `saveto` &mdash; /path/to/dir to define where the files will be copied to
+* `runscript` &mdash; /path/to/script of a script that will be run after the burn completes. The script must exist and be executable
+* `runphase` &mdash; Specify context for running `runscript`. [Default: `phase1`]. Supported values:
+  * `phase0` &mdash; Runs `runscript` in the context of the burned disk being mounted in the host OS
+  * `phase1` &mdash; Runs `runscript` in the context of the burned disk in a container
+* `where` &mdash; Where the script is located. `host` specifies that `runscript` path is in the host OS. Any other value: `runscript` path is in the burned disk
+
+#### Examples
+
+* `--burn-plugin postburn:"savefrom=/etc/swanctl/pistrong/server-assets/*.zip|saveto=/my/dir"` &mdash; Copies all the *.zip files from the specified directory in the burned disk to `/my/dir` on the host file system
+* `--burn-plugin postburn:"runscript=/usr/local/bin/do-something|runphase=phase0|where=host"` &mdash; Runs the host-located script `/usr/local/bin/do-something` in the context of the host OS
+* `--burn-plugin postburn:"runscript=/usr/local/bin/do-something|runphase=phase1|where=host"` &mdash; Runs the host-located script `/usr/local/bin/do-something` in the context of the burned disk container. The `runscript` is copied onto the burned disk in /usr/local/bin, and removed after it has been run
+* `--burn-plugin postburn:"runscript=/usr/local/bin/do-something|runphase=phase1"` &mdash; Runs the burned disk-located script `/usr/local/bin/do-something` in the context of the burned disk container
 
 ### postfix
 
@@ -884,6 +946,48 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 * `--plugin serial:enableshell` &mdash; Configure the serial port for a Pi other than a Pi5 and enable a login shell on it
 * `--plugin serial:pi5|enableshell` &mdash; Configure the serial port for a Pi5 and enable a login shell on it
 * `--plugin serial:pi5debug` &mdash; Configure the debug serial port for a Pi5
+
+### sshd
+
+The `sshd` plugin configures:
+* The SSH service to be enabled or disabled. This service is enabled by default, even if the `sshd` plugin is not used. Use the `sshd` service to disable the SSH service if needed
+* Various SSH service configuration items
+
+### Arguments
+
+These configuration items affect the SSH service.
+
+* **enablesvc** &mdash; Enable or disable the service. [Default: enabled]. Values supported: `yes`, `no`, or `socket`
+
+* Arguments that modify /etc/sshd_config
+    * **listen-address** &mdash; IP address on which to listen [Default: 0.0.0.0] (all IP addresses on the server)
+    * **password-authentication** &mdash; Enable/disable password authentication. [Default: `yes`]. Disable this (`no`) to restrict logins to public key only
+    * **port** &mdash; Port number SSH service should listen on [Default: 22]
+
+#### Examples
+
+* `--plugin sshd:"enablesvc=no" &mdash; Disable the SSH service
+* `--plugin sshd:"port=22222|listen-address=192.168.16.16" &mdash; Enable the SSH service, which will listen on port 2222 and only on the IP address 192.168.16.16 (which must be an IP address on the target system)
+* `--plugin sshd:"password-authentication=no" &mdash; Disable password authentication
+
+### sshkey
+
+The `sshkey` plugin creates an SSH key or imports an SSH key for a user. In either case, you can optionally create a Putty private key for it.
+
+### Arguments
+
+* **sshuser** &mdash; The user for whom the SSH key is targeted. The user must already exist
+* **authkey** &mdash; Add the created SSH public key to `sshuser`'s ~/.ssh/authorized_keys
+* **import-key** &mdash; Instead of creating an SSH key, import the specified SSH key from the provided file in the host OS
+* **keyname** &mdash; Name the key that is to be created
+* **keytype** &mdash; Type of key to create. Accepted values: `dsa`, `ecdsa`, `ecdsa-sk`, `ed25519`, `ed25519-sk`, `rsa`. [Default: `ecdsa`]
+* **passphrase** &mdash; Passphrase to secure the SSH key. The same passphrase is used when creating a putty key
+* **putty-keyname** &mdash; If specified, create a putty key in ~/.ssh with the provided key name
+
+#### Examples
+
+* `--plugin sshkey:"sshuser=bls|keyname=mykey|keytype=ed25519|passphrase=itsasecret|putty-keyname=myputtykey"` &mdash; Create a new SSH key for user `bls`, with the parameters as specified. Additionally, the Putty key `myputtykey.ppk` is created using the same passphrase
+* `--plugin sshkey:"sshuser=bls|import-key=/home/bls/.ssh/myotherkey|putty-keyname=otherputty|passphrase=anothersecret"` &mdash; Import the specified private key from the host system. Use the provided passphrase to access the imported key and create a Putty key using the same passphrase.
 
 ### syncthing
 
