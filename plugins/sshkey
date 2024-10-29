@@ -1,0 +1,114 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: sshkeys
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function makesshdir() {
+    #
+    # Ensure user's .ssh directory exists and is properly owned/protected
+    #
+    mkdir -p $xhdir/.ssh
+    setfileownmode $xhdir/.ssh 700 $sshuser:$xgx
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|sshuser|authkey|import-key|keyname|keytype|passphrase|putty-keyname|"
+rqdargs=""                   # |list|of|required|args|or|nullstring|
+vkeytypes="dsa|ecdsa|ecdsa-sk|ed25519|ed25519-sk|rsa|"
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    
+    mkdir -p $assetdir
+    if [ "$import__key" != "" ]
+    then
+	[ -f $import__key ] || logtobothex "? Plugin $pfx: Import key file '$import__key' not found"
+	logtoboth "> Plugin $pfx: Copy import-key file '$import__key' to $assetdir"
+	cp $import__key $assetdir
+    fi
+    [ "$keytype" == "" ] && keytype=ecdsa
+    [[ "$vkeytypes" =~ "$ketype" ]] || logtobothex "> Plugin $pfx: Unrecognized ssh key type '$keytype'"
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    IFS=":" read xuser xpw xuid xgx xname xhdir rest <<< $(getent passwd $sshuser)
+    if [ "$putty__keyname" != "" ]
+    then
+	installpkgsif putty-tools
+	putty__keyname="${putty__keyname%.ppk}.ppk"
+    fi
+	
+    if [ "$import__key" == "" ]
+    then
+	[ "$keytype" == "" ] && keytype=ecdsa
+	[ -v authkey ] && authkey=y
+	[ -n "$authkey" ] && aks=" and add public key to authorized_keys"
+	logtoboth "> Plugin $pfx: Create key '$keyname' type '$keytype' for user '$sshuser'$aks"
+	makesshdir
+	rm -f $xhdir/.ssh/$keyname $xhdir/.ssh/$keyname.pub
+	ssh-keygen -C $keyname -f $xhdir/.ssh/$keyname -t $keytype -N "$passphrase" <<< \$'y' >$assetdir/keygen-$keyname.log 2>&1
+	setfileownmode $xhdir/.ssh/$keyname 600 $xuser:$xgx
+	setfileownmode $xhdir/.ssh/$keyname.pub 644 $xuser:$xgx
+	[ $? -ne 0 ] && logtobothex "? Plugin $pfx: ssh-keygen returned an error; see $assetdir/keygen-$keyname.log"
+	[ "$authkey" != "" ] && cat $xhdir/.ssh/$keyname.pub >> $xhdir/.ssh/authorized_keys && setfileownmode $xhdir/.ssh/authorized_keys 600 $xuser:$xgx
+    else
+	ikfn="$(basename $import__key)"
+	logtoboth "> Plugin $pfx: Copy SSH key '$(basename $import__key)' from $assetdir to user '$sshuser' .ssh directory"
+	makesshdir
+	cp $assetdir/$ikfn $xhdir/.ssh
+	setfileownmode $xhdir/.ssh/$ikfn 600 $sshuser:$xgx
+	keyname=$(basename $import__key)
+    fi
+    if [ "$putty__keyname" != "" ]
+    then
+	[ "$passphrase" != "" ] && echo "$passphrase" >/tmp/pw.tmp && opswitch="--old-passphrase /tmp/pw.tmp"
+	logtoboth "> Plugin $pfx: Create putty private key '$putty__keyname'"
+	installpkgsif putty-tools
+	puttygen $xhdir/.ssh/$keyname -O private -o $xhdir/.ssh/$putty__keyname $opswitch
+	setfileownmode $xhdir/.ssh/$putty__keyname 600 $xuser:$xgx
+    fi
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+
+    #
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
+

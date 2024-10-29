@@ -1,0 +1,127 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: postburn
+#
+# The plugin is a burn plugin and must be invoked during a burn operation with --burn-plugin
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function ckfilex() {
+    runscript="$1"
+    [ -f $runscript ] || logtobothex "? Plugin $pfx: runscript file '$runscript' not found"
+    [ -x $runscript ] || logtobothex "? Plugin $pfx: runscript file '$runscript' not executable"
+}
+
+function copyfile() {
+    #
+    # $1: from file
+    # $2: to directory
+    #
+    local cfrom="$1" cto="$2"
+    local sfn
+
+    while read sfn
+    do
+	logtoboth "> Plugin $pfx: Copy '$sfn' to '$cto'"
+	cp $sfn $cto
+	sts=$?
+	[ $sts -ne 0 ] && logtobothex "? Plugin $pfx: Error '$sts' copying '$sfn' to '$cto'"
+    done < <(compgen -G "${SDMPT}${cfrom}")
+}
+
+function logtoboth() {
+    echo "$1"
+}
+
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|savefrom|saveto|runscript|runphase|where|burndev|burnfilefile|imgtype|"
+rqdargs="|imgtype|"
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+# Redefine logtoboth so it just does an echo as the log is inaccessible from now on
+
+#function logtoboth() {
+#    echo "$1"
+#}
+
+#function logtobothex() {
+#    echo "$1"
+#    exit 1
+#}
+
+if [ "$phase" == "burn-complete" ]
+then
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    if [[ "$savefrom" == "" ]] && [[ "$runscript" == "" ]]
+    then
+	logtobothex "? Plugin $pfx: Neither 'savefrom' or 'runscript' specified; nothing to do"
+    fi
+    dimg=$burndev
+    [ "$dimg" == "" ] && dimg=$burnfilefile
+    declare -x SDMPT=$(makemtpt)
+    domount "$dimg" $imgtype
+    echo "* $imgtype '$dimg' mounted on $SDMPT"
+    if [ "$savefrom" != "" ]
+    then
+	[ "$saveto" == "" ] && logtobothex "? Plugin $pfx: No 'saveto' provided"
+	[ -d $saveto ] || logtobothex "? Plugin $pfx: 'saveto' location '$saveto' is not a directory"
+	# savefrom can be a file or an @file
+	# save files to 'saveto'
+	if [ "${savefrom:0:1}" == "@" ]
+	then
+	    sfn=${savefrom:1:999}
+	    [ -f $sfn ] || logtobothex "? Plugin $pfx: 'savefrom' @file '$sfn' not found"
+	    #logtoboth "> Plugin $pfx: Copy files listed in '$sfn' to '$saveto'"
+	    while read fn
+	    do
+		copyfile $fn $saveto
+	    done < $sfn
+	else
+	    copyfile $savefrom $saveto
+	fi
+    fi
+    if [ "$runscript" != "" ]
+    then
+	[ "$runphase" == "" ] && logtoboth "% Plugin $pfx: 'runphase' not specified; using phase1 for safety" && runphase="phase1"
+	case "${runphase,,}" in
+	    phase0)
+		logtoboth "> Plugin $pfx: Run '$runscript' in Phase 0 environment"
+		[ "$where" != "host" ] && runscript="${SDMPT}${runscript}"
+		ckfilex "$runscript"
+		$runscript
+		;;
+	    phase1)
+		rs=$runscript
+		if [ "$where" == "host" ]
+		then
+		    cs="$SDMPT/usr/local/bin/$(basename $runscript)"
+		    cp $runscript $cs
+		    rs="/usr/local/bin/$(basename $runscript)"
+		else
+		    cs=$SDMPT/$rs
+		fi
+		ckfilex $cs
+		logtoboth "> Plugin $pfx: Run '$runscript' in Phase 1 environment"
+		sdm_spawn "" Phase1 $rs
+		[ "$where" == "host" ] && rm -f $cs
+		;;
+	    *)
+		logtobothex "? Plugin $pfx: runphase '$runphase' not recognized"
+		;;
+	esac
+    fi
+    docleanup
+fi
