@@ -1,5 +1,31 @@
 # Changelog
 
+## V13.0
+
+* New Features
+  * New plugins
+    * `postburn` &mdash; A *burn plugin*, runs after a burn to copy files from the burned disk to/from the host or run scripts that require access to the burned disk. <a href="Docs/Plugins.md#postburn">postburn plugin documentation</a>
+    * `sshd` &mdash; Configures SSH service (SSH enabled remains the default) and/or configure sshd settings in /etc/sshd_config: `ListenAddress`, `PasswordAuthentication`, and `Port`. <a href="Docs/Plugins.md#sshd">sshd plugin documentation</a>
+    * `sshkey` &mdash; Create or import an SSH key, optionally create a putty private key <a href="Docs/Plugins.md#sshkey">sshkey plugin documentation</a>
+* Improvements
+  * `apt-cacher-ng` now creates /usr/local/bin/reset-apt-cacher in case the cacher has a problem
+  * Add several new arguments to the `pistrong` plugin to enable fully-automated IPSEC VPN configuration
+    * See <a href="Docs/Plugins.md#pistrong">pistrong plugin documentation</a> for details
+  * `network` plugin changes/enhancements
+    * Explicit SSH service configuration moved to the new plugin `sshd`. sdm still enables SSH by default, so `sshd` plugin only needed to disable SSH or make other configuration changes newly supported by the `sshd` plugin. 
+    * Static IP configuration, autoconnect, autoconnect-priority, connection name
+    * Identify device as wifi if it's not named 'wlan*'
+    * Invoke plugin for each network device to configure
+    * OR run it to copy existing .conf or .nmconnection files into the IMG
+    * <a href="Docs/Plugins.md#network">Network plugin documentation</a>
+  * `imon` plugin updated
+  * `samba` plugin enhancements
+    * `enablesvc` argument to enable the service
+    * Disable `nmbd` and `samba-ad-dc` services, which are hardly used
+* Bug Fixes
+  * Correct `user` plugin handling for samba passwords
+  * Correct burn device already mounted check
+
 ## V12.10
 
 * New Features
