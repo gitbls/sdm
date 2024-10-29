@@ -65,24 +65,33 @@ EOF
     fi
 }
 
-function getwififromwpa() {
-    if [ -f $assetdir/wpa.conf ]
+function makenmconn() {
+    cname="$1" makeif="$2" nmcmd="$3"
+
+    if [ $newnm -eq 1 ]
     then
-	[ "$wifissid" == "" ] && IFS="=" read a wifissid <<< $(grep 'ssid=' $assetdir/wpa.conf | head -n 1)
-	wifissid=$(stripquotes "$wifissid" qq)
-	[ "$wifipassword" == "" ] && IFS="=" read a wifipassword <<< $(grep 'psk=' $assetdir/wpa.conf | head -n 1)
-	wifipassword=$(stripquotes "$wifipassword" qq)
-	[ "$wificountry" == "" ] && IFS="=" read a wificountry <<< $(grep 'country=' $assetdir/wpa.conf | head -n 1)
+	[ -f /etc/NetworkManager/system-connections/$cname.nmconnection ] && logtobothex "? Plugin $pfx: NetworkManager connection $cname already exists"
+	logtoboth "> Plugin $pfx: Create connection '$cname' on interface '$makeif'"
+	nmcli --offline $nmcmd | tee /etc/NetworkManager/system-connections/$cname.nmconnection >/dev/null
+	sts=$?
+	[ $sts -ne 0 ] && logtobothex "? Plugin $pfx: nmcli returned error '$sts' on create connection '$cname' with '$nmcmd'"
+    else
+	cat >> $nmdcfg <<EOF
+logger "sdm FirstBoot: Create NetworkManager connection '$cname' on interface '$makeif'"
+nmcli $nmcmd
+EOF
     fi
 }
 
 function modnmconn() {
-    cattr="$1" cname="$2" fname="$3"
+    cname="$1" cattr="$2" fname="$3"
     if [ $newnm -eq 1 ]
     then
 	[ "$fname" != "" ] && fname="$(basename "$fname")" || fname="$cname"
 	fname="${fname%.nmconnection}"
 	nmcli --offline c modify $cattr </etc/NetworkManager/system-connections/"$fname".nmconnection | tee /tmp/"$fname".nmconnection >/dev/null
+	sts=$?
+	[ $sts -ne 0 ] && logtobothex "? Plugin $pfx: nmcli returned error '$sts' on modify '$cattr'"
 	rm -f /etc/NetworkManager/system-connections/"$fname".nmconnection
 	mv /tmp/"$fname".nmconnection /etc/NetworkManager/system-connections/"$fname".nmconnection
     else
@@ -90,14 +99,23 @@ function modnmconn() {
     fi
 }
 
+function getctype() {
+
+    if [ "$ctype" != "" ]
+    then
+	[[ "wifi|ethernet" =~ "$ctype" ]] || logtobothex "? Plugin $pfx: '$ctype' is an invalid value for 'ctype'"
+	thisctype=$ctype
+    fi
+    if [[ "$thisctype" == "" ]]
+    then
+	[[ "$ifname" =~ "wlan" ]] && thisctype=wifi || thisctype=ethernet
+    fi
+}
+
 function converty() {
     [ -v noipv6 ] && noipv6=y
     [ -v nowifi ] && nowifi=y
     [ -v zeroconf ] && zeroconf=y
-}
-
-function network_dossh() {
-    dosshsetup service network
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -111,7 +129,12 @@ args="$2"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/network"
 
-vldargs="|netman|dhcpcdwait|dhcpcdappend|ssh|wpa|wifissid|wifipassword|powersave|wificountry|ifname|iwname|noipv6|nmconf|nmconn|nowifi|zeroconf|"
+vldargs="|cname|ctype|dhcpcdwait|dhcpcdappend|ifname|netman|noipv6|nmconf|nmconn|nowifi|powersave|wificountry|wifissid|wifipassword|wpa|zeroconf"
+vldargs="$vldargs|ipv4-static-ip|ipv4-static-gateway|ipv4-static-dns|ipv4-static-dns-search"
+vldargs="$vldargs|ipv4-route-metric"
+vldargs="$vldargs|autoconnect-priority|autoconnect"
+vldargs="$vldargs|wifi-ssid|wifi-password|wifi-country"
+vldargs="$vldargs|"
 rqdargs=""
 
 if [ "$phase" == "0" ]
@@ -137,6 +160,27 @@ then
 	    logtobothex "? Plugin $pfx: wpa file '$wpa' not found"
 	fi
     fi
+
+    if [ "$ipv4__static__ip" != "" ]
+    then
+	[ "$zeroconf" == "" ] || logtobothex "? Plugin $pfx: Arguments 'ipv4-static-ip' and 'zeroconf' conflict"
+	[ "$netman" == "dhcpcd" ] && logtobothex "? Plugin $pfx: Argument 'ipv4-static-ip' conflicts with 'netman=dhcpcd'"
+    fi
+    [ "$wifissid" == "" ] && wifissid="$wifi__ssid"
+    [ "$wifipassword" == "" ] && wifipassword="$wifi__password"
+    [[ "$wifissid" != "" ]] && [[ "$wifipassword" == "" ]] && logtobothex "? Plugin $pfx: WiFi password required but not specified"
+
+    thiscname="$cname"
+    thisctype=""
+    getctype
+    if [ "$thisctype" == "wifi" ]
+    then
+	[ "$wifissid" == "" ] && logtobothex "? Plugin $pfx: WiFi SSID must be specified for WiFi device '$ifname'"
+	[ "$thiscname" != "" ] && thiscname="${wifissid,,}" && thiscname="${thiscname// /}"
+    else
+	[ "$wifissid" != "" ] && logtobothex "? Plugin $pfx: WiFi SSID incompatible with ethernet network device"
+    fi
+
     case "${netman}" in
 	dhcpcd)
 	    if [ "$dhcpcdappend" != "" ]
@@ -173,26 +217,6 @@ then
 		    done
 		fi
 	    done
-	    #
-	    # Check for WiFi defined somehow and report if it appears to not be defined
-	    #
-	    nmwifi=0
-	    if [ -d $assetdir/nmconn ]
-	    then
-		# Did any of the nm connection definitions define a wifi connection?
-		grep -qs type=wifi $assetdir/nmconn/* && nmwifi=1
-	    fi
-	    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
-	    if [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ]
-	    then
-		# If still don't have wifi config and no wifi .nmconnections and not 'nowifi', inform wifi issue
-		if [ "$nowifi" != "y" -a $nmwifi -eq 0 ]
-		then
-		    logtoboth "% Plugin $pfx: Network Manager requires either a .nmconnection file for WiFi"
-		    logtoboth "  or explicit WiFi configuration via arguments: wifissid wifipassword wificountry"
-		    logtoboth "  Found neither; WiFi likely will not connect"
-		fi
-	    fi
 	    ;;
     esac
     
@@ -219,10 +243,10 @@ then
     xwificountry="$wificountry"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
-    [ "$iwname" == "" ] && iwname="wlan0"
     netman=$(getdefnm "$netman")
     plugin_printkeys
     # If no wificountry in plugin args, use previous setting
+    [ "$wificountry" == "" ] && wificountry="$wifi__country"
     if [ "$wificountry" == "" ]
     then
 	wificountry="$xwificountry"
@@ -231,12 +255,6 @@ then
 	writeconfig  # Update config to save updated wificountry
     fi
     #logfreespace "at start of Plugin $pfx Phase post-install"
-    #
-    # Set up ssh
-    # If ssh not specifed, default to enabled
-    #
-    [ ! -v ssh -o "$ssh" == "" ] && ssh="service"
-    dosshsetup "$ssh" network
 
     if [ -f $assetdir/wpa.conf ]
     then
@@ -244,6 +262,7 @@ then
 	cp -a $assetdir/wpa.conf /etc/wpa_supplicant/wpa_supplicant.conf
 	setfileownmode /etc/wpa_supplicant/wpa_supplicant.conf 644
     fi
+
     case "${netman}" in
 	dhcpcd)
 	    [ "$raspiosver" -ge 12 ] && pkg="dhcpcd" || pkg="dhcpcd5"
@@ -289,14 +308,18 @@ EOF
 	    ;;
 
 	nm|network-manager)
-	    [ "$ifname" == "" ] && ifname="eth0"
-	    if ! ispkginstalled network-manager     # so only print msg if it's really not installed. Less confusing
+	    thiscname="$cname"
+	    thisctype=""
+	    thisattr=""
+	    [ "$wifissid" == "" ] && wifissid="$wifi__ssid"
+	    [ "$wifipassword" == "" ] && wifipassword="$wifi__password"
+	    if ! ispkginstalled network-manager     # Only print msg if it's really not installed. Less confusing
 	    then
 		logtoboth "> Plugin $pfx: Install Network Manager"
 		installpkgsif network-manager
 	    fi
-	    systemctl -q enable NetworkManager >/dev/null 2>&1
-	    systemctl -q disable dhcpcd >/dev/null 2>&1
+	    systemctl enable NetworkManager >/dev/null 2>&1
+	    systemctl disable dhcpcd >/dev/null 2>&1
 	    for conf in nmconf nmconn
 	    do
 		if compgen -G "$assetdir/$conf/*" >/dev/null
@@ -307,90 +330,10 @@ EOF
 			cbn=$(basename $c)
 			logtoboth "> Plugin $pfx: Copy $conf '$cbn' from $assetdir/$conf to /etc/NetworkManager/$tgt"
 			cp -a $c /etc/NetworkManager/$tgt
+			mv $c $assetdir/$conf/.${cbn}
 		    done
 		fi
 	    done
-	    # Defer configuration to FirstBoot if running old NetworkManager (version older than bookworm)
-	    nmver=$(nmcli --version 2>/dev/null)
-	    nmver=${nmver##*version}
-	    [[ "$nmver" =~ ([[:digit:]]{,2}).([[:digit:]]{,2}).([[:digit:]]{,2}) ]]
-	    nmvermaj="${BASH_REMATCH[2]}"
-	    nmvermin="${BASH_REMATCH[3]}"
-	    [ "$nmvermaj" == "" ] && nmvermaj="1"
-	    [ "$nmvermin" == "" ] && nmvermin="41"
-	    [[ $nmvermaj -gt 1 ]] || [[ $nmvermin -ge 42 ]] && newnm=1 || newnm=0
-	    nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot if newnm=0
-	    [ $newnm -eq 0 ] && echo "#!/bin/bash" > $nmdcfg
-	    if [ "$nowifi" != "y" ]
-	    then
-		if ! compgen -G "/etc/NetworkManager/system-connections/*.nmconnection" >/dev/null || ! grep -qs interface-name=$iwname /etc/NetworkManager/system-connections/*.nmconnection
-		then
-		    if [ "$wpa" != "" ]
-		    then
-			logtoboth "> Plugin $pfx: wpa_supplicant.conf is not used by Network Manager"
-			logtoboth "  If your wpa_supplicant.conf contained multiple network connections"
-			logtoboth "  only the first one will be defined in Network Manager"
-		    fi
-		    [ "$wificountry" == "" -o "$wifissid" == "" -o "$wifipassword" == "" ] && getwififromwpa
-		    if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
-		    then
-			logtoboth "> Plugin $pfx: Create NetworkManager WiFi configuration"
-			logtoboth "  with SSID: '$wifissid' Password: '$wifipassword' WiFi Country: '$wificountry'"
-			# Wifi connection name all lower case and no spaces
-			wificname="${wifissid,,}"
-			wificname="${wificname// /}"
-			if [ $newnm -eq 1 ]
-			then
-			    # --offline should work
-			    logtoboth "> Plugin $pfx: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
-			    nmcli --offline c add type wifi con-name $wificname \
-				  ifname $iwname ssid "$wifissid" wifi-sec.key-mgmt \
-				  wpa-psk wifi-sec.psk "$wifipassword" | tee /tmp/$wificname.nmconnection >/dev/null
-			    rm -f /etc/NetworkManager/system-connections/$wificname.nmconnection
-			    mv /tmp/$wificname.nmconnection /etc/NetworkManager/system-connections/$wificname.nmconnection
-			else
-			    cat >> $nmdcfg <<EOF
-logger "sdm FirstBoot: Configure NetworkManager WiFi connection '$wificname' with SSID '$wifissid'"
-nmcli c add type wifi con-name $wificname ifname $iwname ssid "$wifissid"
-nmcli c modify $wificname wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$wifipassword"
-EOF
-			fi
-			[ "$noipv6" == "y" ] && logtoboth "> Plugin $pfx: Disable ipv6 on Wifi '$wificname'" && modnmconn "ipv6.method disabled" $wificname
-		    fi
-		fi
-	    fi
-
-	    if [ "$zeroconf" == "y" ]
-	    then
-		logtoboth "> Plugin $pfx: Create zeroconf network configuration for $ifname"
-		newdhcp=1  # Assume we'll enable $ifname-dhcp connection
-		if grep -qs interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection
-		then
-		    newdhcp=0
-		    excname=$(grep -l interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
-		    [ "$excname" != "" ] && excname="$(basename $excname)" && excname="${excname%.nmconnection}"
-		    logtoboth "% Plugin $pfx: Found connection '$excname' for network device '$ifname'"
-		    logtoboth "  Connection '$excname' autoconnect settings not modified"
-		    logtoboth "  Connection '$ifname-dhcp' autoconnect disabled"
-		    logtoboth "  Review connection '$excname' and '$ifname-dhcp' 'autoconnect' and 'autoconnect-priority' settings"
-		fi
-		adddhcp="c add con-name $ifname-dhcp ifname $ifname type ethernet connection.autoconnect-priority 100 connection.autoconnect-retries 2"
-		addzeroconf="c add con-name $ifname-zeroconf type ethernet ifname $ifname connection.autoconnect-priority 50 ipv4.method link-local ipv4.link-local enabled"
-		if [ $newnm -eq 1 ]
-		then
-		    logtoboth "> Plugin $pfx: Create connection '$ifname-dhcp'"
-		    nmcli --offline $adddhcp | tee /etc/NetworkManager/system-connections/$ifname-dhcp.nmconnection >/dev/null
-		    [ $newdhcp -eq 0 ] && modnmconn "connection.autoconnect false" "$ifname-dhcp"
-		    logtoboth "> Plugin $pfx: Create connection '$ifname-zeroconf'"
-		    nmcli --offline $addzeroconf | tee /etc/NetworkManager/system-connections/$ifname-zeroconf.nmconnection >/dev/null
-		else
-		    logtoboth "> Plugin $pfx: Create connection '$ifname-dhcp'"
-		    echo "nmcli $adddhcp" >> $nmdcfg
-		    [ $newdhcp -eq 0 ] && modnmconn "connection.autoconnect false" "$ifname-dhcp"
-		    logtoboth "> Plugin $pfx: Create connection '$ifname-zeroconf'"
-		    echo "nmcli $addzeroconf" >> $nmdcfg
-		fi
-	    fi
 	    # Configure powersave if requested
 	    if [ "$powersave" != "" ]
 	    then
@@ -400,35 +343,77 @@ EOF
 wifi.powersave = $powersave
 EOF
 	    fi
-	    # If noipv6 requested set it on $ifname's connection(s). Create if it doesn't exist.
-	    if [ "$noipv6" == "y" ]
+	    #
+	    # Process other arguments if provided
+	    #
+	    if [ "${ifname}${wifissid}${ipv4__static__ip}${zeroconf}" != "" ]
 	    then
-		if ! grep -qs interface-name=$ifname /etc/NetworkManager/system-connections/*.nmconnection
+		[ "$ifname" == "" ] && ifname="eth0"
+		# Defer configuration to FirstBoot if running old NetworkManager (version older than bookworm)
+		nmver=$(nmcli --version 2>/dev/null)
+		nmver=${nmver##*version}
+		[[ "$nmver" =~ ([[:digit:]]{,2}).([[:digit:]]{,2}).([[:digit:]]{,2}) ]]
+		nmvermaj="${BASH_REMATCH[2]}"
+		nmvermin="${BASH_REMATCH[3]}"
+		[ "$nmvermaj" == "" ] && nmvermaj="1"
+		[ "$nmvermin" == "" ] && nmvermin="41"
+		[[ $nmvermaj -gt 1 ]] || [[ $nmvermin -ge 42 ]] && newnm=1 || newnm=0
+		nmdcfg="/etc/sdm/xpiboot/005-nm-config.sh"  # Want it to run early in FirstBoot if newnm=0
+		[ $newnm -eq 0 ] && echo "#!/bin/bash" > $nmdcfg
+
+		getctype
+		if [ "$thisctype" == "wifi" ] && [[ "$thiscname" == "" ]]
 		then
-		    lancname="Wired-connection-$ifname"
-		    logtoboth "> Plugin $pfx: Add network LAN connection '$lancname' on device '$ifname'"
-	    if [ $newnm -eq 1 ]
-		    then
-			nmcli --offline c add con-name "$lancname" type ethernet ifname $ifname | tee /etc/NetworkManager/system-connections/$lancname.nmconnection >/dev/null
-		    else
-			echo "nmcli c add con-name "$lancname" type ethernet ifname $ifname" >> $nmdcfg
-		    fi
+		    thiscname="${wifissid,,}" && thiscname="${thiscname// /}"
+		else
+		    [ "$thiscname" == "" ] && thiscname="$ifname"
 		fi
-		while read nmfile
-		do
-		    IFS="=" read idx cname < <(grep ^id= $nmfile)
-		    logtoboth "> Plugin $pfx: Disable ipv6 on connection '$cname'"
-		    modnmconn "ipv6.method disabled" "$cname" "$nmfile"
-		done < <(grep -l $ifname /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
+
+		[ "$wifissid" != "" ] && thisattr="ssid \"$wifissid\" wifi-sec.key-mgmt  wpa-psk wifi-sec.psk \"$wifipassword\""
+
+		if [ "$ipv4__static__ip" != "" ]
+		then
+		    logtoboth "> Plugin $pfx: Configure connection '$thiscname' for a Static IP"
+		    logtoboth "  Static IP:                $ipv4__static__ip"
+		    logtoboth "  Static Gateway:           $ipv4__static__gateway"
+		    logtoboth "  Static DNS Server:        $ipv4__static__dns"
+		    logtoboth "  Static DNS Domain Search: $ipv4__static__dns__search"
+		    thisattr="$thisattr ipv4.addresses $ipv4__static__ip/24 ipv4.method manual"
+		    [ "$ipv4__static__gateway" != "" ] && thisattr="$thisattr ipv4.gateway $ipv4__static__gateway"
+		    [ "$ipv4__static__dns" != "" ] && thisattr="$thisattr ipv4.dns  $ipv4__static__dns"
+		    [ "$ipv4__static__dns__search" != "" ] && thisattr="$thisattr ipv4.dns-search $ipv4__static__dns__search"
+		fi
+
+		[ "$autoconnect" != "" ] && logtoboth "> Plugin $pfx: Configure 'autoconnect=$autoconnect' on connection '$thiscname'" && thisattr="$thisattr connection.autoconnect $autoconnect"
+		[ "$autoconnect__priority" != "" ] && \
+		    logtoboth "> Plugin $pfx: Set autoconnect priority '$autoconnect__priority' on connection '$thiscname'" && \
+		    thisattr="$thisattr connection.autoconnect-priority $autoconnect__priority"
+		[ "$ipv4__route__metric" != "" ] && logtoboth "> Plugin $pfx: Set ipv4.route-metric '$ipv4__route__metric' on connection '$thiscname'" && \
+		    thisattr="$thisattr ipv4.route-metric $ipv4__route__metric"
+		[ "$noipv6" == "y" ] && logtoboth "> Plugin $pfx: Disable ipv6 on connection '$thiscname'" && thisattr="$thisattr ipv6.method disabled"
+		thiscname="${thiscname// /}"
+		makenmconn "$thiscname" $ifname "c add type $thisctype con-name $thiscname ifname $ifname $thisattr"
+
+		if [ "$zeroconf" == "y" ]
+		then
+		   if [ "$thiscname" == "" ]
+		   then
+		       thiscname="$ifname-dhcp"
+		       adddhcp="c add con-name $thiscname ifname $ifname type $thisctype"
+		       [ "$noipv6" == "y" ] && logtoboth "> Plugin $pfx: Disable ipv6 on connection '$thiscname'" && adddhcp="$adddhcp ipv6.method disabled"
+		       makenmconn $thiscname $ifname "$adddhcp"
+		   fi
+		   logtoboth "> Plugin $pfx: Configure autoconnect for zeroconf on connection '$thiscname'"
+		   modnmconn $thiscname "connection.autoconnect true connection.autoconnect-priority 100 connection.autoconnect-retries 2"
+		   addzeroconf="c add con-name $ifname-zeroconf type $thisctype ifname $ifname connection.autoconnect-priority 50 ipv4.method link-local ipv4.link-local enabled"
+		   [ "$noipv6" == "y" ] && logtoboth "> Plugin $pfx: Disable ipv6 on connection '$ifname-zeroconf'" && addzeroconf="$addzeroconf ipv6.method disabled"
+		   makenmconn $ifname-zeroconf $ifname "$addzeroconf"
+		fi
 	    fi
 	    compgen -G "/etc/NetworkManager/conf.d/*" >/dev/null && setfileownmode "/etc/NetworkManager/conf.d/*" 644
 	    compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null && setfileownmode "/etc/NetworkManager/system-connections/*" 600
-	    writeconfig        # rewrite config in case we set wificountry
 	    ;;
     esac
-    # Don't think this is needed, but keeping jic
-    #logtoboth "> Plugin $pfx: Update regulatory database"
-    #update-alternatives --set regulatory.db /lib/firmware/regulatory.db-upstream
-    #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
+exit 0
