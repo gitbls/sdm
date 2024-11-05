@@ -158,7 +158,7 @@ if [ "$cscript" != "" ]
 then
     csfn="$sdmdir/$(basename $cscript)"
     logtoboth "> Run Custom Phase Script '$csfn' Phase 1" 
-    $csfn 1
+    $csfn 1 || exit
 else
     csfn=""
 fi

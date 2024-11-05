@@ -23,7 +23,7 @@ if [ "$cscript" != "" ]
 then
     csfn="$SDMPT${sdmdir}/$(basename $cscript)"
     logtoboth "> Run Custom Phase Script '$csfn' Phase 0"
-    $csfn 0
+    $csfn 0 || exit
 fi
 #
 # Run plugins Phase 0
