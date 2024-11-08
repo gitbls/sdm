@@ -224,8 +224,8 @@ Copy a directory tree from the host system into the IMG
 * **from** &mdash; /full/path/to/sourcedir
 * **to** &mdash; /full/path/to/destdir
 * **rsyncopts** &mdash; Additional switches for the `rsync` command. If `rsyncopts` is specified, ALL desired rsync switches must be included. If `rsyncopts` is NOT provided, the default switch `-a` is used
-* **stderr** &mdash; /path/to/file where stderr from the rsync command is written (D:/dev/null)
-* **stdout** &mdash; /path/to/file where stdout from the rsync command is written (D:/dev/null)
+* **stderr** &mdash; /path/to/file where stderr from the rsync command is written [D:/dev/null]
+* **stdout** &mdash; /path/to/file where stdout from the rsync command is written [D:/dev/null]
 
 The copydir plugin behavior is dependent on whether the `from` file contains a trailing slash, just like the rsync command. **The rsync man page states:** A trailing  slash on the source changes this behavior to avoid creating an additional directory level at the destination.  You can think of a trailing / on a source as meaning "copy the contents of this directory" as opposed to "copy the directory by name", but in both cases the attributes of the containing  directory are transferred to the containing directory on the destination. 
 
@@ -343,7 +343,28 @@ The `extractfs` plugin is a non-general purpose `--burn-plugin` that is used to 
 
 #### Examples
 
-* `--burn-plugin extractfs:"bootfs=/path/to/bootfs|rootfs=/path/to/rootfs"
+* `--burn-plugin extractfs:"bootfs=/path/to/bootfs|rootfs=/path/to/rootfs"`
+
+### gadgetmode
+
+Configures a Pi to be in gadget mode so it can connect via USB to a gadget mode host providing it with a network connection.
+
+#### Arguments
+
+* `autoconnect-retries` &mdash; Sets the number of retries for the gadget to obtain a DHCP address via the USB gadget connection [D:5]
+* `dhcp-timeout` &mdash; Configures the DHCP timeout for each attempt to get a DHCP address via the USB connection [D:60]
+* `gadget-mode` &mdash; Configures the gadget mode. Default is unshared `simple` mode. `gadget-mode=shared` enables the gadget device to be shared using libcomposite
+* `static-mac` &mdash; Configures the provided static MAC address for the USB gadget device. Useful so the Pi gets the same IP address every time, but only with `gadget-mode=simple`
+* `noipv6` &mdash; Do not configure ipv6 on the gadget USB connection
+
+#### Examples
+
+* `--plugin gadgetmode:"static-mac=aa:bb:cc:dd:ee:ff"` &mdash; Configure simple gadget mode with a static MAC address
+* `--plugin gadgetmode:"gadget-mode=libcomposite|static-mac=fa:ce:fe:ed:00" &mdash; Configure shared gadget mode with a static MAC address
+
+#### Notes
+
+* The `autoconnect-retries` and `dhcp-timeout` values are set high to improve success when connected to slower devices
 
 ### git-clone
 
@@ -396,7 +417,7 @@ The hotspot plugin configures the specified wireless device to be a WiFi hotspot
 
 * **config** &mdash; Config file with all the arguments (see Example)
 * **device** &mdash; WiFi device name [D:wlan0]
-* **dhcpmode** &mdash; Mode for DHCP server. Controls whether NetworkManager uses its internal dnsmasq DHCP server or not. Valid settings are `none` and `nm`. If set to `none`, you must configure a DHCP server for the hotspot. [D:nm] If `dhcpmode` == `none` then `wlanip must be provided.
+* **dhcpmode** &mdash; Mode for DHCP server. Controls whether NetworkManager uses its internal dnsmasq DHCP server or not. Valid settings are `none` and `nm`. If set to `none`, you must configure a DHCP server for the hotspot. [D:nm] If `dhcpmode` == `none` then `wlanip` must be provided.
 * **hsenable** &mdash; If **hsenable=y** set the hotspot to enable as part of system boot [D:y]. Can be specified as simply `hsenable`. To disable, use `hsenable=n`
 * **hsname** &mdash; Set the hotspot name [D:Hotspot]
 * **ipforward** &mdash; For routed hotspots, controls whether IP forwarding is enabled. If specified, must be the name of the network device to which network traffic is forwarded. [D:""] For bridged hotspots `ipforward` controls the network device to which the WiFi traffic is bridged [D:eth0]
