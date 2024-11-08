@@ -153,7 +153,7 @@ then
 else
     checkusbkey $dev || errexit "? Device '$dev' not configured for USB disk; Consider using --init"
 fi
-lukskey=$(uuid)
+lukskey=$(uuid -v4)
 pmsg "> Create LUKS encryption key file /root/$lukskey.lek"
 dd if=/dev/urandom bs=1 count=256 of=/root/$lukskey.lek >/dev/null 2>&1
 #
