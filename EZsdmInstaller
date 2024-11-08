@@ -128,6 +128,7 @@ for f in sdm sdm-phase0 \
 	     plugins/dovecot-imap \
 	     plugins/explore \
 	     plugins/extractfs \
+	     plugins/gadgetmode \
 	     plugins/git-clone \
 	     plugins/graphics \
 	     plugins/hotspot \
