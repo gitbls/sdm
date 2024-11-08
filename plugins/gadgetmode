@@ -4,6 +4,9 @@
 #
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
+# Based on: https://forums.raspberrypi.com/viewtopic.php?t=376578 ("simple" mode)
+#      and: https://blog.hardill.me.uk/2023/12/23/pi5-usb-c-gadget ("shared" mode)
+#
 
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
