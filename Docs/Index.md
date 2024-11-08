@@ -5,6 +5,7 @@
 <br><a href="Burn-Scripts.md">Burn Scripts</a>
 <br><a href="Captive-Portal.md">Captive Portal</a>
 <br><a href="Command-Details.md">Detailed command and switches description</a>
+<br><a href="Cool-Things-You-Can-Do-with-sdm.md">Cool and handy things you can do with sdm</a>
 <br><a href="Compatibility.md">Compatibility</a>
 <br><a href="Credits.md">Credits</a>
 <br><a href="Custom-Phase-Script.md">Custom Phase Script</a>
@@ -35,6 +36,7 @@
 <br><a href="Troubleshooting.md">Troubleshooting: Overview</a>
 <br><a href="9Upgrade-Notes.md">Upgrading to sdm V9</a>
 <br><a href="8Upgrade-Notes.md">Upgrading to sdm V8</a>
+<br><a href="Using-Docker.md">Using sdm with Docker</a>
 <br><a href="Using-LXDE-Config.md">Using the lxde plugin</a>
 <br><a href="Using-sdm-on-Windows-WSL.md">Using sdm on Windows WSL</a>
 <br><a href="Using-sdm-Plugins-on-uncustomized-system.md">Using sdm on an uncustomized system</a>
