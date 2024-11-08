@@ -1,5 +1,14 @@
 # Changelog
 
+## V13.1
+
+* New Features
+  * `gadgetmode` plugin configures a tethered USB client. <a href="Docs/Plugins.md#gadgetmode">gadgetmode documentation</a>
+    * Use the `hotspot` plugin with `device=usb0` to configure a USB-connected tether server/host
+* Improvements
+  * `sdm-make-luks-key` now uses `uuid -v4` instead of `uuid`
+* Bug Fixes
+
 ## V13.0
 
 * New Features
