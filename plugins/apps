@@ -21,6 +21,7 @@ loadparams
 vldargs="|apps|name|remove|"
 rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/apps"
+sdatefmt="%Y-%m-%d-%H:%M:%S.%N"
 if [ "$phase" == "0" ]
 then
     #
@@ -37,33 +38,39 @@ then
     then
 	logtobothex "? Plugin $pfx: Neither 'apps' nor 'remove' specified; Nothing to do"
     fi
-    if [[ -f $assetdir/default ]] && [[ "$name" == "" ]]
+    [ "$name" == "" ] && name="default"
+    mkdir -p $assetdir
+    if [ "$apps" != "" ]
     then
-	logtobothex "? Plugin $pfx: Default apps list already set; this and subsequent apps plugins must provide 'name' argument"
-    else
-	[ "$name" == "" ] && name="default"
-	mkdir -p $assetdir
-	if [ "$apps" != "" ]
+        appfile=$(findappfile "$apps")
+        exitiferr "$appfile"
+	apps=$(getapplist "$appfile")
+	if [ -f $assetdir/$name ]
 	then
-            appfile=$(findappfile "$apps")
-            exitiferr "$appfile"
-	    apps=$(getapplist "$appfile")
-	    if [ -f $assetdir/$name ]
-	    then
-		logtoboth "? Plugin $pfx: Apps list '$name' already exists; Add argument 'name=somename' to this apps plugin invocation"
-		logtobothex "  NOTE: This plugin is not idempotent; Restart with a fresh uncustomized IMG if this IMG is previously customized"
-	    fi
-	    echo "$apps" > $assetdir/$name
-            logtoboth "> Plugin $pfx [$name]: Saved apps list: $apps"
+	    read oapps < $assetdir/$name
+	    apps="$oapps $apps"
+	    fd=$(date -d "$(stat --printf "%y" $assetdir/$name)" +$sdatefmt)
+	    logtoboth "> Plugin $pfx: Save prior 'apps' list '$name' as '$name-$fd'"
+	    mv $assetdir/$name $assetdir/$name-$fd
 	fi
-	if [ "$remove" != "" ]
+	echo "$apps" >| $assetdir/$name
+        logtoboth "> Plugin $pfx [$name]: Saved 'apps' list: $apps"
+    fi
+    if [ "$remove" != "" ]
+    then
+	removefile=$(findappfile "$remove")
+	exitiferr "$removefile"
+	removes=$(getapplist "$removefile")
+	if [ -f $assetdir/$name-removes ]
 	then
-	    removefile=$(findappfile "$remove")
-	    exitiferr "$removefile"
-	    removes=$(getapplist "$removefile")
-	    echo "$removes" > $assetdir/$name-removes
-            logtoboth "> Plugin $pfx [$name]: Saved 'remove' list: $removes"
+	    read oapps < $assetdir/$name-removes
+	    removes="$oapps $removes"
+	    fd=$(date -d "$(stat --printf "%y" $assetdir/$name-removes)" +$sdatefmt)
+	    logtoboth "> Plugin $pfx: Save prior 'removes' list '$name-removes' as '$name-removes-$fd'"
+	    mv $assetdir/$name-removes $assetdir/$name-removes-$fd
 	fi
+	echo "$removes" >| $assetdir/$name-removes
+        logtoboth "> Plugin $pfx [$name]: Saved 'remove' list: $removes"
     fi
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -92,15 +99,24 @@ then
 		logtoboth "  -- $a (not installed)"
 	    fi
         done
+	fd=$(date -d "$(stat --printf "%y" $assetdir/$name-removes)" +$sdatefmt)
+	logtoboth "> Plugin $pfx: Save completed 'removes' list '$name-removes' as '$name-removes-$fd'"
+	mv $assetdir/$name-removes $assetdir/$name-removes-$fd
     fi
-    logfreespace "at start of [$name] Application Installs"
-    read svapps < $assetdir/$name
-    if [[ "$virtmode" == "chroot" ]] && [[ "$svapps" =~ "qemu-user-static" ]]
+    if [ -f $assetdir/$name ]
     then
-        svapps=${svapps/qemu-user-static}
-        deferqemu
+	logfreespace "at start of [$name] Application Installs"
+	read svapps < $assetdir/$name
+	if [[ "$virtmode" == "chroot" ]] && [[ "$svapps" =~ "qemu-user-static" ]]
+	then
+            svapps=${svapps/qemu-user-static}
+            deferqemu
+	fi
+	doinstalls "$svapps" "[$name] Application Installs" || exit $?
+	fd=$(date -d "$(stat --printf "%y" $assetdir/$name)" +$sdatefmt)
+	logtoboth "> Plugin $pfx: Save completed 'apps' list '$name' as '$name-$fd'"
+	mv $assetdir/$name $assetdir/$name-$fd
     fi
-    doinstalls "$svapps" "[$name] Application Installs" || exit $?
 
     logfreespace "at end of $pfx [$name] Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
