@@ -80,17 +80,18 @@ sdm-plugin-template can be used to build your own plugin. It contains some code 
 
 ### apps
 
-Use the apps plugin to install applications. The apps plugin can be called multiple times on a command line. In that case, each invocation must include the `name=` parameter. The name can be any alphanumeric (including "-", "_", etc.) you want.
+Use the apps plugin to install applications. The apps plugin can be called multiple times on a command line or in a pluglist. The name can be any alphanumeric (including "-", "_", etc.) you want.
 
 #### Arguments
 
-* **apps** &mdash; Specifies the list of apps to install or @filename to provide a list of apps (one per line) to install. Comments are indicated by a pound sign (#) and are ignored, so you can document your app list if desired. If the specified file is not found, sdm will look in the sdm directory (/usr/local/sdm). 
-* **name** &mdash; Specifies the name of the apps list. The default name is *default*, but it can only be used once per customization. If you want to use the apps plugin 2 or more times, all plugin instances after the first must have a name provided.
+* **apps** &mdash; Specifies the list of apps to install or @filename to provide a list of apps (one per line) to install. Comments are indicated by a pound sign (#) and are ignored, so you can document your app list if desired. If the specified @filename is not found, sdm will look in the sdm directory (/usr/local/sdm). 
+* **name** &mdash; Specifies the name of the apps list. The default name is *default*. The `name` argument is a convenience and is not required.
 * **remove** &mdash; Specifies the list of apps to remove ofr @filename to provide a list of apps (one per line) to remove. The `remove` argument is processed before the `apps` argument. If you try to remove an apt packge that doesn't exist it will log in /etc/sdm/apt.log and sdm will notify you at the end of the customize: '? apt reported errors; review /etc/sdm/apt.log'
 
 #### Examples
 
 * `--plugin apps:"remove=wolfram-engine|apps=emacs"` &mdash; Remove wolfram-engine, and install emacs
+* `--plugin apps:"apps=@my-apps" --plugin apps:"apps=@my-xapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
 * `--plugin apps:"apps=@my-apps|name=myapps" --plugin apps:"apps=@my-xapps|name=myxapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
 * `--plugin apps:"apps=@mycoreapps|name=core-apps"` `--plugin apps:"apps=@myaddtlapps|name=extra-apps"` &mdash; Install the list of apps from @mycoreapps and @myaddtlapps
 
@@ -354,7 +355,8 @@ Configures a Pi to be in gadget mode so it can connect via USB to a gadget mode 
 * `autoconnect-retries` &mdash; Sets the number of retries for the gadget to obtain a DHCP address via the USB gadget connection [D:5]
 * `dhcp-timeout` &mdash; Configures the DHCP timeout for each attempt to get a DHCP address via the USB connection [D:60]
 * `gadget-mode` &mdash; Configures the gadget mode. Default is unshared `simple` mode. `gadget-mode=shared` enables the gadget device to be shared using libcomposite
-* `static-mac` &mdash; Configures the provided static MAC address for the USB gadget device. Useful so the Pi gets the same IP address every time, but only with `gadget-mode=simple`
+* `mac-vendor` &mdash; Specifies the first 3 segments of the MAC address. [D:dc:a6:32]
+* `static-mac` &mdash; Configures the provided static MAC address for the USB gadget device. Useful so the Pi gets the same IP address every time, but only with `gadget-mode=simple` If `static-mode` is specified without a value, the plugin will generate a MAC address and make it static.
 * `noipv6` &mdash; Do not configure ipv6 on the gadget USB connection
 
 #### Examples
@@ -411,12 +413,12 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 ### hotspot
 
-The hotspot plugin configures the specified wireless device to be a WiFi hotspot. The hotspot plugin only supports Bookworm and is implemented using NetworkManager. In most situations a routed hotspot is preferable, but both are provided.
+The hotspot plugin configures the specified wireless device or USB0 to be a hotspot. The hotspot plugin only supports Bookworm and is implemented using NetworkManager. In most situations a routed hotspot is preferable, but both are provided.
 
 #### Arguments
 
 * **config** &mdash; Config file with all the arguments (see Example)
-* **device** &mdash; WiFi device name [D:wlan0]
+* **device** &mdash; Device name [D:wlan0]. Use `device=usb0` for a tether host.
 * **dhcpmode** &mdash; Mode for DHCP server. Controls whether NetworkManager uses its internal dnsmasq DHCP server or not. Valid settings are `none` and `nm`. If set to `none`, you must configure a DHCP server for the hotspot. [D:nm] If `dhcpmode` == `none` then `wlanip` must be provided.
 * **hsenable** &mdash; If **hsenable=y** set the hotspot to enable as part of system boot [D:y]. Can be specified as simply `hsenable`. To disable, use `hsenable=n`
 * **hsname** &mdash; Set the hotspot name [D:Hotspot]
@@ -424,17 +426,18 @@ The hotspot plugin configures the specified wireless device to be a WiFi hotspot
 * **type** &mdash; Type of hotspot (*routed* or *bridged*) [D:routed]
 * **wifipassword** &mdash; WiFi hotspot password [D:password]
 * **wifissid** &mdash; WiFi hotspot SSID [D:MyPiNet]
-* **wlanip** &mdash; IP address of the WiFi hotspot in routed mode when `dhcpmode` == `none` [D:""]. `wlanip` is ignored in bridged mode and routed mode if `dhcpmode` == `nm` (the default)
+* **wlanip** &mdash; IP address of the hotspot in routed mode when `dhcpmode` == `none` [D:""]. `wlanip` is ignored in bridged mode and routed mode if `dhcpmode` == `nm` (the default)
 
 #### Examples
 
-* `--plugin hotspot &mdash; Create a routed hotspot named Hotspot on wlan0 with WiFi SSID 'MyPiNet', password 'password'. NetworkManager will use its internal DHCP server. wlan0's IP address will be set to the NetworkManager default (10.42.0.1). No IP forwarding is configured. The hotspot will be enabled.
+* `--plugin hotspot` &mdash; Create a routed hotspot named Hotspot on wlan0 with WiFi SSID 'MyPiNet', password 'password'. NetworkManager will use its internal DHCP server. wlan0's IP address will be set to the NetworkManager default (10.42.0.1). No IP forwarding is configured. The hotspot will be enabled.
 * `--plugin hotspot:"hsname=myhotspot|ssid=myssid|password=mypassword|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot named `myhotspot` on wlan0 (the default), with SSID `myssid` and password `mypassword`, forwarding IP traffic to `eth0`.
 * `--plugin hotspot:"device=wlan1|hsname=myhotspot|ipforward=eth0|hsenable|type=routed|dhcpmode=none|wlanip=10.6.0.1"` &mdash; Configure a routed hotspot on wlan1. wlan1's IP address will be set to 10.6.0.1, and you must configure your own DHCP server using, for instance, dnsmasq or the sdm plugin `ndm`
 
     **Example** using the ndm plugin to configure dnsmasq:
     `ndm:dhcpserver=dnsmasq|dnsserver=dnsmasq|dobuild|doinstall|dhcprange=10.6.0.2,10.6.0.100|domain=me|externaldns=1.1.1.1|gateway=10.6.0.1|myip=10.6.0.1|hostname=myap|dnsfqdn=myap.me|mxfqdn=myap.me|timeserver=10.6.0.1|netdev=wlan0|enablesvcs`
 
+* `--plugin hotspot:"device=usb0|hsname=myusbhotspot|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot on usb0 so it can be a tethering host
 * `--plugin hotspot:"hsname=myhotspot|hsenable|type=bridged"` &mdash; Configure a bridged hotspot
 
 The Config file consists of the above arguments (except for `config`), one per line. Arguments that are not provided are defaulted as specified above.
@@ -499,6 +502,38 @@ sudo sdm --info timezone   # Displays list of valid timezones
 * `--plugin L10n:"keymap=us|locale=en_US.UTF-8|timezone=Americas/Los_Angeles"`
 * `--plugin L10n:"host"`
 
+### labwc
+
+Provide labwc your fully-configured desktop settings.
+
+#### Arguments
+
+* **all-config** &mdash; Specify an existing directory created by `sdm-collect-labwc-config`. This includes all the files that can be provided with `app-config` and `labwc-config`, so those arguments are not needed if `all-config` is provided. sdm does not check for any argument conflicts, but `all-config` is processed before any other arguments.
+* **app-config** &mdash; Specify existing config files for `libfm`, `pcmanfm`, and `lxterminal`. See the example, and see <a href="Using-LXDE-Config.md">Using LXDE configuration</a> for details
+* **labwc-config** &mdash; Specify existing config files for 'autostart', 'desktop-items', 'environment', 'menu', 'rc' 'shutdown' and 'themerc'
+* **lhmouse** &mdash; Configure labwc for a left-handed mouse
+* **numlock** &mdash; Configure the numlock state. Values (sdm does not validate): 'on', 'off'
+* **user** &mdash; The settings apply to the specified user. If no `user` argument is specified, they apply to the first user created with the `user` plugin. The `user` plugin must be specified on the command line before the `labwc` plugin
+* **wf-panel-pi** &mdash; Specify existing wf-panel-pi.ini config file for `wayfire` which is copied to the ~/.config directory of the specified user. HINT: Use `position=bottom` in this file to move the task bar to the bottom of the screen.
+
+Use the `L10n` plugin to configure the labwc keymap.
+
+If the IMG being customized does not have labwc installed, the assets will be copied to /etc/sdm/assets in Phase 0, but not applied to the user's home directory
+
+The best way to use this plugin is:
+* Boot a RasPiOS Desktop system with labwc (the default as of 2024-10-22)
+* Configure the system as you'd like it, including pcmanfm, lxterminal, and labwm itself
+* Run `/usr/local/sdm/sdm-collect-labwc-config` /path/to/savedir as the logged in user (e.g., no sudo)
+  * If no argument provided /tmp/labwc will be used
+* Copy the created directory to the system where you run sdm to customize IMGs
+* Provide that directory to sdm when customizing an IMG: `--plugin labwc:all-config=/path/to/dir`
+
+#### Examples
+
+* `--plugin labwc:"app-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
+* `--plugin labwc:"lhmouse|user=someuser"`
+* `--plugin labwc:"labwc-config=autostart:/path/to/autostart,environment=/path/to/environment`
+
 ### logwatch
 
 Use the `logwatch` plugin to install the logwatch package.
@@ -509,7 +544,7 @@ Use the `logwatch` plugin to install the logwatch package.
 
 #### Examples
 
-* `--plugin logwatch:"sendto=myname<myuser@myemail.com>|sendfrom=myhost-logwatch<myuser@myemail.com>"
+* `--plugin logwatch:"sendto=myname\<myuser@myemail.com\>|sendfrom=myhost-logwatch\<myuser@myemail.com\>"
 
 ### lxde
 
