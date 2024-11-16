@@ -585,6 +585,7 @@ EOF
   Logs and configuration updates will not be written"
 	[ "$b0script" != "" ] && echo "  and b0script '$b0script' will not be processed"
 	[ "$b1script" != "" ] && echo "  and b1script '$b1script' will not be processed"
+	[ "$plugins" != "" ] && echo "   and plugins '$plugins' will not be processed"
 	[ "$hname" != "" ] && updatehostname $hname
 	if [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
