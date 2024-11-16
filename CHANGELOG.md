@@ -1,5 +1,22 @@
 # Changelog
 
+## V13.2
+
+* New Features
+  * New 'labwc' plugin for making your labwc desktop just the way you want it. <a href="Docs/Plugins.md#labwc">labwc plugin documentation</a>
+  * New tool `sdm-collect-labwc-config` grabs all your config files on a customized to your liking system to feed into future sdm customizations
+* Improvements
+  * `apps` plugin accepts multiple invocations without using the `name=` argument
+  * `gadgetmode` improvements
+    * Improved robustness
+    * New argument `mac-vendor`
+  * `hotspot` plugin improvements
+    * Improved robustness with USB hotspot
+    * Workaround fix for usb0 devices sometimes incorrectly showing up as eth1 (cdc_ether problem?)
+* Bug Fixes
+  * Correct message typo in `L10n`
+  * EZsdmInstaller also ensures keyboard-configuration is installed for `L10n`
+
 ## V13.1
 
 * New Features
