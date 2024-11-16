@@ -172,17 +172,25 @@ function getnwtype() {
     # Return value:
     #   ethernet if device is an ethernet device
     #   wifi     if device is a wifi device
+    #   usb      if device is a usb (RNDIS) device
     #   unknown  no clue
     #
     local nwdev="\$1" nwtype
-    nwtype="\$(nmcli device show \$nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "\$iftype"))"
-    [ "\$nwtype" == "" ] && nwtype=unknown
-    echo \$nwtype
+    if [ "\$nwdev" == "usb0" ]
+    then
+        echo "usb"
+    else
+        nwtype="\$(nmcli device show \$nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "\$iftype"))"
+        [ "\$nwtype" == "" ] && nwtype=unknown
+        echo \$nwtype
+    fi
 }
 
 logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
-rfkill unblock wlan
 nwtype=\$(getnwtype $device)
+logger "sdm FirstBoot: Device: $device Network Type: \$nwtype"
+[ "\$nwtype" == "wifi" ] && rfkill unblock wlan
+
 # See if other connection exists that use this device
 if grep -qs interface-name=$device /etc/NetworkManager/system-connections/*.nmconnection
 then
@@ -197,13 +205,13 @@ logger "sdm FirstBoot: Before configuration:"
 logger "\$(nmcli c show)"
 logger "sdm FirstBoot: Before configuration (active):"
 logger " \$(nmcli c show --active)"
-       nmcli device down $device >/dev/null 2>&1
+nmcli device down $device >/dev/null 2>&1
 if [ "\$nwtype" == "wifi" ]
 then
-    logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
+    logger "sdm FirstBoot: Create wifi hotspot '$hsname' for device $device"
     nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
 else
-    logger "sdm FirstBoot: Create ethernet hotspot '$hsname'"
+    logger "sdm FirstBoot: Create hotspot '$hsname' for device $device"
     nmcli c add ifname $device con-name "$hsname" type ethernet
 fi
 nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
@@ -214,9 +222,13 @@ if [ "$acsts" == "on" ]
 then
     logger "sdm FirstBoot: Enable IPV4 forwarding and nftables masquerade"
     [[ "$ipforward" != "" ]] && [[ "$type" == "routed" ]] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl start -q sdm-hotspot-masquerade
-    logger "sdm FirstBoot: Start hotspot '$hsname'"
-    nmcli c up "$hsname"
+    if [ "$device" != "usb0" ]
+    then
+        logger "sdm FirstBoot: Start hotspot '$hsname'"
+        nmcli c up "$hsname"
+    fi
 fi
+
 logger "sdm FirstBoot: After configuration:"
 logger "\$(nmcli c show)"
 logger "sdm FirstBoot: After configuration (active):"
@@ -234,16 +246,24 @@ function getnwtype() {
     # Return value:
     #   ethernet if device is an ethernet device
     #   wifi     if device is a wifi device
+    #   usb      if device is a usb (RNDIS) device
     #   unknown  no clue
     #
     local nwdev="\$1" nwtype
-    nwtype="\$(nmcli device show \$nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "\$iftype"))"
-    [ "\$nwtype" == "" ] && nwtype=unknown
-    echo \$nwtype
+    if [ "\$nwdev" == "usb0" ]
+    then
+        echo "usb"
+    else
+        nwtype="\$(nmcli device show \$nwdev | grep GENERAL.TYPE | (IFS=": " read gt iftype ; echo "\$iftype"))"
+        [ "\$nwtype" == "" ] && nwtype=unknown
+        echo \$nwtype
+    fi
 }
+
 logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
-rfkill unblock wlan
 nwtype=\$(getnwtype $device)
+logger "sdm FirstBoot: Device: $device Network Type: \$nwtype"
+[ "\$nwtype" == "wifi" ] && rfkill unblock wlan
 
 logger "sdm FirstBoot: Before configuration:"
 logger "\$(nmcli c show)"
@@ -321,9 +341,11 @@ logger "\$(nmcli c show --active)"
 if [ "$acsts" == "on" ]
 then
     nmcli c reload
-    nmcli c up "$hsname"
-    nmcli c up "$hsname-br0"
-    nmcli c up "$hsname-bridge-slave-$fwdev"
+    if [ "\$nwtype" != "usb" ]
+    then
+        nmcli c up "$hsname"
+        nmcli c up "$hsname-br0"
+        nmcli c up "$hsname-bridge-slave-$fwdev"
 fi
 EOF
     fi
@@ -412,8 +434,28 @@ else
     else
 	logtoboth "? Plugin $pfx: Hotspot '$hsname' config file '$assetdir/config' not found"
     fi
-    # Delete WiFi disable if present
-    rm -f /etc/sdm/0piboot/055-disable-wifi.sh
+    if [ "$device" == "usb0" ]
+    then
+	# set up to blacklist cdc_subset but don't enable
+	logtoboth "> Plugin $pfx: Blacklist module cdc_subset may improve USB link detection reliability (but disabled for now)"
+	logtoboth "  Undot /etc/modprobe.d/.blacklist-cdc-subset.conf if you're having issues"
+	echo "blacklist cdc_subset" >| /etc/modprobe.d/.blacklist-cdc-subset.conf
+	# This is neededd b/c cdc_subset and cdc_ether for some crazy reason detect the usb host gadget as eth1
+	# Write hack /etc/systemd/network/10-usb.link
+	logtoboth "> Plugin $pfx: Write /etc/systemd/network/10-usb.link to work around usb device detected as eth1"
+	cat > /etc/systemd/network/10-usb.link <<EOF
+[Match]
+Driver=cdc_ether 
+
+[Link]
+Name=usb0
+EOF
+    else
+	# WiFi connection; Delete WiFi disable if present
+	rm -f /etc/sdm/0piboot/055-disable-wifi.sh
+    fi
 
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
+
+exit
