@@ -136,6 +136,7 @@ for f in sdm sdm-phase0 \
 	     plugins/imon \
 	     plugins/knockd \
 	     plugins/L10n \
+	     plugins/labwc \
 	     plugins/logwatch \
 	     plugins/lxde \
 	     plugins/mkdir \
