@@ -1,0 +1,88 @@
+#!/bin/bash
+#
+# Picks up all the relevant config files so your labwc config can be
+# easily transported to a new system using sdm's labwc config
+#
+
+function usage() {
+    echo $"Usage: $0 /path/to/savedir"
+exit
+}
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+config=$HOME/.config
+destdir="$1"
+[ "$destdir" == "" ] && echo "> Output directory not specified; Using /tmp/labwc" && destdir=/tmp/labwc
+if [ -d $destdir ] && ! [[ "$destdir" =~ ^/tmp ]]
+then
+    echo "** Directory '$destdir' exists"
+    askyn "Remove and recreate directory '$destdir'" || exit 1
+fi
+echo "> Delete and re-create '$destdir'"
+rm -rf $destdir
+mkdir -p $destdir
+
+for f in autostart environment menu.xml rc.xml shutdown themerc
+do
+    if [ -f $config/labwc/$f ]
+    then
+	echo "> Copy '$config/labwc/$f' to '$destdir'"
+	cp -a $config/labwc/$f $destdir
+    fi
+done
+
+for f in bookmarks desktop-items libfm pcmanfm lxterminal
+do
+    case $f in
+	bookmarks)
+	    if [ -f $HOME/.gtk-bookmarks ]
+	    then
+		echo "> Copy '$HOME/.gtk-bookmarks' to '$destdir/bookmarks'"
+		cp -a $HOME/.gtk-bookmarks $destdir/bookmarks
+	    fi
+	    ;;
+	desktop-items)
+	    if [ "$(compgen -G "$config/pcmanfm/LXDE-pi/desktop-items*.conf")" != "" ]
+	    then
+		echo "> Copy '$config/pcmanfm/LXDE-PI/desktop-items*.conf' to '$destdir'"
+		cp -a $config/pcmanfm/LXDE-pi/desktop-items*.conf $destdir
+	    fi
+	    ;;
+	libfm|lxterminal)
+	    if [ -f $config/$f/$f.conf ]
+	    then
+		echo "> Copy '$config/$f/$f.conf' to '$destdir'"
+		cp -a $config/$f/$f.conf $destdir
+	    fi
+	    ;;
+	pcmanfm)
+	    if [ -f $config/pcmanfm/LXDE-pi/pcmanfm.conf ]
+	    then
+		echo "> Copy '$config/pcmanfm/LXDE-pi/pcmanfm.conf' to '$destdir'"
+		cp -a $config/pcmanfm/LXDE-pi/pcmanfm.conf $destdir
+	    fi
+	    ;;
+    esac
+done
+if [ -f $config/kanshi/config ]
+then
+    echo "> Copy '$config/kanshi/config' to '$destdir'"
+    cp -a $config/kanshi/config $destdir/kanshi.conf
+fi
+echo $"
+Copy the directory '$destdir' to the system where you use sdm.
+
+Then use the labwc plugin to customize new systems:
+
+   --plugin labwc:\"all-config=/path/to/the/dir\"
+"
+
+exit
