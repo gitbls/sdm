@@ -100,6 +100,7 @@ for f in sdm sdm-phase0 \
 	     sdm-readparams \
 	     sdm-rpcsubs \
 	     sdm-firstboot \
+	     sdm-collect-labwc-config \
 	     sdm-cryptconfig \
 	     sdmcryptfs \
 	     sdm-apt-cacher \
@@ -261,7 +262,7 @@ EOF
 else
     echo "* /etc/sdm/cparams exists; Not overwriting"
 fi
-pkgs="binfmt-support gdisk parted qemu-user-static rsync systemd-container uuid"
+pkgs="binfmt-support gdisk keyboard-configuration parted qemu-user-static rsync systemd-container uuid"
 echo "* Ensure required packages are installed: $pkgs"
 [[ $EUID -ne 0 ]] && sudo="sudo"
 $sudo apt-get install --yes --no-install-recommends $pkgs
