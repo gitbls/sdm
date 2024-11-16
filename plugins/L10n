@@ -79,7 +79,7 @@ then
 	    then
 		echo "$value" > $assetdir/$kn
 	    else
-		logtoboth "? Prefix $pfx: Unrecognized $kn '$value'"
+		logtoboth "? Plugin $pfx: Unrecognized $kn '$value'"
 	    fi
 	fi
     done
