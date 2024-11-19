@@ -1,5 +1,10 @@
 # Changelog
 
+## V13.3
+
+* Bug Fix
+  * Update /etc/initramfs-tools/initramfs.conf for proper operation with 2024-11-13 and later IMGs
+
 ## V13.2
 
 * New Features
