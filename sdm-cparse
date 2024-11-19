@@ -147,6 +147,7 @@ function doapt() {
     echo "" >> /etc/sdm/apt.log
     outlong "$aptcmd $1" "/etc/sdm/apt.log"
     echo "" >> /etc/sdm/apt.log
+    sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf #Set initramfs to MODULES=most in case update-initramfs runs
     if [ "$2" == "1" ]
     then
 	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
@@ -164,6 +165,7 @@ function doapt() {
     fi
     [[ "$poptions" =~ "nologdates" ]] && td="" || td="$(thisdate) "
     echo "${td}[Done]" >> /etc/sdm/apt.log
+    sed -i "s/^MODULES=most/MODULES=dep/" /etc/initramfs-tools/initramfs.conf # Reset initramfs to MODULES=dep for normal operation
     return $sts
 }
 
