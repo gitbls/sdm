@@ -202,7 +202,7 @@ function updatecmdline() {
 
     if [ "$dmac" != "" ]
     then
-	hmac="$(makehostmac $umac)"
+	hmac="$(makehostmac $dmac)"
 	smac=" g_ether.dev_addr=$dmac g_ether.host_addr=$hmac"
     fi
     [ -v eem ] && smac=" $smac g_ether.use_eem=0"
