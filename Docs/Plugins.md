@@ -926,7 +926,7 @@ The default for `stdout` and `stderr` if not specified are `$(basename $script).
 
 * `--plugin runscript:"dir=/home/work|script=/path/to/my/script|user=bls"` &mdash; The directory /home/work is created and owned by user bls. The script specified is run during Phase 1, and the ouptut and error files are saved in /home/work
 * `--plugin runscript:"/path/to/my/script"` &mdash; The script is run as root during Phase 1. Output and error are saved in /etc/sdm/assets/runscript/sdm-runscript-$script.out and .error
-
+* `--plugin runscript:"stdout=/dev/stdout|stderr=/dev/stderr|script=/path/to/my/script"` &mdash; redirect the output of the script to the console instead of a file in the image
 #### Example runscript
 
 This simple script downloads the btop sources and builds/installs btop into the IMG being customized. All prerequisites such as make, gcc, etc must already be installed before this runscript is executed.
