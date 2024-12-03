@@ -548,7 +548,7 @@ Use the `logwatch` plugin to install the logwatch package.
 
 ### lxde
 
-Use the `lxde` plugin to establish your preferred settings, such as left-handed mouse, and config files for `libfm`, `pcmanfm`, and `lxterminal`. These are not well-documented. The best way to create your personalized versions is to use RasPiOS to configure the desktop as you'd like it, and then save the files.
+Use the `lxde` plugin with `wayfire` to establish your preferred settings, such as left-handed mouse, and config files for `libfm`, `pcmanfm`, and `lxterminal`. These are not well-documented. The best way to create your personalized versions is to use RasPiOS to configure the desktop as you'd like it, and then save the files. NOTE: Use the `labwc` plugin for configuring labwc.
 
 #### Arguments
 
@@ -672,7 +672,7 @@ All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid
 * **ctype** &mdash; If cname is a WiFi device with a name other than `wlan*`, specify `ctype=wifi`
 * **dhcpcdappend** &mdash; Specifies a file that should be appended to /etc/dhcpcd.conf. Only processed if `netman=dhcpcd`
 * **dhcpcdwait** &mdash; Specifies that dhcpcd wait for network online should be enabled. Only processed if `netman=dhcpcd`
-* **ifname** &mdash; Specifies network device name to configure. Default is `eth0`
+* **ifname** &mdash; Specifies network device name to configure. Default is `eth0`. To configure WiFi using `wifissid` and `wifipassword` `ifname` must be specified and configured to a WiFi device (e.g., `wlan0`). 
 * **ipv4-route-metric** &mdash; Specify the route metric for the network
 * **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
 * **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
@@ -683,7 +683,7 @@ All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid
 * **ipv4-static-gateway** &mdash; Configure the connection with this static gateway
 * **ipv4-static-dns** &mdash; Configure the connection with this DNS server IP
 * **ipv4-static-dns-search** &mdash; Set DNS suffix search list for the configuration (Ex: `ipv4-static-dns-search=my.com,dyn.my.com`)
-* **wifissid** or **wifi-ssid** &mdash; Specifies the WiFi SSID for the connection. If `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will configure the WiFi connection (NetworkManager) or will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`).
+* **wifissid** or **wifi-ssid** &mdash; Specifies the WiFi SSID for the connection. If `ifname` is configured and is a WiFi device, and `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will configure the WiFi connection (NetworkManager) or will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`).
 * **wifipassword** or **wifi-password** &mdash; Password for the `wifissid` network. See `wifissid`
 * **wificountry** or **wifi-country** &mdash; WiFi country for the `wifissid` network. See `wifissid`
 * **wpa** &mdash; Specifies the file to be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Only processed if `netman=dhcpcd`. NetworkManager does not use wpa_supplicant.conf
