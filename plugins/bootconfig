@@ -69,9 +69,17 @@ function updateconfigtxt() {
 		if grep -q "^$sname.*" $cfgdir/config.txt
 		then
 		    # There and uncommented
-		    logtoboth "> ${pfx}Add '${sname}${dsep}${sval}' below newly commented line it replaces $cfgdir/config.txt"
-		    sed -i "s/^${sname}${dsep}/#sdm: $sname${dsep}/" $cfgdir/config.txt
-		    sed -i "/^#sdm: $sname${dsep}.*/ a $sname${dsep}$sval" $cfgdir/config.txt
+		    if grep -q "$^sname${dsep}" $cfgdir/config.txt
+		        then
+		        logtoboth "> Add '${sname}${dsep}${sval}' below newly commented line it replaces ${sname}${dsep}"
+		        sed -i "s/^${sname}${dsep}/#sdm: $sname${dsep}/" $cfgdir/config.txt
+		        sed -i "/^#sdm: $sname${dsep}.*/ a $sname${dsep}$sval" $cfgdir/config.txt
+		    elif [[ $dsep == "," ]]
+		    then
+		        logtoboth "> Add '${sname}${dsep}${sval}' below newly commented line it replaces ${sname}"
+		        sed -i "s/^${sname}/#sdm: $sname/" $cfgdir/config.txt
+		        sed -i "/^#sdm: $sname.*/ a $sname${dsep}$sval" $cfgdir/config.txt
+		    fi
 		else
 		    # Not in config.txt
 		    logtoboth "> ${pfx}Append '${sname}${dsep}${sval}' to $cfgdir/config.txt"
