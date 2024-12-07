@@ -54,7 +54,7 @@ function extendandresize() {
     # IMG must not be mounted
     # Leaves IMG mounted on completion
     #
-    local extbytes=$(($imgext*1024*1024)) loopdev
+    local extbytes=$((imgext*1024*1024)) loopdev
 
     echo "* Extend $dimgdevname by ${imgext}MB $(getgbstr $extbytes)..."
     extendimage "$dimg" "$imgext"
@@ -81,7 +81,7 @@ function poptcheck() {
 	IFS="," read -a xopt <<< "$popt"
 	for os in "${xopt[@]}"
 	do
-	    if ! [[ "$vopt" =~ "|$os|" ]]
+	    if ! [[ "$vopt" =~ |$os| ]]
 	    then
 		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
 	    else
@@ -92,18 +92,6 @@ function poptcheck() {
     else
 	echo ""
     fi
-}
-
-function checkfilelist() {
-    #
-    # $1 has list of "|"-separated files
-    # $2 has name of switch (--switchname)
-    local citems=() fl
-    IFS="|" read -a citems <<< "$1"
-    for fl in "${citems[@]}"
-    do
-	[ ! -f $fl ] && errexit "? $2 file '$fl' not found"
-    done
 }
 
 function printhelp() {
@@ -193,9 +181,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V13.3"
-sdmcommandline="$0 $@"      #Used in error messages
-apps=""                     #List of apps to install in sdm-base-installs
+version="V13.4"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -210,7 +196,6 @@ burndev=""                  #SD card device name for --burn
 burnfile=0                  #1=Burn image to a file
 burnfilefile=""             #Filename for --burnfile
 burnplugins=""              #Burn-time plugin list
-chroot=""                   #Set by sdm to chroot type (nspawn, arm, or aarch64)
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 cvtrootfs=""                #--convert-root
@@ -271,7 +256,7 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key"
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key sdm-collect-labwc-config"
 swapsize=0                  #Set swap size to nMB (overrides --disable swap)
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
@@ -431,57 +416,56 @@ wifi-country: Show --wifi-country values
 
 Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'"
 	    ;;
-	*)
     esac
 exit 0
 fi
 [ "${dimg,,}" == "help" ] && printhelp && exit
 declare -a cmsgs                    # In case customization messages generated before we're ready to logtoboth them
 cscript="$(fndotfullpath $cscript)"
-[ $burn -eq 1 -a $burnfile -eq 1 ] && errexit "? Switch conflict: --burn and --burnfile"
-[ $burn -eq 1 -o $burnfile -eq 1 ] && burning=1 || burning=0
-[ $burning -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --mount"
-[ $burning -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --explore"
-[ $burning -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --burn|--burnfile and --shrink"
-[ $fdomount -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --mount and --explore"
-[ $fdomount -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --mount and --shrink"
-[ $reboot -eq 1 -a $noreboot -eq 1 ] && errexit "? Switch conflict: --restart and --norestart"
-[ $fcustomize -eq 1 -a $burning -eq 1 ] && errexit "? Switch conflict: --customize and --burn|--burnfile"
-[ $fcustomize -eq 1 -a $fdomount -eq 1 ] && errexit "? Switch conflict: --customize and --mount"
-[ $fcustomize -eq 1 -a $fexplore -eq 1 ] && errexit "? Switch conflict: --customize and --explore"
-[ $fcustomize -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --customize and --shrink"
-[ $burning -eq 1 -a $fdirtree -eq 1 ] && errexit "? Switch conflict: --directory and --burn|--burnfile"
-[ $fexplore -eq 1 -a $fshrink -eq 1 ] && errexit "? Switch conflict: --explore and --shrink"
-[ $fgpt -eq 1 -a $burn -ne 1 ] && errexit "? Switch conflict: --gpt only valid with --burn"
-[ "$cvtrootfs" != "" -a $burning -ne 1 ] && errexit "? Switch conflict: --convert-root only valid with --burn"
-[ $fppart -eq 1 -a $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink)) -ne 0 ] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
-[ $fencrypted -eq 1 -a $(($fdomount+$fexplore)) -eq 0 ] && errexit "? Switch conflict: --encrypted only valid with --explore and --mount"
+[[ $burn -eq 1 ]] && [[ $burnfile -eq 1 ]] && errexit "? Switch conflict: --burn and --burnfile"
+[[ $burn -eq 1 ]] || [[ $burnfile -eq 1 ]] && burning=1 || burning=0
+[[ $burning -eq 1 ]] && [[ $fdomount -eq 1 ]] && errexit "? Switch conflict: --burn|--burnfile and --mount"
+[[ $burning -eq 1 ]] && [[ $fexplore -eq 1 ]] && errexit "? Switch conflict: --burn|--burnfile and --explore"
+[[ $burning -eq 1 ]] && [[ $fshrink -eq 1 ]] && errexit "? Switch conflict: --burn|--burnfile and --shrink"
+[[ $fdomount -eq 1 ]] && [[ $fexplore -eq 1 ]] && errexit "? Switch conflict: --mount and --explore"
+[[ $fdomount -eq 1 ]] && [[ $fshrink -eq 1 ]] && errexit "? Switch conflict: --mount and --shrink"
+[[ $reboot -eq 1 ]] && [[ $noreboot -eq 1 ]] && errexit "? Switch conflict: --restart and --norestart"
+[[ $fcustomize -eq 1 ]] && [[ $burning -eq 1 ]] && errexit "? Switch conflict: --customize and --burn|--burnfile"
+[[ $fcustomize -eq 1 ]] && [[ $fdomount -eq 1 ]] && errexit "? Switch conflict: --customize and --mount"
+[[ $fcustomize -eq 1 ]] && [[ $fexplore -eq 1 ]] && errexit "? Switch conflict: --customize and --explore"
+[[ $fcustomize -eq 1 ]] && [[ $fshrink -eq 1 ]] && errexit "? Switch conflict: --customize and --shrink"
+[[ $burning -eq 1 ]] && [[ $fdirtree -eq 1 ]] && errexit "? Switch conflict: --directory and --burn|--burnfile"
+[[ $fexplore -eq 1 ]] && [[ $fshrink -eq 1 ]] && errexit "? Switch conflict: --explore and --shrink"
+[[ $fgpt -eq 1 ]] && [[ $burn -ne 1 ]] && errexit "? Switch conflict: --gpt only valid with --burn"
+[[ "$cvtrootfs" != "" ]] && [[ $burning -ne 1 ]] && errexit "? Switch conflict: --convert-root only valid with --burn"
+[[ $fppart -eq 1 ]] && [[ $((burning+fcustomize+fexplore+fdomount+fshrink)) -ne 0 ]] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
+[[ $fencrypted -eq 1 ]] && [[ $((fdomount+fexplore)) -eq 0 ]] && errexit "? Switch conflict: --encrypted only valid with --explore and --mount"
 if [ "$aptmaint" != "" ]
 then
-    [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
+    [ $((burning+fcustomize+fexplore+fdomount+fshrink+fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
     aptfunction=1
 fi
 if [ "$runonly" != "" ]
 then
-    [ $(($burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart)) -gt 0 ] && errexit "? One or more switches conflict with --runonly"
+    [ $((burning+fcustomize+fexplore+fdomount+fshrink+fppart)) -gt 0 ] && errexit "? One or more switches conflict with --runonly"
     frunonly=1
     [ "$dimg" == "" ] && dimg="/" && fdirtree=1  # Default to running system if nothing specified
 fi
 #
 # Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 
 #
-if [ $(($aptfunction+$burning+$fcustomize+$fexplore+$fdomount+$fshrink+$fppart+$frunonly)) -eq 0 ]
+if [ $((aptfunction+burning+fcustomize+fexplore+fdomount+fshrink+fppart+frunonly)) -eq 0 ]
 then
     # Handle --extend only 
     [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount, --runonly)"
     fextendonly=1
 fi
-[ "$src" != "" -a ! -d "$src" ] && errexit "? sdm source directory '$src' not found"
-[ "$csrc" != "" -a ! -d "$csrc" ] && errexit "? Custom source directory '$csrc' not found"
-[ "$cscript" != "" -a ! -f "$cscript" ] && errexit "? Custom Phase Script '$cscript' not found"
-[ "$cscript" != "" -a ! -x "$cscript" ]  && errexit "? Custom Phase Script '$cscript' not executable"
+[[ "$src" != "" ]] && [[ ! -d "$src" ]] && errexit "? sdm source directory '$src' not found"
+[[ "$csrc" != "" ]] && [[ ! -d "$csrc" ]] && errexit "? Custom source directory '$csrc' not found"
+[[ "$cscript" != "" ]] && [[ ! -f "$cscript" ]] && errexit "? Custom Phase Script '$cscript' not found"
+[[ "$cscript" != "" ]] && [[ ! -x "$cscript" ]]  && errexit "? Custom Phase Script '$cscript' not executable"
 pi1bootconf="$(fndotfullpath $pi1bootconf)"
-[ "$pi1bootconf" != "" -a ! -f "$pi1bootconf" ] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
+[[ "$pi1bootconf" != "" ]] && [[ ! -f "$pi1bootconf" ]] && errexit "? Custom 1piboot.conf file '$pi1bootconf' not found"
 [ "$rebootwait" != "" ] && checknumeric "$rebootwait" "--reboot"
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
 #! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
@@ -515,7 +499,7 @@ fi
 os=$(poptcheck "$os" "$vosopts" "--os")
 exitiferr "$os"
 os=${os#|} ; os=${os%|}  #Strip off the vbars
-[ "$os" == "raspbian" -o "$os" == "" ] && os="raspios"  #Allow old habits to never die ;)
+[[ "$os" == "raspbian" ]] || [[ "$os" == "" ]] && os="raspios"  #Allow old habits to never die ;)
 [ "$os" != "raspios" ] && errexit "? Unsupported --os value: $os"
 
 if [ "$plugins" != "" ]
@@ -575,7 +559,7 @@ then
     dimgdev=1
     dimgdevname="Device"
 fi    
-if [ $dimgdev -eq 0 -a -f "$dimg" ]
+if [[ $dimgdev -eq 0 ]] && [[ -f "$dimg" ]]
 then
     for fext in xz XZ zip ZIP
     do
@@ -713,7 +697,7 @@ if [ $frunonly -eq 1 ]
 then
     if [ "$plugins" != "" ]
     then
-	if [ $fdirtree -eq 1 -a "$dimg" == "/" ]
+	if [[ $fdirtree -eq 1 ]] && [[ "$dimg" == "/" ]]
 	then
 	    if [ $oklive -eq 0 ]
 	    then
@@ -787,7 +771,7 @@ else
     # Doing a customization
     # Create and populate $sdmdir and /etc/sdm in the IMG
     #
-    if [ -f $sdmdone -a $redocustomize -eq 0 ]
+    if [[ -f $sdmdone ]] && [[ $redocustomize -eq 0 ]]
     then
 	if ! askyn "** $dimgdevname '$dimg' has already been customized. Redo?" "-n 1"
 	then
@@ -843,7 +827,6 @@ else
     setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
 
     chown -R root:root $SDMPT/$sdmdir
-    [ "${appfile:0:1}" == "@" ]  && cp -a -f ${appfile:1:999}  $SDMPT/$sdmdir && setfileownmode $SDMPT/$sdmdir/${appfile:1:999} 644
     logtoboth "* Start Configuration"
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
@@ -874,7 +857,7 @@ else
     os_codename="$(getosinfo VERSION_CODENAME)"
     if [ "$os_codename" != "" ]
     then
-	[[ "$os_version" =~ "$os_codename" ]] || os_version="$os_version ($os_codename)"
+	[[ "$os_version" =~ $os_codename ]] || os_version="$os_version ($os_codename)"
     fi
     logtoboth "   Version: $os_version"
     os_like="$(getosinfo ID_LIKE)"
@@ -913,7 +896,7 @@ else
 	cp -a $pi1bootconf $SDMPT/$sdmdir/1piboot                                         #Drop a copy in $sdmdir in the IMG
 	setfileownmode $SDMPT/$sdmdir/1piboot/$(basename $pi1bootconf) 644
     else
-	if [ -d $src/1piboot -a -f $src/1piboot/1piboot.conf ]
+	if [[ -d $src/1piboot ]]  && [[ -f $src/1piboot/1piboot.conf ]]
 	then
 	    cp -a $src/1piboot/1piboot.conf $SDMPT/etc/sdm/
 	    setfileownmode $SDMPT/etc/sdm/1piboot.conf 644
@@ -956,11 +939,11 @@ else
 fi
 
 
-[ $icolors -eq 1 -a -t 0 -a "$spawncmd" == "" ] || icolors=0
+[[ $icolors -eq 1 ]] && [[ -t 0 ]] && [[ "$spawncmd" == "" ]] || icolors=0
 [[ "$ecolors" == "0" ]] || [[ $fbatch -eq 1 ]] && icolors=0
 [ $icolors -eq 1 ] && stermcolors "$efg" "$ebg" "$ecursor" xt
 [ "$spawncmd" == "" ] && spawncmd="/bin/bash"
-sdm_spawn "$nspawnsw" Phase1 $spawncmd
+sdm_spawn "$nspawnsw" Phase1 "$spawncmd"
 sts=$?
 [ $icolors -eq 1 ] && icolors=0 && resetcolors xt
 

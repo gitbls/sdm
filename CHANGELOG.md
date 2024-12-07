@@ -1,5 +1,24 @@
 # Changelog
 
+## V13.4
+
+* New Features
+  * `hotspot` and `network` plugins
+    * New argument `pskencrypt` to request that PSK be encrypted
+    * Spaces, exclamation points, and single quote are enabled in the connection name, WiFi SSID, and password
+  * `graphics` plugin argument `graphics` now has 3 values: `x11`, `wayfire`, and `labwc` to control the raspi-config `wayland` setting
+* Improvements
+  * Code cleanups
+  * `sdm-collect-labwc-config` and `labwc` plugin improvements
+    * Ensure propagated during customize
+    * Correctly process wf-panel-pi.ini
+  * `bootconfig` was not allowing an existing dtoverlay to be properly updated (e.g., `dtoverlay=vc4-kms-v3d` to `dtoverlay=vc4-kms-v3d,noaudio`)
+  * `network` plugin will warn of existing .nmconnection, delete it, and continue rather than fail
+* Bug Fixes
+  * Remove extra config file write that broke `wificountry` setting in some instances
+  * `sshkey` plugin works for multiple users
+  * Correct update-initramfs config handling so `cryptroot` and `sdm-cryptconfig` work with 2024-11-19 and later builds/updates
+
 ## V13.3
 
 * Bug Fix
