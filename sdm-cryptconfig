@@ -287,44 +287,46 @@ function parsecmd() {
 function doconfiginitramfs() {
     local kcmd="" knopwd="" kskip=""
 
+    # For some reason both of these need to be set
     echo "> Update initramfs configuration for 'MODULES=most' and 'update_initramfs=all'"
-    sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf #Set initramfs to MODULES=most in case update-initramfs runs
+    sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf
     sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
 
-    echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
+# Not sure this is needed but keeping for now
+#    echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
+#    cat >> /etc/kernel/postinst.d/initramfs-rebuild <<EOF
+##!/bin/sh -e
+#
+## Rebuild initramfs after kernel upgrade to include new kernel's modules.
+## https://github.com/Robpol86/robpol86.com/blob/master/docs/_static/initramfs-rebuild.sh
+## Save as (chmod +x): /etc/kernel/postinst.d/initramfs-rebuild
+#
+## Remove splash from cmdline.
+#if grep -q '\bsplash\b' /boot/firmware/cmdline.txt; then
+#  sed -i 's/ \?splash \?/ /' /boot/firmware/cmdline.txt
+#fi
+#
+## Exit if not building kernel for this Raspberry Pi's hardware version.
+#version="\$1"
+#current_version="\$(uname -r)"
+#case "\${current_version}" in
+#  *-v7+)
+#    case "\${version}" in
+#      *-v7+) ;;
+#      *) exit 0
+#    esac
+#  ;;
+#  *+)
+#    case "\${version}" in
+#      *-v7+) exit 0 ;;
+#    esac
+#  ;;
+#esac
+#update-initramfs -u
+#EOF
+#    chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
+
     [ $xnopwd -eq 1 ] && kskip="&& /bin/false"
-    cat >> /etc/kernel/postinst.d/initramfs-rebuild <<EOF
-#!/bin/sh -e
-
-# Rebuild initramfs after kernel upgrade to include new kernel's modules.
-# https://github.com/Robpol86/robpol86.com/blob/master/docs/_static/initramfs-rebuild.sh
-# Save as (chmod +x): /etc/kernel/postinst.d/initramfs-rebuild
-
-# Remove splash from cmdline.
-if grep -q '\bsplash\b' /boot/firmware/cmdline.txt; then
-  sed -i 's/ \?splash \?/ /' /boot/firmware/cmdline.txt
-fi
-
-# Exit if not building kernel for this Raspberry Pi's hardware version.
-version="\$1"
-current_version="\$(uname -r)"
-case "\${current_version}" in
-  *-v7+)
-    case "\${version}" in
-      *-v7+) ;;
-      *) exit 0
-    esac
-  ;;
-  *+)
-    case "\${version}" in
-      *-v7+) exit 0 ;;
-    esac
-  ;;
-esac
-update-initramfs -u
-EOF
-    chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
-
     echo "> Create /usr/bin/sdmluksunlock; runs in initramfs to unlock rootfs"
     cat > /usr/bin/sdmluksunlock <<EOF
 #!/bin/sh
