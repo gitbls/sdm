@@ -21,8 +21,17 @@ doaptrpterror "$1 $upg" "$2"
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
+function p1exit() {
+    #
+    # Clean up when Phase 1 (or any of the container commands) exits
+    #
+    unadjust_initramfs_all
+    exit
+}
+
 function doctrlcp1() {
     echo "% Caught CTRL/C. Exiting Phase 1..."
+    unadjust_initramfs_all  #Be clean
     exit 1     #Can't use poweroff since no job control in either nspawn or chroot
 }
 #
@@ -39,6 +48,8 @@ cmdoptions="$(stripquotes "$2")"
 #logtoboth "DD-1 cmd:|$cmd| cmdoptions:|$cmdoptions| 2:|$2| 3:|$3|"
 # case stmt falls through if not processed within
 trap "doctrlcp1" SIGINT
+trap p1exit EXIT
+adjust_initramfs_all
 case "$cmd" in
     apt)
 	logtoboth "* Start apt maintenance"
@@ -62,41 +73,35 @@ case "$cmd" in
 	exit
 	;;
     burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
-	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning"
+	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning" || exit
 	exit
 	;;
     run-all-plugins)  # Run Plugin phase 1 or post-install
 	phase=$cmdoptions
-	runplugins "$plugins" $phase
+	runplugins "$plugins" $phase || exit
 	exit
         ;;
     run-plugin-list) # Run list of plugins phase 1 or post-install
 	phase=$cmdoptions
 	theseplugins="$(stripquotes "$3")"
 	runplugins "$theseplugins" $phase || exit
-	writeconfig                    #Write updated config
 	exit
 	;;
     run-one-plugin)  # Run Plugin phase 1 or post-install
 	# $cmdoptions: plugin name and args $3: Phase
 	p="$cmdoptions"
 	phase="$(stripquotes "$3")"
-	runonepluginx "$p" $phase
+	runonepluginx "$p" $phase || exit
 	exit
         ;;
     run-command)  # Run a single command in phase 1 or post-install
 	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
-	$runcmd
+	$runcmd || exit
 	exit
         ;;
     run-command-quietly)  # Run a single command in phase 1 or post-install
-	# $cmdoptions: Command line
-	#logtoboth "DD0 run-command-quietly: $cmdoptions"
-	#runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
 	runcmd="$cmdoptions $3 $4 $5 $6 $7 $8"
-	$runcmd > /dev/null 2>&1
-	#logtoboth "DD run-command-quietly: $runcmd"
-	#$runcmd #> /dev/null 2>&1
+	$runcmd > /dev/null 2>&1 || exit
 	exit
         ;;
 esac
