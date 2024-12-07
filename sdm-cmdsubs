@@ -374,7 +374,7 @@ EOF
 	[ "$burnfilefile" == "" ] && errexit "? No Output IMG file specified"
 	[ -f $burnfilefile ] && errexit "? Output IMG file '$burnfilefile' exists"
 	bsize=$(stat --printf %s $dimg)
-	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to Output IMG '$burnfilefile'..."
+	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to IMG '$burnfilefile'..."
 	burnmsg+=("$(thisdate) > Burn IMG command line: $cmdline")
 	# cp will fail if not on a COW (btrfs) file system
 	cp --reflink=always $dimg $burnfilefile 2>/dev/null
@@ -557,8 +557,6 @@ EOF
 	    sdm_runspawncmd Burn1 b1script "$b1script"
 	fi
 
-	cmyuser="$myuser"
-	    
 	if [ "$plugins" != "" ]
 	then
 	    sdm_runspawncmd Burn1 run-plugin-list 1 "$plugins" || exit
