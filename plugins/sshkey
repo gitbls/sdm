@@ -27,7 +27,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
 vldargs="|sshuser|authkey|import-key|keyname|keytype|passphrase|putty-keyname|"
-rqdargs=""                   # |list|of|required|args|or|nullstring|
+rqdargs="sshuser"                   # |list|of|required|args|or|nullstring|
 vkeytypes="dsa|ecdsa|ecdsa-sk|ed25519|ed25519-sk|rsa|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -39,6 +39,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     
+    assetdir="$assetdir/$sshuser"
     mkdir -p $assetdir
     if [ "$import__key" != "" ]
     then
@@ -58,7 +59,9 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
+    assetdir="$assetdir/$sshuser"
     IFS=":" read xuser xpw xuid xgx xname xhdir rest <<< $(getent passwd $sshuser)
+    [ "$keyname" == "" ] && keyname=sshkey
     if [ "$putty__keyname" != "" ]
     then
 	installpkgsif putty-tools
