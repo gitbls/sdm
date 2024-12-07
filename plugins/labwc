@@ -20,7 +20,7 @@ function stuffconfig() {
 	fi
     done
 
-    for f in bookmarks desktop-items libfm pcmanfm lxterminal
+    for f in bookmarks desktop-items libfm pcmanfm lxterminal wf-panel-pi
     do
 	case $f in
             bookmarks)
@@ -52,6 +52,13 @@ function stuffconfig() {
 		    logtoboth "> Plugin $pfx: Copy '$f.conf' from $assetdirconfig to $config/$f"
 		    mkdir -p $config/$f
 		    cp -a $assetconfig/$f.conf $config/$f
+		fi
+		;;
+            wf-panel-pi)
+		if [ -f $assetconfig/wf-panel-pi.ini ]
+		then
+		    logtoboth "> Plugin $pfx: Copy 'wf-panel-pi' from $assetconfig/wf-panel-pi.ini to $config"
+		    cp -a $assetconfig/wf-panel-pi.ini $config
 		fi
 		;;
 	esac
