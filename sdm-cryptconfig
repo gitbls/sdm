@@ -14,7 +14,7 @@ function errexit() {
 function wait_startup_complete {
     # $1 is the message to write
     local lc=0 msg=$1
-    while [ "$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    while [[ "$(systemctl show -p ActiveState graphical.target --value)" != "active" ]] && [[ "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]]
     do
         if [ $lc -eq 0 ]
         then
@@ -35,8 +35,8 @@ function getgbstr() {
     local nbytes=$1
     local gb=1000000000 gib=1073741824 gb2=500000000 gi2=536870912
     local ngbytes ngibytes 
-     ngbytes=$(printf %.1f "$(( ((10 * $nbytes)+$gb2) / $gb ))e-1")
-    ngibytes=$(printf %.1f "$(( ((10 * $nbytes)+$gi2) / $gib))e-1")
+     ngbytes=$(printf %.1f "$(( ((10 * nbytes)+gb2) / gb ))e-1")
+    ngibytes=$(printf %.1f "$(( ((10 * nbytes)+gi2) / gib))e-1")
     echo "(${ngbytes}GB, ${ngibytes}GiB)"
     return
 }
@@ -46,7 +46,7 @@ function getfsdf() {
     # $1: fs name
     # $2: df component: pcent, avail, etc
     #
-    echo $(df --output=$2 $1 | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))
+    echo "$(df --output=$2 $1 | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))"
 }
 
 function ispdevp() {
@@ -193,7 +193,7 @@ EOF
 function wait_startup_complete {
     # $1 is the message to write
     local lc=0 msg=\$1
-    while [ "\$(systemctl show -p ActiveState graphical.target --value)" != "active" -a "\$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]
+    while [[ "\$(systemctl show -p ActiveState graphical.target --value)" != "active" ]] && [[ "\$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]]
     do
         if [ \$lc -eq 0 ]
         then
@@ -286,6 +286,10 @@ function parsecmd() {
 
 function doconfiginitramfs() {
     local kcmd="" knopwd="" kskip=""
+
+    echo "> Update initramfs configuration for 'MODULES=most' and 'update_initramfs=all'"
+    sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf #Set initramfs to MODULES=most in case update-initramfs runs
+    sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
 
     echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
     [ $xnopwd -eq 1 ] && kskip="&& /bin/false"
@@ -522,7 +526,7 @@ parsecmd $0 "$*"
 
 [ "$xmapper" == "" ] && xmapper="cryptroot"
 [ "$xcrypto" == "" ] && xcrypto="aes"
-[[ "aes|xchacha" =~ "$xcrypto" ]] || [[ "$xcrypto" =~ "aes-" ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
+[[ "aes|xchacha" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
 if [ "$xkeyfile" != "" ]
 then
     mkdir -p /etc/sdm/assets/cryptroot
