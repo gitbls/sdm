@@ -38,7 +38,7 @@ function parsehsconfig() {
     okargs=${okargs%|}
     okargs="@($okargs)"
 
-    while IFS=":=" read rpifun value
+    while IFS=":=" read -r rpifun value
     do
 	if [[ ! $rpifun =~ ^\ *# && -n $rpifun ]] # skip comment and malformed lines
 	then
@@ -134,6 +134,9 @@ function fillupcfg() {
 		ipforward)
 		    dodefault ipforward ""
 		    ;;
+		pskencrypt)
+		    dodefault pskencrypt ""
+		    ;;
 		wifipassword)
 		    dodefault wifipassword password
 		    ;;
@@ -149,8 +152,22 @@ function fillupcfg() {
 	    esac
 	else
 	    [ "$a" != "config" ] && logtoboth  "$(printf "   %-60s [Argument]" "${a}: ${!a}")"
+	    [ "$a" == "hsname" ] && hsname=$(adjust_wifinmpsk "$(stripquotes "$hsname")")
+	    if [ "$a" == "wifissid" ]
+	    then
+		wifissid="$(stripquotes "$wifissid")"
+		owifissid="$wifissid"
+		wifissid=$(adjust_wifinmpsk "$wifissid")
+	    fi
 	fi
     done
+    if [[ "$wifipassword" != "" ]]
+    then
+	wifipassword="$(stripquotes "$wifipassword")"
+	owifipassword="$wifipassword"
+	wifipassword=$(adjust_wifinmpsk "$wifipassword")
+	[[ "$pskencrypt" == "encrypt" ]] && wifipassword=$(encrypt_wifipsk "$owifipassword" "$owifissid")
+    fi
 }
 
 function cfgnetman() {
@@ -203,19 +220,19 @@ fi
 
 logger "sdm FirstBoot: Before configuration:"
 logger "\$(nmcli c show)"
-logger "sdm FirstBoot: Before configuration (active):"
+logger "sdm FirstBoot: Before configuration [active]:"
 logger " \$(nmcli c show --active)"
 nmcli device down $device >/dev/null 2>&1
 if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname' for device $device"
-    nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+    nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid band bg password $wifipassword
 else
     logger "sdm FirstBoot: Create hotspot '$hsname' for device $device"
-    nmcli c add ifname $device con-name "$hsname" type ethernet
+    nmcli c add ifname $device con-name $hsname type ethernet
 fi
-nmcli c modify "$hsname" ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
-nmcli c down "$hsname" >/dev/null 2>&1
+nmcli c modify $hsname ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
+nmcli c down $hsname >/dev/null 2>&1
 [[ "\$excname" != "" ]] && [[ "$acsts" == "on" ]] && logger "sdm FirstBoot: Stop connection '\$excname'" && nmcli c down "\$excname" >/dev/null 2>&1
 nmcli c reload
 if [ "$acsts" == "on" ]
@@ -225,13 +242,13 @@ then
     if [ "$device" != "usb0" ]
     then
         logger "sdm FirstBoot: Start hotspot '$hsname'"
-        nmcli c up "$hsname"
+        nmcli c up $hsname
     fi
 fi
 
 logger "sdm FirstBoot: After configuration:"
 logger "\$(nmcli c show)"
-logger "sdm FirstBoot: After configuration (active):"
+logger "sdm FirstBoot: After configuration [active]:"
 logger "\$(nmcli c show --active)"
 EOF
     else
@@ -267,7 +284,7 @@ logger "sdm FirstBoot: Device: $device Network Type: \$nwtype"
 
 logger "sdm FirstBoot: Before configuration:"
 logger "\$(nmcli c show)"
-logger "sdm FirstBoot: Before configuration (active):"
+logger "sdm FirstBoot: Before configuration [active]:"
 logger " \$(nmcli c show --active)"
 
 # Disable autoconnect on any connections for $fwdev that are not part of the hotspot
@@ -276,7 +293,7 @@ do
     if grep -qs interface-name=$fwdev \$nmfile
     then
         IFS="=" read idx cname < <(grep ^id= \$nmfile)
-        if ! [[ "\$cname" =~ "$hsname" ]]
+        if ! [[ "\$cname" =~ $hsname ]]
         then
             logger "sdm FirstBoot: Disable connection '\$cname'"
             nmcli c down "\$cname"
@@ -286,7 +303,7 @@ do
     if grep -qs interface-name=$device \$nmfile
     then
         IFS="=" read idx cname < <(grep ^id= \$nmfile)
-        if ! [[ "\$cname" =~ "$hsname" ]]
+        if ! [[ "\$cname" =~ $hsname ]]
         then
             logger "sdm FirstBoot: Disable connection '\$cname'"
             nmcli c down "\$cname"
@@ -315,27 +332,26 @@ nmcli c add type ethernet slave-type bridge con-name "$hsname-bridge-br0" ifname
 if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
-    nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg # password "$wifipassword"
-    #nmcli device wifi hotspot ifname $device con-name "$hsname" ssid "$wifissid" band bg password "$wifipassword"
+    nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid band bg
 else
     logger "sdm FirstBoot: Create ethernet hotspot '$hsname'"
-    nmcli c add ifname $device con-name "$hsname" type ethernet
+    nmcli c add ifname $device con-name $hsname type ethernet
 fi
-#nmcli c show "$hsname"  > /root/"$hsname".nmcli
-nmcli c down "$hsname" >/dev/null 2>&1
+#nmcli c show $hsname  > /root/$hsname.nmcli
+nmcli c down $hsname >/dev/null 2>&1
 logger "sdm FirstBoot: Modify hotspot '$hsname' for bridge configuration"
 if [ "\$nwtype" == "wifi" ]
 then
-    nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" autoconnect $acsts wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk "$wifipassword"
+    nmcli c modify $hsname slave-type bridge master "$hsname-br0" autoconnect $acsts wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk $wifipassword
 else
-    nmcli c modify "$hsname" slave-type bridge master "$hsname-br0" autoconnect $acsts
+    nmcli c modify $hsname slave-type bridge master "$hsname-br0" autoconnect $acsts
 fi
-#nmcli c show "$hsname"  > /root/"$hsname"-after-modify.nmcli
+#nmcli c show $hsname  > /root/$hsname-after-modify.nmcli
 # ipv4.addresses $wlanip/24
 
 logger "sdm FirstBoot: After configuration:"
 logger "\$(nmcli c show)"
-logger "sdm FirstBoot: After configuration (active):"
+logger "sdm FirstBoot: After configuration [active]:"
 logger "\$(nmcli c show --active)"
 
 if [ "$acsts" == "on" ]
@@ -343,7 +359,7 @@ then
     nmcli c reload
     if [ "\$nwtype" != "usb" ]
     then
-        nmcli c up "$hsname"
+        nmcli c up $hsname
         nmcli c up "$hsname-br0"
         nmcli c up "$hsname-bridge-slave-$fwdev"
 fi
@@ -353,6 +369,7 @@ EOF
 
 function converty() {
     [ -v hsenable ] && hsenable=y
+    [ -v pskencrypt ] && pskencrypt=encrypt
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -364,7 +381,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|config|device|dhcpmode|hsenable|hsname|ipforward|type|wifipassword|wifissid|wlanip|"
+vldargs="|config|device|dhcpmode|pskencrypt|hsenable|hsname|ipforward|type|wifipassword|wifissid|wlanip|"
 rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/hotspot"
 

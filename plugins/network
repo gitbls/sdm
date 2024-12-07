@@ -70,9 +70,14 @@ function makenmconn() {
 
     if [ $newnm -eq 1 ]
     then
-	[ -f /etc/NetworkManager/system-connections/$cname.nmconnection ] && logtobothex "? Plugin $pfx: NetworkManager connection $cname already exists"
+	if [ -f /etc/NetworkManager/system-connections/$cname.nmconnection ]
+	then
+	    logtoboth "% Plugin $pfx: NetworkManager connection $cname already exists; Deleting prior definition"
+	    rm -f /etc/NetworkManager/system-connections/$cname.nmconnection
+	fi
 	logtoboth "> Plugin $pfx: Create connection '$cname' on interface '$makeif'"
-	nmcli --offline $nmcmd | tee /etc/NetworkManager/system-connections/$cname.nmconnection >/dev/null
+	# Feed to bash so special character quoting doesn't blow up
+	bash -c "nmcli --offline $nmcmd | tee /etc/NetworkManager/system-connections/$cname.nmconnection >/dev/null"
 	sts=$?
 	[ $sts -ne 0 ] && logtobothex "? Plugin $pfx: nmcli returned error '$sts' on create connection '$cname' with '$nmcmd'"
     else
@@ -89,7 +94,7 @@ function modnmconn() {
     then
 	[ "$fname" != "" ] && fname="$(basename "$fname")" || fname="$cname"
 	fname="${fname%.nmconnection}"
-	nmcli --offline c modify $cattr </etc/NetworkManager/system-connections/"$fname".nmconnection | tee /tmp/"$fname".nmconnection >/dev/null
+	bash -c "nmcli --offline c modify $cattr </etc/NetworkManager/system-connections/$fname.nmconnection | tee /tmp/$fname.nmconnection >/dev/null"
 	sts=$?
 	[ $sts -ne 0 ] && logtobothex "? Plugin $pfx: nmcli returned error '$sts' on modify '$cattr'"
 	rm -f /etc/NetworkManager/system-connections/"$fname".nmconnection
@@ -115,6 +120,7 @@ function getctype() {
 function converty() {
     [ -v noipv6 ] && noipv6=y
     [ -v nowifi ] && nowifi=y
+    [ -v pskencrypt ] && pskencrypt=encrypt
     [ -v zeroconf ] && zeroconf=y
 }
 
@@ -129,7 +135,7 @@ args="$2"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/network"
 
-vldargs="|cname|ctype|dhcpcdwait|dhcpcdappend|ifname|netman|noipv6|nmconf|nmconn|nowifi|powersave|wificountry|wifissid|wifipassword|wpa|zeroconf"
+vldargs="|cname|ctype|dhcpcdwait|dhcpcdappend|ifname|netman|noipv6|nmconf|nmconn|nowifi|powersave|pskencrypt|wificountry|wifissid|wifipassword|wpa|zeroconf"
 vldargs="$vldargs|ipv4-static-ip|ipv4-static-gateway|ipv4-static-dns|ipv4-static-dns-search"
 vldargs="$vldargs|ipv4-route-metric"
 vldargs="$vldargs|autoconnect-priority|autoconnect"
@@ -168,17 +174,26 @@ then
     fi
     [ "$wifissid" == "" ] && wifissid="$wifi__ssid"
     [ "$wifipassword" == "" ] && wifipassword="$wifi__password"
-    [[ "$wifissid" != "" ]] && [[ "$wifipassword" == "" ]] && logtobothex "? Plugin $pfx: WiFi password required but not specified"
+    owifissid="$wifissid"
+    owifipassword="$wifipassword"
+    if [ "$wifissid" != "" ]
+    then
+	[[ "$wifissid" != "" ]] && [[ "$wifipassword" == "" ]] && logtobothex "? Plugin $pfx: WiFi password required but not provided"
+	[ "$wifissid" != "" ] && wifissid=$(adjust_wifinmpsk "$(stripquotes "$wifissid")")
+	[ "$wifipassword" != "" ] && wifipassword=$(adjust_wifinmpsk "$(stripquotes "$wifipassword")")
+	[[ "$wifissid" != "" ]] && [[ "$ifname" == "" ]] && logtobothex "? Plugin $pfx: WiFi device name must be provided with 'ifname' argument"
+	[ "$pskencrypt" == "encrypt" ] && wifipassword=$(encrypt_wifipsk "$owifipassword" "$owifissid")
+    fi
 
     thiscname="$cname"
     thisctype=""
     getctype
     if [ "$thisctype" == "wifi" ]
     then
-	[ "$wifissid" == "" ] && logtobothex "? Plugin $pfx: WiFi SSID must be specified for WiFi device '$ifname'"
-	[ "$thiscname" != "" ] && thiscname="${wifissid,,}" && thiscname="${thiscname// /}"
+	[ "$wifissid" == "" ] && logtobothex "? Plugin $pfx: WiFi SSID must be provided for WiFi device '$ifname'"
+	[ "$thiscname" == "" ] && thiscname="${wifissid,,}" && thiscname="${thiscname// /}"
     else
-	[ "$wifissid" != "" ] && logtobothex "? Plugin $pfx: WiFi SSID incompatible with ethernet network device"
+	[ "$wifissid" != "" ] && logtobothex "? Plugin $pfx: WiFi SSID incompatible with non-WiFi network device '$ifname'"
     fi
 
     case "${netman}" in
@@ -313,6 +328,11 @@ EOF
 	    thisattr=""
 	    [ "$wifissid" == "" ] && wifissid="$wifi__ssid"
 	    [ "$wifipassword" == "" ] && wifipassword="$wifi__password"
+	    owifissid="$wifissid"
+	    owifipassword="$wifipassword"
+	    [ "$wifissid" != "" ] && wifissid=$(adjust_wifinmpsk "$(stripquotes "$wifissid")")
+	    [ "$wifipassword" != "" ] && wifipassword=$(adjust_wifinmpsk "$(stripquotes "$wifipassword")")
+	    [ "$pskencrypt" == "encrypt" ] && wifipassword=$(encrypt_wifipsk "$owifipassword" "$owifissid")
 	    if ! ispkginstalled network-manager     # Only print msg if it's really not installed. Less confusing
 	    then
 		logtoboth "> Plugin $pfx: Install Network Manager"
@@ -369,7 +389,7 @@ EOF
 		    [ "$thiscname" == "" ] && thiscname="$ifname"
 		fi
 
-		[ "$wifissid" != "" ] && thisattr="ssid \"$wifissid\" wifi-sec.key-mgmt  wpa-psk wifi-sec.psk \"$wifipassword\""
+		[ "$wifissid" != "" ] && thisattr="ssid $wifissid wifi-sec.key-mgmt  wpa-psk wifi-sec.psk $wifipassword"
 
 		if [ "$ipv4__static__ip" != "" ]
 		then
