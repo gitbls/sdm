@@ -69,8 +69,8 @@ function getgbstr() {
     local nbytes=$1
     local gb=1000000000 gib=1073741824 gb2=500000000 gi2=536870912
     local ngbytes ngibytes 
-     ngbytes=$(printf %.1f "$(( ((10 * $nbytes)+$gb2) / $gb ))e-1")
-    ngibytes=$(printf %.1f "$(( ((10 * $nbytes)+$gi2) / $gib))e-1")
+    ngbytes=$(printf %.1f "$(( ((10 * nbytes)+gb2) / gb ))e-1")
+    ngibytes=$(printf %.1f "$(( ((10 * nbytes)+gi2) / gib))e-1")
     echo "(${ngbytes}GB, ${ngibytes}GiB)"
     return
 }
@@ -282,7 +282,7 @@ sdisk="$2"
 xcrypto=""
 [ -f /etc/sdmcrypto ] && read xcrypto < /etc/sdmcrypto
 [ "$xcrypto" == "" ] && xcrypto="aes"
-[[ "aes|xchacha" =~ "$xcrypto" ]] || [[ "$xcrypto" =~ "aes-" ]] || errexit "? Supported cryptos: 'aes' and 'xchacha'"
+[[ "aes|xchacha" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Supported cryptos: 'aes' and 'xchacha'"
 
 [ -f /etc/sdmnopwd ] && xnopwd=1 || xnopwd=0
 
