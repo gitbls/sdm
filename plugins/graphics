@@ -151,12 +151,13 @@ then
     #logfreespace "at start of Plugin $pfx Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     case "${graphics,,}" in
-	#wayland) 
-	# Only supported on bookworm+
-	# need to figure out what to install
-	# probably need to force lightdm?
-	#;;
-	x11|X11)
+	labwc)
+	    [ "$(type -p labwc)" == "" ] && logtobothex "? Plugin $pfx: Labwc is not installed"
+	    ;;
+	wayfire)
+	    [ "$(type -p wayfire)" == "" ] && logtobothex "? Plugin $pfx: wayfire is not installed"
+	    ;;
+	x11)
 	    logtoboth "> Plugin $pfx: X11 requested"
 	    if [ ! -x /bin/Xorg ]
 	    then
@@ -195,11 +196,21 @@ then
 	rm -f /etc/xdg/autostart/deluser.desktop
     fi
     case "${graphics,,}" in
-	wayland) 
+	labwc)
 	    case "$raspiosver" in
-		12) logtoboth "> Plugin $pfx: Wayland is the default on Debian 12/Bookworm"
+		12) logtoboth "> Plugin $pfx: Set Graphics mode to Wayland Labwc"
+		    do_raspiconfig do_wayland W3
 		    ;;
-		*) logtoboth "> Plugin $pfx: sdm does not support Wayland pre-Bookworm"
+		*) logtobothex "? Plugin $pfx: sdm does not support Labwc pre-Bookworm"
+		   ;;
+	    esac
+	    ;;
+	wayfire|wayland)
+	    case "$raspiosver" in
+		12) logtoboth "> Plugin $pfx: Set Graphics mode to Wayland Wayfire"
+		    do_raspiconfig do_wayland W2
+		    ;;
+		*) logtobothex "? n Plugin $pfx: sdm does not support Wayfire pre-Bookworm"
 		   ;;
 	    esac
 	    ;;
@@ -212,7 +223,7 @@ then
 		    fi
 		    ;;
 		# X11 is default on RasPiOS 11 and earlier
-		* ) logtoboth "> Plugin $pfx: X11 is default on pre-Bookworm"
+		* ) logtoboth "% Plugin $pfx: X11 is default on pre-Bookworm"
 		    ;;
 	    esac
     esac
