@@ -50,7 +50,7 @@ The USB hotspot plugin is configured the same way as a WiFi hotspot: `--plugin h
 
 Configure a Pi with the `gadgetmode` plugin and plug this tether client via USB to a Pi with a USB hotspot plugin (above), or an appropriately configured MacOS or Windows system.
 
-Invoke the `gadgetmode` plugin `--plugin gadgetmode`
+Invoke the `gadgetmode` plugin `--plugin gadgetmode:static-mac`
 
 <a href="Plugins.md#gadgetmode">`gadgetmode` plugin documentation</a>
 

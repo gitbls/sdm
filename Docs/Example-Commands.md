@@ -74,7 +74,7 @@ apps:name=mytools|apps=keychain,lsof,iperf3,dnsutils
 
 # Configure network
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#network
-network:wifissid=myssid|wifipassword=mypassword|wificountry=US
+network:ifname=wlan0|wifissid=myssid|wifipassword=mypassword|wificountry=US
 
 # This configuration eliminates the need for piwiz so disable it
 disables:piwiz
@@ -109,9 +109,9 @@ sudo sdm \
      --extend --xmb 2048 \
      --plugin user:"deluser=pi" \
      --plugin user:"adduser=bls|password=mypassword|uid=3300" \
-# Use one of the next two
-#     --plugin network:"ssh|netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \
-#     --plugin network:"ssh|netman=nm|wificountry=US|wifissid=mySSID|wifipassword=myWifiPassword" \
+# Use one of the next two. netman=nm not needed on Bookworm or later
+#     --plugin network:"netman=nm|wifcountry=US|nmconn=/ssd/work/mywifi.nmconnection" \
+#     --plugin network:"netman=nm|ifname=wlan0|wificountry=US|wifissid=mySSID|wifipassword=myWifiPassword" \
      --plugin system:"systemd-config=timesync=/rpi/systemd/timesyncd.conf" \
      --plugin system:"service-disable=apt-daily.timer,apt-daily-upgrade.timer|eeprom:stable|fstab=/rpi/etc/fstab.lan" \
      --plugin disables:"piwiz|triggerhappy" \
@@ -135,8 +135,7 @@ sudo sdm \
      --plugin user:"deluser=pi" \                                                   # Delete user pi
      --plugin user:"adduser=bls|password=mypassword|uid=3300" \                     # Create a new user with a password using a specific UID
 #     --plugin network:"netman=nm|wificountry=US|nmconn=/ssd/work/mywifi.nmconnection" \ # Use Network Manager and set up a connection
-                                                                                         # and enable SSH, which is the default
-#     --plugin network:"ssh|netman=nm|wificountry=US|wifissid=mySSID|wifipassword=myWifiPassword" \ # Set WiFi country, wifi SSID, and password (and SSH enabled)
+#     --plugin network:"netman=nm|ifname=wlan0|wificountry=US|wifissid=mySSID|wifipassword=myWifiPassword" \ # Set WiFi country, wifi SSID, and password for wlan0
      --plugin system:"systemd-config=timesync=/rpi/systemd/timesyncd.conf" \        # Configure systemd-timesyncd
      --plugin system:"service-disable=apt-daily.timer,apt-daily-upgrade.timer|eeprom:stable|fstab=/rpi/etc/fstab.lan" \ # Other system settings
      --plugin disables:"piwiz|triggerhappy" \                                       # Disable piwiz and triggerhappy

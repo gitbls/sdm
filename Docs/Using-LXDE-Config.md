@@ -14,7 +14,7 @@ Here's how to establish your custom configuration files:
 * Customize lxterminal and/or pcmanfm preferences in the apps as desired
 * Copy the configuration files from your Pi to a shared directory, so that they are available on the Pi that you'll be using for sdm. They don't really need to be in a *shared directory* per se, just a directory available to sdm. The config files can be found at
     * **libfm:** /home/*user*/.config/libfm.conf
-    * **pcmanfm:** /home/*user*/.config/LXDE-pi/pcmanfm.conf
+    * **pcmanfm:** /home/*user*/.config/pcmanfm/LXDE-pi/pcmanfm.conf
     * **lxterminal:** /home/*user*/.config/lxterminal/lxterminal.conf
 * Add the `lxde` plugin with the `lxde-config` argument and values to your sdm command line
 * The specified files will be copied into the IMG during Phase 0, when both the host and IMG are acessible

@@ -8,7 +8,7 @@ sdm, written in Bash, is largely Linux distro-independent and is completely 32-v
 
 As of sdm V7.2, sdm itself can now be run on x86_64 Debian-like distros. In addition, sdm running on 32-bit ARM can now operate on 64-bit ARM RasPiOS images. sdm also runs on the <a href="Using-sdm-on-Windows-WSL.md">Windows Subsystem for Linux</a>)
 
-In order to do image customization or use `--explore` on an image when running on a non-RasPiOS host (e.g., x86 or x86_64), the following packages must be installed. EZsdmInstaller installs these packages, and is the recommended method for installing sdm. See <a href="Installing-or-Removing-sdm.md">Installing sdm</a>
+In order to do image customization or use `--explore` on an image when running on a non-RasPiOS host (e.g., x86 or x86_64), the following packages must be installed. EZsdmInstaller installs these packages, and is the recommended method for installing sdm. See <a href="Detailed-Installation-Guide.md">Installing sdm</a>
 ```sh
     sudo apt install qemu-user-static binfmt-support systemd-container parted
 ```

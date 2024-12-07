@@ -394,15 +394,22 @@ The graphics plugin configures various graphics-related settings. It doesn't do 
 
 #### Arguments
 
-* **graphics** &mdash; Supported values for the graphics keyword are `wayland` and `X11`. At the present time `wayland` does very little. If graphics is set to `X11`, the Core X11 packages (xserver-xorg, xserver-xorg-core, and xserver-common) are installed if not already installed. In the post-install phase, the plugin will look for a known Display Manager (lightdm, xdm, or wdm), and make appropriate adjustments (see below)
+* **graphics** &mdash; Supported values for the graphics keyword are `labwc`, `wayfire` and `X11`.
+
+    If `graphics` is set to `labwc` or `wayfire`, the corresponding software (labwc or wayfire) must already be installed. sdm will use raspi-config to appropriately configure lightdm as requested.
+
+    If `graphics` is set to `X11`, the Core X11 packages (xserver-xorg, xserver-xorg-core, and xserver-common) are installed if not already installed. In the post-install phase, the plugin will look for a known Display Manager (lightdm, xdm, or wdm), and make appropriate adjustments (see below)
+
 * **nodmconsole** &mdash; If `graphics=X11`, `nodmconsole` directs sdm to NOT start the Display Manager on the console, if the Display Manager is lightdm, wdm, or xdm.
 * **videomode** &mdash; Specifies the string to add to the video= argument in cmdline.txt. See below for an example.
 
-wayland is the Default graphics subsystem on Bookworm with Desktop images, so `graphics=wayland` is ignored on those images. The plugin currently will not install wayland on a Bookworm Lite IMG. Wayland is not supported by sdm on releases prior to Bookworm.
+Currently, labwc is the Default graphics subsystem on Bookworm with Desktop images, so `graphics=labwc` is effectively redundant on those images. The plugin currently will not install labwc or wayfire on a Bookworm Lite IMG. labwc and wayfire are not supported by sdm on releases prior to Bookworm.
 
 If `graphics=X11` and the Display Manager is known, the graphics plugin makes a few adjustments. Specifically:
 * If LXDE is installed, the mouse will be set to left-handed if specified on the command line. This works for wayland as well.
 * For Display Managers lightdm, wdm, and xdm, sdm will cause the boot behavior you might specify to be delayed until after the First Boot.
+
+For `graphics=labwc` or `graphics=wayfire`, use the `labwc` or `lxde` plugin to perform specific configuration such as `lhmouse` and/or apply personalized configuration settings.
 
 The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm will add video=HDMI-A-1:1024x768M@60D to /boot/firmware/cmdline.txt
 
@@ -423,6 +430,7 @@ The hotspot plugin configures the specified wireless device or USB0 to be a hots
 * **hsenable** &mdash; If **hsenable=y** set the hotspot to enable as part of system boot [D:y]. Can be specified as simply `hsenable`. To disable, use `hsenable=n`
 * **hsname** &mdash; Set the hotspot name [D:Hotspot]
 * **ipforward** &mdash; For routed hotspots, controls whether IP forwarding is enabled. If specified, must be the name of the network device to which network traffic is forwarded. [D:""] For bridged hotspots `ipforward` controls the network device to which the WiFi traffic is bridged [D:eth0]
+* **pskencrypt** &mdash; Save the encrypted PSK in the .nmconnection file rather than the plaintext PSK
 * **type** &mdash; Type of hotspot (*routed* or *bridged*) [D:routed]
 * **wifipassword** &mdash; WiFi hotspot password [D:password]
 * **wifissid** &mdash; WiFi hotspot SSID [D:MyPiNet]
@@ -530,6 +538,7 @@ The best way to use this plugin is:
 
 #### Examples
 
+* `--plugin labwc:"all-config=/path/to/labwc-config-dir"
 * `--plugin labwc:"app-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
 * `--plugin labwc:"lhmouse|user=someuser"`
 * `--plugin labwc:"labwc-config=autostart:/path/to/autostart,environment=/path/to/environment`
@@ -683,6 +692,7 @@ All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid
 * **ipv4-static-gateway** &mdash; Configure the connection with this static gateway
 * **ipv4-static-dns** &mdash; Configure the connection with this DNS server IP
 * **ipv4-static-dns-search** &mdash; Set DNS suffix search list for the configuration (Ex: `ipv4-static-dns-search=my.com,dyn.my.com`)
+* **pskencrypt** &mdash; Save the encrypted PSK in the .nmconnection file rather than the plaintext PSK
 * **wifissid** or **wifi-ssid** &mdash; Specifies the WiFi SSID for the connection. If `ifname` is configured and is a WiFi device, and `wifissid`, `wifipassword`, and `wificountry` are all set, the network plugin will configure the WiFi connection (NetworkManager) or will create /etc/wpa_supplicant/wpa_supplicant.conf (if `netman=dhcpcd`).
 * **wifipassword** or **wifi-password** &mdash; Password for the `wifissid` network. See `wifissid`
 * **wificountry** or **wifi-country** &mdash; WiFi country for the `wifissid` network. See `wifissid`

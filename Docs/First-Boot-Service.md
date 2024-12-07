@@ -12,7 +12,7 @@ The FirstBoot service looks at these settings and implements them as needed:
 
 Note that the hostname does not need to be set since you typically set it when you burn the disk with sdm.
 
-After all First System Boot processing has been done, FirstBoot waits until the system boot process has fully completed. If `--restart` or `--reboot` were specified, FirstBoot will then restart the system.
+After all First System Boot processing has been done, FirstBoot waits until the system boot process has fully completed. If `--restart` or `--reboot` were specified (recommended!), FirstBoot will then restart the system.
 
 First Boot Automatic System Restart is useful for a couple reasons:
 

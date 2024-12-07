@@ -38,5 +38,6 @@
 <br><a href="8Upgrade-Notes.md">Upgrading to sdm V8</a>
 <br><a href="Using-Docker.md">Using sdm with Docker</a>
 <br><a href="Using-LXDE-Config.md">Using the lxde plugin</a>
+<br><a href="Using-Labwc-Config.md">Using the labwc plugin</a>
 <br><a href="Using-sdm-on-Windows-WSL.md">Using sdm on Windows WSL</a>
 <br><a href="Using-sdm-Plugins-on-uncustomized-system.md">Using sdm on an uncustomized system</a>

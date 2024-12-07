@@ -14,6 +14,10 @@ sdm places important files in the IMG in `/etc/sdm` such as logs and information
 
 * *custom.ized* tells sdm that the image has been customized. If this exists, sdm will not rerun Phase 0 unless you answer Y to the query at the start of customization. You can avoid the prompt by including the `--redo-customize` switch on the command line.
 
+The most important files to look at when troubleshooting are
+* `history` &mdash; Provides a detailed look at all the steps sdm has done
+* `apt.log` &mdash; Displays errors that occur during apt operations
+
 ## Cleaning up dangling mounts and loop devices
 
 sdm tries very hard to clean up after itself. If sdm runs to completion or is able to complete its cleanup handling, there will be no dangling mounts or dangling loop devices.
