@@ -147,7 +147,6 @@ function doapt() {
     echo "" >> /etc/sdm/apt.log
     outlong "$aptcmd $1" "/etc/sdm/apt.log"
     echo "" >> /etc/sdm/apt.log
-    sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf #Set initramfs to MODULES=most in case update-initramfs runs
     if [ "$2" == "1" ]
     then
 	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
@@ -165,7 +164,6 @@ function doapt() {
     fi
     [[ "$poptions" =~ "nologdates" ]] && td="" || td="$(thisdate) "
     echo "${td}[Done]" >> /etc/sdm/apt.log
-    sed -i "s/^MODULES=most/MODULES=dep/" /etc/initramfs-tools/initramfs.conf # Reset initramfs to MODULES=dep for normal operation
     return $sts
 }
 
@@ -946,6 +944,32 @@ then
 fi
 }
 
+function adjust_wifinmpsk() {
+    #
+    # $1: Input PSK
+    #
+    # return: single string with all schars letters backslash-quoted
+    local psk="$1" i c schars=" '|!"
+
+    # Quote characters that need it
+    for (( i=0 ; i < ${#schars} ; i++ ))
+    do
+        c=${schars:$i:1}
+        psk="${psk//$c/\\$c}"
+    done
+    echo "$psk"
+}
+
+function encrypt_wifipsk() {
+    # $1 psk
+    # $2 SSID
+
+    local psk="$1" ssid="$2" opsk
+    opsk="$(wpa_passphrase "$ssid" "$psk" | grep $'\tpsk=')"
+    IFS='=' read lhpsk psk <<< "$opsk"
+    echo "$psk"
+}
+
 function dosshsetup() {
     #
     # Set up ssh as requested
@@ -1085,6 +1109,29 @@ function gethostopmode() {
 	[[ "armv6l|armv7l" =~ "$(gethostarch)" ]] && modes="32-bit" || modes="unknown"
     fi
     echo "${modes#${modes%%[![:space:]]*}}"
+}
+
+function virtstatus() {
+    #
+    # Returns "none" (not in virtualization) or "systemd-nspawn" or "chroot" as appropriate
+    #
+    local invirt=$(systemd-detect-virt)
+    if [ "$invirt" == "none" ]
+    then
+	systemd-detect-virt -r && invirt=chroot
+    fi
+    echo $invirt
+}
+
+function adjust_initramfs_all() {
+    sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf #Set initramfs to MODULES=most in case update-initramfs runs
+    sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
+
+}
+
+function unadjust_initramfs_all() {
+    sed -i "s/^MODULES=most/MODULES=dep/" /etc/initramfs-tools/initramfs.conf # Reset initramfs to MODULES=dep for normal operation
+    sed -i "s/^update_initramfs=all/update_initramfs=yes/" /etc/initramfs-tools/update-initramfs.conf
 }
 
 function initvirt() {
