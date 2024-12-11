@@ -1036,6 +1036,23 @@ These configuration items affect the SSH service.
 * `--plugin sshd:"port=22222|listen-address=192.168.16.16" &mdash; Enable the SSH service, which will listen on port 2222 and only on the IP address 192.168.16.16 (which must be an IP address on the target system)
 * `--plugin sshd:"password-authentication=no" &mdash; Disable password authentication
 
+### sshhostkey
+
+The `sshhostkey` plugin allows the generation new or import of existing SSH host keys.
+Importing SSH host keys is useful to generate images with deterministic keys.
+Generating SSH host keys during sdm run time can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS.
+
+#### Arguments
+
+* **generate-keys** &mdash; Create a new set of keys in phase 1.
+* **import-keys** &mdash; Copy files from the given host directory to /etc/ssh.
+
+#### Examples
+
+* `--plugin sshhostkey:"generate-keys` &mdash; Generate a new set of host keys.
+* `--plugin sshhostkey:"import-keys=/path/to/hostkeys"` &mdash; Copy `ssh_host_*_key` and `ssh_host_*_key.pub` files from this host OS directory to the Pi's /etc/ssh/.
+* `--plugin sshhostkey:"generate-keys|import-keys=/path/to/hostkeys"` &mdash; Useful to import a subset (e.g. RSA only) keys, and re-create the rest. 
+
 ### sshkey
 
 The `sshkey` plugin creates an SSH key or imports an SSH key for a user. In either case, you can optionally create a Putty private key for it.
