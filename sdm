@@ -831,7 +831,7 @@ else
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
-	setfileownmode "$SDMPT/$sdmdir/1piboot/*.sh" 755
+	setfileownmode $SDMPT/$sdmdir/1piboot/*.sh 755
     fi
     [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
     if [ -e /proc/meminfo ]
