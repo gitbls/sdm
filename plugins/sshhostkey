@@ -62,8 +62,8 @@ then
     then
         logtoboth "> Plugin $pfx: Copy SSH host keys from $assetdir to user /etc/ssh directory"
         cp --target-directory=/etc/ssh -- $assetdir/keys/*
-        setfileownmode /etc/ssh/ssh_host_*_key 600 root:root
-        setfileownmode /etc/ssh/ssh_host_*_key.pub 644 root:root
+        setfileownmode "/etc/ssh/ssh_host_*_key" 600 root:root
+        setfileownmode "/etc/ssh/ssh_host_*_key.pub" 644 root:root
     fi
     #
     #logfreespace "at end of $pfx Phase 1"
