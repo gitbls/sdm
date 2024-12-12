@@ -52,6 +52,7 @@ then
     # We allow both generate-keys and import-keys at the same time.
     # This enables partial overwrites (e.g. import the RSA key, but re-gen everything else)
     if [ -v generate__keys ]
+    then
         logtoboth "> Plugin $pfx: Deleting existing SSH host keys and generating new ones."
         rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
         ssh-keygen -v -A > $assetdir/keygen.log 2>&1
