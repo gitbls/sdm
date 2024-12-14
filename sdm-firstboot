@@ -163,10 +163,6 @@ fi
 
 [ -f /etc/sdm/auto-1piboot.conf ] && doconfig /etc/sdm/auto-1piboot.conf
 
-[ "$wificountry" == "" ] && wificountry="US"
-bootlog "Set WiFi Country to '$wificountry'"
-do_raspiconfig do_wifi_country "$wificountry"
-
 [ -f /etc/sdm/local-1piboot.conf ] && bootlog "Run Localization Settings from Captive Portal in /etc/sdm/local-1piboot.conf" && doconfig /etc/sdm/local-1piboot.conf
 #
 # Wait for network online
