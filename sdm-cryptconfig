@@ -69,6 +69,14 @@ function logifsdm() {
     [ $xsdm -eq 1 ] && echo "sdm-cryptconfig: $msg" > /dev/console
 }
 
+function checknumeric() {
+    #
+    # Exit with error if $1 is not numeric
+    #
+    [[ "$1" = *[^0-9]* ]] && errexit "? Value '$1' for command switch '$2' is not numeric"
+    return
+}
+
 function printhelp() {
     echo $"
 sdm-cryptconfig has several command line switches, all of which are optional
@@ -84,12 +92,13 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --mask netmask -- Set network mask for initramfs
 * --nopwd -- No password on encrypted rootfs; keyfile (required) is only unlock
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
-* --ssh -- Enable SSH in initramfs
-* --sshbash -- Leave ssh session bash enabled (Default: use cryptroot-unlock)
-* --sshport port -- Specify initramfs SSH port (Default: 22)
-* --sshtimeout timeout -- Specify initramfs SSH timeout (Default: 300)
 * --reboot -- Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * --sdm -- sdm cryptroot plugin sets this
+* --ssh -- Enable SSH in initramfs
+* --sshbash -- Leave ssh session bash enabled [Default: use cryptroot-unlock]
+* --sshport port -- Specify initramfs SSH port [Default: 22]
+* --sshtimeout timeout -- Specify initramfs SSH timeout [Default: 300]
+* --tries n -- Specify number of unlock tries before giving up [Default: 0 (infinite)]
 * --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
 
 The network configuration switches (dns, gateway, hostname, ipaddr, and mask) are only needed
@@ -211,7 +220,7 @@ source /etc/sdm/sdm-readparams
 echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
 logger "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-hooks.old
-# Leave bash in initramfs rather than special case remove if no --sshbash
+# Leave bash in initramfs rather than special case remove if no --sshbash PLUS required by sdmluksunlock
 grep -v -E "sdmcryptfs|mappername|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
 [ $xsshbash -eq 0 ] && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
@@ -236,13 +245,13 @@ sleep 2
 reboot
 EOF
     chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
-    pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
+    pgrep systemd >/dev/null 2>&1 && echo "> Ignore RequiresMountsFor errors in the system journal" && systemctl daemon-reload
     systemctl enable sdm-cryptfs-cleanup > /dev/null 2>&1
 }
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -268,6 +277,7 @@ function parsecmd() {
 	    --sshport)         xsshport=$2  ; shift 2 ;;
 	    --sshtimeout)      xsshtimeout=$2 ; shift 2 ;;
 	    --sdm)             xsdm=1       ; shift 1 ;;
+	    --tries)           xtries=$2    ; shift 2 ;;
 	    --unique-ssh)      xunique=1    ; shift 1 ;;
 	    --)                shift ; break ;;
 	    -h|--help)         printhelp ; shift ; exit ;;
@@ -282,99 +292,86 @@ function parsecmd() {
 	[ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
     fi
     [[ $xnopwd -eq 1 ]] && [[ "$xkeyfile" == "" ]] && errexit "? --nopwd requires --keyfile"
+    [[ "$xtries" != "" ]] && checknumeric $xtries "--tries"
 }
 
 function doconfiginitramfs() {
     local kcmd="" knopwd="" kskip=""
 
-    # For some reason both of these need to be set
+    # These both need to be set on initramfs-tools 0.142+rpt1 and earlier. This assumes OK. Remove uncommented line for earlier initramfs-tools
     echo "> Update initramfs configuration for 'MODULES=most' and 'update_initramfs=all'"
     sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf
-    sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
-
-# Not sure this is needed but keeping for now
-#    echo "> Create /etc/kernel/postinst.d/initramfs-rebuild"
-#    cat >> /etc/kernel/postinst.d/initramfs-rebuild <<EOF
-##!/bin/sh -e
-#
-## Rebuild initramfs after kernel upgrade to include new kernel's modules.
-## https://github.com/Robpol86/robpol86.com/blob/master/docs/_static/initramfs-rebuild.sh
-## Save as (chmod +x): /etc/kernel/postinst.d/initramfs-rebuild
-#
-## Remove splash from cmdline.
-#if grep -q '\bsplash\b' /boot/firmware/cmdline.txt; then
-#  sed -i 's/ \?splash \?/ /' /boot/firmware/cmdline.txt
-#fi
-#
-## Exit if not building kernel for this Raspberry Pi's hardware version.
-#version="\$1"
-#current_version="\$(uname -r)"
-#case "\${current_version}" in
-#  *-v7+)
-#    case "\${version}" in
-#      *-v7+) ;;
-#      *) exit 0
-#    esac
-#  ;;
-#  *+)
-#    case "\${version}" in
-#      *-v7+) exit 0 ;;
-#    esac
-#  ;;
-#esac
-#update-initramfs -u
-#EOF
-#    chmod 755 /etc/kernel/postinst.d/initramfs-rebuild
+#*  sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
 
     [ $xnopwd -eq 1 ] && kskip="&& /bin/false"
     echo "> Create /usr/bin/sdmluksunlock; runs in initramfs to unlock rootfs"
     cat > /usr/bin/sdmluksunlock <<EOF
-#!/bin/sh
+#!/bin/bash
 #
 # called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
 #
-set -e
 trydisks()
 {
-    for usbpartition in /dev/disk/by-id/usb-*-part1; do
-        usbdevice=\$(readlink -f \$usbpartition)
-        if mount -t vfat \$usbdevice /mnt 2>/dev/null; then
-            if [ -e /mnt/\$CRYPTTAB_KEY.lek ]; then
-                cat /mnt/\$CRYPTTAB_KEY.lek
-                umount \$usbdevice || continue
-                exit
-            fi
-            umount \$usbdevice || continue
-        fi
+    echo "" >/dev/console
+    echo "> sdmluksunlock: Looking for USB disk with luks Key file '\${kfn}'" >/dev/console
+    echo "" >/dev/console
+    while :; do
+	sleep 1
+	while read usbpartition
+	do
+	    usbdevice=\$(readlink -f \$usbpartition)
+	    if mount -t vfat \$usbdevice /mnt 2>/dev/null
+	    then
+		echo "> Mounted disk \$usbdevice" >/dev/console
+		if [ -e /mnt/\$kfn ]
+		then
+		    echo "> Found Key file '\$kfn'" >/dev/console
+		    echo "> Unlocking rootfs" >/dev/console
+		    cat /mnt/\$kfn   #cat to sdmluksunlock caller for unlock
+		    umount \$usbdevice >/dev/null 2>&1 || continue
+		    echo "> sdmluksunlock: Kill askpass; Ignore 'Killed' message" >/dev/console
+		    aps=\$(ps e | grep askpass | grep -v grep | awk '{print \$1}')
+		    [ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+		    exit
+		else
+		    echo "% sdmluksunlock: Key '\${kfn%.lek}' not found on this disk" >/dev/console
+		    umount \$usbdevice >/dev/null 2>&1 || continue
+		fi
+	    else
+                echo "% sdmluksunlock: This disk does not have a vfat partition" >/dev/console
+		umount \$usbdevice >/dev/null 2>&1 || continue
+	    fi
+	done < <(compgen -G "/dev/disk/by-id/usb-*-part1")
     done
     return 0
 }
 
-if [ ! -e /mnt ]; then
-    mkdir -p /mnt
-fi
-if [ "\$CRYPTTAB_TRIED" == "0" ] ; then
-    sleep 4 # Wait a bit for disk to appear
-fi
-set +e
-trydisks
-kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
 set -e
-if [ "\$kbd" != "" ] $kskip ; then
-    trydisks
-    /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
-else
-    while :; do
-        set +e
-        kbd=\$(dmesg | grep -i keyboard | grep -v keyboard-setup)
-        set -e
-        [ "\$kbd" != "" ] $kskip && break
-        trydisks
-        echo "Insert USB Keyfile Disk" >/dev/console
-        sleep 1
-    done
-    /lib/cryptsetup/askpass "Insert USB Keyfile Disk (or type passphrase) then press ENTER: "
+mkdir -p /mnt
+
+if [ "\$CRYPTTAB_KEY" != "" ]
+then
+    kfn=\$(basename \$CRYPTTAB_KEY)
+    kfn=\${kfn%.lek}.lek
 fi
+
+if [[ "\$kfn" != "" ]]
+then
+    if [[ "\$2" == "trydisks" ]]
+    then
+        touch /tmp/ftrydisk
+        trydisks
+        exit
+    else
+        [ ! -f /tmp/ftrydisk ] && ( sdmluksunlock \$CRYPTTAB_KEY trydisks </dev/null & )
+    fi
+fi
+
+echo "" >/dev/console
+/lib/cryptsetup/askpass "Insert USB Keyfile Disk or type passphrase then press ENTER:"
+aps=\$(ps e | grep trydisks | grep -v grep | awk '{print \$1}')
+[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+exit
 EOF
     chmod 755 /usr/bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks-hooks"
@@ -477,14 +474,15 @@ function domkinitramfs() {
 }
 
 function doupdateconfig() {
-    local rootfs kfu="" kfuuid="none"
+    local rootfs kfu="" kfuuid="none" ktries=""
 
     rootfs=$(findmnt --noheadings --output source /)
     echo "> Update root statement in cmdline.txt"
     sed -i "s#root=[0-9a-zA-Z-]*[ =][0-9a-zA-Z-]* #root=/dev/mapper/$xmapper #" /boot/firmware/cmdline.txt
     echo "> Add cryptdevice '$xmapper' to cmdline.txt"
     # 'rw' needed so crypt device is mounted read/write
-    sed -i "s#\$# rw cryptdevice=$rootfs:$xmapper#" /boot/firmware/cmdline.txt
+    # luks.crypttab prevents systemd-cryptsetup-generator for reading crypttab
+    sed -i "s#\$# rw cryptdevice=$rootfs:$xmapper luks.crypttab=no#" /boot/firmware/cmdline.txt
 
     echo "> Updated cmdline:"
     cat /boot/firmware/cmdline.txt
@@ -498,8 +496,9 @@ function doupdateconfig() {
 	kfuuid=$(basename $xkeyfile)
 	kfuuid=${kfuuid%.lek}
 	kfu=",keyscript=/usr/bin/sdmluksunlock"
+	ktries=",tries=$xtries"
     fi
-    echo "$xmapper	$rootfs $kfuuid luks,discard${kfu}" >> /etc/crypttab
+    echo "$xmapper	$rootfs $kfuuid luks,discard${ktries}${kfu}" >> /etc/crypttab
 }
 
 #
@@ -522,6 +521,7 @@ xssh=0
 xsshbash=0
 xsshport="22"
 xsshtimeout="300"
+xtries="0"
 xunique=0
 src=$(dirname "$(realpath "$0")")
 parsecmd $0 "$*"
