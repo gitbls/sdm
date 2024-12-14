@@ -22,8 +22,23 @@ function gcruncmd() {
     [ $eg -ne 0 ] && shopt -u extglob
     hostname $thishost
     logtoboth "> Plugin $pfx: Run command '$cmd' as user '$user'"
-    sudo -u $user $cmd
+    sudo -u -i $user $cmd
     hostname sdm
+}
+
+function gcrunscript() {
+    # $1: username
+    # $2: full path to script
+    #
+    local user="$1" script="$2"
+    local xuser xpw xuid xgx rest
+
+    sfn=$(basename "$script")
+    IFS=":" read xuser xpw xuid xgx rest <<< $(getent passwd $user)
+    cp $2 /tmp
+    setfileownmode /tmp/$sfn 755 $user:$xgx
+    gcruncmd $user /tmp/$sfn
+    rm -f /tmp/$sfn
 }
 
 function doclone() {
@@ -36,7 +51,7 @@ function doclone() {
 	then
 	    fn=$assetdir/$(basename "${preclone:1:999}")
 	    logtoboth "> Plugin $pfx: Run preclone script '$fn'"
-	    gcruncmd $user $fn
+	    gcrunscript $user $fn
 	else
 	    logtoboth "> Plugin $pfx: Run preclone command '$preclone'"
 	    gcruncmd $user "$preclone"
@@ -51,7 +66,7 @@ function doclone() {
 	then
 	    logtoboth "> Plugin $pfx: Run postclone script '$fn'"
 	    fn=$assetdir/$(basename "${postclone:1:999}")
-	    gcruncmd $user $fn
+	    gcrunscript $user $fn
 	else
 	    logtoboth "> Plugin $pfx: Run postclone command '$preclone'"
 	    gcruncmd $user "$postclone"
@@ -124,12 +139,13 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    getent passwd $user >/dev/null || logtobothex "? Plugin $pfx: User '$user' does not exist"
     if [ "$(type -p git)" == "" ]
     then
 	logtoboth "> Plugin $pfx: Install git"
 	installpkgsif git
     fi
-    [ "$gitphase" == "" ] && gitphase="1"
+    [ "$gitphase" == "" ] && gitphase="phase1"
     if [[ "$gitphase" == "1" ]] || [[ "${gitphase,,}" == "phase1" ]]
     then
 	doclone
@@ -142,6 +158,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    [ "$gitphase" == "" ] && gitphase="phase1"
     if [[ "postinstall|post-install" =~ "${gitphase,,}" ]]
     then
 	doclone
