@@ -54,7 +54,7 @@ network={
 }
 EOF
 	    logtoboth "> Plugin $pfx: Set WiFi Country '$wificountry' for sdm FirstBoot"
-	    writeconfig    # Update config to save updated wificountry
+	    [ "$wificountry" != "" ] && echo "$wificountry" >| /etc/sdm/locale/wificountry
 	else
 	    if [ "$nowifi" != "y" ]
 	    then
@@ -267,7 +267,7 @@ then
 	wificountry="$xwificountry"
     else
 	logtoboth "> Plugin $pfx: Set WiFi Country '$wificountry' for sdm FirstBoot"
-	writeconfig  # Update config to save updated wificountry
+	echo "$wificountry" >| /etc/sdm/locale/wificountry
     fi
     #logfreespace "at start of Plugin $pfx Phase post-install"
 
