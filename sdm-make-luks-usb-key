@@ -30,14 +30,20 @@ function printhelp() {
 Usage: sudo sdm-make-luks-usb-key /dev/sdX [--switches]
 
 Switches (all are optional)
+* --ext4 -- If specified, also create a small second partition formatted as ext4
+* --hidden -- If specified, create a GPT formatted disk and tag the partition as EFI
+  It will not be readable on Windows. Requires --init
 * --hostname <hostname> -- If specified, the file hostname.txt is updated with hostname and LUKS key UUID
-* --init or --initialize -- Format the USB device. If not specified, newly-created luks key will be added to USB
+* --init or --initialize -- Format the USB device
+  If not specified, the specified or newly-created LUKS key will be added to the USB device
+* --keyfile /path/to/keyfile -- If specified, add the keyfile to the LUKS keydisk
+  If not specified a new keyfile will be generated
 "
 }
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="ext4,h,help,hidden,hostname:,init,initialize"
+    local longopts="ext4,h,help,hidden,hostname:,init,initialize,keyfile:"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -49,6 +55,7 @@ function parsecmd() {
 	    --ext4) xext4=1                  ; shift 1 ;;
 	    --hidden) xhidden=1              ; shift 1 ;;
 	    --hostname) xhostname="$2"       ; shift 2 ;;
+	    --keyfile) xkeyfile="$2"         ; shift 2 ;;
 	    --init|--initialize) xinit=1     ; shift 1 ;;
 	    --)                                shift ; break ;;
 	    -h|--help) printhelp             ; shift ; exit ;;
@@ -77,10 +84,14 @@ function checkusbkey() {
 #
 # Main
 #
+
+[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
+
 dev=$1
 xext4=0
 xhidden=0
 xhostname=""
+xkeyfile=""
 xinit=0
 
 parsecmd $0 "$*"
@@ -88,6 +99,10 @@ parsecmd $0 "$*"
 [ "$dev" == "" ] && errexit "Usage: sudo sdm-make-luks-usb-key /dev/sdX"
 [ -b $dev ] || errexit "? $dev is not a block device"
 sfdisk -l $dev >/dev/null 2>/dev/null || errexit "? No disk in $dev"
+if [ "$xkeyfile" != "" ]
+then
+    [ -f $xkeyfile ] || errexit "? Keyfile '$xkeyfile' not found"
+fi
 
 if [ $xinit -eq 1 ]
 then
@@ -96,11 +111,10 @@ then
     #
     fatstart=2048s
     fatend=67584s
-    extstart=67585s
-    extend=198658s
+    extstart=69632s
+    extend=200706s
 
     pmsg "> Initialize disk $dev for use as USB key disk"
-    pmsg "> Wipe disk $dev"
     sgdisk --zap-all $dev >/dev/null 2>&1
     errifrc $? "? Error zapping all partitions on $dev"
 
@@ -153,15 +167,19 @@ then
 else
     checkusbkey $dev || errexit "? Device '$dev' not configured for USB disk; Consider using --init"
 fi
-lukskey=$(uuid -v4)
-pmsg "> Create LUKS encryption key file /root/$lukskey.lek"
-dd if=/dev/urandom bs=1 count=256 of=/root/$lukskey.lek >/dev/null 2>&1
+if [ "$xkeyfile" == "" ]
+then
+    lukskey=$(uuid -v4)
+    xkeyfile="/root/$lukskey.lek"
+    pmsg "> Create LUKS encryption key file '$xkeyfile'"
+    dd if=/dev/urandom bs=1 count=256 of=$xkeyfile >/dev/null 2>&1
+fi
 #
 # copy the .lek file to the USB disk
 #
-pmsg "> Copy LUKS key '$lukskey.lek' to the FAT32 partition"
+pmsg "> Copy LUKS key '$xkeyfile' to the FAT32 partition"
 mount -v $(getspname $dev 1) /mnt
-cp /root/$lukskey.lek /mnt
+cp $xkeyfile /mnt
 if [ "$xhostname" != "" ]
 then
     [ -f /mnt/hostkeys.txt ] || printf "%-24s %s\n" "Hostname" "LUKS Key UUID" >> /mnt/hostkeys.txt
@@ -170,13 +188,14 @@ fi
 umount -v /mnt
 echo $"
 > LUKS USB key disk is ready
-  For sdm-cryptconfig use:  --keyfile /root/$lukskey.lek
-  For cryptroot plugin use: keyfile=/root/$lukskey.lek
-  For sdm-add-luks-key use: /usr/local/sdm/sdm-add-luks-key /path/to/$lukskey.lek
+  For sdm-cryptconfig use:  --keyfile $xkeyfile
+  For cryptroot plugin use: keyfile=$xkeyfile
+  For sdm-add-luks-key use: /usr/local/sdm/sdm-add-luks-key $xkeyfile
 
-  You can delete '/root/$lukskey.lek' and access it from the USB key disk if desired
+  Save a copy of '$xkeyfile' in a secure backup location
+  Then you can delete '$xkeyfile' if desired
 
-  NOTE: You need to have the key accessible when you customize or configure a disk using the key
-        for an encrypted rootfs using sdm-cryptconfig, the cryptroot plugin, or sdm-add-luks-key
+  You need to have the key accessible when you customize or configure a disk using the key
+  for an encrypted rootfs using sdm-cryptconfig, the cryptroot plugin, or sdm-add-luks-key
 "
 exit 0
