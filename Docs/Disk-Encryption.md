@@ -81,7 +81,7 @@ sudo sdm-cryptconfig [optional switches; see below]
 `sdm-cryptconfig` performs all necessary configuration before the rootfs can be encrypted:
 
 * Downloads the script `sdmcryptfs` from Github to /usr/local/bin if it's not present on the system (sdm-enhanced systems will already have it)
-* If not an sdm-enhanced system, installs the required disk crypto software: `cryptsetup`, `cryptsetup-initramfs`, and `cryptsetup-bin`
+* Ensures the required disk crypto software is installed: `cryptsetup`, `cryptsetup-initramfs`, and `cryptsetup-bin`
 * If SSH access to initramfs was requested, `dropbear-initramfs` and `dropbear-bin` are also installed
 * Updates the initramfs configuration to enable encrypting rootfs (primarily `bash` and `sdmcryptfs`)
 * Builds the updated initramfs with encryption support
@@ -112,11 +112,12 @@ Switches to sdm-cryptconfig include:
 * `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 300 seconds
 * `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * `--sdm` &mdash; sdm `cryptroot` plugin sets this. Not for manual use
+* `--tries n` &mdash; Set the number of retries to decrypt rootfs before giving up [Default: 0 (infinite)]
 * `--unique-ssh` &mdash; Use a different SSH host key in initramfs than the host OS SSH key
 
 The network configuration switches (`dns`, `gateway`, `hostname`, `ipaddr`, and `mask`) are only needed and should only be used if you know that the system is unable to get an IP address and network configuration information from the network (e.g., via DHCP). These settings are ONLY used in the initramfs if SSH is enabled and are not automatically removed.
 
-RasPiOS uses a different mechanism to configure a static network, such as Network Manager, or other network configuration tools.
+A fully-booted RasPiOS system uses a different mechanism to configure a static network, such as Network Manager, or other network configuration tools.
   
 ## initramfs
 
@@ -156,7 +157,7 @@ sdmcryptfs will then:
   * Reboots the system one last time
 * As the system reboots you'll once again be prompted for the rootfs passphrase
   * **NOTE:** Without the 30 tries!
-  * If using a USB Keyfile Disk you'll only be prompted if the USB Keyfile Disk cannot be found
+  * If using a USB Keyfile Disk insert the disk into the reader at any time
 * The system will now ask for the rootfs passphrase like this (or use the USB Keyfile Disk) every time the system boots
 
 **Do not lose or forget the rootfs passphrase. It is not possible to unlock the encrypted rootfs without a USB Keyfile Disk or rootfs passphrase**
@@ -245,7 +246,7 @@ Things to know when using SSH as documented here:
 * You must use `ssh root@address`. The username `root` is important, as that's how SSH is configured in the initramfs
 * You can use `ssh root@hostname` if DNS (not MDNS) on your network is set up correctly for resolving local host names.
 * You will not be able to SSH using ".local" names when initramfs SSH is running; avahi is not running in the initramfs so the system is unknown to MDNS (that's the protocol that is used for ".local")
-* If your local network does not have a properly-configured DNS server, you'll need to use `ssh root@ ip.ad.dd.rs`
+* If your local network does not have a properly-configured DNS server, you'll need to use `ssh root@ip.ad.dd.rs`
 * WiFi is not supported for the SSH initramfs connection
 
 ## Unlocking rootfs with a USB Keyfile Disk
@@ -264,30 +265,17 @@ Switches include:
 * `--hidden` &mdash; Create a GPT formatted disk and tag the partition as EFI. It will not be readable on Windows. Requires `--init`
 * `--hostname hname` &mdash; Add this key to the file `hostkeys.txt` on the USB Keyfile Disk. This is handy if you have multiple keys on the disk.
 * `--init` &mdash; Re-initialize the USB disk and re-create the FAT32 partition
+* `--keyfile /path/to/keyfile` &mdash; Add an existing keyfile to the USB Keyfile disk rather than creating a new one
 
 ### Using the USB Keyfile Disk
 
-The USB Keyfile Disk can be used in one of 3 ways:
-
-* Disk already inserted into the system when boot starts
-  * The system will locate the keyfile on the USB Keyfile Disk and continue the system boot
-* Disk inserted after the boot process has started
-  * Once the disk has been inserted it will be noticed and used
-* Disk not present
-  * Enter the unlock passphrase when prompted with `Insert USB Keyfile Disk and press ENTER (or type passphrase then ENTER):`
+The `sdmluksunlock` initramfs script continuously scans the available USB drives for the required USB Keyfile disk, so you can insert the disk at any point. It may take a few seconds for the disk to be recognized and scanned, and then it will take several more seconds to unlock the rootfs and continue the system boot.
 
 ### USB Keyfile Disk Usage Notes
 
-* In addition to writing the USB Keyfile Disk, `sdm-make-luks-usb-key` also places a copy of the encryption key file in /root/big-long-uid.lek.
+* In addition to writing the USB Keyfile Disk, `sdm-make-luks-usb-key` also places a copy of the newly-created encryption key file in `/root/big-long-uid.lek`.
 
   You may find it handy for use during customization runs, but once a USB Keyfile Disk has been successfully created, you can `sudo rm -f /root/big-long-uid.lek`, or `*.lek` to delete them all.
-* If you get to the prompt `Insert USB Keyfile Disk and press ENTER (or type a passphrase then ENTER):` you will probably see the following messages after you press ENTER:
-
-```
-Nothing to read on input.
-cryptsetup: ERROR: cryptroot: cryptsetup failed, bad password or options?
-```
-These messages can be ignored as the rootfs unlock process will then loop around, retry and find the USB Keyfile Disk you just inserted.
 
 ### Adding a USB Keyfile to an Already-Encrypted rootfs
 
@@ -354,6 +342,8 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
 
 * On the Pi5 a 4Kb page size is not supported. Changing the page size from the default 16Kb to 4Kb (using kernel=kernel8.img) on a Pi5 AFTER encryption has been enabled causes encryption to fail. The failure is reversible by undoing the pagesize change. Configuring the page size before enabling disk encryption also fails in `sdmcryptfs` for reasons as yet unknown.
 
+* To use disk encryption on disks other than rootfs, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt
+
 * When running RasPiOS with Desktop (both X11 and Wayland) sdm-cryptconfig will unconditionally make these adjustments to your system:
   * Remove 'quiet' and 'splash' from /boot/firmware/cmdline.txt, making the system boot far less quiet
   * Disable the plymouth splash screen
@@ -368,10 +358,6 @@ for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait p
 do
     sudo systemctl unmask $svc
 done
-```
-* systemd-cryptsetup-generator tries to do its thing at boot even though initramfs has already handled the encrypted rootfs. The resulting error in the system journal is innocucous, but if you don't like it, and your system only has an encrypted rootfs (i.e., no other encrypted partitions) you can disable this by appending `luks.crypttab=no` to the end of /boot/firmware/cmdline.txt. The error is similar to this:
-```
-Sep 16 10:05:08 pit systemd[1]: /run/systemd/generator/systemd-cryptsetup@cryptroot.service:14: RequiresMountsFor= path is not absolute, ignoring: 82a24bee-73dc-11ef-a1c0-2ccf6734bbee
 ```
 
 ## Acknowledgement
