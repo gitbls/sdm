@@ -501,7 +501,8 @@ sudo sdm --info timezone   # Displays list of valid timezones
 * **keymap** &mdash; Specify the keymap to set
 * **locale** &mdash; Specify the locale for the system
 * **timezone** &mdash; Specify the timezone
-* **host** &mdash; Get the above settings from the host sysetm on which sdm is running
+* **wificountry** &mdash; Specify the WiFi country setting
+* **host** &mdash; Get the above settings from the host system on which sdm is running
 
 **NOTE:** To disable the RasPiOS initial boot query for these configuration items, add `--plugin disables:piwiz` to your customize or burn command line. This works for both Desktop and Lite IMGs.
 
