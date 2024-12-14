@@ -1,5 +1,17 @@
 # Changelog
 
+## V13.5
+
+* New Features
+  * `cryptroot` and `sdm-cryptconfig` rootfs encryption
+    * Massively improved `sdmluksunlock` script can either type the password or insert a USB key disk at any time
+    * `sdm-make-luks-key` accepts an existing key as well as creating a new key 
+* Improvements
+  * Eliminate RequiresMountsFor journal message
+  * `L10n` settings are not instantiated in the system until FirstBoot. Last change wins
+* Bug Fixes
+  * `Fix git-clone` preclone and postclone script protection issue
+
 ## V13.4
 
 * New Features

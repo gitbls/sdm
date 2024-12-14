@@ -181,7 +181,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V13.4"
+version="V13.5"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -798,7 +798,7 @@ else
     #
     # Create and populate $sdmdir tree
     #
-    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/assets $SDMPT/etc/sdm/0piboot $SDMPT/etc/sdm/xpiboot $SDMPT/etc/sdm/local-assets
+    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,local-assets}
     touch $SDMPT/etc/sdm/history
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
