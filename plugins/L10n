@@ -30,8 +30,8 @@ function readl10n() {
     # Timezone
     timezone=${tz##/usr/share/zoneinfo/}
     # WiFi Country
-    [ -f /etc/wpa_supplicant/wpa_supplicant.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
-    [ "$wificountry" == "" -a -f /etc/wpa_supplicant/wpa_supplicant-wlan0.conf ] && IFS="=" read a wificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf)
+    [ -f /etc/wpa_supplicant/wpa_supplicant.conf ] && IFS="=" read a lwificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant.conf)
+    [ "$lwificountry" == "" -a -f /etc/wpa_supplicant/wpa_supplicant-wlan0.conf ] && IFS="=" read a lwificountry <<<$(grep 'country=' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf)
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -43,9 +43,9 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|keymap|locale|timezone|host|"
+vldargs="|keymap|locale|timezone|wificountry|host|"
 rqdargs=""
-assetdir="$SDMPT/etc/sdm/assets/l10n"
+assetdir="$SDMPT/etc/sdm/locale"
 if [ "$phase" == "0" ]
 then
     #
@@ -61,8 +61,9 @@ then
     if [ -v host ]
     then
 	logtoboth "> Plugin $pfx: Read L10n configuration from host system"
-	keymap="" ; locale="" ; timezone=""
+	keymap="" ; locale="" ; timezone="" ; lwificountry=""
 	readl10n
+	[ "$wificountry" == "" ] && wificountry=$lwificountry
 	logtoboth "> Plugin $pfx: Load Localization (L10N) settings from running system"
 	logtoboth "> Plugin $pfx:   Keymap:       $keymap"
 	logtoboth "> Plugin $pfx:   Locale:       $locale"
@@ -70,20 +71,19 @@ then
 	logtoboth "> Plugin $pfx:   WiFi Country: $wificountry"
     fi
     logtoboth "> Plugin $pfx: Save L10n configuration"
-    for kn in keymap locale timezone
+    for kn in keymap locale timezone wificountry
     do
 	if [ -v $kn ]
 	then
 	    value="${!kn}"
 	    if ckl10n $kn "$value"
 	    then
-		echo "$value" > $assetdir/$kn
+		echo "$value" >| $assetdir/$kn
 	    else
 		logtoboth "? Plugin $pfx: Unrecognized $kn '$value'"
 	    fi
 	fi
     done
-    [ "$wificountry" != "" ] && writeconfig
 	
     logtoboth "* Plugin $pfx: Complete Phase 0"
     
@@ -94,7 +94,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
-    for kn in keymap locale timezone
+    for kn in keymap locale timezone wificountry
     do
 	if [ -f $assetdir/$kn ]
 	then
@@ -104,32 +104,19 @@ then
 		    # actual keymap setting deferred until first boot
 		    if [ "$value" != "" ]
 		    then
-			logtoboth "% Plugin $pfx: Keymap '$value' will be set during sdm FirstBoot"
-			writeconfig
-			cat > /etc/sdm/0piboot/010-configure-keyboard.sh <<EOF
-#!/bin/bash
-source /etc/sdm/sdm-readparams
-logger "sdm FirstBoot: Configure keyboard to '$value'"
-SUDO_USER=\$myuser raspi-config do_configure_keyboard "$value" nonint
-systemctl enable keyboard-setup
-EOF
+			logtoboth "> Plugin $pfx: Keymap '$value' will be set during sdm FirstBoot"
 			logtoboth "> Plugin $pfx: Disable keyboard-setup service; will be re-enabled during sdm FirstBoot"
 			systemctl disable keyboard-setup
 		    fi
 		    ;;
 		locale)
-		    if [ "$value" != "" ]
-		    then
-			logtoboth "> Plugin $pfx: Set locale to '$value'"
-			do_raspiconfig do_change_locale "$value"
-		    fi
+		    [ "$value" != "" ] && logtoboth "> Plugin $pfx: Locale '$value' will be set during sdm FirstBoot"
 		    ;;
 		timezone)
-		    if [ "$value" != "" ]
-		    then
-			logtoboth "> Plugin $pfx: Set timezone to '$value'"
-			do_raspiconfig do_change_timezone "$value"
-		    fi
+		    [ "$value" != "" ] && logtoboth "> Plugin $pfx: Timezone '$value' will be set during sdm FirstBoot"
+		    ;;
+		wificountry)
+		    [ "$value" != "" ] && logtoboth "> Plugin $pfx: Wifi country '$value' will be set during sdm FirstBoot"
 		    ;;
 	    esac
 	else
@@ -138,7 +125,34 @@ EOF
     done
 	logtoboth "* Plugin $pfx: Complete Phase 1"
 	    
-elif [ "$phase" == " post-install" ]
-then
+else
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    logtoboth "> Plugin $pfx: Write sdm FirstBoot L10n configuration script"
+    cat >| /etc/sdm/0piboot/010-l10n-setup.sh <<EOF
+#!/bin/bash
+
+for kn in keymap locale timezone wificountry
+do
+    [ -f /etc/sdm/locale/\$kn ] && read value < /etc/sdm/locale/\$kn || value=""
+    if [ "\$value" != "" ]
+    then
+        logger "sdm FirstBoot: Configure \$kn to '\$value'"
+        case "\$kn" in
+            keymap)
+                SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
+                ;;
+            locale)
+                SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
+                ;;
+            timezone)
+                SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
+                ;;
+            wificountry)
+                SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
+                ;;
+        esac
+    fi
+done
+EOF
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
