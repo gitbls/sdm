@@ -171,7 +171,7 @@ function config_keyfile() {
     [ "$kfl" == "" ] || kfn=$(basename $kfl)
     if [ "$kfn" != "" ]
     then
-	pmsg "Add LUKS key '$kfn' from file $kfl"
+	pmsg "Add LUKS key '${kfn%.lek}' from file $kfl"
 	pmsg "When prompted for an existing passphrase enter the one you just created"
 	cryptsetup luksAddKey $rootfs $kfl
 	[ $? -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $?"
