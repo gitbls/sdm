@@ -22,7 +22,7 @@ function gcruncmd() {
     [ $eg -ne 0 ] && shopt -u extglob
     hostname $thishost
     logtoboth "> Plugin $pfx: Run command '$cmd' as user '$user'"
-    sudo -u -i $user $cmd
+    sudo -i -u $user $cmd
     hostname sdm
 }
 
