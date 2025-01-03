@@ -465,7 +465,7 @@ EOF
 	    expandpartition $burndev 0 logtoboth $cvtrootfs
 	fi
 	writediskids
-	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
+	if [ true -o $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
 	    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
