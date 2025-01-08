@@ -12,9 +12,15 @@ function loadparams() {
 function checkargval() {
     # $1: argument
     # $2: value
-    local arg=$1 val=$2
+    # $3: all|valid|values
+    local arg=$1 val=$2 valids="$3"
 
-    [[ "yes|no" =~ "$val" ]] || logtobothex "? Plugin $pfx: Invalid value '$val' for argument '$arg'"
+    [[ "|$valids|" =~ "|$val|" ]] || logtobothex "? Plugin $pfx: Invalid value '$val' for argument '$arg'"
+}
+
+function converty() {
+    [ "$enablesvc" == "" ] && enablesvc=yes   # Set the default
+    [[ -v address__family ]] && [[ "$address__family" == "" ]] && address__family="any"
 }
 
 # $1 is the phase: "0", "1", or "post-install"
@@ -26,7 +32,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|enablesvc|listen-address|password-authentication|port|" #"|list|of|valid|args|"
+vldargs="|address-family|enablesvc|listen-address|password-authentication|port|" #"|list|of|valid|args|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -38,8 +44,10 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     plugin_printkeys
-    [[ -v enablesvc ]] && [[ "$enablesvc" != "socket" ]] && checkargval "enablesvc" "$enablesvc"
-    [ -v password__authentication ] && checkargval "password-authentication" "$password__authentication"
+    converty
+    [ "$address__family" != "" ] && checkargval "address-family" "$address__family" "any|inet|inet6"
+    [[ "$enablesvc" != "socket" ]] && checkargval "enablesvc" "$enablesvc" "yes|no"
+    [ -v password__authentication ] && checkargval "password-authentication" "$password__authentication" "yes|no"
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
@@ -48,8 +56,8 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    converty
 
-    [ "$enablesvc" == "" ] && enablesvc=yes
     if [ "$enablesvc" == "yes" ]
     then
 	sshd="service"
@@ -63,6 +71,11 @@ then
     # listen-address, password-authentication, port
     #
     cp /etc/ssh/sshd_config /etc/ssh/.sdm.sshd_config
+    if [ "$address__family" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Set sshd AddressFamily to '$address__family'"
+	sed -i "/#AddressFamily any.*$/a AddressFamily $address__family" /etc/ssh/sshd_config
+    fi
     if [ "$listen__address" != "" ]
     then
 	logtoboth "> Plugin $pfx: Set sshd ListenAddress to '$listen__address'"
