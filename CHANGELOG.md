@@ -1,5 +1,15 @@
 # Changelog
 
+## V13.6
+
+* New Features
+  * Add `sshhostkey` plugin to generate SSH host keys during customize or burn when there's more entropy in the system (Thanks @omya3qno)
+  * `hotspot` plugin now accepts `portal` and `portalif` arguments which install the WiFi network selector app <a href="https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot/">described here</a>
+* Improvements
+  * Redaction (`--redact`) improved. No sensitive information is leaked to the console and /etc/sdm/history from included plugins
+  * `sshd` plugin new argument `address-family` to control the sshd_config AddressFamily directive
+* Bug Fixes
+
 ## V13.5
 
 * New Features
