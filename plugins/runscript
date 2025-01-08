@@ -34,7 +34,7 @@ function do_runscript() {
 	then
 	    [ "$(getent passwd $user)" == "" ] && logtobothex "? Plugin $pfx: User '$user' not found"
 	    xu="as user $user"
-	    xdo="sudo -u $user"
+	    xdo="sudo -i -u $user"
 	    xo="$user"
 	    hostname $thishost
 	fi
