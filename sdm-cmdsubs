@@ -465,6 +465,8 @@ EOF
 	    expandpartition $burndev 0 logtoboth $cvtrootfs
 	fi
 	writediskids
+	ispluginselected sshhostkey "${allplugins}~${burnplugins}" && sshhostkey=1 || sshhostkey=0
+	[ $sshhostkey -eq 1 ] && regensshkeys=1   # For this test VV
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
 	    write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
@@ -493,7 +495,15 @@ EOF
 
 	if [ $regensshkeys -eq 1 ]
 	then
-	    write_burnmsg "> Disable regenerate_ssh_host_keys service; sdm FirstBoot will run it instead"
+	    msg="> Disable regenerate_ssh_host_keys service"
+	    if [ $sshhostkey -eq 0 ]
+	    then
+		msg="${msg}; sdm FirstBoot will run it instead"
+	    else
+		msg="${msg} per sshhostkey plugin"
+		regensshkeys=0   #Written to config below; firstboot will not regen again
+	    fi
+	    write_burnmsg "$msg"
 	    sdm_runspawncmd Burn1 run-command-quietly "systemctl disable regenerate_ssh_host_keys"
 	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi

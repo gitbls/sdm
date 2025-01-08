@@ -393,9 +393,9 @@ function do_userlist() {
 	    line="${line%#*}"   # strip trailing comment
 	    [[ "$line" =~ "groups=" ]] && line="${line/groups=/ugroups=}"
 	    unset addgroup adduser deluser homedir uid password nohomedir noskel nochown Group groupadd ugroups prompt rootpwd setpassword redact nosudo samba shell smbpasswd userlist
-	    logtoboth "> Plugin $pfx: Line:  $line"
+	    [ $fredact -eq 1 ] || logtoboth "> Plugin $pfx: Line:  $line"
 	    plugin_getargs $pfx "$line" "$vldargs" || exit
-	    plugin_printkeys
+	    plugin_printkeys "$redactargs"
 	    converty
 	    $dofn
 	fi
@@ -405,7 +405,6 @@ function do_userlist() {
 
 function user_plugin_printkeys() {
 
-    #[[ $fredact -eq 0 ]] || [[ "$redact" == "" ]] && redactargs=""
     plugin_printkeys "$redactargs"
 }
 
@@ -418,7 +417,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|addgroup|adduser|deluser|homedir|uid|password|nohomedir|noskel|nochown|Group|groupadd|groups|ugroups|prompt|rootpwd|setpassword|redact|nosudo|linger|samba|shell|smbpasswd|userlist|log|"
-redactargs="password"
+redactargs="password|smbpasswd"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/user"
 [[ "$args" =~ "groups=" ]] && args="${args/groups=/ugroups=}"
@@ -481,7 +480,7 @@ case "$phase" in
 	logtoboth "* Plugin $pfx: Start Phase post-install"
 	plugin_getargs $pfx "$args" "$vldargs"
 	converty
-	#plugin_printkeys
+	#plugin_printkeys "$redactargs"
 	if [ "$userlist" != "" ]
 	then
 	    ul="$assetdir/userlist-$(basename $userlist)"

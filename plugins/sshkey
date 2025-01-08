@@ -29,6 +29,7 @@ loadparams
 vldargs="|sshuser|authkey|import-key|keyname|keytype|passphrase|putty-keyname|"
 rqdargs="sshuser"                   # |list|of|required|args|or|nullstring|
 vkeytypes="dsa|ecdsa|ecdsa-sk|ed25519|ed25519-sk|rsa|"
+redactargs="passphrase"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
 if [ "$phase" == "0" ]
@@ -41,6 +42,7 @@ then
     
     assetdir="$assetdir/$sshuser"
     mkdir -p $assetdir
+    plugin_printkeys "$redactargs"
     if [ "$import__key" != "" ]
     then
 	[ -f $import__key ] || logtobothex "? Plugin $pfx: Import key file '$import__key' not found"

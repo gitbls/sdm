@@ -27,6 +27,7 @@ args="$2"
 loadparams
 vldargs="|enablesvc|connect-address|gui-address|gui-password|gui-user|homedir|nolinger|release|runasuser|runwait|sendstats|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
+redactargs="gui-password"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
 if [ "$phase" == "0" ]
@@ -36,7 +37,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
-    plugin_printkeys
+    plugin_printkeys "$redactargs"
     converty
     # Add the release PGP keys:
     mkdir -p /etc/apt/keyrings

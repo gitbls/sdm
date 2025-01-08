@@ -137,6 +137,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|country|localsrc|btwifidir|password|timeout|logfile|"
+redactargs="password"
 loadparams
 
 if [ "$phase" == "0" ]
@@ -149,7 +150,7 @@ then
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
-    plugin_printkeys
+    plugin_printkeys "$redactargs"
     #
     # Copy the btwifiset files
     #

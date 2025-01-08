@@ -40,7 +40,7 @@ function cfgdhcpcdwifi() {
 	if [ "$wifissid" != "" -a "$wifipassword" != "" -a "$wificountry" != "" ]
 	then
 	    logtoboth "> Plugin $pfx: Create $assetdir/wpa.conf"
-	    logtoboth "  with SSID: $wifissid Password: $wifipassword WiFi Country: $wificountry"
+	    [ $fredact -eq 1 ] || logtoboth "  with SSID: $wifissid Password: $wifipassword WiFi Country: $wificountry"
 	    cat > $assetdir/wpa.conf <<EOF
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 country=$wificountry
@@ -142,6 +142,7 @@ vldargs="$vldargs|autoconnect-priority|autoconnect"
 vldargs="$vldargs|wifi-ssid|wifi-password|wifi-country"
 vldargs="$vldargs|"
 rqdargs=""
+redactargs="wifipassword|wifi-password|wifissid|wifi-ssid"
 
 if [ "$phase" == "0" ]
 then
@@ -259,7 +260,7 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
     netman=$(getdefnm "$netman")
-    plugin_printkeys
+    plugin_printkeys "$redactargs"
     # If no wificountry in plugin args, use previous setting
     [ "$wificountry" == "" ] && wificountry="$wifi__country"
     if [ "$wificountry" == "" ]
