@@ -156,6 +156,7 @@ for f in sdm sdm-phase0 \
 	     plugins/samba \
 	     plugins/serial \
 	     plugins/sshd \
+	     plugins/sshhostkey \
 	     plugins/sshkey \
 	     plugins/sdm-plugin-template \
 	     plugins/syncthing \
