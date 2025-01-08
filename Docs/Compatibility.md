@@ -19,6 +19,10 @@ Running on **64-bit RasPiOS** sdm can perform all functions: customize, explore,
 Running on **32-bit RasPiOS** sdm can also perform all functions. However, when operating on 64-bit RasPiOS images qemu emulation (which runs more slowly) must be used in Phase1, post-install, and burn b0script/b1script functions, as well as Phase 1 and post-install phases in Plugins.
 
 Running on **x64 Debian-like distros**, sdm can also perform all functions. However, as with 32-bit RasPiOS, qemu emulation must be used in Phase1, post-install, and burn b0script/b1script functions and Plugin Phase 1 and post-install phases
+
+## Pi hardware-specific issues
+
+* Pi5 (at least): Running a 32-bit host OS and customizing a 32-bit IMG fails spectularly. See <a href="https://github.com/gitbls/sdm/issues/268">this issue</a> for further information.
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
