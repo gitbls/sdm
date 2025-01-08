@@ -14,6 +14,94 @@ function loadparams() {
 #  a pre-filled config file
 #
 
+function writeportal() {
+    cat >| /usr/local/bin/sdm-hotspot-portal <<EOF
+#!/usr/bin/python3
+#
+# This code from: https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot
+#
+from flask import Flask,request
+import subprocess
+
+app = Flask(__name__)
+
+wifi_device = "$portalif"
+
+@app.route('/')
+def index():
+    result = subprocess.check_output(["nmcli", "--colors", "no", "-m", "multiline", "--get-value", "SSID", "dev", "wifi", "list", "ifname", wifi_device])
+    ssids_list = result.decode().split('\n')
+    dropdowndisplay = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Wifi Control</title>
+        </head>
+        <body>
+            <h1>Wifi Control</h1>
+            <form action="/submit" method="post">
+                <label for="ssid">Choose a WiFi network:</label>
+                <select name="ssid" id="ssid">
+        """
+    for ssid in ssids_list:
+        only_ssid = ssid.removeprefix("SSID:")
+        if len(only_ssid) > 0:
+            dropdowndisplay += f"""
+                    <option value="{only_ssid}">{only_ssid}</option>
+            """
+    dropdowndisplay += f"""
+                </select>
+                <p/>
+                <label for="password">Password: <input type="password" name="password"/></label>
+                <p/>
+                <input type="submit" value="Connect">
+            </form>
+        </body>
+        </html>
+        """
+    return dropdowndisplay
+
+
+@app.route('/submit',methods=['POST'])
+def submit():
+    if request.method == 'POST':
+        print(*list(request.form.keys()), sep = ", ")
+        ssid = request.form['ssid']
+        password = request.form['password']
+        connection_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
+        if len(password) > 0:
+          connection_command.append("password")
+          connection_command.append(password)
+        result = subprocess.run(connection_command, capture_output=True)
+        if result.stderr:
+            return "Error: failed to connect to wifi network: <i>%s</i>" % result.stderr.decode()
+        elif result.stdout:
+            return "Success: <i>%s</i>" % result.stdout.decode()
+        return "Error: failed to connect."
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=80)
+EOF
+    chmod 755 /usr/local/bin/sdm-hotspot-portal
+    cat > /etc/systemd/system/sdm-hotspot-portal.service <<EOF
+[Unit]
+Description=sdm-hotspot-portal
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sdm-hotspot-portal
+Restart=on-failure
+RestartSec=60s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
+    systemctl enable -q sdm-hotspot-portal
+}
+
 function writehsconfig() {
     rm -f $assetdir/config
     IFS="|" read -r -a optlist <<< "${vldargs#|}"
@@ -101,8 +189,9 @@ function dodefault() {
     # $1: setting name
     # $2: value
     #
-    local sname=$1 sval=$2
-    logtoboth "$(printf "   %-60s [Default]" "$(printf "%s: %s" $sname $sval)")"
+    local sname=$1 sval=$2 pval=$2
+    [[ $fredact -eq 1 ]] && [[ "$redactargs" =~ $sname ]] && pval=REDACTED
+    logtoboth "$(printf "   %-60s [Default]" "$(printf "%s: %s" $sname $pval)")"
     printf -v "$sname" "%s" "$sval"
 }
 
@@ -110,6 +199,7 @@ function fillupcfg() {
     #
     # Default any missing arguments
     #
+    local pval a optlist
     IFS="|" read -r -a optlist <<< "${vldargs#|}"
     for a in "${optlist[@]}"
     do
@@ -134,6 +224,12 @@ function fillupcfg() {
 		ipforward)
 		    dodefault ipforward ""
 		    ;;
+		portal)
+		    dodefault portal ""
+		    ;;
+		portalif)
+		    dodefault portalif ""
+		    ;;
 		pskencrypt)
 		    dodefault pskencrypt ""
 		    ;;
@@ -151,7 +247,12 @@ function fillupcfg() {
 		    ;;
 	    esac
 	else
-	    [ "$a" != "config" ] && logtoboth  "$(printf "   %-60s [Argument]" "${a}: ${!a}")"
+	    if [ "$a" != "config" ]
+	    then
+		pval="${!a}"
+		[[ $fredact -eq 1 ]] && [[ "$redactargs" =~ $a ]] && pval=REDACTED
+		logtoboth  "$(printf "   %-60s [Argument]" "${a}: $pval")"
+	    fi
 	    [ "$a" == "hsname" ] && hsname=$(adjust_wifinmpsk "$(stripquotes "$hsname")")
 	    if [ "$a" == "wifissid" ]
 	    then
@@ -226,7 +327,7 @@ nmcli device down $device >/dev/null 2>&1
 if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname' for device $device"
-    nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid band bg password $wifipassword
+    nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid password $wifipassword # band bg 
 else
     logger "sdm FirstBoot: Create hotspot '$hsname' for device $device"
     nmcli c add ifname $device con-name $hsname type ethernet
@@ -332,7 +433,7 @@ nmcli c add type ethernet slave-type bridge con-name "$hsname-bridge-br0" ifname
 if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
-    nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid band bg
+    nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid # band bg
 else
     logger "sdm FirstBoot: Create ethernet hotspot '$hsname'"
     nmcli c add ifname $device con-name $hsname type ethernet
@@ -369,6 +470,10 @@ EOF
 
 function converty() {
     [ -v hsenable ] && hsenable=y
+    if [ -v portal ]
+    then
+	[ "$portal" == "" ] && portal=default
+    fi
     [ -v pskencrypt ] && pskencrypt=encrypt
 }
 
@@ -381,8 +486,9 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|config|device|dhcpmode|pskencrypt|hsenable|hsname|ipforward|type|wifipassword|wifissid|wlanip|"
+vldargs="|config|device|dhcpmode|pskencrypt|hsenable|hsname|ipforward|portal|portalif|type|wifipassword|wifissid|wlanip|"
 rqdargs=""
+redactargs="wifipassword|wifissid"
 assetdir="$SDMPT/etc/sdm/assets/hotspot"
 
 if [ "$phase" == "0" ]
@@ -396,9 +502,13 @@ then
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
-    plugin_printkeys
+    plugin_printkeys "$redactargs"
     mkdir -p $assetdir
     converty
+    if [[ "$portal" != "" ]] && [[ "$portalif" == "" ]]
+    then
+	logtobothex "? Plugin $pfx: Argument 'portal' requires argument 'portalif'"
+    fi
     if [ "$config" != "" ]
     then
 	if [ -f $config ]
@@ -434,6 +544,12 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
     installpkgsif network-manager
+    if [ "$portal" != "" ]
+    then
+	installpkgsif python3-flask
+	logtoboth "> Plugin $pfx: Write portal systemd service and script /usr/local/bin/sdm-hotspot-portal"
+	writeportal
+    fi
     #! ispkginstalled network-manager && logtoboth "> Plugin $pfx: Install network-manager" && installpkgsif network-manager
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
