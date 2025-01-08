@@ -215,7 +215,7 @@ function wait_startup_complete {
 }
 
 echo  "sdm-cryptfs-cleanup: Starting; System will restart automatically when completed" > /dev/console
-source /etc/sdm/sdm-readparams
+[ -f /etc/sdm/sdm-readparams ] && source /etc/sdm/sdm-readparams
 [ -f /etc/sdm/assets/cryptbbh ] && cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot
 echo  "sdm-cryptfs-cleanup: Clean up initramfs content" > /dev/console
 logger "sdm-cryptfs-cleanup: Clean up initramfs content"
@@ -234,7 +234,7 @@ rm -f /etc/systemd/system/sdm-auto-encrypt.service
 [ -f /usr/bin/startlxde-pi ] && systemctl set-default graphical.target
 systemctl daemon-reload
 wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
-secs=10
+secs=5
 logger "sdm-cryptfs-cleanup: The system will restart in \$secs seconds"
 echo "sdm-cryptfs-cleanup: The system will restart in \$secs seconds" > /dev/console
 sleep \$secs
