@@ -430,6 +430,8 @@ The hotspot plugin configures the specified wireless device or USB0 to be a hots
 * **hsenable** &mdash; If **hsenable=y** set the hotspot to enable as part of system boot [D:y]. Can be specified as simply `hsenable`. To disable, use `hsenable=n`
 * **hsname** &mdash; Set the hotspot name [D:Hotspot]
 * **ipforward** &mdash; For routed hotspots, controls whether IP forwarding is enabled. If specified, must be the name of the network device to which network traffic is forwarded. [D:""] For bridged hotspots `ipforward` controls the network device to which the WiFi traffic is bridged [D:eth0]
+* **portal** &mdash; Install the portal <a href="https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot">described here</a> as a service that runs at system startup. `portalif` must be specified.
+* **portalif** &mdash; Use the specified WiFi device for the portal. A second adapter is required, so typically it will be wlan1 (but not defaulted).
 * **pskencrypt** &mdash; Save the encrypted PSK in the .nmconnection file rather than the plaintext PSK
 * **type** &mdash; Type of hotspot (*routed* or *bridged*) [D:routed]
 * **wifipassword** &mdash; WiFi hotspot password [D:password]
@@ -1037,6 +1039,23 @@ These configuration items affect the SSH service.
 * `--plugin sshd:"port=22222|listen-address=192.168.16.16" &mdash; Enable the SSH service, which will listen on port 2222 and only on the IP address 192.168.16.16 (which must be an IP address on the target system)
 * `--plugin sshd:"password-authentication=no" &mdash; Disable password authentication
 
+### sshhostkey
+
+The `sshhostkey` plugin allows the generation new or import of existing SSH host keys.
+Importing SSH host keys is useful to generate images with deterministic keys.
+Generating SSH host keys during an sdm customize or burn can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS.
+
+#### Arguments
+
+* **generate-keys** &mdash; Create a new set of keys in phase 1.
+* **import-keys** &mdash; Copy files from the given host directory to /etc/ssh.
+
+#### Examples
+
+* `--plugin sshhostkey:"generate-keys` &mdash; Generate a new set of host keys.
+* `--plugin sshhostkey:"import-keys=/path/to/hostkeys"` &mdash; Copy `ssh_host_*_key` and `ssh_host_*_key.pub` files from the specified host directory to the Pi's /etc/ssh/ directory
+* `--plugin sshhostkey:"generate-keys|import-keys=/path/to/hostkeys"` &mdash; Useful to import a subset (e.g. RSA only) keys, and re-create the rest. 
+
 ### sshkey
 
 The `sshkey` plugin creates an SSH key or imports an SSH key for a user. In either case, you can optionally create a Putty private key for it.
@@ -1207,7 +1226,7 @@ dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i
   * Syntax: `rootpwd`
 * **redact** &mdash; At the end of `user` plugin processing, redact all passwords
   * Syntax: `redact`
-* **nosudo** &mdash; Do not enable this account for `sudo`
+* **nosudo** &mdash; Do not enable this account for password-less `sudo`. If you want to remove sudo capability completely for a user, use the command `gpasswd --delete user sudo` in an easily-created personal plugin.
   * Syntax: `nosudo`
 * **linger** &mdash; Enable service lingering for this user
   * Syntax: `linger`
