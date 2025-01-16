@@ -58,10 +58,10 @@ then
     [ "$buser" == "" ] && buser=$myuser
     if [[ "$buser" != "" ]]
     then
+	pgrep systemd >/dev/null 2>&1 || { ohost=$(hostname) ; hostname $thishost ; }
 	logtoboth "> Plugin $pfx: Install pi-apps from https://github.com/Botspot/pi-apps using user $buser"
-	hostname $thishost   #pi-apps installer looks up hostname for some reason?
 	su $buser -c 'wget -qO- https://raw.githubusercontent.com/Botspot/pi-apps/master/install | bash'
-	hostname sdm
+	pgrep systemd >/dev/null 2>&1 || hostname $ohost
     else
 	logtobothex "? Plugin $pfx: User not specified with 'user' argument nor established with the 'user' plugin"
     fi
