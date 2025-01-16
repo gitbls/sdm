@@ -127,32 +127,5 @@ then
 	    
 else
     logtoboth "* Plugin $pfx: Start Phase post-install"
-    logtoboth "> Plugin $pfx: Write sdm FirstBoot L10n configuration script"
-    cat >| /etc/sdm/0piboot/010-l10n-setup.sh <<EOF
-#!/bin/bash
-
-for kn in keymap locale timezone wificountry
-do
-    [ -f /etc/sdm/locale/\$kn ] && read value < /etc/sdm/locale/\$kn || value=""
-    if [ "\$value" != "" ]
-    then
-        logger "sdm FirstBoot: Configure \$kn to '\$value'"
-        case "\$kn" in
-            keymap)
-                SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
-                ;;
-            locale)
-                SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
-                ;;
-            timezone)
-                SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
-                ;;
-            wificountry)
-                SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
-                ;;
-        esac
-    fi
-done
-EOF
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi

@@ -135,7 +135,7 @@ args="$2"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/network"
 
-vldargs="|cname|ctype|dhcpcdwait|dhcpcdappend|ifname|netman|noipv6|nmconf|nmconn|nowifi|powersave|pskencrypt|wificountry|wifissid|wifipassword|wpa|zeroconf"
+vldargs="|cname|ctype|dhcpcdwait|dhcpcdappend|ifname|netman|noipv6|nmconf|nmconn|nowifi|powersave|pskencrypt|timesyncwait|wificountry|wifissid|wifipassword|wpa|zeroconf"
 vldargs="$vldargs|ipv4-static-ip|ipv4-static-gateway|ipv4-static-dns|ipv4-static-dns-search"
 vldargs="$vldargs|ipv4-route-metric"
 vldargs="$vldargs|autoconnect-priority|autoconnect"
@@ -156,6 +156,9 @@ then
     mkdir -p $assetdir
     netman=$(getdefnm "$netman")
     logtoboth "> Plugin $pfx: Configuring '$netman' for network configuration management"
+
+    [ "$timesyncwait" == "" ] && timesyncwait=120
+    echo "$timesyncwait" >| $assetdir/timesyncwait
 
     if [ "$wpa" != "" ]
     then

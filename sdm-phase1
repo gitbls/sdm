@@ -229,6 +229,35 @@ then
     dosshsetup service phase1
 fi
 
+    logtoboth "> Plugin phase1: Write sdm FirstBoot L10n configuration script"
+    cat >| /etc/sdm/xpiboot/010-l10n-setup.sh <<EOF
+#!/bin/bash
+
+# wificountry done first so network can come up a wee bit faster
+for kn in wificountry timezone keymap locale
+do
+    [ -f /etc/sdm/locale/\$kn ] && read value < /etc/sdm/locale/\$kn || value=""
+    if [ "\$value" != "" ]
+    then
+        logger "sdm FirstBoot: Configure \$kn to '\$value'"
+        case "\$kn" in
+            wificountry)
+                SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
+                ;;
+            timezone)
+                SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
+                ;;
+            keymap)
+                SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
+                ;;
+            locale)
+                SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
+                ;;
+        esac
+    fi
+done
+EOF
+
 resetpluginlist
 
 logfreespace "at end of image customization"

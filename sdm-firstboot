@@ -82,7 +82,7 @@ function waitcheck() {
 
 function timesyncwait() {
     #
-    # Waits for time to be synced or 120 seconds
+    # Waits for time to be synced or time limit specified in network:timesyncwait=n
     #
     # Skip if --nowait-timesync
     #
@@ -93,7 +93,8 @@ function timesyncwait() {
 	return
     fi
 
-    swait=120
+    [ -f /etc/sdm/assets/network/timesyncwait ] && read swait </etc/sdm/assets/network/timesyncwait
+    [ "$swait" == "" ] && swait=120
     for (( secs=1 ; secs<=$swait ; secs++ ))
     do
 	waitcheck && break
