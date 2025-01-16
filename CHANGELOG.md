@@ -1,5 +1,14 @@
 # Changelog
 
+## V13.7
+
+* New Features
+* Improvements
+  * `network` plugin has new parameter `timesyncwait` to adjust the FirstBoot wait for time synchronization. Default is 120 seconds
+  * Improve systemd boot behavior restoration in systemd-cryptconfig for systems with a graphical desktop
+* Bug Fixes
+  * Correctly sequence setting wificountry during FirstBoot so WiFi earlier in the boot process
+
 ## V13.6
 
 * New Features
