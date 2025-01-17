@@ -441,7 +441,7 @@ The hotspot plugin configures the specified wireless device or USB0 to be a hots
 #### Examples
 
 * `--plugin hotspot` &mdash; Create a routed hotspot named Hotspot on wlan0 with WiFi SSID 'MyPiNet', password 'password'. NetworkManager will use its internal DHCP server. wlan0's IP address will be set to the NetworkManager default (10.42.0.1). No IP forwarding is configured. The hotspot will be enabled.
-* `--plugin hotspot:"hsname=myhotspot|ssid=myssid|password=mypassword|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot named `myhotspot` on wlan0 (the default), with SSID `myssid` and password `mypassword`, forwarding IP traffic to `eth0`.
+* `--plugin hotspot:"hsname=myhotspot|wifissid=myssid|wifipassword=mypassword|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot named `myhotspot` on wlan0 (the default), with SSID `myssid` and password `mypassword`, forwarding IP traffic to `eth0`.
 * `--plugin hotspot:"device=wlan1|hsname=myhotspot|ipforward=eth0|hsenable|type=routed|dhcpmode=none|wlanip=10.6.0.1"` &mdash; Configure a routed hotspot on wlan1. wlan1's IP address will be set to 10.6.0.1, and you must configure your own DHCP server using, for instance, dnsmasq or the sdm plugin `ndm`
 
     **Example** using the ndm plugin to configure dnsmasq:
