@@ -96,7 +96,7 @@ Here are a few examples:
 
 * **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">the VNC plugin</a>.
 
-* **Install and configure an Access Point (hotspot)** &mdash; Install a customizable, fully operational hotspot in any of three modes: *local*, *routed*, or *bridged*. (NOTE: this is temporarily unavailable, but will be coming back soon).
+* **Install and configure an Access Point (hotspot)** &mdash; Install a customizable, fully operational hotspot in any of three modes: *local*, *routed*, or *bridged*.
 
 * **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation. See <a href="Docs/Plugins.md#raspiconfig">raspiconfig plugin </a>.
 
