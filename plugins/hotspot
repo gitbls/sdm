@@ -99,7 +99,7 @@ RestartSec=60s
 WantedBy=multi-user.target
 EOF
     pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
-    systemctl enable -q sdm-hotspot-portal
+    systemctl -q enable sdm-hotspot-portal
 }
 
 function writehsconfig() {
@@ -148,19 +148,51 @@ function parsehsconfig() {
 }
 
 function enablerouting() {
-    logtoboth "> Plugin $pfx: Enable routing and masquerading for WiFi clients"
-    #logtoboth "> Plugin $pfx: Install iptables"
-    #installpkgsif iptables
-    logtoboth "> Plugin $pfx: Install nftables"
-    installpkgsif nftables
-    cat > /etc/sysctl.d/10-sdm-aprouted.conf <<EOF
+    local wlansub
+
+    # NM takes care of sysctl net.ipv4.ip_forward and nft ruleset if dhcpmode=nm
+    if [ "$dhcpmode" != "nm" ]
+    then
+	wlansub="${wlanip%.*}.0"
+	logtoboth "> Plugin $pfx: Enable routing and masquerading for WiFi clients"
+	logtoboth "> Plugin $pfx: Install nftables"
+	installpkgsif nftables
+	cat >| /etc/sysctl.d/10-sdm-aprouted.conf <<EOF
 # sdm hotspot routing configuration $(thisdate)
 # https://www.raspberrypi.org/documentation/configuration/wireless/access-point-routed.md
 # Enable IPv4 routing
 net.ipv4.ip_forward=1
 EOF
-    logtoboth "> Plugin $pfx: Configure service sdm-hotspot-masquerade to enable nftables routing to '$ipforward'"
-    cat > /etc/systemd/system/sdm-hotspot-masquerade.service <<EOF
+	logtoboth "> Plugin $pfx: Configure nft rules for hotspot routing to '$ipforward'"
+	cat >| /usr/local/bin/sdm-config-hotspot-ruleset <<EOF
+#!/bin/bash
+
+if [ "\$1" == "enable" ]
+then
+    nft -f - <<ENF
+table ip sdm-shared-$device {
+        chain nat_postrouting {
+                type nat hook postrouting priority srcnat; policy accept;
+                ip saddr $wlansub/24 ip daddr != $wlansub/24 masquerade
+        }
+
+        chain filter_forward {
+                type filter hook forward priority filter; policy accept;
+                ip daddr $wlansub/24 oifname "$device" ct state { established, related } accept
+                ip saddr $wlansub/24 iifname "$device" accept
+                iifname "$device" oifname "$device" accept
+                iifname "$device" reject
+                oifname "$device" reject
+        }
+    }
+ENF
+else  # Flush table if not 'enable'
+    nft flush table sdm-shared-$device
+fi
+EOF
+	chmod 755 /usr/local/bin/sdm-config-hotspot-ruleset
+	logtoboth "> Plugin $pfx: Configure service sdm-hotspot-masquerade to enable nftables routing to '$ipforward'"
+	cat >| /etc/systemd/system/sdm-hotspot-masquerade.service <<EOF
 [Unit]
 Description=sdm-hotspot-masquerade
 After=network.target
@@ -171,17 +203,17 @@ After=network.target
 #  Enabled for a routed access point
 #  Disabled for a local or bridged access point
 #
-ExecStartPre=/sbin/nft add table nat
-ExecStartPre=/sbin/nft 'add chain nat postrouting { type nat hook postrouting priority 100 ; }'
-ExecStart=/sbin/nft add rule nat postrouting masquerade
-##NOTUSED#ExecStart=/sbin/iptables -t nat -A POSTROUTING -o $ipforward -j MASQUERADE
+ExecStart=/usr/local/bin/sdm-config-hotspot-ruleset enable
+ExecStop=/usr/local/bin/sdm-config-hotspot-ruleset disable
 RemainAfterExit=true
 Type=oneshot
 
 [Install]
 WantedBy=multi-user.target
 EOF
-    systemctl -q enable sdm-hotspot-masquerade
+	pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
+	systemctl -q enable sdm-hotspot-masquerade
+    fi
 }
 
 function dodefault() {
@@ -339,7 +371,7 @@ nmcli c reload
 if [ "$acsts" == "on" ]
 then
     logger "sdm FirstBoot: Enable IPV4 forwarding and nftables masquerade"
-    [[ "$ipforward" != "" ]] && [[ "$type" == "routed" ]] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl start -q sdm-hotspot-masquerade
+    [[ "$dhcpmode" != "nm" ]] && [[ "$ipforward" != "" ]] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
     if [ "$device" != "usb0" ]
     then
         logger "sdm FirstBoot: Start hotspot '$hsname'"
@@ -463,6 +495,11 @@ then
         nmcli c up $hsname
         nmcli c up "$hsname-br0"
         nmcli c up "$hsname-bridge-slave-$fwdev"
+fi
+if [ "$hsenable" == "y" ] && pgrep systemd >/dev/null 2>&1
+then
+    [ -f /etc/systemd/system/sdm-hotspot-portal.service ] && logger sdm FirstBoot: Enable and start Portal service" && systemctl enable --now sdm-hotspot-portal >/dev/null 2>&1
+    [ -f /etc/systemd/system/sdm-hotspot-masquerade.service ] && logger sdm FirstBoot: Enable and start hotspot nftables service" && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
 fi
 EOF
     fi
