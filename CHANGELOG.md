@@ -1,8 +1,18 @@
 # Changelog
 
-## V13.7
+## V13.8
 
 * New Features
+  * Add arguments `password-hash` and `password-plain` to the `user` plugin
+  * Add argument `nmdebug` to the `network` plugin
+* Improvements
+  * Improve `hotspot` plugin nftables management
+* Bug Fixes
+  * `parted` plugin: Ensure align_to_sector set to minimum 2048
+  * Use 'EOF' instead of EOF in ezsdm to enable un-quoted dollar signs in arguments such as passwords, SSIDs, etc., in pluglist files
+
+## V13.7
+
 * Improvements
   * `network` plugin has new parameter `timesyncwait` to adjust the FirstBoot wait for time synchronization. Default is 120 seconds
   * Improve systemd boot behavior restoration in systemd-cryptconfig for systems with a graphical desktop
