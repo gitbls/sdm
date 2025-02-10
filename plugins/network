@@ -118,6 +118,7 @@ function getctype() {
 }
 
 function converty() {
+    [ -v nmdebug ] && nmdebug=y
     [ -v noipv6 ] && noipv6=y
     [ -v nowifi ] && nowifi=y
     [ -v pskencrypt ] && pskencrypt=encrypt
@@ -140,6 +141,7 @@ vldargs="$vldargs|ipv4-static-ip|ipv4-static-gateway|ipv4-static-dns|ipv4-static
 vldargs="$vldargs|ipv4-route-metric"
 vldargs="$vldargs|autoconnect-priority|autoconnect"
 vldargs="$vldargs|wifi-ssid|wifi-password|wifi-country"
+vldargs="$vldargs|nmdebug"
 vldargs="$vldargs|"
 rqdargs=""
 redactargs="wifipassword|wifi-password|wifissid|wifi-ssid"
@@ -365,6 +367,15 @@ EOF
 		cat > /etc/NetworkManager/conf.d/010-sdm-powersave.conf <<EOF
 [connection]
 wifi.powersave = $powersave
+EOF
+	    fi
+	    # Configure nmdebug if requested
+	    if [ "$nmdebug" != "" ]
+	    then
+		logtoboth "> Plugin $pfx: Configure NetworkManager debug"
+		cat > /etc/NetworkManager/conf.d/000-nmdebug.conf <<EOF
+[logging]
+level=DEBUG
 EOF
 	    fi
 	    #
