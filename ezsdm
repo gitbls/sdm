@@ -21,7 +21,7 @@ img="$1"
 [ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
 [ -f $assets/my.plugins ] &&  mv $assets/my.plugins $assets/my.plugins.1
 
-(cat <<EOF
+(cat <<'EOF'
 # Plugin List generated $(date +"%Y-%m-%d %H:%M:%S")
 
 # Delete user pi if it exists
