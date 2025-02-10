@@ -47,7 +47,9 @@ Enclose the keys/values in double quotes as above if there is more than one key/
 
 See below for plugin-specific examples and important information.
 
-All files that you provide to sdm, whether on the command line or in arguments to a plugin, must use full paths. For instance, to use a file in your home directory, don't use `file` or `~/file`, use `/home/<mylogin>/file`. Relative file paths may not work because the current directory in which any sdm function is running may change.
+It is recommended that all files that you provide to sdm, whether on the command line or in arguments to a plugin, use full paths. For instance, to use a file in your home directory, don't use `file` or `~/file`, use `/home/<mylogin>/file`. Relative file paths generally work, but if you run into problems, switch to using a ful path.
+
+It is not possible to use a tilde ("~") as an argument value for a plugin. A good example of this is for WiFi passwords for the `network` plugin. In this case (and if you encounter any others) you must provide a fully-formed .nmconnection file. The tilde is used internally by sdm to separate a plugins concatenated together (in a string).
 
 NOTE: An argument can only be used once per plugin invocation. This is not a problem with most plugins, but you might find a use for multiple uses in some plugins, such as bootconfig. This is discussed in the <a href="#bootconfig">`bootconfig` plugin</a>.
 
@@ -688,6 +690,7 @@ All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid
 * **ipv4-route-metric** &mdash; Specify the route metric for the network
 * **nmconf** &mdash; Specifies a comma-separated list of NetworkManager config files that are to be copied to /etc/NetworkManager/conf.d (*.conf)
 * **nmconn** &mdash; Specifies a comma-separated list of NetworkManager connection definitions (each a separate file) that are to be copied to /etc/NetworkManager/system-connections (*.nmconnection)
+* **nmdebug** &mdash; Enables NetworkManager debug mode logging for those hard-to-diagnose NM issues
 * **noipv6** &mdash; Specifies that IPv6 should be disabled for this connection. Works with both `netman=dhcpcd` and `netman=nm`
 * **nowifi** &mdash; If `netman=dhcpcd` and WiFi settings not configured, this prevents a warning message about no WiFi configured
 * **powersave** &mdash; Specify the WiFi powersave setting. Values: **0**:Use default value; **1**:Leave as is; **2**:Disable powersave; **3**:Enable powersave
@@ -1206,6 +1209,8 @@ Use the `user` plugin to delete, create, or set passwords for users
   * Syntax: `uid=name-or-number`
 * **password** &mdash; Specify the password for `adduser` and `setpassword`
   * Syntax: `password=topsecretpassword`
+* **password-hash** &mdash; Specify a hashed password for `adduser`. Create the hashed password with `mkpasswd --method=SHA=512 --rounds=4096 password`
+* **password-plain** &mdash; Synonym for the `password` argument
 * **nohomedir** &mdash; Do not create a home directory for this user
   * Syntax: `nohomedir`
 * **noskel** &mdash; Do not copy /etc/skel files to the newly-created login directory
