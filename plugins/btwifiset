@@ -290,6 +290,10 @@ EOF
     [ -f /etc/sdm/0piboot/050-disable-bt.sh ]   && mv /etc/sdm/0piboot/050-disable-bt.sh /etc/sdm/0piboot/.050-disable-bt.sh-btwifiset
     [ -f /etc/sdm/0piboot/055-disable-wifi.sh ] && mv /etc/sdm/0piboot/055-disable-wifi.sh /etc/sdm/0piboot/.055-disable-wifi.sh-btwifiset
 
+    # Minor touchup to /etc/bluetooth/main.conf
+    logtoboth "> Plugin $pfx: Set ReverseServiceDiscovery=false in /etc/bluetooth/main.conf"
+    sed -i -E '/^\s*#?\s*ReverseServiceDiscovery\s*=/c\ReverseServiceDiscovery = false' /etc/bluetooth/main.conf
+
     # Create btwifiset service
     logtoboth "> Plugin $pfx: Create and enable btwifiset service"
     [ "$timeout" != "" ] && switches="--timeout $timeout" || switches=""
