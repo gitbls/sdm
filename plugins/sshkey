@@ -28,7 +28,7 @@ args="$2"
 loadparams
 vldargs="|sshuser|authkey|import-key|keyname|keytype|passphrase|putty-keyname|"
 rqdargs="sshuser"                   # |list|of|required|args|or|nullstring|
-vkeytypes="dsa|ecdsa|ecdsa-sk|ed25519|ed25519-sk|rsa|"
+vkeytypes="ecdsa|ecdsa-sk|ed25519|ed25519-sk|rsa|"
 redactargs="passphrase"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -50,7 +50,7 @@ then
 	cp $import__key $assetdir
     fi
     [ "$keytype" == "" ] && keytype=ecdsa
-    [[ "$vkeytypes" =~ "$ketype" ]] || logtobothex "> Plugin $pfx: Unrecognized ssh key type '$keytype'"
+    [[ "$vkeytypes" =~ "$keytype|" ]] || logtobothex "> Plugin $pfx: Unrecognized ssh key type '$keytype'"
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
