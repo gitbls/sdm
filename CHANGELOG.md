@@ -1,5 +1,15 @@
 # Changelog
 
+## V13.9
+
+* New Features
+  * Plugin `docker-install` installs the docker runtime
+  * Fully document automatic site-to-site and VPN configuration
+* Improvements
+  * Fix cosmetic issue with ezsdm's plugin list generation
+* Bug Fixes
+  * Remove `dsa` encryption from `sshkey` plugin since openSSH 9.8 and later no longer support it
+
 ## V13.8
 
 * New Features
