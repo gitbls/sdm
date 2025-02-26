@@ -35,7 +35,7 @@ This example can be copied and used, or of course create your own 'list of plugi
 # Edit the text inside the EOF/EOF as appropriate for your configuration
 # ** Suggestion: Copy this file to somewhere in your path and edit your copy
 #    (~/bin is a good location)
-#
+
 
 function errexit() {
     echo -e "$1"
@@ -49,18 +49,23 @@ img="$1"
 
 [ "$(type -t sdm)" == "" ] && errexit "? sdm is not installed"
 
-[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
+#[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
+assets="."
+rm -f $assets/my.plugins.1
 [ -f $assets/my.plugins ] &&  mv $assets/my.plugins $assets/my.plugins.1
 
 (cat <<EOF
 # Plugin List generated $(date +"%Y-%m-%d %H:%M:%S")
+EOF
+    ) | bash -c "cat >|$assets/my.plugins"
+
+(cat <<'EOF'
 
 # Delete user pi if it exists
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#user
 user:deluser=pi
 
-# Add a new user
-# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#user
+# Add a new user ** change 'myuser' and 'mypassword' **
 user:adduser=myuser|password=mypassword
 
 # Install btwifiset (Control Pi's WiFi from your phone)
@@ -72,9 +77,9 @@ btwifiset:country=US|timeout=30
 apps:name=mybrowsers|apps=firefox,chromium-browser
 apps:name=mytools|apps=keychain,lsof,iperf3,dnsutils
 
-# Configure network
+# Configure network ** change 'myssid' and 'mywifipassword' **
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#network
-network:ifname=wlan0|wifissid=myssid|wifipassword=mypassword|wificountry=US
+network:ifname=wlan0|wifissid=myssid|wifipassword=mywifipassword|wificountry=US
 
 # This configuration eliminates the need for piwiz so disable it
 disables:piwiz
@@ -87,7 +92,7 @@ disables:piwiz
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
 L10n:host
 EOF
-    ) | bash -c "cat >|$assets/my.plugins"
+    ) | bash -c "cat >>$assets/my.plugins"
 
 $sudo sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --regen-ssh-host-keys $img
 ```
