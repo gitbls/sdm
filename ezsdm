@@ -18,11 +18,17 @@ img="$1"
 
 [ "$(type -t sdm)" == "" ] && errexit "? sdm is not installed"
 
-[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
+#[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
+assets="."
+rm -f $assets/my.plugins.1
 [ -f $assets/my.plugins ] &&  mv $assets/my.plugins $assets/my.plugins.1
 
-(cat <<'EOF'
+(cat <<EOF
 # Plugin List generated $(date +"%Y-%m-%d %H:%M:%S")
+EOF
+    ) | bash -c "cat >|$assets/my.plugins"
+
+(cat <<'EOF'
 
 # Delete user pi if it exists
 user:deluser=pi
@@ -41,7 +47,7 @@ apps:name=mytools|apps=keychain,lsof,iperf3,dnsutils
 
 # Configure network ** change 'myssid' and 'mywifipassword' **
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#network
-network:wifissid=myssid|wifipassword=mywifipassword|wificountry=US
+network:ifname=wlan0|wifissid=myssid|wifipassword=mywifipassword|wificountry=US
 
 # This configuration eliminates the need for piwiz so disable it
 disables:piwiz
@@ -54,6 +60,6 @@ disables:piwiz
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
 L10n:host
 EOF
-    ) | bash -c "cat >|$assets/my.plugins"
+    ) | bash -c "cat >>$assets/my.plugins"
 
 $sudo sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --regen-ssh-host-keys $img
