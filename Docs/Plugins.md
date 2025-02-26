@@ -304,6 +304,18 @@ The disables plugin makes it easy to disable a few *complex* functions.
 
 * `--plugin disables:"bluetooth|piwiz|triggerhappy"` &mdash; Disable Bluetooth, Triggerhappy, and piwiz, but leave WiFi enabled
 
+### docker-install
+
+Installs Docker per <a href="https://docs.docker.com/engine/install/debian/">the Docker install guide</a>.
+
+#### Arguments
+
+This plugin has no arguments
+
+#### Examples
+
+* `--plugin docker-install`
+
 ### dovecot-imap
 
 The `dovecot-imap` installs and configures dovecot as an imap server.
