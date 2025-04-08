@@ -12,7 +12,13 @@ Although encryption does increase security, there are some challenges, such as:
 
 With those caveats, if rootfs encryption is useful for you, sdm makes it quite simple to configure and use an encrypted rootfs.
 
-**NOTE:** This tool only supports sdm-integrated encryption configuration using the `cryptroot` plugin on RasPiOS Bookworm and later. `sdm-cryptconfig` can be used on already-running RasPiOS systems as well as on Debian Bookworm (arm and X86_64) and derivatives.
+**NOTES**
+
+* This tool only supports sdm-integrated encryption configuration using the `cryptroot` plugin on RasPiOS Bookworm and later. `sdm-cryptconfig` can be used on already-running RasPiOS systems as well as on Debian Bookworm (arm and X86_64) and derivatives.
+
+* Your system MUST be fully updated with apt before starting the encryption process documented here (`sudo apt update ; sudo apt full-upgrade`)
+
+* Since the encryption process is not reversible you are encouraged to try the process on a COPY of your system disk or a freshly burned/updated disk to ensure you fully understand the process
 
 ## Overview
 
@@ -40,6 +46,8 @@ The system reboots a couple of times, performing steps during each reboot:
   * In initramfs you use the `sdmcryptfs` command to encrypt rootfs
   * Upon initramfs exit, system continues booting
   * At end of system startup the `sdm-cryptfs-cleanup` service tidies sdm-related services on the running system, removes sdmcryptfs-related bits from the initramfs, and then reboots
+
+    **NOTE:** You MUST wait for this stage to automatically reboot or the encryption will fail
 * **Final reboot:** System is now running on an encrypted rootfs
   * All system boots now require the rootfs unlock passphrase or USB Keyfile Disk to continue
 
@@ -153,8 +161,9 @@ sdmcryptfs will then:
 * When the restore finishes sdmcryptfs will exit and drop you to the (initramfs) prompt
 * Type `exit` to continue the boot sequence
 * Once the system boot has completed the sdm-cryptfs-cleanup service will run which:
-  * Removes some content that is no longer needed (`bash` and `sdmcryptfs`) and rebuilds initramfs 
-  * Reboots the system one last time
+  * Removes some content that is no longer needed (`bash` and `sdmcryptfs`) and rebuilds initramfs
+  * **NOTE:** You MUST wait for this stage to automatically reboot or the encryption will fail
+  * Automatically reboots the system one last time
 * As the system reboots you'll once again be prompted for the rootfs passphrase
   * **NOTE:** Without the 30 tries!
   * If using a USB Keyfile Disk insert the disk into the reader at any time
@@ -342,7 +351,7 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
 
 * On the Pi5 a 4Kb page size is not supported. Changing the page size from the default 16Kb to 4Kb (using kernel=kernel8.img) on a Pi5 AFTER encryption has been enabled causes encryption to fail. The failure is reversible by undoing the pagesize change. Configuring the page size before enabling disk encryption also fails in `sdmcryptfs` for reasons as yet unknown.
 
-* To use disk encryption on disks other than rootfs, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt
+* To use disk encryption on disks other than rootfs that you have manually encrypted, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt
 
 * When running RasPiOS with Desktop (both X11 and Wayland) sdm-cryptconfig will unconditionally make these adjustments to your system:
   * Remove 'quiet' and 'splash' from /boot/firmware/cmdline.txt, making the system boot far less quiet
