@@ -706,7 +706,7 @@ All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid
 * **noipv6** &mdash; Specifies that IPv6 should be disabled for this connection. Works with both `netman=dhcpcd` and `netman=nm`
 * **nowifi** &mdash; If `netman=dhcpcd` and WiFi settings not configured, this prevents a warning message about no WiFi configured
 * **powersave** &mdash; Specify the WiFi powersave setting. Values: **0**:Use default value; **1**:Leave as is; **2**:Disable powersave; **3**:Enable powersave
-* **ipv4-static-ip** &mdash; Configure the connection with this static IP address
+* **ipv4-static-ip** &mdash; Configure the connection with this static IP address and subnet mask. When no subnet mask is present the `/24` subnet is added as a default subnet
 * **ipv4-static-gateway** &mdash; Configure the connection with this static gateway
 * **ipv4-static-dns** &mdash; Configure the connection with this DNS server IP
 * **ipv4-static-dns-search** &mdash; Set DNS suffix search list for the configuration (Ex: `ipv4-static-dns-search=my.com,dyn.my.com`)

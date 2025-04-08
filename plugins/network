@@ -408,12 +408,15 @@ EOF
 
 		if [ "$ipv4__static__ip" != "" ]
 		then
+		    if [[ $ipv4__static__ip != *"/"* ]]; then
+			    ipv4__static__ip="${ipv4__static__ip}/24"
+		    fi
 		    logtoboth "> Plugin $pfx: Configure connection '$thiscname' for a Static IP"
 		    logtoboth "  Static IP:                $ipv4__static__ip"
 		    logtoboth "  Static Gateway:           $ipv4__static__gateway"
 		    logtoboth "  Static DNS Server:        $ipv4__static__dns"
 		    logtoboth "  Static DNS Domain Search: $ipv4__static__dns__search"
-		    thisattr="$thisattr ipv4.addresses $ipv4__static__ip/24 ipv4.method manual"
+		    thisattr="$thisattr ipv4.addresses $ipv4__static__ip ipv4.method manual"
 		    [ "$ipv4__static__gateway" != "" ] && thisattr="$thisattr ipv4.gateway $ipv4__static__gateway"
 		    [ "$ipv4__static__dns" != "" ] && thisattr="$thisattr ipv4.dns  $ipv4__static__dns"
 		    [ "$ipv4__static__dns__search" != "" ] && thisattr="$thisattr ipv4.dns-search $ipv4__static__dns__search"
