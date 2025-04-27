@@ -181,7 +181,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V13.9"
+version="V13.10"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -821,8 +821,8 @@ else
 	cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
 	setfileownmode "$SDMPT/$sdmdir/local-plugins/*" 755
     fi
-    # Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
-    sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
+    ## Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
+    #sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
     setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
 

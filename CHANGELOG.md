@@ -1,5 +1,15 @@
 # Changelog
 
+## V13.10
+
+* New Features
+  * New `cmdline` plugin to update or replace cmdline.txt
+* Improvements
+  * `network` plugin `ipv4-static-ip` honors provided subnet and defaults subnet to `/24` if not provided (Thanks @eelco)
+* Bug Fixes
+  * Correct error handling for `--aptmaint` failures
+  * Fix WiFi configuration in batch burn script sdm-gburn
+
 ## V13.9
 
 * New Features
