@@ -59,7 +59,8 @@ function logtoboth() {
 	    echo "${spc}${str[$i]}"
 	    spc="  "
 	done
-    fi	
+    fi
+    return 0
 }
 
 function logtobothex() {
