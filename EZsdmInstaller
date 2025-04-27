@@ -120,6 +120,7 @@ for f in sdm sdm-phase0 \
 	     plugins/apt-file \
 	     plugins/bootconfig \
 	     plugins/btwifiset \
+	     plugins/cmdline \
 	     plugins/chrony \
 	     plugins/clockfake \
 	     plugins/copydir \
@@ -156,6 +157,7 @@ for f in sdm sdm-phase0 \
 	     plugins/rxapp \
 	     plugins/samba \
 	     plugins/serial \
+	     plugins/speedtest \
 	     plugins/sshd \
 	     plugins/sshhostkey \
 	     plugins/sshkey \
