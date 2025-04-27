@@ -34,6 +34,13 @@ function doctrlcp1() {
     unadjust_initramfs_all  #Be clean
     exit 1     #Can't use poweroff since no job control in either nspawn or chroot
 }
+
+function logfreeandexit() {
+    local sts=$?
+    logfreespace "at end of 'apt $cmdoptions'"
+    exit $sts
+}
+
 #
 # Read configuration information from sdm
 #
@@ -54,9 +61,9 @@ case "$cmd" in
     apt)
 	logtoboth "* Start apt maintenance"
 	logfreespace "at start of 'apt $cmdoptions'"
-	[[ "$cmdoptions" =~ "update" ]] &&  logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0 || exit
-	[[ "$cmdoptions" =~ "upgrade" ]] && logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade || exit
-	[[ "$cmdoptions" =~ "autoremove" ]] && logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0 || exit
+	[[ "$cmdoptions" =~ "update" ]] &&  { logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0 || logfreeandexit ; }
+	[[ "$cmdoptions" =~ "upgrade" ]] && { logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade || logfreeandexit ; }
+	[[ "$cmdoptions" =~ "autoremove" ]] && { logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0 || logfreeandexit ; }
 	logfreespace "at end of 'apt $cmdoptions'"
 	logtoboth "* apt maintenance Completed"
 	exit 0
