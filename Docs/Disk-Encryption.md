@@ -349,7 +349,9 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
 
 ## Known Issues
 
-* On the Pi5 a 4Kb page size is not supported. Changing the page size from the default 16Kb to 4Kb (using kernel=kernel8.img) on a Pi5 AFTER encryption has been enabled causes encryption to fail. The failure is reversible by undoing the pagesize change. Configuring the page size before enabling disk encryption also fails in `sdmcryptfs` for reasons as yet unknown.
+* On the Pi5 a 4Kb page size is not supported. Changing the page size from the default 16Kb to 4Kb (using kernel=kernel8.img) on a Pi5 AFTER encryption has been enabled causes encryption to fail. The failure is reversible by undoing the pagesize change. Configuring the page size before enabling disk encryption also fails in `sdmcryptfs` for reasons as yet unknown to mankind.
+
+   **UPDATE:** See https://github.com/gitbls/sdm/discussions/311#discussioncomment-12893224 for a workaround to use 4kb pages
 
 * To use disk encryption on disks other than rootfs that you have manually encrypted, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt
 
