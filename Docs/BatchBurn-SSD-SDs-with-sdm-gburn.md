@@ -15,6 +15,7 @@ Valid options:
 * **locale=*lc*** &mdash; Locale for user. See `sudo /usr/local/sdm/sdm --info locale`
 * **timezone=*tz*** &mdash; Timezone for user. See `sudo /usr/local/sdm/sdm --info timezone`
 * **wificountry=*thewificountry*** &mdash; WiFi country for user. See `sudo /usr/local/sdm/sdm --info wifi`
+* **wifiname=*wifidevname*** &mdash; WiFi device to configure. Defaults to `wlan0` if not provided.
 * **wifissid=*wifissidforuser*** &mdash; WiFi SSID. If the SSID contains the dollar sign character ('$') you must use a .nmconnection file
 * **wifipassword=*wifipasswordforuser*** &mdash; WiFi password. If the password contains the dollar sign character ('$') you must use a .nmconnection file.
 * **hostname=*userhostname*** &mdash; Host name. Default: the username
@@ -24,7 +25,7 @@ Valid options:
 * **autologin=[yes|no]** &mdash; Enable autologin. Default: ***no***
 * **reboot=*n*** &mdash; Enable auto reboot at completion of sdm FirstBoot after waiting *n* seconds. Default: 20 seconds
 * **mouse=*left*** &mdash; Set left-handed mouse for user. Default: right-handed mouse
-* **nmconn=*/path/to/nmconnfile*** &mdash; Path to a single .nmconnection file. If multiple are needed, use `--pluglist @/path/to/plugin-list`
+* **nmconn=*/path/to/nmconnfile*** &mdash; Path to a single .nmconnection file. If multiple are needed, use `pluglist=@/path/to/plugin-list`
 * **pluglist=*/path/to/pluglist*** &mdash; See <a href="Plugins.md">the Plugin documentation</a>
 
 All options are provided on a single line, separated by commas. Although order is not important, the parsing is a bit primitive so the format and punctuation is strict. For example
@@ -54,7 +55,7 @@ sdm-gburn verifies that the files exist, and that the IMG is sdm-enhanced.
 
 It then reads and processes the data-file and prompts you for each user, displaying the configuration information it found for the user as well:
 ```
-p81/ssd/work$ sudo /l/work/sdm/sdm-gburn 2023-12-05-raspios-bookworm-arm64.img student3 /dev/sdc
+p81/ssd/work$ sudo /usr/local/sdm/sdm/sdm-gburn 2023-12-05-raspios-bookworm-arm64.img student3 /dev/sdc
 Configuration read for user 'bls'
 >  password=abc
 >  autologin=no
@@ -91,6 +92,11 @@ user:adduser=bls|uid=2400|password=secret
 customer1 makeuser=no,pluglist=/path/to/mypluglist
 customer2 makeuser=no,pluglist=/path/to/mypluglist
 customer3 makeuser=no,pluglist=/path/to/mypluglist
+```
+
+Command line:
+```
+sudo /usr/local/sdm/sdm-gburn 2024-11-19-raspios-bookworm-arm64.img /path/to/gburnlist /dev/sdc
 ```
 
 <br>

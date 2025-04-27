@@ -54,9 +54,11 @@ function writel10n() {
 function writenetwork() {
     # network: wifissid, wifipassword, wificountry
     local netstring=""
-    [ "$wifissid" != "" ] && netstring="wifissid=$wifissid"
-    [ "$wifipassword" != "" ] && { [ "$netstring" == "" ] && netstring="wifipassword=$wifipassword" || netstring=${netstring}|wifipassword=$wifipassword" ; }
-    [ "$wificountry" != "" ] && { [ "$netstring" == "" ] && netstring="wificountry=$wificountry" || netstring=${netstring}|wificountry=$wificountry" ; }
+    [ "$wifiname" == "" ] && wifiname="wlan0"
+    netstring="ifname=$wifiname"
+    [ "$wifissid" != "" ] && { [ "$netstring" == "" ] && netstring="wifissid=$wifissid" || netstring="${netstring}|wifissid=$wifissid" ; }
+    [ "$wifipassword" != "" ] && { [ "$netstring" == "" ] && netstring="wifipassword=$wifipassword" || netstring="${netstring}|wifipassword=$wifipassword" ; }
+    [ "$wificountry" != "" ] && { [ "$netstring" == "" ] && netstring="wificountry=$wificountry" || netstring="${netstring}|wificountry=$wificountry" ; }
     [ "$nmconn" != "" ] &&  { [ "$netstring" == "" ] && netstring="nmconn=$nmconn" || netstring="${netstring}|nmconn=$nmconn" ; }
     [ "$netstring" != "" ] && plugwrite "network:$netstring"
 }
@@ -152,6 +154,7 @@ do
 	username=${line%% *}  # Line starts with "username "
 	args=${line#* }      # Get rest of args (everything after the space)
 	password=""
+	wifiname=""
 	wifissid=""
 	wifipassword=""
 	wificountry=""
@@ -163,7 +166,7 @@ do
 	sudo="yes"
 	piwiz="no"
 	autologin="no"
-	reboot="20"
+	reboot="10"
 	mouse="right"
 	nmconn=""
 	pluglist=""
