@@ -219,6 +219,24 @@ The fake-hwclock provided with RasPiOS runs hourly as a cron job. clockfake does
 
 * **interval** &mdash; Interval in minutes between fake hardware clock updates
 
+### cmdline
+
+Replace cmdline.txt with a new command line and/or modify the existing cmdline.txt. If /boot/firmware/cmdline.txt is present it will be used. If not, /boot/cmdline.txt is assumed.
+
+#### Arguments
+
+* **add** &mdash; Add the specified elements to the existing cmdline.txt. If element exists in cmdline.txt already it is replaced.
+* **delete** &mdash;  Delete the specified elements from the existing cmdline.txt
+* **replace** &mdash; Replace the entire contents of cmdline.txt with the provided new cmdline
+
+`add`, `delete`, and `replace` can each only be specified once per plugin invocation. If there are multiple, the last one wins. If this is needed for some reason, use multiple invocations of the `cmdline` plugin.
+
+#### Examples
+
+* `--plugin cmdline:"add=video=HDMI-A-1:1920x1080@60D"` &mdash; Add the string `video=HDMI-A-1:1920x1080@60D` to cmdline.txt
+* `--plugin cmdline:"delete=console splash"` &mdash; Remove the strings `console` and `splash` from cmdline.txt
+* `--plugin cmdline="replace="consoleblank=3600 root=PARTUUID=6ea5963a-02 rootfstype=ext4 fsck.repair=yes rootwait"` &mdash; Replace cmdline.txt with the provided new cmdline
+
 ### copydir
 
 Copy a directory tree from the host system into the IMG
@@ -706,7 +724,7 @@ All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid
 * **noipv6** &mdash; Specifies that IPv6 should be disabled for this connection. Works with both `netman=dhcpcd` and `netman=nm`
 * **nowifi** &mdash; If `netman=dhcpcd` and WiFi settings not configured, this prevents a warning message about no WiFi configured
 * **powersave** &mdash; Specify the WiFi powersave setting. Values: **0**:Use default value; **1**:Leave as is; **2**:Disable powersave; **3**:Enable powersave
-* **ipv4-static-ip** &mdash; Configure the connection with this static IP address
+* **ipv4-static-ip** &mdash; Configure the connection with this static IP address and subnet mask. The default subnet mask `/24`.
 * **ipv4-static-gateway** &mdash; Configure the connection with this static gateway
 * **ipv4-static-dns** &mdash; Configure the connection with this DNS server IP
 * **ipv4-static-dns-search** &mdash; Set DNS suffix search list for the configuration (Ex: `ipv4-static-dns-search=my.com,dyn.my.com`)
@@ -1031,6 +1049,48 @@ The `serial` plugin addresses these issues. You can use it during a customize if
 * `--plugin serial:pi5|enableshell` &mdash; Configure the serial port for a Pi5 and enable a login shell on it
 * `--plugin serial:pi5debug` &mdash; Configure the debug serial port for a Pi5
 
+### speedtest
+
+The `speedtest` plugin creates a service that remains running and regularly runs speedtest, with a mechanism for reporting out-of-bounds results for `ping`, `download speed` and `upload speed`.
+
+#### Arguments
+* **alertping** &mdash; Call `alertscript` if a speedtest ping result is greater than `alertping`
+* **alertdown** &mdash; Call `alertscript` if a speedtest download speed result is less than `alertdown`
+* **alertup** &mdash; Call `alertscript` if a speedtest upload speed result is less than `alertup`
+* **alertscript** &mdash; /path/to/alertscript. See below for an example alertscript
+* **interval** &mdash; Run the speedtest every `interval` seconds. Note that running too frequently will likely elicit errors from speedtest. Default is 3600 seconds (1 hour)
+* **log** &mdash; /path/to/logfile for speedtest logging. Default is /var/log/sdm-speedtest-monitor.log
+* **rawlog** &mdash; /path/to/rawlog for raw speedtest result logging, which captures the output from the speedtest commands. This is optional and not logged if not provided.
+
+#### Examples
+
+* `--plugin speedtest:"alertping=8|alertdown=600000000|alertup=600000000|alertscript=/usr/local/bin/alertscript"` &mdash; Calls specified alert script if ping is greater than 8ms, or download or upload speed is less than 600mb. Logs to /var/log/sdm-speedtest-monitor.log 
+
+Example alertscript:
+```
+#!/bin/bash
+
+if [ -f /etc/default/sdm-speedtest ]
+then
+    source /etc/default/sdm-speedtest
+else
+    logger "sdm-speedtest alertscript: ? /etc/default/sdm-speedtest not found"
+    exit 1
+fi
+ping=$2
+download=$3
+upload=$4
+case "$1" in
+    alert)
+        [ $ping -gt $alertping ] && logger "sdm-speedtest alert: Ping $ping gt $alertping"
+        [ $download  -lt $alertdown ] && logger "sdm-speedtest alert: Download $download lt $alertdown"
+        [ $upload  -lt $alertup ] && logger "sdm-speedtest alert: Upload $upload lt $alertup"
+        ;;
+    error)
+        logger "sdm-speedtest alertscript error: |$2|"
+        ;;
+esac
+```
 ### sshd
 
 The `sshd` plugin configures:
