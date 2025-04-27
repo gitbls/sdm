@@ -1,0 +1,132 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: cmdline
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# fns to write:
+#  rm elements from current cmdline
+#  add elements to current cmdline (after rm-ing each one first)
+#  write cmdline
+
+
+function rmelem() {
+    #
+    # $1: cmdline
+    # $2: elements to remove space-separated
+    #
+    # Removes all instances of element name, both equaled and unequaled
+    #
+    local cmd="$1" allrms="$2" out="$1"
+
+    IFS=" " read -a rms <<< "$allrms "
+    for str in "${rms[@]}"
+    do
+        re1="$str "
+        re2="(.* *)($str=\S+) *(.*)"
+        while [[ "$cmd " =~ $re1 ]]  #Strip multiple copies of un-equaled string
+        do
+            cmd="${cmd//$str /}"
+        done
+        while [[ "$cmd " =~ $re2 ]]  #Strip multiple copies of equaled string
+        do
+            cmd="${BASH_REMATCH[1]} ${BASH_REMATCH[3]}"
+	    #printf "$str-0:|${BASH_REMATCH[0]}|\n1:|${BASH_REMATCH[1]}|\n2:|${BASH_REMATCH[2]}|\n3:|${BASH_REMATCH[3]}|\n" > /dev/tty
+        done
+    done
+    cmd=${cmd# }
+    echo "${cmd/  / }"
+}
+
+function addelem() {
+    #
+    # $1: cmdline
+    # $2: elements to add space-separated
+    #
+    local cmd="$1" alladds="$2" add0
+
+    IFS=" " read -a adds <<< "$alladds "
+    for add0 in "${adds[@]}"
+    do
+        cmd="$(rmelem "$cmd" "${add0/=*/}") $add0"  # Remove it if it exists and append new at end of cmd
+    done
+    cmd=${cmd## }
+    echo "${cmd/  / }"
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|replace|add|delete|" #"|list|of|valid|args|"
+rqdargs=""                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_printkeys
+    mkdir -p $assetdir
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+
+    [ -d /boot/firmware ] && fdir="/boot/firmware" || fdir="/boot"
+    read cmdline < $fdir/cmdline.txt
+    logtoboth "> Plugin $pfx: Initial cmdline.txt: '$cmdline'"
+    if [ "$replace" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Replace cmdline.txt: '$replace'"
+	cmdline="$replace"
+    fi
+    if [ "$delete" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Delete '$delete' from cmdline.txt"
+	cmdline=$(rmelem "$cmdline" "$delete")
+    fi
+    if [ "$add" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Add '$add' to cmdline.txt"
+	cmdline=$(addelem "$cmdline" "$add")
+    fi
+    logtoboth "> Plugin $pfx: New cmdline.txt: '$cmdline'"
+    cat $fdir/cmdline.txt >| $fdir/cmdline.txt.sdm.orig
+    echo "$cmdline" >| $fdir/cmdline.txt
+
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
