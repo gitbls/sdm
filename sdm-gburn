@@ -54,11 +54,14 @@ function writel10n() {
 function writenetwork() {
     # network: wifissid, wifipassword, wificountry
     local netstring=""
-    [ "$wifiname" == "" ] && wifiname="wlan0"
-    netstring="ifname=$wifiname"
-    [ "$wifissid" != "" ] && { [ "$netstring" == "" ] && netstring="wifissid=$wifissid" || netstring="${netstring}|wifissid=$wifissid" ; }
-    [ "$wifipassword" != "" ] && { [ "$netstring" == "" ] && netstring="wifipassword=$wifipassword" || netstring="${netstring}|wifipassword=$wifipassword" ; }
-    [ "$wificountry" != "" ] && { [ "$netstring" == "" ] && netstring="wificountry=$wificountry" || netstring="${netstring}|wificountry=$wificountry" ; }
+    if [[ "$wifissid" != "" ]] && [[ "$wifipassword" != "" ]] && [[ "$wificountry" != "" ]]
+    then
+	[ "$wifiname" == "" ] && wifiname="wlan0"
+	netstring="ifname=$wifiname"
+	[ "$wifissid" != "" ] && { [ "$netstring" == "" ] && netstring="wifissid=$wifissid" || netstring="${netstring}|wifissid=$wifissid" ; }
+	[ "$wifipassword" != "" ] && { [ "$netstring" == "" ] && netstring="wifipassword=$wifipassword" || netstring="${netstring}|wifipassword=$wifipassword" ; }
+	[ "$wificountry" != "" ] && { [ "$netstring" == "" ] && netstring="wificountry=$wificountry" || netstring="${netstring}|wificountry=$wificountry" ; }
+    fi
     [ "$nmconn" != "" ] &&  { [ "$netstring" == "" ] && netstring="nmconn=$nmconn" || netstring="${netstring}|nmconn=$nmconn" ; }
     [ "$netstring" != "" ] && plugwrite "network:$netstring"
 }
