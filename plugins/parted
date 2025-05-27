@@ -9,18 +9,123 @@
 #    https://blog.hqcodeshop.fi/archives/273-GNU-Parted-Solving-the-dreaded-The-resulting-partition-is-not-properly-aligned-for-best-performance.html
 #    https://rainbow.chard.org/2013/01/30/how-to-align-partitions-for-best-performance-using-parted/
 #
-
-#TODO TODO
-# mkfs on a partition #
-# Add swap partition
 #
+# TODO: Update addtofstab, imgmakepartition, makepartition for exfat, udf, xfs
+#       addtofstab: $3 default is weird???
+#       Figure out if docleanups are correct
 
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
+function write_burnmsg() {
+    #
+    # $1 has the message to write
+    # It's written to the terminal and added to burnmsg
+    #
+    local msg="$1"
+    if [ "$msg" != "" ]
+    then
+        burnmsg+=("$(thisdate) $msg")
+        echo "$msg"
+    fi
+    return 0
+}
+
+function flush_burnmsgs() {
+    local bdev=${burndev:-$burnfilefile}
+
+    echo "> Plugin $pfx: Flush parted messages to burned $imgtype"
+    declare -x SDMPT=$(makemtpt)
+    domount "$bdev" "$imgtype" $SDMPT
+    for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
+    do
+	echo "${burnmsg[$i]}" >> $SDMPT/etc/sdm/history
+    done
+    docleanup
+}
+
+function pdocmd() {
+    local cmd="$@" tmsg=() tstr exsts=0 j1
+    # doesn't work mapfile -t tmsg < <("${cmd[@]}" 2>&1)
+    mapfile -t tmsg < <(bash -c "${cmd}" 2>&1 ; sts=$? ; echo "sdmstatus: $sts" ; exit $sts)
+    wait $!
+    # Retrieve exit status ** this doesn't work. always returns 0, but hacked around below
+    #exsts=${PIPESTATUS[0]}
+    # Append just-created messages to burnmsg
+    for (( i=0 ; i < ${#tmsg[@]} ; i++ ))
+    do
+	tstr="${tmsg[$i]}"
+	# capture hacked exit status and we're done
+	if [[ "$tstr" =~ sdmstatus: ]]
+	then
+	    read j1 exsts <<< "${tstr//$'\r'/}"
+	    break
+	fi
+	write_burnmsg "  ${tstr//$'\r'/}"
+    done
+    return $exsts
+}
+
+function flush_burnmsgsex() {
+    local msg=$1
+    write_burnmsg "$msg"
+    flush_burnmsgs
+    exit 1
+}
+
 function logtoboth() {
     echo "$1"
+}
+
+function addtofstab() {
+    # Based on parts of writediskids() and other sdm code.
+    # Ref: https://manpages.debian.org/bookworm/mount/fstab.5.en.html
+    # Ref: https://manpages.debian.org/bookworm/mount/mount.8.en.html
+    # Ref: https://manpages.debian.org/bookworm/mount/swapon.8.en.html
+    local devorimg="${1:-$burndev}" partnum="$2" fstabmntpt="${3:-/mnt/p$partnum/$fstype}" fstype="$4" upmntpt="$3"
+    local fstabpre="#" partuuid fstabfstype=$fstype fstabopts="defaults,noatime" fstabdump="0" fstabpass="0"
+
+    if [ "$fstype" != "" ]
+    then
+	case "$fstype" in
+            ext2|ext3|ext4)
+                fstabopts="defaults,errors=remount-ro,noatime"
+                fstabpass="2"
+                ;;
+	    fat16|fat32|vfat)
+                fstabfstype="vfat"
+                ;;
+            linux-swap)
+                fstabpre=""
+                fstabmntpt="none"
+                fstabopts="defaults,nofail"
+                fstabfstype="swap"
+                ;;
+        esac
+    fi
+    if [ "$partnum" != "" ] && [ "$fstype" != "" ]
+    then
+        partuuid=$(blkid $(getspname $devorimg $partnum) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
+        declare -x SDMPT=$(makemtpt)
+        domount "$devorimg" "$imgtype"
+        [ ! -f "${SDMPT}/etc/fstab" ] && flush_burnmsgsex "? Plugin $pfx: Disk is mounted but '${SDMPT}/etc/fstab' not found."
+	# If adding swap partition and there is an existing entry for swap, comment it before adding new one
+	[ "$fstype" == "linux-swap" ] && write_burnmsg "> Plugin $pfx: Comment out existing swap entry" && sed -i -e '/swap/ s/^#*/#/' ${SDMPT}/etc/fstab
+        #  Append to /etc/fstab.
+        write_burnmsg "> Plugin $pfx: Add '$fstype' entry to /etc/fstab"
+	if [[ "$fstype" != "linux-swap" ]]
+	then
+	    if [ "$upmntpt" != "" ]
+	    then
+		[ -d $SDMPT/$upmntpt ] && fstabpre="" || echo -e "#** Create mount point '$upmntpt' before uncommenting this VV fstab entry"  >> ${SDMPT}/etc/fstab
+	    fi
+	fi
+        write_burnmsg "> Plugin $pfx: ${fstabpre}PARTUUID=$partuuid  $fstabmntpt\t\t$fstabfstype\t$fstabopts\t$fstabdump\t$fstabpass"
+        echo -e "${fstabpre}PARTUUID=${partuuid}  $fstabmntpt\t\t$fstabfstype\t$fstabopts\t$fstabdump\t$fstabpass" >> ${SDMPT}/etc/fstab
+        [ $? -ne 0 ] && write_burnmsg "% Plugin $pfx: Error adding partition $partnum entry to ${SDMPT}/etc/fstab; Review /etc/fstab"
+	docleanup
+    fi
 }
 
 function expandpartitionfile() {
@@ -32,17 +137,17 @@ function expandpartitionfile() {
     local dimg="$1" dimgext="$2"
     local extbytes=$((dimgext*1024*1024))
     # Extend the IMG
-    logtoboth "> Plugin $pfx: Extend $dimgdevname by ${imgext}MB $(getgbstr $extbytes)..."
+    write_burnmsg "> Plugin $pfx: Extend $dimgdevname by ${imgext}MB $(getgbstr $extbytes)..."
     extendimage "$dimg" $dimgext
     #
     # Mount the image file into a loop device and resize the file system
     #
-    logtoboth "> Plugin $pfx: Mount $dimg to resize the file system"
+    write_burnmsg "> Plugin $pfx: Mount $dimg to resize the file system"
     declare -x SDMPT=$(makemtpt)
     domount $dimg IMG
-    logtoboth "> Plugin $pfx: Resize the file system"
-    logtoboth "> Plugin $pfx: Ignore 'on-line resizing required' message"
-    resize2fs $(getloopdev $SDMPT)p2
+    write_burnmsg "> Plugin $pfx: Resize the file system"
+    write_burnmsg "> Plugin $pfx: Ignore 'on-line resizing required' message"
+    pdocmd "resize2fs $(getloopdev $SDMPT)"
     errifrc $? "? resize2fs error"
     docleanup
 }
@@ -51,11 +156,13 @@ function imgmakepartition() {
     #
     # $1: img name
     # $2: partition size
-    # $3: partition type
-    # $4: fs type
+    # $3: fs type
+    # $4: fstab mount point.
     # $5: fs label
     #
-    local dimg="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" fslabel="$5" pstart pend pdname pname="" loopdev mkfslabel=""
+    local dimg="$1" psize="$2" fstype="${3:-ext4}" mntpt="$4" fslabel="$5" ptype="primary" pstart pend pdname pname="" loopdev mkfslabel=""
+    local altfstype=""
+
     #
     # Figure out end of last partition in the img
     #
@@ -63,41 +170,83 @@ function imgmakepartition() {
     while read line
     do
         IFS=":;" read partnum partstart partend partsize pfstype etc etc2 etc3 <<< $line
-        partstart=${partstart%MB}
-        partend=${partend%MB}
-        partsize=${partsize%MB}
-    done < <(parted -ms $dimg unit MB print)
+        partstart=${partstart%MiB}
+        partend=${partend%MiB}
+        partsize=${partsize%MiB}
+    done < <(parted -ms $dimg unit MiB print)
     partnum=$((partnum+1))
     partstart=$((partend+1))
     partend=$((partstart+psize-1))
-    logtoboth "> Plugin $pfx: Extend IMG '$dimg' by ${psize}MB"
-    truncate --size +${psize}MB $dimg
-    logtoboth "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}MB end: ${partend}MB"
-    logtoboth "> Plugin $pfx: parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB"
-    parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB
+    write_burnmsg "> Plugin $pfx: Extend IMG '$dimg' by ${psize}MB"
+    pdocmd "truncate --size +$((psize+1))MiB $dimg"
+    write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}MB end: ${partend}MB"
+    write_burnmsg "> Plugin $pfx: parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB"
+    if [ "$fstype" == "vfat" ]
+    then
+        pdocmd "parted -s $dimg mkpart $ptype $pname fat32 ${partstart}MiB ${partend}MiB"
+    else
+        pdocmd "parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MiB ${partend}MiB"
+    fi
     errifrc $? "? parted mkpart error"
     sync ; sleep 1 ; sync
     loopdev=$(losetup --show -P -f $dimg)
-    pdname="${loopdev}${partnum}"
-    logtoboth "> Plugin $pfx: Wipe existing file system on ${loopdev}p${partnum}"
-    wipefs -a ${loopdev}p${partnum}
-    logtoboth "> Plugin $pfx: Make '$fstype' file system on IMG '$dimg'"
+    pdname="${loopdev}p${partnum}"
+    write_burnmsg "> Plugin $pfx: Wipe existing file system on $pdname"
+    pdocmd "wipefs --all --force $pdname"
+    write_burnmsg "> Plugin $pfx: Make '$fstype' file system on IMG '$dimg'"
     if [ "$fslabel" != "" ]
     then
 	case "$fstype" in
+            # Set LABEL to value provided by user
+            # Set PARTLABEL to match partition type. Ref: sgdisk -L 
 	    fat16|fat32|vfat)
-		mkfslabel="-n $fslabel"
-		;;
-	    *)
-		mkfslabel="-L $fslabel"
-		;;
-	esac
+                mkfslabel="-n ${fslabel^^}"
+                partlabel="Microsoft basic data"
+                ;;
+            hfs)
+                mkfslabel="-v $fslabel"
+                partlabel="Apple HFS/HFS+"
+                ;;
+            linux-swap)
+                partlabel="Linux swap"
+                ;;
+            ntfs)
+                mkfslabel="-q -L $fslabel"
+                partlabel="Microsoft basic data"
+                ;;
+            reiserfs) # Not supported but leave this for now
+                mkfslabel="-q -l $fslabel"
+                partlabel="Linux filesystem"
+                ;;
+            udf)
+                mkfslabel="-l $fslabel"
+                partlabel="Microsoft basic data"
+                ;;
+            *)
+                mkfslabel="-q -L $fslabel"
+                partlabel="Linux filesystem"
+                ;;
+        esac
     fi
     case "$fstype" in
+        linux-swap)
+            pdocmd "sgdisk -c $partnum:'$partlabel' $loopdev"
+            pdocmd "mkswap -L '$fslabel' $pdname"
+            errifrc $? "? mkswap ${fstype} creation error"
+            ;;
 	*)
-	    mkfs.${fstype} $mkfslabel ${loopdev}p${partnum}
-	    errifrc $? "? mkfs.${fstype} error"
-	    ;;
+            case "$fstype" in
+                fat16)
+                    altfstype="fat -F 16"
+                    ;;
+                fat32)
+                    altfstype="fat -F 32"
+                    ;;
+            esac
+	    pdocmd "mkfs.${altfstype:-$fstype} $mkfslabel $pdname"
+            errifrc $? "? mkfs.${fstype} error"
+            pdocmd "sgdisk -c $partnum:'$partlabel' $loopdev"
+            ;;
     esac
     losetup -d $loopdev
     sync ; sleep 1 ; sync
@@ -108,20 +257,18 @@ function makepartition() {
     #
     # $1: device name (/dev/xxx)
     # $2: partition size
-    # $3: partition type
-    # $4: fs type
+    # $3: fs type
+    # $4: fstab mount point.
     # $5: fs label
     #
-    local pdev="$1" psize="$2" ptype="${3:-primary}" fstype="${4:-ext4}" fslabel="$5" pstart pend pdname pname="" mkfslabel=""
+    local pdev="$1" psize="$2" fstype="${3:-ext4}" mntpt="$4" fslabel="$5" ptype="primary" pstart pend pdname pname="" mkfslabel=""
     local pdevnm=${pdev#/dev/}
     local partnum partstart partend partsize pfstype etc etc2 etc3
     local spartnum spartstart spartend spartsize etc etc2 etc3
+    local partlabel altfstype doslimit=4294967295
 
     fstype=${fstype,,}
-    if [ ! -f /sbin/mkfs.${fstype} ]
-    then
-	logtobothex "? Plugin $pfx: Unrecognized file system '$fstype' or missing mkfs.${fstype}"
-    fi
+    [ "$fstype" == "swap" ] && fstype=linux-swap
 
     #
     # Figure out end of last partition on the disk
@@ -143,13 +290,20 @@ function makepartition() {
 	    # /dev/sdc:937703088s:scsi:512:512:msdos:ASMT ASM105x:;
 	    # get physical sector size in bytes
 	    IFS=":" read etc etc2 etc3 etc pbytes etc <<< $line
-	elif [[ "$line" =~ "free" ]]
-	then
+        elif [[ "$line" =~ "free" ]]
+        then
             IFS=":;" read spartnum spartstart spartend spartsize pfstype etc etc2 etc3 <<< $line
-            free_space_start=${spartstart%s}
-            free_space_end=${spartend%s}
-            free_space_amount=${spartsize%s}
-	fi
+            # When we have MBR, an extended partition, and a drive > 2TiB, the last entry shows inaccessible free space.
+            # If those things are true, we want the line before, so skip the current line and use the previous line's values.
+            if [ $(getdisktype $pdev) == "dos" ] && [[ ${spartstart%s} -gt $doslimit ]]
+            then
+                :
+            else
+                free_space_start=${spartstart%s}
+                free_space_end=${spartend%s}
+                free_space_amount=${spartsize%s}
+            fi
+       fi
     done < <(parted -ms $pdev unit s print free)
     partnum=$((partnum+1))
     optimal_io_size=$(cat /sys/block/$pdevnm/queue/optimal_io_size)
@@ -171,72 +325,168 @@ function makepartition() {
     [ "$plugindebug" == "" ] && plugindebug=0  #cya
     if [ $plugindebug -eq 1 ]
     then
-	logtoboth "> Plugin $pfx: pdname: $pdname"
-	logtoboth "> Plugin $pfx: partnum: $partnum"
-	logtoboth "> Plugin $pfx: partstart: $partstart"
-	logtoboth "> Plugin $pfx: partend: $partend"
-	logtoboth "> Plugin $pfx: psize: $psize"
-	logtoboth "> Plugin $pfx: optimal_io_size: $optimal_io_size"
-	logtoboth "> Plugin $pfx: physical_block_size: $physical_block_size"
-	logtoboth "> Plugin $pfx: alignment_offset: $alignment_offset"
-	logtoboth "> Plugin $pfx: align_to_sector: $align_to_sector"
-	logtoboth "> Plugin $pfx: aligned_start_sector: $aligned_start_sector"
-	logtoboth "> Plugin $pfx: aligned_end_sector: $aligned_end_sector"
-	logtoboth "> Plugin $pfx: free_space_start: $free_space_start"
-	logtoboth "> Plugin $pfx: free_space_end: $free_space_end"
-	logtoboth "> Plugin $pfx: free_space_amount: $free_space_amount"
+	write_burnmsg "> Plugin $pfx: pdname: $pdname"
+	write_burnmsg "> Plugin $pfx: partnum: $partnum"
+	write_burnmsg "> Plugin $pfx: partstart: $partstart"
+	write_burnmsg "> Plugin $pfx: partend: $partend"
+	write_burnmsg "> Plugin $pfx: psize: $psize"
+	write_burnmsg "> Plugin $pfx: optimal_io_size: $optimal_io_size"
+	write_burnmsg "> Plugin $pfx: physical_block_size: $physical_block_size"
+	write_burnmsg "> Plugin $pfx: alignment_offset: $alignment_offset"
+	write_burnmsg "> Plugin $pfx: align_to_sector: $align_to_sector"
+	write_burnmsg "> Plugin $pfx: aligned_start_sector: $aligned_start_sector"
+	write_burnmsg "> Plugin $pfx: aligned_end_sector: $aligned_end_sector"
+	write_burnmsg "> Plugin $pfx: free_space_start: $free_space_start"
+	write_burnmsg "> Plugin $pfx: free_space_end: $free_space_end"
+	write_burnmsg "> Plugin $pfx: free_space_amount: $free_space_amount"
     fi
-    [[ $partend -gt $free_space_end ]] && logtobothex "? Partition problem; Try again with --no-expand-root"
-    [[ $partstart -gt $partend ]] && logtobothex "? Partition problem; Insufficient space for partition '$partnum'"
-    logtoboth "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}s end: ${partend}s"
-    parted $pdev mkpart $ptype $pname $fstype ${partstart}s ${partend}s
+    [[ $partend -gt $free_space_end ]] && flush_burnmsgsex "? Plugin $pfx: Partition problem; Try again with --no-expand-root"
+    [[ $partstart -gt $partend ]] && flush_burnmsgsex "? Plugin $pfx: Partition problem; Insufficient space for partition '$partnum'"
+    if [ $(getdisktype $pdev) == "dos" ] && [[ $partnum -ge 4 ]]
+    then
+	ptype="logical"
+        if [[ $partnum -eq 4 ]]
+        then
+            # We have to create an extended partition first. We don't know if more partitions will need to be created
+            # after this, so, if we create a primary partition, the user will be locked out of accessing any free space.
+            write_burnmsg "> Plugin $pfx: Partition $partnum - creating extended partition to fill remaining available space."
+            extpartend=${spartend%s}
+            write_burnmsg "> Plugin $pfx: Make extended partition $partnum start: ${partstart}s end: ${extpartend}s"
+	    write_burnmsg "  Consider using burn switch --gpt"
+            pdocmd "parted $pdev mkpart extended ${partstart}s ${extpartend}s"
+            errifrc $? "? parted mkpart error"
+            sync ; sleep 1 ; sync
+            partnum=$((partnum+1))
+            pdname="$(getspname $pdev $partnum)"
+            partstart=$((partstart+2048))
+        fi
+    fi
+    write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}s end: ${partend}s"
+    if [ "$fstype" == "vfat" ]
+    then
+        pdocmd "parted $pdev mkpart $ptype $pname fat32 ${partstart}s ${partend}s"
+    else
+        pdocmd "parted $pdev mkpart $ptype $pname $fstype ${partstart}s ${partend}s"
+    fi
     errifrc $? "? parted mkpart error"
-    sync ; sleep 1 ; sync
-    logtoboth "> Plugin $pfx: Wipe existing file system on $pdname"
-    wipefs -a $pdname
-    logtoboth "> Plugin $pfx: Make '$fstype' file system on partition $pdname"
+    sync ; sleep 1 ; partprobe
+    write_burnmsg "> Plugin $pfx: Wipe existing file system on $pdname"
+    pdocmd "wipefs --all --force $pdname"
+    write_burnmsg "> Plugin $pfx: Make '$fstype' file system on partition $pdname"
     if [ "$fslabel" != "" ]
     then
 	case "$fstype" in
+            # Set LABEL to value provided by user
+            # Set PARTLABEL to match partition type. Ref: sgdisk -L 
 	    fat16|fat32|vfat)
-		mkfslabel="-n $fslabel"
-		;;
-	    *)
-		mkfslabel="-L $fslabel"
-		;;
-	esac
+                mkfslabel="-n ${fslabel^^}"
+                partlabel="Microsoft basic data"
+                ;;
+            hfs)
+                mkfslabel="-v $fslabel"
+                partlabel="Apple HFS/HFS+"
+                ;;
+            linux-swap)
+                partlabel="Linux swap"
+                ;;
+            ntfs)
+                mkfslabel="-q -L $fslabel"
+                partlabel="Microsoft basic data"
+                ;;
+            reiserfs) # Not supported but leave this for now
+                mkfslabel="-q -l $fslabel"
+                partlabel="Linux filesystem"
+                ;;
+            udf)
+                mkfslabel="-l $fslabel"
+                partlabel="Microsoft basic data"
+                ;;
+            *)
+                mkfslabel="-q -L $fslabel"
+                partlabel="Linux filesystem"
+                ;;
+        esac
     fi
     case "$fstype" in
-	#swap)
-	    #mkswap $pdname
-	    #errifrc $? "? mkswap error"
-	    #;;
+        linux-swap)
+            pdocmd "sgdisk -c $partnum:'$partlabel' $pdev"
+            pdocmd "mkswap -L '$fslabel' $pdname"
+            errifrc $? "? mkswap ${fstype} creation error"
+            ;;
 	*)
-	    mkfs.${fstype} $mkfslabel $pdname
-	    errifrc $? "? mkfs.${fstype} error"
-	    ;;
+            case "$fstype" in
+                fat16)
+                    altfstype="fat -F 16"
+                    ;;
+                fat32)
+                    altfstype="fat -F 32"
+                    ;;
+            esac
+            pdocmd "mkfs.${altfstype:-$fstype} $mkfslabel $pdname"
+            errifrc $? "? mkfs.${fstype} error"
+            pdocmd "sgdisk -c $partnum:'$partlabel' $pdev"
+            ;;
     esac
     sync ; sleep 1 ; sync
+    addtofstab "$pdev" "$partnum" "$mntpt" "$fstype"
     return 0
 }
 
 function dopartition() {
     #
-    # $1: value: size[,partitiontype][,fstype][,fslabel]
+    # $1: value: size[,fstype][,mntpt][,fslabel]
     # $2: burndev
     # $3: burnfilefile
     #
     local pinfo="$1" bdev="$2" bfile="$3"
-    local psize ptype fstype fslabel
+    local psize fstype mntpt fslabel
+    local altfstype="" hostpn="" apmsg=""
     
-    IFS="," read -r psize fstype ptype fslabel <<< "$pinfo"
-    #logtoboth "> Plugin $pfx: Do Partition: psize:'$psize' ptype:'$ptype' fstype:'$fstype' fslabel:'$fslabel'"
-    [ "$(type -p mkfs.${fstype})" == "" ] && logtobothex "? Unrecognized file system type '$fstype'"
+    IFS="," read -r psize fstype mntpt fslabel <<< "$pinfo"
+    if [[ "$mntpnt" != "" ]] && [[ "|primary|extended|" =~ $mntpt ]]
+    then
+	write_burnmsg "% Plugin $pfx: Argument partitiontype has changed to mount point; ignoring '$mntpnt'"
+	mntpnt=""
+    fi
+    write_burnmsg "> Plugin $pfx: Do Partition: psize:'$psize' fstype:'$fstype' mntpt:'$mntpt' fslabel:'$fslabel'"
+    case "$fstype" in
+	exfat)
+	    hostpn=exfatprogs
+	    ;;
+        fat16|fat32)
+            altfstype=fat
+	    hostpn=dosfstools
+            ;;
+	btrfs)
+	    hostpn=btrfs-progs
+	    ;;
+	hfs)
+	    hostpn=hfsprogs
+	    ;;
+	ntfs)
+	    hostpn=ntfs-3g
+	    ;;
+	swap)
+	    fstype=linux-swap
+	    ;;
+	udf)
+	    hostpn=udftools
+	    ;;
+	xfs)
+	    hostpn=xfsprogs
+	    ;;
+	*)
+	    ;;
+    esac
+
+    [ "$hostpn" != "" ] && apmsg="; sudo apt install '$hostpn' on host system and and try again" 
+    [[ "$(type -p mkfs.${altfstype:-$fstype})" != "" ]] || [[ "$fstype" == "linux-swap" ]] || flush_burnmsgsex "? Plugin $pfx: Unrecognized file system type '$fstype' $apmsg"
+
     if [ "$bdev" != "" ]
     then
-	makepartition $bdev "$psize" "$ptype" "$fstype" "$fslabel"
+	makepartition $bdev "$psize" "$fstype" "$mntpt" "$fslabel"
     else
-	imgmakepartition $bfile "$psize" "$ptype" "$fstype" "$fslabel"
+	imgmakepartition $bfile "$psize" "$fstype" "$mntpt" "$fslabel"
     fi
 }
 
@@ -253,16 +503,12 @@ vldargs="|burndev|burnfilefile|imgtype|rootexpand|addpartition|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
-# Redefine logtoboth so it just does an echo as the log is inaccessible from now on
-
-function logtoboth() {
-    echo "$1"
-}
-
 if [ "$phase" == "burn-complete" ]
 then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
-    plugin_printkeys
+    write_burnmsg "* Plugin $pfx: Start Phase burn-complete"
+    declare -a burnmsg
+    plugin_printkeys "" write_burnmsg
     if [ -v rootexpand ]
     then
 	if [ "$burndev" != "" ]
@@ -271,22 +517,21 @@ then
 	    #
 	    # Fix up partuuid's if this is a gpt disk
 	    #
-	    updategptrootfs $burndev
+	    #?? updategptrootfs $burndev
 	else
-	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && logtobothex "? Invalid rootexpand value '$rootexpand'"
+	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && flush_burnmsgsex "? Plugin $pfx: Invalid rootexpand value '$rootexpand'"
 	    if [ $rootexpand -ne 0 ]
 	    then
 		checknumeric $rootexpand
 		expandpartitionfile "$burnfilefile" "$rootexpand" || exit
 	    else
-		logtobothex "? Plugin $pfx: rootexpand=0 is not supported on a --burnfile"
+		flush_burnmsgsex "? Plugin $pfx: rootexpand=0 is not supported on a --burnfile"
 	    fi
 	fi
     fi
     if [[ -v addpartition ]] && [[ "$addpartition" != "" ]]
-       # value: size[,fstype][,partitiontype][,label]
-       # type: primary|logical|extended
-       # fstype: btrfs|ext2|ext3|ext4|fat16|fat32|hfs|hfs+|linux-swap|ntfs|reiserfs|udf|xfs
+       # value: size[,fstype][,mntpt][,label]
+       # fstype: btrfs|ext2|ext3|ext4|exfat|fat16|fat32|hfs|linux-swap|swap|ntfs|udf|vfat|xfs
        # label: string
     then
 	if [ "${addpartition:0:1}" == "@" ]
@@ -301,7 +546,7 @@ then
 		    [ "$line" != "" ] && dopartition "$line" "$burndev" "$burnfilefile"
 		done < $fn
 	    else
-		logtobothex "? Plugin $pfx: Unable to read addpartition file '$fn'"
+		flush_burnmsgsex "? Plugin $pfx: Unable to read addpartition file '$fn'"
 	    fi
 	else
 	    IFS="+" read -a items <<< "$addpartition"
@@ -310,7 +555,79 @@ then
 		dopartition "$pinfo" "$burndev" "$burnfilefile"
 	    done
 	fi
-
     fi
-    exit 0
+    write_burnmsg "* Plugin $pfx: Complete Phase burn-complete"
+    flush_burnmsgs
 fi
+exit 0
+
+# CHANGES FROM SDM 13.10
+#   mjsmall   d13 at dthirteen.com
+#   These contributions to the sdm project are licenced under the same terms:
+#     https://github.com/gitbls/sdm/blob/master/LICENSE
+#
+# [ Device & Image ]
+#
+# * Enabled adding a swap partition.
+#   Usage:
+#     --burn-plugin parted:"addpartition=16384,linux-swap,,Swap"
+#   * Adds a 16GiB swap partition with label 'Swap'.
+#
+# * Enabled all other filesystem support, per documentation, with the exception of hfs+. mkfs.hfs only creates
+#   a hfs+ filesystem anyway. 'hfs+' gets caught up in IFS="+" when processing addpartition args, causing
+#   errors. The simplest solution is to remove 'hfs+' from the documentation.
+#
+# [ Device Only ]
+#
+# * When using addpartition with MBR, the 4th partition is now created as extended, filling available free space. The
+#   user's chosen filesystem is then created as logical partition 5. All subsequent partitions are created as logical.
+#   This has deprecated ptype as an argument to addpartition.
+#   * ptype is still used internally, however positional args have been removed from function inputs.
+#   * No IMG support: We don't know the final size of the destination, so how do we size the extended partition? Thus,
+#     IMG files are limited to 4 primary partitions using this plugin.
+#
+# * Added new addpartition arg: mntpt (replaces ptype). A user settable mount point for use in fstab.
+#   * Updates needed to documentation as new format is size[,fstype][,mntpt][,fslabel] for both MBR and GPT.
+#   * In conjunction with below, the expectation is that if users also create the mount points with the --mkdir plugin,
+#     they will only need to review fstab and uncomment the entry.
+#   * No IMG support: mntpt is available to imgmakepartion(), however I have decided not to add support for fstab entries.
+#
+# * Add an entry to destination fstab after formatting each partition.
+#   * linux-swap creates a reasonably sane entry that will activate swap on system boot. It first checks for an existing
+#     entry and, if found, comments it out.
+#   * All others are commented out, acting as a placeholder:
+#     PARTUUID, mntpt or partnum [default], fstype, and basic mount options.
+#   * End users generating "exotic" partition types are assumed to know what they are doing and should check
+#     relevant documentation for fstab entries that better match their needs.
+#   * The algorithm allows for easy expansion or alterations, including setting different default options per fstype.
+#   * Shouldn't interfere with the --system plugin's fstab feature.
+#   * No IMG support: I suspect after an IMG is burned it will need new UUIDs etc generated. It would be premature to
+#     add fstab entries at this stage. A user could easily use the sdm post-install script feature to add these.
+#   Entries will be in the following arrangment:
+#     '16384,linux-swap,,MySwap'
+#     '2048,ext4'
+#     '1024,ext4,/data/backups,MyBackups'
+#     MBR partition table:
+#       PARTUUID=2e400ae1-03  none             swap    defaults,nofail  0       0
+#       #PARTUUID=2e400ae1-04  /mnt/p4/ext4     ext4    defaults,errors=remount-ro,noatime        0       2
+#       #PARTUUID=2e400ae1-05  /data/backups    ext4    defaults,errors=remount-ro,noatime        0       2
+#     GPT partition table:
+#       PARTUUID=6baae53f-e1ab-4649-bae8-eeb8273bcf79  none            swap    defaults,nofail  0       0
+#       #PARTUUID=6f73f5a2-a41a-4604-b431-e77a5c8d02fc  /mnt/p4/ext4     ext4    defaults,errors=remount-ro,noatime        0       2
+#       #PARTUUID=cedb6374-9f9f-4e9a-b051-17c61cbfc012  /data/backups    ext4    defaults,errors=remount-ro,noatime        0       2
+#
+# * Removed redundant mkfs.${fstype} test at the start of mkpartition(). This is checked in dopartition().
+#
+# MATURITY
+# * Development environment:
+#     R-Pi 5 16GB, RasPiOS Bookworm Lite 2024-11-19, RasPi 128GB A2 SD card, Argon ONE V3 NVMe case, Kingston NV3 4TB drive, sdm 13.10.
+# * Only tested burning to a 4TB NVMe device and simple IMG files.
+# * Have tested with and without --gpt conversion:
+#   * GPT: Boots from NVMe and enables swap. Total 15 partitions - bootfs, rootfs, and 1 of each kind of fs.
+#   * MBR: Boots from NVMe and enables swap. Total 16 partitions (3x primary, 1x extended, 12x logical) - filesystems as above.
+# * IMG support is limited compared to physical devices.
+#
+# TODO TODO
+# * Needs testing with MBR, 4+ partitions, and burn devices with capacities < 2TiB.
+# * Needs wider testing, overall.
+

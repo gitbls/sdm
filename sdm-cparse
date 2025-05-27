@@ -287,17 +287,17 @@ function installviapip() {
     # $4: Message to logtoboth
     local pkg=$1 vpip3="$2" options="$3" msg="$4"
     # Use --ignore-installed b/c we def want it to be installed!
-    logtoboth "$msg"
+    [ "$msg" != "" ] && logtoboth "$msg"
     echo "" >> /etc/sdm/apt.log
-    outlong "$vpip3 install --ignore-installed $pkg" /etc/sdm/apt.log
+    outlong "$vpip3 install $options --ignore-installed $pkg" /etc/sdm/apt.log
     echo "" >> /etc/sdm/apt.log
     if [[ "$poptions" =~ "nologdates" ]]
     then
-	$vpip3 install --ignore-installed $pkg 2>&1 | tee -a /etc/sdm/apt.log
+	$vpip3 install --ignore-installed $options $pkg 2>&1 | tee -a /etc/sdm/apt.log
 	sts=$?
     else
 	# Technique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
-	{ { { { $vpip3 install --ignore-installed $pkg 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+	{ { { { $vpip3 install --ignore-installed $options $pkg 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
 	sts=$?
     fi
     [[ "$poptions" =~ "nologdates" ]] && td="" || td="$(thisdate) "
@@ -359,7 +359,7 @@ function getfsdf() {
     # $1: fs name
     # $2: df component: pcent, avail, etc
     #
-    echo $(df --output=$2 $1 | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))
+    echo $(df --output=$2 $1 2>/dev/null | tail -1 | (IFS="%" ; read a ; a="${a% }" ; a="${a# }" echo $a))
 }
 
 function logfreespace() {
@@ -840,11 +840,12 @@ function plugin_printkeys() {
     # Print the keys found. plugin_getargs returns the list of found keys in $foundkeys
     # Assumes $pfx:plugin name, $foundkeys:list of keys found, keys set up from plugin_getargs
     # $1: List of keys to redact each separated by vbar
+    # $2: function for output (logtoboth[D], etc)
     #
-    redactkeys="|$1|"
+    local redactkeys="|$1|" msgfn=${2:-logtoboth}
     if [ "$foundkeys" != "" ]
     then
-	logtoboth "> Plugin $pfx: Keys/values found:"
+	$msgfn "> Plugin $pfx: Keys/values found:"
 	IFS="|" read -a fargs <<< "$foundkeys"
 	for c in "${fargs[@]}"
 	do
@@ -852,7 +853,7 @@ function plugin_printkeys() {
 	    kn="${c//__/-}"
 	    kval="${!c}"
 	    [[ "$redactkeys" =~ "$c" ]] && [[ $fredact -eq 1 ]] && kval="REDACTED"
-	    logtoboth "   ${kn}: $kval"
+	    $msgfn "   ${kn}: $kval"
 	done
     fi
 }
@@ -1555,6 +1556,12 @@ function getdisktype() {
             break
         fi
     done < <(sfdisk -l $dev)
+}
+
+function getdiskbytes() {
+    local dev=$1 line d1 dm dgb1 dgb2 gbs junk
+    IFS=" " read d1 dm dgb1 dgb2 gbs junk < <(sfdisk -l $dev | head -n 1)
+    echo $gbs
 }
 
 function isgpt() {

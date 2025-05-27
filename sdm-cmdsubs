@@ -312,6 +312,13 @@ function sdm_burndevfile() {
 	! sfdisk -l $burndev >/dev/null 2>&1 && errexit "? Cannot access '$burndev'; is there a disk in the drive?"
 	bsize=$(stat --printf %s $dimg)
 	write_burnmsg "> Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
+	diskbytes=$(getdiskbytes $burndev)
+	if [[ $fgpt -eq 0 ]] && [[ $diskbytes -ge 2000000000000 ]]  # Force most 2TB disks to GPT
+	then
+	    write_burnmsg "% Convert disk '$burndev' (>=2TB) to GPT"
+	    fgpt=1
+	    [ "$cvtrootfs" == "" ] && cvtrootfs=ext4
+	fi
 	olddiskid="$((blkid -o value $dimg) | (read id ; echo $id))"
 	if [ "$cvtrootfs" == "" ]
 	then
@@ -601,7 +608,7 @@ EOF
 	    expandpartition $burndev 0 echo $cvtrootfs
 	fi
 	writediskids
-	if [ "$cvtrootfs" != "" ]
+	if [[ "$cvtrootfs" != "" ]] && [[ "$cvtrootfs" != "ext4" ]]
 	then
 	    errexit "? Sorry for the late notice but --convert-root requires an sdm-enhanced IMG"
 	fi
