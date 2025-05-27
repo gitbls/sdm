@@ -266,7 +266,7 @@ EOF
 else
     echo "* /etc/sdm/cparams exists; Not overwriting"
 fi
-pkgs="binfmt-support gdisk keyboard-configuration parted qemu-user-static rsync systemd-container uuid"
+pkgs="binfmt-support gdisk keyboard-configuration parted qemu-user-static realpath rsync systemd-container uuid"
 echo "* Ensure required packages are installed: $pkgs"
 [[ $EUID -ne 0 ]] && sudo="sudo"
 $sudo apt-get install --yes --no-install-recommends $pkgs
