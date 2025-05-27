@@ -35,7 +35,7 @@ quietness:consoleblank=300|noquiet=keep|nosplash=keep|noplymouth
 L10n:host
 ```
 
-When using a pluglist file the argument list should not be quoted (`"`). This is only needed on the command line to keep bash from doing silly things.
+One key benefit of using a pluglist file is the argument list does not need to be quoted (`"`). This is only needed on the command line to keep bash from doing silly things.
 
 Plugins are run in the order they are encountered on the command line or the plugin @file,
 
@@ -275,7 +275,7 @@ copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 
 #### Examples
 
 * `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
-* `--plugin copyfile:"filelist=/usr/local/bin/`. The list of files in the provided `filelist` will be processed per above.
+* `--plugin copyfile:"filelist=/usr/local/bin/myfileslist"`. The list of files in the provided `filelist` will be processed per above.
 
 ### cryptroot
 
@@ -418,7 +418,7 @@ Clones the specified repository to the specified directory.
 
 #### Examples
 
-* `--plugin git-clone:"repo=https://github.com/gitbls/sdm|gitdir=/home/bls/work/sdm|user=bls|logspace` &mdash; Clone the sdm repo into /home/bls/work/sdm as user bls. Disk space will be logged before and after the clone.
+* `--plugin git-clone:"repo=https://github.com/gitbls/sdm|gitdir=/home/bls/work/sdm|user=bls|logspace"` &mdash; Clone the sdm repo into /home/bls/work/sdm as user bls. Disk space will be logged before and after the clone.
 
 ### graphics
 
@@ -447,7 +447,7 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 #### Examples
 
-* `--plugin graphics:"graphics=X11|nodmconsole` &mdash; Installs the X11 core components and disables the Display Manager on the console
+* `--plugin graphics:"graphics=X11|nodmconsole"` &mdash; Installs the X11 core components and disables the Display Manager on the console
 * `--plugin graphics:"videomode=HDMI-A-1:1920x1280@60D"` &mdash; Sets the specified video mode in /boot/firmware/cmdline.txt
 
 ### hotspot
@@ -476,7 +476,7 @@ The hotspot plugin configures the specified wireless device or USB0 to be a hots
 * `--plugin hotspot:"hsname=myhotspot|wifissid=myssid|wifipassword=mypassword|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot named `myhotspot` on wlan0 (the default), with SSID `myssid` and password `mypassword`, forwarding IP traffic to `eth0`.
 * `--plugin hotspot:"device=wlan1|hsname=myhotspot|ipforward=eth0|hsenable|type=routed|dhcpmode=none|wlanip=10.6.0.1"` &mdash; Configure a routed hotspot on wlan1. wlan1's IP address will be set to 10.6.0.1, and you must configure your own DHCP server using, for instance, dnsmasq or the sdm plugin `ndm`
 
-    **Example** using the ndm plugin to configure dnsmasq:
+    **Example** using the ndm plugin to configure dnsmasq (in pluglist format):
     `ndm:dhcpserver=dnsmasq|dnsserver=dnsmasq|dobuild|doinstall|dhcprange=10.6.0.2,10.6.0.100|domain=me|externaldns=1.1.1.1|gateway=10.6.0.1|myip=10.6.0.1|hostname=myap|dnsfqdn=myap.me|mxfqdn=myap.me|timeserver=10.6.0.1|netdev=wlan0|enablesvcs`
 
 * `--plugin hotspot:"device=usb0|hsname=myusbhotspot|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot on usb0 so it can be a tethering host
@@ -576,7 +576,7 @@ The best way to use this plugin is:
 * `--plugin labwc:"all-config=/path/to/labwc-config-dir"
 * `--plugin labwc:"app-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
 * `--plugin labwc:"lhmouse|user=someuser"`
-* `--plugin labwc:"labwc-config=autostart:/path/to/autostart,environment=/path/to/environment`
+* `--plugin labwc:"labwc-config=autostart:/path/to/autostart,environment=/path/to/environment"`
 
 ### logwatch
 
@@ -758,27 +758,58 @@ Using the `parted` burn plugin implicitly sets `--no-expand-root` when used on a
 
 #### Arguments
 
-* **rootexpand** &mdash; Expand the root partition by the number of MiB specified as the value for this argument. A value of 0 expands the partition to fill the disk. A value of 0 is not allowed when used with `--burnfile`
-* **addpartition** &mdash; Adds another partition at the end of the IMG. Arguments: size[fstype][,partitiontype,] where:
+* **rootexpand** &mdash; Expand the root partition by the number of MiB specified as the value for this argument. A value of 0 expands the partition to fill the disk. A value of 0 is not allowed when used with `--burnfile`. If specified, `rootexpand` must be used before any `addpartition` arguments.
+* **addpartition** &mdash; Adds another partition at the end of the IMG. Arguments: size[fstype][,mountpoint,] where:
     * `size` is the number of MiB for the partition
-    * `fstype` is the type of file system. Supported file systems are: `btrfs`, `ext2`, `ext3`, `ext4` [default], `fat16`, `fat32`, `hfs`, `hfs+`, `ntfs`, `reiserfs`, `udf`, and `xfs`. Some file systems may require you to install additional apt packages on the host before running this plugin
-    * `partitiontype` is one of `primary` [default], `logical`, or `extended`
+    * `fstype` is the type of file system. Supported file systems are: `btrfs`, `ext2`, `ext3`, `ext4` [default], `fat16`, `fat32`, `hfs`, `linux-swap`, `ntfs`, `udf`, `vfs`, and `xfs`. Some file systems may require you to install additional apt packages on the host before running this plugin
+    * `mountpoint` is the location in the filesystem where you expect to mount your new partition. This will be added to fstab, and is optional.
     * NOTE: Multiple partitions can be named on the command line by separating them with `+`. See example below.
 
 #### Examples
 
 * `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4"` &mdash; Expand the RasPiOS root partition by 2048MiB and add a 1024MiB ext4 partition
-* `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4+2048,btrfs"`  &mdash; Expand the RasPiOS root partition by 2048MiB and add: a 1MiB ext4 partition and a 1024MiB btrfs partition
+* `--burn-plugin parted:"rootexpand=2048|addpartition=1024,ext4+2048,btrfs,/data/backups,MyBTRFS"`  &mdash; Expand the RasPiOS root partition by 2048MiB and add: a 1024MiB ext4 partition and a 2048MiB btrfs partition
 * `--burn-plugin parted:"rootexpand=1024|addpartition=@/path/to/partition-list"` where the file partition-list has one line for each partition to be added in the form: `nnnn,fstype,partitiontype,label`
 
 #### Example partition-list file
 
-This is a sample file for the addpartition=@/path/to/partition-list directive. It will expand the root partition by 2048MiB (2GiB) add a 1MiB partition and ext4 file system, and a 4MiB partition and btrfs file system. This method enables easily adding multiple partitions with a single plugin invocation, so the ability to use `+` for multiple partitions mentioned above does not work in a partition-list file.
+This is a sample file for the addpartition=@/path/to/partition-list directive. It will expand the root partition by 2048MiB (2GiB) add a 1024MiB partition and ext4 file system, a 4096MiB partition and btrfs file system, and a 16GiB Swap partition. This method enables easily adding multiple partitions with a single plugin invocation, so the ability to use `+` for multiple partitions mentioned above does not work in a partition-list file.
 
 ```
 1024,ext4,,ext4label
-4096,btrfs,,btrfslabel
+4096,btrfs,/data/backups,btrfslabel
+16384,linux-swap,,swaplabel
 ```
+If you enable `--gpt`, and use `addpartition` to create one of every partition type, without adding optional mount points your /etc/fstab will look something like (note, however that a mount point was specified for the first btrfs partition, hence is preceded by a commented notice to alert that the mount point directory /mybtrfs was not created.
+
+```
+proc            /proc           proc    defaults          0       0
+PARTUUID=c352087d-56a1-4dca-ad2e-e8a8fd0979fc  /boot/firmware  vfat    defaults          0       2
+PARTUUID=35cadb8e-949c-4bad-89e2-d942a13c5dd8  /               ext4    defaults,noatime,commit=300  0       1
+PARTUUID=b98b8d45-2d03-4d6e-b02f-aa5ff6cc5bdf  none             swap    defaults,nofail 0       0
+#** Create mount point '/mybtrfs' before uncommenting this VV fstab entry
+#PARTUUID=a834c0dd-a717-4c1e-8094-366f3b22b282  /mybtrfs                btrfs   defaults,noatime        0       0
+#PARTUUID=de934be9-ad00-451a-8d8b-7df2ccb8ee7b  /mnt/p5/btrfs           btrfs   defaults,noatime        0       0
+#PARTUUID=172a749a-7e6a-405e-806d-3de45dcf6787  /mnt/p6/ext2            ext2    defaults,errors=remount-ro,noatime      0       2
+#PARTUUID=5c41fe01-7299-4e95-92ed-501f8b332116  /mnt/p7/ext3            ext3    defaults,errors=remount-ro,noatime      0       2
+#PARTUUID=3397c0e0-954c-45c1-9647-11d3104016e6  /mnt/p8/ext4            ext4    defaults,errors=remount-ro,noatime      0       2
+#PARTUUID=a0eaa88b-2d1e-4a18-9266-e4c94ee9e583  /mnt/p9/fat16           vfat    defaults,noatime        0       0
+#PARTUUID=94ad3300-2a73-43e6-a1b0-c72c3b9c5aba  /mnt/p10/fat32          vfat    defaults,noatime        0       0
+#PARTUUID=71ebc6f1-04e0-4f2d-8337-e12f2059529c  /mnt/p11/vfat           vfat    defaults,noatime        0       0
+#PARTUUID=5d71f86d-1baa-4ab7-8433-40f4d48506b7  /mnt/p12/hfs            hfs     defaults,noatime        0       0
+#PARTUUID=2c3bee4f-47cf-4aaf-b882-f8d041d72fe8  /mnt/p13/ntfs           ntfs    defaults,noatime        0       0
+#PARTUUID=16e7158f-aba4-45b0-abe0-3e80fa128ff8  /mnt/p14/udf            udf     defaults,noatime        0       0
+#PARTUUID=4020da32-ac0e-43f0-8775-231e5da6dfd7  /mnt/p15/xfs            xfs     defaults,noatime        0       0
+```
+#### Notes
+* The `parted` plugin can only create up to 4 partitions when burning to an IMG, and conversion to GPT partition table is not supported
+* Partition type `hfs` creates a HFS+ partition
+* The `parted` burn plugin adds an entry to /etc/fstab for each additional partition. These won't interfere with use of the `system` plugin's `fstab` feature if you also use that.
+    * `linux-swap`: Provides an uncommented fstab entry so that your swap partition will activate on boot
+       * All others: If the specified mount point does not exist, the entry is commented out, but provides useful information such as the PARTUUID, partition number, and filesystem type. The other settings are sane for most partitions, although you should check they meet your needs.
+       * If you create your mount point during `customize` or `burn` with the `mkdir` plugin before the `parted` plugin runs, the partition will be uncommented and effective when the system boots. If the directory does not exist, you should only need to create the directory later, edit /etc/fstab, uncomment the line, and check the mount options to complete the process
+       * Be sure to check that fstab is set how you want. Refer to man swapon(8), mount(8), and fstab(5) for additional information
+
 
 ### piapps
 
@@ -862,8 +893,8 @@ postfix installs the postfix mail server. This plugin installs the postfix serve
 
 #### Examples
 
-* `--plugin postfix:"maincf=/path/to/my-postfix-main.cf` &mdash; Uses a fully-configured main.cf, and postfix will be ready to go.
-* `--plugin postfix:"relayhost=smtp.someserver.com|mailname=mydomain.com|rootmail=myemail@somedomain.com` &mdash; Set some of the postfix parameters, but more configuration will be required to make it operational. A good reference will be cited here at some point.
+* `--plugin postfix:"maincf=/path/to/my-postfix-main.cf"` &mdash; Uses a fully-configured main.cf, and postfix will be ready to go.
+* `--plugin postfix:"relayhost=smtp.someserver.com|mailname=mydomain.com|rootmail=myemail@somedomain.com"` &mdash; Set some of the postfix parameters, but more configuration will be required to make it operational. A good reference will be cited here at some point.
 
 ### quietness
 
@@ -1118,7 +1149,7 @@ These configuration items affect the SSH service.
 
 The `sshhostkey` plugin allows the generation new or import of existing SSH host keys.
 Importing SSH host keys is useful to generate images with deterministic keys.
-Generating SSH host keys during an sdm customize or burn can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS.
+Generating SSH host keys during an sdm customize or burn can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS. Note, however, that unless you fully understand the ramifications of multiple hosts sharing SSH host keys, if the customized IMG is to be used by multiple host systems, you should only use the `sshhostkey` plugin  during burn so that each host has unique SSH host keys.
 
 #### Arguments
 
@@ -1127,7 +1158,7 @@ Generating SSH host keys during an sdm customize or burn can be beneficial becau
 
 #### Examples
 
-* `--plugin sshhostkey:"generate-keys` &mdash; Generate a new set of host keys.
+* `--plugin sshhostkey:"generate-keys"` &mdash; Generate a new set of host keys.
 * `--plugin sshhostkey:"import-keys=/path/to/hostkeys"` &mdash; Copy `ssh_host_*_key` and `ssh_host_*_key.pub` files from the specified host directory to the Pi's /etc/ssh/ directory
 * `--plugin sshhostkey:"generate-keys|import-keys=/path/to/hostkeys"` &mdash; Useful to import a subset (e.g. RSA only) keys, and re-create the rest. 
 
@@ -1227,7 +1258,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 
 * `--plugin system:"cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2"`
 * `--plugin system:"systemd-config=timesync=/path/to/timesync.conf,user=/path/to/user.conf|service-disable=svc1,svc2"`
-* `--plugin system:"name=s1|cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2" --plugin system:"name=s2|fstab=myfstab`
+* `--plugin system:"name=s1|cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2" --plugin system:"name=s2|fstab=myfstab"`
 
 ### trim-enable
 
@@ -1365,6 +1396,39 @@ Plugins are run in the order they are specified on the command line. I recommend
   * If using `--plugin` on the command line, the dollar sign characters must be quoted using a backslash (`\$`)
   * Alternatively, use a `userlist` file as described <a href="#overview-and-handling-multiple-accounts">here</a>, or use `--plugin @/path/to/pluglist` as described <a href="#invoking-a-plugin-on-the-sdm-command-line">here.</a>
 
+### venv
+
+ Use the `venv` plugin to do perform one or two python virtual environment (venv) functions:
+* Optionally create and populate the venv. If you want to create the venv use one of `create` or `createif`. The venv will be crated and populated.
+* Optionally pip install one or more packages via `install`, `requirements`, or both
+
+#### Arguments
+
+`path` is required. All other arguments are optional.
+
+* **chown** &mdash; Set the `owner:group` of all files in the created venv as specified by the `chown` value
+* **create** &mdash; Create the venv at the provided path. Fail if it already exists.
+* **createif** &mdash; Create the venv at the provided path if it doesn't exist. Fail if it already exists and is not a venv ($path/pyenv.cfg doesn't exist)
+* **createoptions** &mdash; Switches to add to the `python -m venv` command (e.g., `--system-site-packages`; see <a href="https://docs.python.org/3/library/venv.html"> Creating virtual environments</a>)
+* **install** &mdash; Comma-separated list of pip modules to install
+* **installoptions** &mdash; Switches to add to the `pip install` command (see `sudo pip install --help | less`)
+* **list** &mdash; After the venv has created, list the installed modules with `pip list`
+* **path** &mdash; Path to venv directory specifies the path to the venv
+* **requirements** &mdash; /path/to/requirements-file. See <a href="https://pip.pypa.io/en/stable/reference/requirements-file-format/">Requirements file format</a>
+* **runphase** &mdash; Specify the phase when the venv should be created. Values are `phase1` or `post-install`
+* **pyver** &mdash; Specify the python version. Not currently used, and set to "3"
+* **name** &mdash; Name to use for the venv asset storage. Default is the *filename* of the `path`. Must be used if, for instance two venv invocations create venvs with the same directory name in the same IMG customization
+
+**NOTES:**
+* The venv is always created by root. Use the `chown` argument to set different file ownership
+* `--requirement` and `--constraint` are not supported in requirements.txt files. Use `-r` and/or `-c`
+* If provided, a requirements file may use `-r` and/or `-c`. Those files, however, may NOT have any further nesting.
+
+#### Examples
+
+* `--plugin venv:"path=/usr/local/bin/myvenv|create|install=urllib3,requests"` &mdash; Installs modules `urllib3` and `requests` 
+* `--plugin venv:"path=/home/bls/myvenv|create|list|chown=bls:users|install=urllib3,requests|requirements=/ssdy/work/myrqs.txt"` &mdash; Installs modules `urllib3`, `requests` and any modules listed in the requirements.txt file.
+
 ### vnc
 
 Install and configure either or both of Virtual VNC and RealVNC.
@@ -1381,7 +1445,7 @@ Only one of tigervnc or tightvnc can be installed and configured on a system by 
 
 #### Examples
 
-* `--plugin vnc:"realvnc|tigervnc=1280x1024,1600x1200` &mdash; Install RealVNC server for the console and tigervnc virtual desktop servers for the specified resolutions.
+* `--plugin vnc:"realvnc|tigervnc=1280x1024,1600x1200"` &mdash; Install RealVNC server for the console and tigervnc virtual desktop servers for the specified resolutions.
 * `--plugin vnc:"realvnc=1600x1200"` &mdash; Install RealVNC server and configure the console for 1600x1200, just as raspi-config VNC configuration does.
 * `--plugin vnc:"tigervnc=1024x768,1600x1200,1280x1024"` &mdash; Install tigervnc virtual desktop servers for the specified resolutions. Only configure RealVNC if it is already installed (e.g., RasPiOS with Desktop IMG).
 
