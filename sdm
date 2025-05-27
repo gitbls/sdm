@@ -150,6 +150,7 @@ Command Switches for --customize and --burn or as noted
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
  --expand-root       Expand the root partition after burning it to a device
  --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
+ --gpt               Create GPT partition table (instead of MBR). Use with --burn
  --groups list,of,groups Use this list of groups as the default for the user plugin
                      [dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio]
  --host hostname     Hostname to write onto the storage device with --burn
@@ -181,7 +182,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V13.10"
+version="V13.11"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -438,6 +439,7 @@ cscript="$(fndotfullpath $cscript)"
 [[ $fexplore -eq 1 ]] && [[ $fshrink -eq 1 ]] && errexit "? Switch conflict: --explore and --shrink"
 [[ $fgpt -eq 1 ]] && [[ $burn -ne 1 ]] && errexit "? Switch conflict: --gpt only valid with --burn"
 [[ "$cvtrootfs" != "" ]] && [[ $burning -ne 1 ]] && errexit "? Switch conflict: --convert-root only valid with --burn"
+[[ $fgpt -eq 1 ]] && [[ "$cvtrootfs" == "" ]] && cvtrootfs=ext4
 [[ $fppart -eq 1 ]] && [[ $((burning+fcustomize+fexplore+fdomount+fshrink)) -ne 0 ]] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
 [[ $fencrypted -eq 1 ]] && [[ $((fdomount+fexplore)) -eq 0 ]] && errexit "? Switch conflict: --encrypted only valid with --explore and --mount"
 if [ "$aptmaint" != "" ]
@@ -457,7 +459,7 @@ fi
 if [ $((aptfunction+burning+fcustomize+fexplore+fdomount+fshrink+fppart+frunonly)) -eq 0 ]
 then
     # Handle --extend only 
-    [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --mount, --runonly)"
+    [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, --version)"
     fextendonly=1
 fi
 [[ "$src" != "" ]] && [[ ! -d "$src" ]] && errexit "? sdm source directory '$src' not found"

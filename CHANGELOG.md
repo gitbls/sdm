@@ -1,5 +1,17 @@
 # Changelog
 
+## V13.11
+
+* New Features
+  * Plugin `venv` creates and populates a python virtual environment. <a href="Docs/Plugins.md#venv">venv plugin documentation</a>
+  * Automatically force GPT disk format when burning to a disk GE 2TB (Thanks @mjsmall for the idea!)
+* Improvements
+  * `parted` plugin improvements  (Thanks @mjsmall!)
+    * Can create a swap partition
+    * **NOTE:** Incompatible change! Less-than-useful `partitiontype` argument removed in favor of mount point support
+  * rootfs crypto works on 4kb pagesize Pi5 with rpi-eeprom version 27.8-1 and later
+* Bug Fixes
+
 ## V13.10
 
 * New Features
