@@ -1,0 +1,195 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: venv
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+#
+# requirements file
+# * Copy to assets
+#   * parse and if there are -c or -r in them:
+#     * now what?
+# 
+# * When creating venv
+#   * Copy requirements file to venv
+#   * Is it just to install stuff? If so: pip install -r requirements.txt
+#     Appears to be. Do this in addition to `install`
+# 
+#
+#
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function dovenv() {
+    #
+    # Perform the requested functions
+    #
+    # create or createif
+    # createoptions for the python -m venv $path
+    # pyver
+    # optional pip list command at end
+    function venvpline() {
+	local line
+	while read line
+	do
+	    logtoboth "  $line"
+	    echo $line >> /usr/local/bin/logit.txt
+	done
+    }
+    local pip python fcreate=0
+
+    python="python${pyver}"
+    pip="pip${pyver}"
+
+    [ -f $path ] && logtobothex "? Plugin $pfx: Path '$path' exists and is a file"
+    if [ "$create" != "" ]
+    then
+	[ -d $path ] && logtobothex "? Plugin $pfx: Path '$path' exists"
+	fcreate=1
+    elif [ "$createif" != "" ]
+    then
+	if [ -d $path ]
+	then
+	    [ -f $path/pyvenv.cfg ] || logtobothex "? Plugin $pfx: Path '$path' exists but does not appear to be a python venv"
+	else
+	    fcreate=1
+	fi
+    fi
+
+    if [ $fcreate -eq 1 ]
+    then
+	copt=""
+	[ "$createoptions" != "" ] && copt=" with create options '$createoptions'"
+	logtoboth "> Plugin $pfx: Create venv '$path'$copt"
+	$python -m venv $createoptions $path
+    fi
+
+    [[ ! -d $path ]] || [[ ! -f $path/pyvenv.cfg ]] && logtobothex "? Plugin $pfx: Python venv $path does not exist"
+
+    if [[ "$install" != "" ]] || [[ "$requirements" != "" ]]
+    then
+	if [ "$requirements" != "" ]
+	then
+	    brq="$assetdir/rqmnt-$(basename $requirements)"
+	    [ -f $brq ] || logtobothex "? Plugin $pfx: Expected requirements file '$brq' not found"
+	    srq="-r $brq"
+	fi
+	if [ "$install" != "" ]
+	then
+	    install=${install//,/ }
+	    logtoboth "> Plugin $pfx: Install packages '$install' in venv '$path'"
+	fi
+	[ "$installoptions" != "" ] && logtoboth "  with install options '$installoptions'"
+	[ "$brq" != "" ] && logtoboth "> Plugin $pfx: Install requirements.txt '$brq'"
+	installviapip "$install" "$path/bin/$pip" "$srq $installoptions" "" || logtobothex "? Error returned from 'pip install $install' ($?)"
+    fi
+
+    if [ "$chown" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Change owner of path $path to '$chown'"
+	chown -R $chown $path
+    fi
+    if [ "$list" != "" ]
+    then
+	logtoboth "> Plugin $pfx: $pip list venv '$path'"
+	{ { { {  $path/bin/$pip list 2>&1; echo $? >&3; } | venvpline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+    fi
+}
+
+function converty() {
+    [ -v create ]   && create=y
+    [ -v createif ] && createif=y
+    [ -v list ]   && list=y
+    [ -v runphase ] && runphase=${runphase,,}
+    [ ! -v pyver ] && pyver=3
+    [ "$name" == "" ] && name=$(basename $path)
+    assetdir=$assetdir/$name
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|chown|create|createif|createoptions|install|installoptions|list|name||path|requirements|runphase|pyver|"
+rqdargs="|path|"                   # |list|of|required|args|or|nullstring|
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+
+    plugin_printkeys
+    converty
+    [ -d $assetdir ] && logtobothex "? Plugin $pfx: A venv with the name '$(basename $path)' already exists"
+    mkdir -p $assetdir
+    if [ "$requirements" != "" ]
+    then
+	if [ -f $requirements ]
+	then
+	    brq=$(basename $requirements)
+	    arq="orig-rqmnt-$brq"
+	    cp $requirements $assetdir/$arq
+	    if grep -q -E "^-r |^-c " $requirements
+	    then
+		# Scan the requirements file for -r and -c and process them
+		while read line
+		do
+		    if [[ "$line" =~ ^-(r|c) ]]
+		    then
+			IFS=" " read rpfx nrq <<< $line
+			[ ! -f $nrq ] && logtobothex "? Plugin $pfx: Nested requirements/constraint file '$nrq' not found"
+			bnrq=$(basename $nrq)
+			[ "$rpfx" == "-r" ] && pfn="nrqmt" || pfn="ncnst"
+			line="$rpfx /etc/sdm/assets/$pfx/$name/$pfn-$bnrq"
+			cp $nrq $assetdir/$pfn-$bnrq
+		    fi
+		    echo $line >> $assetdir/rqmnt-$brq
+		done < $assetdir/$arq
+	    else
+		cp $assetdir/$arq $assetdir/rqmnt-$brq
+	    fi
+	else
+	    logtobothex "? Plugin $pfx: Requirements file '$requirements' not found"
+	fi
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    converty
+    [ "$runphase" == "" ] && runphase=phase1
+    [ "$runphase" == "phase1" ] && dovenv
+    #logfreespace "at start of Plugin $pfx Phase 1"
+
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    converty
+    [ "$runphase" == "post-install" ] && dovenv
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
