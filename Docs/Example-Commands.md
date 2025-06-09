@@ -12,7 +12,7 @@
 
 * `sudo sdm --burn /dev/sdc --host sky --plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|crypto=aes|ssh" 2024-03-15-raspios-bookworm-arm64.img --expand-root --regen-ssh-host-keys`
 
-    As above, burn the IMG to the disk. After the burn completes, run the `cryptroot` plugin to prepare to encrypt the rootfs. See <a href="Docs/DiskEncryption.md">Disk Encryption</a> for complete details on this plugin. Running `cryptroot` at burn time facilitates easily building Pi systems with or without rootfs encryption.
+    As above, burn the IMG to the disk. After the burn completes, run the `cryptroot` plugin to prepare to encrypt the rootfs. See <a href="Disk-Encryption.md">Disk Encryption</a> for complete details on this plugin. Running `cryptroot` at burn time facilitates easily building Pi systems with or without rootfs encryption.
 
 * `sudo sdm --explore 2024-03-15-raspios-bookworm-arm64.img`
 
