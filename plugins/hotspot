@@ -495,11 +495,12 @@ then
         nmcli c up $hsname
         nmcli c up "$hsname-br0"
         nmcli c up "$hsname-bridge-slave-$fwdev"
+    fi
 fi
 if [ "$hsenable" == "y" ] && pgrep systemd >/dev/null 2>&1
 then
-    [ -f /etc/systemd/system/sdm-hotspot-portal.service ] && logger sdm FirstBoot: Enable and start Portal service" && systemctl enable --now sdm-hotspot-portal >/dev/null 2>&1
-    [ -f /etc/systemd/system/sdm-hotspot-masquerade.service ] && logger sdm FirstBoot: Enable and start hotspot nftables service" && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
+    [ -f /etc/systemd/system/sdm-hotspot-portal.service ] && logger "sdm FirstBoot: Enable and start Portal service" && systemctl enable --now sdm-hotspot-portal >/dev/null 2>&1
+    [ -f /etc/systemd/system/sdm-hotspot-masquerade.service ] && logger "sdm FirstBoot: Enable and start hotspot nftables service" && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
 fi
 EOF
     fi
