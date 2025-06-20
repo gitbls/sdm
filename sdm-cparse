@@ -129,11 +129,33 @@ function logapterror() {
     logtobothex "? apt returned an error; review /etc/sdm/apt.log"
 }
 
+function extractlogs() {
+    local rdir=$(realpath $extractlogdir)
+
+    logtoboth "> Copy sdm logs to $rdir"
+    for fn in apt.log history
+    do
+	if [ -f $SDMPT/etc/sdm/$fn ]
+	then
+	    if [ -f $rdir/$fn ]
+	    then
+		logtoboth "% Delete existing host file $rdir/$fn"
+		rm -f $rdir/$fn
+	    fi
+	    logtoboth "> Copy /etc/sdm/$fn to host file $rdir/$fn"
+	    cp $SDMPT/etc/sdm/$fn $rdir
+	else
+	    logtoboth "% $SDMPT/etc/sdm/$fn not present"
+	fi
+    done
+}
+
 function doapt() {
     #
     # $1 is apt command
     # $2 is $showapt value
     # $3 is optional apt command [D:apt-get]
+    # $4 is additional options for apt command (e.g., "-o=APT::Get::Assume-Yes=true -o=Dpkg::Progress-Fancy=false -oDpkg::Options::=--force-confnew"
     #
     function pline() {
 	local line
@@ -143,23 +165,23 @@ function doapt() {
 	done
     }
 
-    local aptcmd="$3" sts td
+    local aptcmd="$3" sts td options="$4"
     [ "$aptcmd" == "" ] && aptcmd="apt-get -qq"
     echo "" >> /etc/sdm/apt.log
     outlong "$aptcmd $1" "/etc/sdm/apt.log"
     echo "" >> /etc/sdm/apt.log
     if [ "$2" == "1" ]
     then
-	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1 | tee -a /etc/sdm/apt.log
+	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1 2>&1 | tee -a /etc/sdm/apt.log
 	sts=$?
     else
 	if [[ "$poptions" =~ "nologdates" ]]
 	then
-	    DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 >> /etc/sdm/apt.log 2>&1
+	    DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1 >> /etc/sdm/apt.log 2>&1
 	    sts=$?
 	else
 	    # Technique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
-	    { { { { DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $1 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+	    { { { { DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
 	    sts=$?
 	fi
     fi
@@ -1274,9 +1296,9 @@ function sdm_spawn() {
         if [ "$cmd" == "/bin/bash" ]
         then
             # Bash is touchy for some reason. This works, so good for now
-	    systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd
+	    SYSTEMD_COLORS=false systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd
         else
-	    systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd "$5" "$args"
+	    SYSTEMD_COLORS=false systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd "$5" "$args"
         fi
 
 	sts=$?
