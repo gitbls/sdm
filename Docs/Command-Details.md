@@ -74,6 +74,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--encrypted` &mdash; Use with the `--explore` and `--mount` commands to access encrypted disks. See <a href="Disk-Encryption.md">Disk Encryption.</a>
 * `--expand-root` &mdash; Used with `--burn`. Expands the root partition on the SSD/SD Card after burning, and disables the default (quick) first boot that does this, since sdm has already expanded the partition
 * `--extend` &mdash; Used in conjunction with the `--xmb` switch to extend an image. If used without `--customize` the IMG is extended but no other action is taken. If used with `--customize` the IMG is extended before the IMG is customized.
+* `--extract-log` */path/to/dir* &mdash; Extract the log files /etc/sdm/apt.log and /etc/sdm/history from the device or IMG and save them in the specified directory
 * `--gpt` &mdash; Directs the `--burn` command to set the burned disk to GPT partitions
 * `--groups` *grouplist* &mdash; Specify the groups to be added to new users created with the `user` plugin. The default list is: `dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio`
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.

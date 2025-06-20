@@ -18,6 +18,12 @@ sudo sdm --customize --nouser --poptions noupdate,noupgrade,noautoremove --plugi
   * `%` Warning you that something isn't quite right, but forging ahead
   * `?` An error was identified. sdm will stop operation
 
+## Easily get access to the logs within a customized IMG or burned disk
+The `--extract-log` */path/to/dir* switch will extract the logs from a customized IMG or a burned disk. The switch can be used in a few different ways:
+* By itself, as in `sudo sdm --extract-log /path/to/dir /dev/sdX` or `sudo sdm --extract-log /path/to/dir 2025-05-13-raspios-arm64-lite.img`
+* In conjunction with the `--customize` switch. The logs are extracted as the last step after the customize has completed.
+* In conjunction with the `--burn` switch. The logs are extracted as the last step after the burn has completed. **NOTE:** The switch is processed before any burn plugins are run, so their output will not be included in the extracted logs.
+
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
