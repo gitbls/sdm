@@ -184,8 +184,10 @@ function add_group() {
     IFS="," read grpname gid <<< "$addgroup"
     if [ "$gid" != "" ]
     then
+	logtoboth "> Plugin $pfx: Add group '$grpname' with gid '$gid'"
         groupadd --gid $gid $grpname
     else
+	logtoboth "> Plugin $pfx: Add group '$grpname'"
         groupadd $grpname
     fi
 }
