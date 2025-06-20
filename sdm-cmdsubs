@@ -291,7 +291,6 @@ function sdm_burndevfile() {
     declare -x SDMNSPAWN="Burn0"
     declare -a burnmsg
     fpartcopy=0
-    write_burnmsg "* Start Burn"
     burnstart="$(getcdate)"
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
     if [ $burn -eq 1 ]
@@ -299,8 +298,10 @@ function sdm_burndevfile() {
 	#
 	# Burning to a device
 	#
-	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
 	[ "$burndev" == "" ] && errexit "? No storage device specified"
+	[ ! -b $burndev ] && errexit "? '$burndev' is not a block device"
+	dtype=$(lsblk -n -o type $burndev 2>/dev/null | head -n 1)
+	[[ "$dtype" == "" ]] || [[ "$dtype" != "disk" ]] && errexit "? '$burndev' is not a block device"
 	perr=0
 	for p in 1 2 3 4 5 6 7 8
 	do
@@ -310,6 +311,7 @@ function sdm_burndevfile() {
 	[ $perr -eq 1 ] && errexit "? Use 'sudo umount' to unmount each mounted partition, then redo the burn command"
 	notmounted $burndev || errexit "? Device '$burndev' is mounted"   # one last check
 	! sfdisk -l $burndev >/dev/null 2>&1 && errexit "? Cannot access '$burndev'; is there a disk in the drive?"
+	write_burnmsg "* Start Burn"
 	bsize=$(stat --printf %s $dimg)
 	write_burnmsg "> Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
 	diskbytes=$(getdiskbytes $burndev)
@@ -380,6 +382,7 @@ EOF
 	#
 	[ "$burnfilefile" == "" ] && errexit "? No Output IMG file specified"
 	[ -f $burnfilefile ] && errexit "? Output IMG file '$burnfilefile' exists"
+	write_burnmsg "* Start Burn"
 	bsize=$(stat --printf %s $dimg)
 	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to IMG '$burnfilefile'..."
 	burnmsg+=("$(thisdate) > Burn IMG command line: $cmdline")
@@ -651,6 +654,7 @@ EOF
     write_burnmsg "* Burn Completed"
     logtoboth "> Burn elapsed time: $(datediff "$burnstart" "$(getcdate)")"
     printnotes
+    [ "$extractlogdir" != "" ] && extractlogs
     #
     # Call burn-plugins
     #
