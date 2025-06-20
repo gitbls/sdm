@@ -139,6 +139,7 @@ Command Switches for --customize and --burn or as noted
  --chroot            Use chroot rather than systemd-nspawn (for use on certain host OSes)
  --convert-root fmt  Use the specified rootfs format (btrfs, lvm) instead of ext4
  --encrypted         The rootfs is encrypted and must be decrypted by sdm
+ --extract-log dir   Extract the sdm history and apt.log to the named directory
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -182,7 +183,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V13.11"
+version="V13.12"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -220,6 +221,7 @@ fencrypted=0                #1=rootfs is encrypted
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
+extractlogdir=""            #non-null=Extract the logs to the specified directory
 fgpt=0                      #1=Convert burned device to gpt format
 fnoexpandroot=0             #1=Don't expand root partition and don't let RasPiOS do it either
 fppart=0                    #1=Print partition tables in an IMG
@@ -278,15 +280,15 @@ custom4=""                  #For custom use
 
 src=$(dirname "$(realpath "$0")")
 source $src/sdm-cparse           # Get function defs
-[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
+#[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"  # Done after cmd parse so --help works w/o sudo
 #
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,apps:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
+longopts="help,1piboot:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-root,extend,\
-gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
+extract-log:,extract-logs:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
@@ -330,6 +332,7 @@ do
 	--expand-root) expandroot=1  ; shift 1 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
 	--extend)      fextend=1     ; shift 1 ;;
+	--extract-log|--extract-logs) extractlogdir=$2 ; shift 2 ;;
 	--gpt)         fgpt=1        ; shift 1 ;;
 	--groups)      dgroups=$2    ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
@@ -373,6 +376,7 @@ do
     esac
 done
 
+[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 dimg="$1"
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
 
@@ -458,9 +462,15 @@ fi
 #
 if [ $((aptfunction+burning+fcustomize+fexplore+fdomount+fshrink+fppart+frunonly)) -eq 0 ]
 then
-    # Handle --extend only 
-    [ $fextend -eq 0 ] && errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, --version)"
-    fextendonly=1
+    if [ "$extractlogdir" == "" ]
+    then
+	if [ $fextend -eq 1 ]
+	then
+	    fextendonly=1
+	else
+	    errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, --version)"
+	fi
+    fi
 fi
 [[ "$src" != "" ]] && [[ ! -d "$src" ]] && errexit "? sdm source directory '$src' not found"
 [[ "$csrc" != "" ]] && [[ ! -d "$csrc" ]] && errexit "? Custom source directory '$csrc' not found"
@@ -602,7 +612,7 @@ then
     ecolors="$efg:$ebg:$ecursor"
 fi
 #
-# Process the command. Actions are burn, customize, mount, runonly, and standalone --extend
+# Process the command. Actions are burn, customize, mount, runonly, extract logs, and standalone --extend
 #
 trap "doexit" EXIT
 thishost="$(hostname)"
@@ -760,6 +770,10 @@ then
 	then
 	    errexit "? sdm has not customized $dimgdevname '$dimg'"
 	fi
+    elif [ "$extractlogdir" != "" ]
+    then
+	extractlogs
+	exit 0
     else
 	#
 	# Doing --explore
@@ -948,5 +962,5 @@ fi
 sdm_spawn "$nspawnsw" Phase1 "$spawncmd"
 sts=$?
 [ $icolors -eq 1 ] && icolors=0 && resetcolors xt
-
+[ "$extractlogdir" != "" ] && extractlogs
 exit $sts

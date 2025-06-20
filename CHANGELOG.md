@@ -1,5 +1,16 @@
 # Changelog
 
+## V13.12
+
+* New Features
+  * `--extract-log` switch to extract the sdm logs from an IMG or burned disk. <a href="Docs/Hints-Commands.md#easily-get-access-to-the-logs-within-a-customized-img-or-burned-disk">See here for details</a>
+* Improvements
+  * Optional new sdm installer. See <a href="https://github.com/gitbls/sdm/discussions/318">this discussion for details</a>
+  * Debian Trixie prep
+    * Prevent systemd-nspawn from gratuitously changing terminal colors
+* Bug Fixes
+  * Improve device checking when burning to correctly detect a partition name vs a device name
+
 ## V13.11
 
 * New Features
