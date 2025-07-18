@@ -562,7 +562,7 @@ function is64bit() {
 
 function ispdevp() {
     local dev="$1"
-    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme" ]] && return 0 || return 1
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme" ]] || [[ "$dev" =~ "nbd" ]] && return 0 || return 1
 }
 
 function getspname() {
