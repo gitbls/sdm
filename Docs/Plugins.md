@@ -235,7 +235,7 @@ Replace cmdline.txt with a new command line and/or modify the existing cmdline.t
 
 * `--plugin cmdline:"add=video=HDMI-A-1:1920x1080@60D"` &mdash; Add the string `video=HDMI-A-1:1920x1080@60D` to cmdline.txt
 * `--plugin cmdline:"delete=console splash"` &mdash; Remove the strings `console` and `splash` from cmdline.txt
-* `--plugin cmdline="replace="consoleblank=3600 root=PARTUUID=6ea5963a-02 rootfstype=ext4 fsck.repair=yes rootwait"` &mdash; Replace cmdline.txt with the provided new cmdline
+* `--plugin cmdline:replace="consoleblank=3600 root=PARTUUID=6ea5963a-02 rootfstype=ext4 fsck.repair=yes rootwait"` &mdash; Replace cmdline.txt with the provided new cmdline
 
 ### copydir
 
