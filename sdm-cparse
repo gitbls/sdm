@@ -137,17 +137,30 @@ function extractlogs() {
     do
 	if [ -f $SDMPT/etc/sdm/$fn ]
 	then
-	    if [ -f $rdir/$fn ]
-	    then
-		logtoboth "% Delete existing host file $rdir/$fn"
-		rm -f $rdir/$fn
-	    fi
-	    logtoboth "> Copy /etc/sdm/$fn to host file $rdir/$fn"
+	    logtoboth ">   /etc/sdm/$fn to host $rdir/$fn"
 	    cp $SDMPT/etc/sdm/$fn $rdir
 	else
-	    logtoboth "% $SDMPT/etc/sdm/$fn not present"
+	    logtoboth "%   /etc/sdm/$fn not present"
 	fi
     done
+    if [ "$extractscript" != "" ]
+    then
+	[ -f $extractscript ] || logtobothex "? Cannot find extract script '$extractscript'"
+	$extractscript
+    fi
+}
+
+function setdpkgforce() {
+    cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
+    Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+EOF
+}
+
+function clrdpkgforce() {
+    rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
 function doapt() {
@@ -561,8 +574,13 @@ function is64bit() {
 }
 
 function ispdevp() {
-    local dev="$1"
-    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme" ]] && return 0 || return 1
+    local dev="$1" dn
+
+    for dn in mmcblk nvme $xspdev
+    do
+        [[ $dev =~ $dn ]] && return 0
+    done
+    return 1
 }
 
 function getspname() {
@@ -614,11 +632,23 @@ function writeconfig() {
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
 		     redocustomize sdmdir sdmflist showapt src swapsize \
-		     timezone virtmode vqemu custom1 custom2 custom3 custom4 plugins allplugins
+		     timezone virtmode vqemu xspdev custom1 custom2 custom3 custom4 plugins allplugins
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
     [ -f $orgfile ] || cp -a $paramfile $orgfile
+}
+
+function get1config() {
+    local item="$1" cfile=$2 itemline val
+    itemline=$(grep $item $cfile)
+    if [ "$itemline" != "" ]
+    then
+	IFS=":" read item val <<< $itemline
+	echo "$(stripquotes "$val")"
+    else
+	echo ""
+    fi
 }
 
 function resetpluginlist() {
