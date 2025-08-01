@@ -136,7 +136,7 @@ function installreqs() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|country|localsrc|btwifidir|password|timeout|logfile|"
+vldargs="|country|localsrc|btwifidir|password|timeout|logfile|wificountry|"
 redactargs="password"
 loadparams
 
@@ -146,11 +146,16 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|" || exit
+    plugin_getargs $pfx "$args" "$vldargs" "|country|wifcountry|" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys "$redactargs"
+    #
+    # Check country value
+    #
+    [ "$country" == "" ] && country=$wificountry
+    ckwificountry $country || logtobothex "? Plugin $pfx: Unknown WiFi country '$country'"
     #
     # Copy the btwifiset files
     #
@@ -191,8 +196,9 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|"
+    plugin_getargs $pfx "$args" "$vldargs" "|country|wificountry|"
     #logfreespace "at start of Plugin $pfx Phase 1"
+    [ "$country" == "" ] && country=$wificountry
 
     #
     # set up password
@@ -225,6 +231,11 @@ else
 fi
 EOF
     chmod 755 $bt0
+    #
+    # Set locale wificountry if it's not already set
+    #
+    [ -f /etc/sdm/locale/wificountry ] || echo "$country" >| /etc/sdm/locale/wificountry
+
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
@@ -232,8 +243,9 @@ else
     # Plugin Post-install edits
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|"
+    plugin_getargs $pfx "$args" "$vldargs" "|country|wificountry|"
     #logfreespace "at start of Plugin $pfx Phase post-install"
+    [ "$country" == "" ] && country=$wificountry
     [ "$btwifidir" == "" ] && btwifidir="/usr/local/btwifiset"
 
     # Handle wpa_supplicant.conf
