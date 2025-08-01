@@ -272,6 +272,7 @@ then
     then
 	wificountry="$xwificountry"
     else
+	ckwificountry $wificountry || logtobothex "? Plugin $pfx: Unrecognized WiFi country '$wificountry'"
 	logtoboth "> Plugin $pfx: Set WiFi Country '$wificountry' for sdm FirstBoot"
 	echo "$wificountry" >| /etc/sdm/locale/wificountry
     fi
