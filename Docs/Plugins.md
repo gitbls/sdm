@@ -74,6 +74,12 @@ There are a couple of plugin ordering issues to be aware of.
     * If the display manager is xdm or wdm, `boot_behavior` is set: B1 or B3 per the setting of `nodmconsole`
   * Calling the `raspiconfig` plugin during burn and specifying the `boot_behavior` argument will unconditionally set the new boot behavior
 
+## WiFi device must have the WiFi country
+
+If you want to use the WiFi device either configured for a network or simply enabled, you must specify the WiFi country.
+
+Plugins `btwifi`, `L10n`, and `network` will all correctly configure the network country (and `rfkill`) if the `wificountry` argument is provided. If you simply want to have the WiFi enabled without configuring the WiFi network via any of these plugins, use `--plugin L10n:wificountry=xx`.
+
 ## Plugin-specific documentation
 
 ### sdm-plugin-template
@@ -130,9 +136,17 @@ apt-cacher-ng installs the RasPiOS apt-cacher-ng service into the IMG or onto th
 
 The default apt-cacher-ng server install uses port 3142. apt-cacher-ng will be enabled by sdm FirstBoot and ready to process requests after the FirstBoot process completes.
 
-NOTE: The apt-cacher-ng plugin installs the apt-cacher-ng *server*. The `--aptcache` command line switch configures the IMG to be an apt-cacher-ng client and use the specified apt-cacher-ng server.
+NOTE: The apt-cacher-ng plugin installs the apt-cacher-ng *server*. The `--aptcache` command line switch configures the IMG to be an apt-cacher-ng *client* and use the specified apt-cacher-ng server.
 
 The plugin configures apt as a client to use itself as the apt caching server. This is typically not what you want on every system, so consider using `--plugin apt-cacher-ng` on the `--burn` command line for those systems that will be actually be deployed as apt caching servers.
+
+#### NOTES
+
+Unfortunately the `apt-cacher-ng` package has some issues. These show up at totally random times in cacher clients as "invalid hash" or "check DiMaxRetries" and probably some other strange and wondrous messages.
+
+Quite annoying, but even so, I think `apt-cacher-ng` is still much better than waiting for apt downloads unless you're on a super-fast connection and have high-speed connectivity between you and the apt servers.
+
+When `apt-cacher-ng` craps out, login on the caching server and issue the following command: `sudo reset-apt-cacher`, and then try the client operation again. The `apt-cacher-ng` plugin installs `reset-apt-cacher` during customization.
 
 ### apt-file
 
@@ -182,7 +196,8 @@ btwifiset is a service that enables WiFi SSID and password configuration over Bl
 
 #### Arguments
 
-* **country** &mdash; The WiFi country code. This argument is mandatory
+* **country** &mdash; The WiFi country code. This argument OR **wificountry** is mandatory
+* **wificountry** &mdash; Another way to specify the WiFi country code, compatible with other plugins
 * **localsrc** &mdash; Locally accessible directory where the btwifiset.py can be found, instead of downloading from GitHub
 * **btwifidir** &mdash; Directory where btwifiset will be installed. [Default: */usr/local/btwifiset*]
 * **password** &mdash; Password to use for encrypted bluetooth communication [Default: Host name on which btwifiset runs after boot]
@@ -235,7 +250,7 @@ Replace cmdline.txt with a new command line and/or modify the existing cmdline.t
 
 * `--plugin cmdline:"add=video=HDMI-A-1:1920x1080@60D"` &mdash; Add the string `video=HDMI-A-1:1920x1080@60D` to cmdline.txt
 * `--plugin cmdline:"delete=console splash"` &mdash; Remove the strings `console` and `splash` from cmdline.txt
-* `--plugin cmdline="replace="consoleblank=3600 root=PARTUUID=6ea5963a-02 rootfstype=ext4 fsck.repair=yes rootwait"` &mdash; Replace cmdline.txt with the provided new cmdline
+* `--plugin cmdline:"replace="consoleblank=3600 root=PARTUUID=6ea5963a-02 rootfstype=ext4 fsck.repair=yes rootwait"` &mdash; Replace cmdline.txt with the provided new cmdline
 
 ### copydir
 
@@ -470,9 +485,16 @@ The hotspot plugin configures the specified wireless device or USB0 to be a hots
 * **wifissid** &mdash; WiFi hotspot SSID [D:MyPiNet]
 * **wlanip** &mdash; IP address of the hotspot in routed mode when `dhcpmode` == `none` [D:""]. `wlanip` is ignored in bridged mode and routed mode if `dhcpmode` == `nm` (the default)
 
+These 3 arguments are used to augment the NetworkManager config settings for the hotspot or bridge. The argument string is taken *as is* and fed to an appropriate `nmcli` command. See the example below.
+
+* **hotspot-add-config** &mdash; Add the specified config settings to the NetworkManager hotspot (routed or bridged hotspot)
+* **bridge-add-config** &mdash; Add the specified config settings to the NetworkManager bridge (bridged hotspot)
+* **bridge-slave-add-config** &mdash; Add the specified config settings to the NetworkManager bridge slave (bridged hotspot)
+
 #### Examples
 
 * `--plugin hotspot` &mdash; Create a routed hotspot named Hotspot on wlan0 with WiFi SSID 'MyPiNet', password 'password'. NetworkManager will use its internal DHCP server. wlan0's IP address will be set to the NetworkManager default (10.42.0.1). No IP forwarding is configured. The hotspot will be enabled.
+* `--plugin hotspot:"hotspot-add-config=802-11-wireless.hidden true"` &mdash; As above, but add `802-11-wireless.hidden true` to the hotspot configuration. `bridge-add-config` and `bridge-slave-add-config` operate similarly.
 * `--plugin hotspot:"hsname=myhotspot|wifissid=myssid|wifipassword=mypassword|ipforward=eth0|hsenable|type=routed"` &mdash; Configure a routed hotspot named `myhotspot` on wlan0 (the default), with SSID `myssid` and password `mypassword`, forwarding IP traffic to `eth0`.
 * `--plugin hotspot:"device=wlan1|hsname=myhotspot|ipforward=eth0|hsenable|type=routed|dhcpmode=none|wlanip=10.6.0.1"` &mdash; Configure a routed hotspot on wlan1. wlan1's IP address will be set to 10.6.0.1, and you must configure your own DHCP server using, for instance, dnsmasq or the sdm plugin `ndm`
 
@@ -948,7 +970,7 @@ See <a href="https://www.raspberrypi.com/documentation/computers/configuration.h
 * **powerled**
 * **proxy**
 * **rgpio**
-* **serial**
+* **serial** &mdash; Deprecated. See the <a href="Plugins.md#serial">serial plugin</a>
 * **spi**
 * **xcompmgr**
 
@@ -1149,7 +1171,9 @@ These configuration items affect the SSH service.
 
 The `sshhostkey` plugin allows the generation new or import of existing SSH host keys.
 Importing SSH host keys is useful to generate images with deterministic keys.
-Generating SSH host keys during an sdm customize or burn can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS. Note, however, that unless you fully understand the ramifications of multiple hosts sharing SSH host keys, if the customized IMG is to be used by multiple host systems, you should only use the `sshhostkey` plugin  during burn so that each host has unique SSH host keys.
+Generating SSH host keys during an sdm customize or burn can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS.
+
+Note, however, that unless you fully understand the ramifications of multiple hosts sharing SSH host keys, if the customized IMG is to be used by multiple host systems, you should only use the `sshhostkey` plugin during burn so that each host has unique SSH host keys.
 
 #### Arguments
 
@@ -1171,8 +1195,9 @@ The `sshkey` plugin creates an SSH key or imports an SSH key for a user. In eith
 * **sshuser** &mdash; The user for whom the SSH key is targeted. The user must already exist
 * **authkey** &mdash; Add the created SSH public key to `sshuser`'s ~/.ssh/authorized_keys
 * **import-key** &mdash; Instead of creating an SSH key, import the specified SSH key from the provided file in the host OS
+* **import-pubkey** &mdash; Import the provided SSH public key and add it to `sshuser`'s ~/.ssh/authorized_keys. The key is not checked in any way
 * **keyname** &mdash; Name the key that is to be created
-* **keytype** &mdash; Type of key to create. Accepted values: `dsa`, `ecdsa`, `ecdsa-sk`, `ed25519`, `ed25519-sk`, `rsa`. [Default: `ecdsa`]
+* **keytype** &mdash; Type of key to create. Accepted values: `ecdsa`, `ecdsa-sk`, `ed25519`, `ed25519-sk`, `rsa`. [Default: `ecdsa`]
 * **passphrase** &mdash; Passphrase to secure the SSH key. The same passphrase is used when creating a putty key
 * **putty-keyname** &mdash; If specified, create a putty key in ~/.ssh with the provided key name
 
@@ -1259,6 +1284,12 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 * `--plugin system:"cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2"`
 * `--plugin system:"systemd-config=timesync=/path/to/timesync.conf,user=/path/to/user.conf|service-disable=svc1,svc2"`
 * `--plugin system:"name=s1|cron-d=/path/to/crondscript|exports=/path/to/e1,/path/to/e2" --plugin system:"name=s2|fstab=myfstab"`
+
+#### Notes
+
+If you're having issues with settings in your `systemd-config` files, here are two handy infobits:
+* The command `sudo systemd-analyze cat-config systemd/service.conf` (where *service* is one of journald, logind, networkd, pstore, sleep, system, timesyncd, or user) will display the settings in precedence order. This is very handy in sorting out what config file is providing which setting.
+* The files in /lib/systemd/*service*.conf.d and /etc/systemd/*service*.conf.d appear to have their files unified and processed in ascending alphabetical order. For instance,with /lib/systemd/journal.conf.d/70-xx.conf and /etc/systemd/journal.conf.d/030-xx.conf, 030-xx.conf is processed *first*, so any settings in 70-xx.conf will override settings in 030-xx.conf. 
 
 ### trim-enable
 
