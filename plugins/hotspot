@@ -104,7 +104,7 @@ EOF
 
 function writehsconfig() {
     rm -f $assetdir/config
-    IFS="|" read -r -a optlist <<< "${vldargs#|}"
+    IFS="|" read -r -a optlist <<< "${hsdargs#|}"
     for a in "${optlist[@]}"
     do
 	if [ "$a" != "config" ]
@@ -232,10 +232,10 @@ function fillupcfg() {
     # Default any missing arguments
     #
     local pval a optlist
-    IFS="|" read -r -a optlist <<< "${vldargs#|}"
+    IFS="|" read -r -a optlist <<< "${hsdargs#|}"
     for a in "${optlist[@]}"
     do
-	if [ "${!a}" == "" ]
+	if [[ "${!a}" == "" ]] 
 	then
 	    case "$a" in
 		#
@@ -315,6 +315,9 @@ function cfgnetman() {
 	[ "$wlanip" != "" ] && ipad="ipv4.addresses $wlanip/24" || ipad=""
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-routed.sh <<EOF
 #!/bin/bash
+#
+# Configure a routed hotspot on device '$device'
+#
 function getnwtype() {
     #
     # \$1: network device name
@@ -356,6 +359,7 @@ logger "\$(nmcli c show)"
 logger "sdm FirstBoot: Before configuration [active]:"
 logger " \$(nmcli c show --active)"
 nmcli device down $device >/dev/null 2>&1
+# Create hotspot
 if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname' for device $device"
@@ -364,7 +368,9 @@ else
     logger "sdm FirstBoot: Create hotspot '$hsname' for device $device"
     nmcli c add ifname $device con-name $hsname type ethernet
 fi
+# Configure the hotspot
 nmcli c modify $hsname ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
+[ "$hotspot__add__config" != "" ] && { logger "sdm FirstBoot: Update hotspot $hsname config: $hotspot__add__config" ; nmcli c modify $hsname $hotspot__add__config ; }
 nmcli c down $hsname >/dev/null 2>&1
 [[ "\$excname" != "" ]] && [[ "$acsts" == "on" ]] && logger "sdm FirstBoot: Stop connection '\$excname'" && nmcli c down "\$excname" >/dev/null 2>&1
 nmcli c reload
@@ -389,6 +395,9 @@ EOF
 	[ "$ipforward" == "" ] && fwdev="eth0" || fwdev="$ipforward"
 	cat > $SDMPT/etc/sdm/0piboot/092-nm-hotspot-bridged.sh <<EOF
 #!/bin/bash
+#
+# Configure a bridged hotspot on device '$device' bridging traffic to '$fwdev'
+#
 function getnwtype() {
     #
     # \$1: network device name
@@ -448,20 +457,24 @@ done < <(compgen -G "/etc/NetworkManager/system-connections/*.nmconnection")
 logger "sdm FirstBoot: Stop 'Wired connnection 1'"
 nmcli c down "Wired connection 1" >/dev/null 2>&1
 
+#
+# Create and configure bridge $hsname-br0
+#
 logger "sdm FirstBoot: Create bridge '$hsname-br0'"
 nmcli c add ifname "$hsname-br0" type bridge con-name "$hsname-br0" bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1 autoconnect $acsts
+[ "$bridge__add__config" != "" ] && { logger "sdm FirstBoot: Update hotspot bridge $hsname-br0 config: $bridge__add__config" ; nmcli c modify $hsname-br0 $bridge__add__config ; }
 #nmcli c show "$hsname-br0"  > /root/"$hsname-br0".nmcli
 #nmcli c down "$hsname-br0"
-
+#
+# Create the bridge slave $hsname-bridge-slave-$fwdev with bridge $hsname-br0 as its master 
+#
 logger "sdm FirstBoot: Create bridge slave '$hsname-bridge-slave-$fwdev'"
 nmcli c add type bridge-slave ifname $fwdev con-name "$hsname-bridge-slave-$fwdev" master "$hsname-br0" autoconnect $acsts
+[ "$bridge__slave__add__config" != "" ] && { logger "sdm FirstBoot: Update hotspot bridge slave $hsname-bridge-slave-$fwdev config: $bridge__slave__add__config" ; nmcli c modify $hsname-bridge-slave-$fwdev $bridge__slave__add__config ; }
 #nmcli c show "$hsname-bridge-slave-$fwdev"  > /root/"$hsname-bridge-slave-$fwdev".nmcli
 
-logger "sdm FirstBoot: Create bridge '$hsname-bridge-br0'"
-nmcli c add type ethernet slave-type bridge con-name "$hsname-bridge-br0" ifname $fwdev master "$hsname-br0"
-#nmcli c show "$hsname-bridge-br0"  > /root/"$hsname-bridge-br0".nmcli
-
 #?needed? connection.autoconnect-slave yes
+# Create the hotspot based on the hotspot device type (wifi or otherwise)
 if [ "\$nwtype" == "wifi" ]
 then
     logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
@@ -479,6 +492,7 @@ then
 else
     nmcli c modify $hsname slave-type bridge master "$hsname-br0" autoconnect $acsts
 fi
+[ "$hotspot__add__config" != "" ] && { logger "sdm FirstBoot: Update bridged hotspot $hsname config: $hotspot__add__config" ; nmcli c modify $hsname $hotspot__add__config ; }
 #nmcli c show $hsname  > /root/$hsname-after-modify.nmcli
 # ipv4.addresses $wlanip/24
 
@@ -524,7 +538,9 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|config|device|dhcpmode|pskencrypt|hsenable|hsname|ipforward|portal|portalif|type|wifipassword|wifissid|wlanip|"
+vldargs="|config|device|dhcpmode|pskencrypt|hsenable|hsname|ipforward|portal|portalif|type|wifipassword|wifissid|wlanip"
+hsdargs="$vldargs"  # Args that have default values
+vldargs="$vldargs|hotspot-add-config|bridge-add-config|bridge-slave-add-config|"
 rqdargs=""
 redactargs="wifipassword|wifissid"
 assetdir="$SDMPT/etc/sdm/assets/hotspot"
