@@ -3,7 +3,7 @@
 
 1piboot/1piboot.conf is a configuration file that describes RasPiOS-related configuration settings to be made in your image. Configuration settings are made when the system first boots. All of these settings use raspi-config to make the actual changes to the system. sdm does not syntax check the settings.
 
-The settings in 1piboot.conf can be controlled by editing the config file, or via the `raspiconfig` plugin. For instance, you can set `serial=0` in 1piboot.conf or you can use the `--plugin raspiconfig:"serial=0"` command switch. In addition, you can use the `raspiconfig` plugin when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file. To set multiple values, separate them with a comma: `--plugin raspiconfig:"serial=0,boot_behaviour=B4,camera=0"`
+The settings in 1piboot.conf can be controlled by editing the config file, or via the `raspiconfig` plugin. For instance, you can set `camera=0` in 1piboot.conf or you can use the `--plugin raspiconfig:"camera=0"` command switch. In addition, you can use the `raspiconfig` plugin when you customize the image and override the setting when you `--burn` the SD Card or `--burnfile` a new IMG file. To set multiple values, separate them with a comma: `--plugin raspiconfig:"boot_behaviour=B4,camera=0"`
 
 ## First Boot configuration settings
 
