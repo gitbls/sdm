@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# V13.12
+# V14.1
 #
 # install-sdm Run from the bash command line:
 #
@@ -36,7 +36,12 @@ myscript="$0 $@"
 [ "$3" != "" ] && repo="$3" || repo="gitbls/sdm"
 [ "$4" != "" ] && tarball="$4" || tarball=""
 
-
+[ "$1" == "help" ] && echo $"install-sdm help:
+$0 release-name install-directory repo-name saved-local-tarball
+  release-name: Release to install (D:latest)
+  install-directory: Target install directory (D:/usr/local/sdm)
+  repo-name: Source GitHub repo (D:gitbls/sdm)
+  saved-local-tarball: /path/to/local/sdm.tar.xz (D:"")" && exit
 sudo=""
 if [ -d $dir ]
 then
@@ -57,7 +62,7 @@ $sudo mkdir -p $dir/{1piboot,plugins,local-plugins}
 #v="--verbose" # list files as they're extracted
 if [ "$tarball" == "" ]
 then
-    src="https://github.com/$repo/releases/$release/download/sdm.tar.xz"
+    [ "$release" == "latest" ] && src="https://github.com/$repo/releases/latest/download/sdm.tar.xz" || src="https://github.com/$repo/releases/download/$release/sdm.tar.xz"
     echo "* Download sdm tarball from '$src' and install in '$dir'"
     curl --fail --silent --show-error -L $src | $sudo tar --extract --xz $v --file - --overwrite -C $dir || errexit "? Error ($?) downloading/untarring the sdm tarball"
 else
@@ -144,9 +149,12 @@ EOF
 else
     echo "* $etc/sdm/cparams exists; Not overwriting"
 fi
+[[ $EUID -ne 0 ]] && sudo="sudo"
+echo "* Update apt"
+$sudo apt update
 pkgs="binfmt-support coreutils gdisk keyboard-configuration parted qemu-user-static rsync systemd-container uuid"
 echo "* Ensure required packages are installed: $pkgs"
-[[ $EUID -ne 0 ]] && sudo="sudo"
+echo "> Install any needed packages"
 $sudo apt-get install --yes --no-install-recommends $pkgs
 
 echo ""
