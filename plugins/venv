@@ -64,7 +64,7 @@ function dovenv() {
 	copt=""
 	[ "$createoptions" != "" ] && copt=" with create options '$createoptions'"
 	logtoboth "> Plugin $pfx: Create venv '$path'$copt"
-	$python -m venv $createoptions $path
+	docmdlog "$python -m venv $createoptions $path" /etc/sdm/apt.log || logtobothex "? Plugin $pfx: Python venv create returned an error"
     fi
 
     [[ ! -d $path ]] || [[ ! -f $path/pyvenv.cfg ]] && logtobothex "? Plugin $pfx: Python venv $path does not exist"
