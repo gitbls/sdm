@@ -1,5 +1,23 @@
 # Changelog
 
+## V14.1
+
+* New Features
+  * The new `install-sdm` tool is now the recommended installer. All docs now refer to this new installer. EZsdmInstaller remains but will be removed in a future version.
+  * `hotspot` plugin has new arguments to augment default nmcli config for hotspot, bridge master, and bridge slave. See <a href="Docs/Plugins.md#hotspot">here</a> for details.
+* Improvements
+  * `clockfake` plugin now forks so it can do a last gasp system time update as system shuts down
+  * Update `labwc` plugin and `sdm-collect-labwc-config` for Trixie
+  * `sshkey` plugin has new `import-pubkey` argument that provides a public key to add to the specified user's authorized_keys
+  * Rename journald logging config file created by the `system` plugin to ensure it wins the systemd config search path bingo
+  * `sdm --version`, `sdm --help`, and `sdm --info` do not require `sudo`
+  * Add `--extract-script` to extend `--extract-log`
+  * Accomodate other devices that get partition names with '**p***n*' appended to them (ala nvme and mmcblk). See <a href="Docs/Disks-Partitions.md#device-names">here</a> for details.
+* Bug Fixes
+  * Capture `venv` plugin venv creation output in /etc/sdm/apt.log
+  * Correctly identify bad WiFi country names
+  * Remove the `serial` argument from plugin `raspiconfig`. Use the `serial` plugin.
+
 ## V13.12
 
 * New Features
