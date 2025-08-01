@@ -8,9 +8,9 @@ sdm, written in Bash, is largely Linux distro-independent and is completely 32-v
 
 As of sdm V7.2, sdm itself can now be run on x86_64 Debian-like distros. In addition, sdm running on 32-bit ARM can now operate on 64-bit ARM RasPiOS images. sdm also runs on the <a href="Using-sdm-on-Windows-WSL.md">Windows Subsystem for Linux</a>)
 
-In order to do image customization or use `--explore` on an image when running on a non-RasPiOS host (e.g., x86 or x86_64), the following packages must be installed. EZsdmInstaller installs these packages, and is the recommended method for installing sdm. See <a href="Detailed-Installation-Guide.md">Installing sdm</a>
+In order to do image customization or use `--explore` on an image when running on a non-RasPiOS host (e.g., x86 or x86_64), the following packages must be installed. `install-sdm` installs these packages, and is the recommended method for installing sdm. See <a href="Detailed-Installation-Guide.md">Installing sdm</a>
 ```sh
-    sudo apt install qemu-user-static binfmt-support systemd-container parted
+apt install binfmt-support coreutils gdisk keyboard-configuration parted qemu-user-static rsync systemd-container uuid
 ```
 These components enable image customization and `--explore` on an RasPiOS image. If this doesn't work on your Linux system, it may be too old and lacking updated support or fixes. I have tested this on Ubuntu 20.04, and it's able to operate on both RasPiOS 32 and 64-bit images. 
 
@@ -23,6 +23,7 @@ Running on **x64 Debian-like distros**, sdm can also perform all functions. Howe
 ## Pi hardware-specific issues
 
 * Pi5 (at least): Running a 32-bit host OS and customizing a 32-bit IMG fails spectularly. See <a href="https://github.com/gitbls/sdm/issues/268">this issue</a> for further information.
+
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
