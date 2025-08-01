@@ -36,10 +36,6 @@ user:deluser=pi
 # Add a new user ** change 'myuser' and 'mypassword' **
 user:adduser=myuser|password=mypassword
 
-# Install btwifiset (Control Pi's WiFi from your phone)
-# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#btwifiset
-btwifiset:country=US|timeout=30
-
 # Install apps
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#apps
 apps:name=mybrowsers|apps=firefox,chromium-browser
