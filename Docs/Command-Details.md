@@ -75,6 +75,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--expand-root` &mdash; Used with `--burn`. Expands the root partition on the SSD/SD Card after burning, and disables the default (quick) first boot that does this, since sdm has already expanded the partition
 * `--extend` &mdash; Used in conjunction with the `--xmb` switch to extend an image. If used without `--customize` the IMG is extended but no other action is taken. If used with `--customize` the IMG is extended before the IMG is customized.
 * `--extract-log` */path/to/dir* &mdash; Extract the log files /etc/sdm/apt.log and /etc/sdm/history from the device or IMG and save them in the specified directory
+* `--extract-script` */path/to/script* &mdash; Run the provided script when extracting log information. Can be used for correctness checking, etc.
 * `--gpt` &mdash; Directs the `--burn` command to set the burned disk to GPT partitions
 * `--groups` *grouplist* &mdash; Specify the groups to be added to new users created with the `user` plugin. The default list is: `dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio`
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
@@ -85,10 +86,14 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--plugin plugin-name:"arguments"` &mdash; Include the named plugin with its arguments. sdm interprets a plugin name that starts with **"@"** as a file containing a list of plugins to include See <a href="Plugins.md">Plugins</a> for complete plugin details
 * `--plugin-debug` &mdash; Enable additional debug printout in plugins (useful for plugin development)
-* `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. Possible values include:
+* `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. `--apt-options` and `--poptions` are synonyms. Possible values include:
     * **noautoremove** &mdash; do not do an `apt autoremove`
+    * **nologdates** &mdash; do not include date/times in apt.log
     * **noupdate** &mdash; do not do an `apt update`
     * **noupgrade** &mdash; do not do an `apt upgrade`
+    * **none** &mdash; set noupdate,noupgrade,noautoremove
+    * **confold** &mdash;always keep old unmodified copy of a config file without prompting
+    * **confdef** &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
 
     Enter multiple values as a single string separated by commas. For example `--poptions noupdate,noupgrade`
 
