@@ -34,6 +34,33 @@ Using `--convert-root lvm` causes `--gpt` to be set.
 * `sdm --burn /dev/sdc --convert-root btrfs --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn the IMG to /dev/sdc with a `btrfs` file system for rootfs
 * `sdm --burn /dev/sdc --gpt --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn the IMG to /dev/sdc with a GPT partition table
 
+## Device names
+
+In Linux *old-style* device names were more like **/dev/sda** or **/dev/sdb**, and partitions were a number added to the end of the disk (e.g., **/dev/sda1**). Newer devices, such as **/dev/mmcblk0** and **/dev/nvme0** have added a controller number to the device name. For instance **/dev/nvme0** is the first NVMe disk and **/dev/nvme1** is the second NVMe disk.
+
+sdm needs to know about *special* device names such as `mmcblk` and `nvme` in order to refer to partitions correctly. It has built-in knowledge of these two disk type names. If you need to add an additional disk type name (e.g., `nbd`), follow these steps:
+* On the **host** system where you run sdm, sudo edit /etc/sdm/cparams and add a new parameter at the end:
+```
+xspdev:"nbd"
+```
+This directs sdm to treat `nbd` as a special device name so you can refer to **/dev/nbd0** for the first `nbd` device, **/dev/nbd1** for the second device, etc. Partitions on this device will be named **/dev/nbd0p1**, that is, treated exactly like `mmcblk` and `nvme`.
+
+You can enable multiple such names with:
+```
+xspdev:"nbd xyz"
+```
+
+## rootfs expansion
+
+sdm provides control over the rootfs expansion, whereas rpi-imager always expands the rootfs during an early first boot of the OS.
+
+Supported scenarios include:
+
+* **Expand rootfs after burning the disk.** Use `--expand-root`. The system will boot with the rootfs fully-expanded.
+* **Do not expand rootfs after burning the disk.** Use `--no-expand-root`. You can perform further partition manipulation using the `parted` plugin on the burn command such as: resize rootfs, add additional partitions, etc.
+* **Expand rootfs the same way that rpi-imager does.** Do not add any rootfs expansion-related switches to the command line. The system will boot and immediately expand the rootfs, regenerate SSH keys, and reboot. You must define at least one user with the `user` plugin and include `--plugin disables:piwiz` on either the customize or burn command.
+
+In the first two cases, you should include `--regen-ssh-host-keys` on either the customize or burn command or use the `sshhoskey` plugin to ensure that the SSH host keys are generated. If you do either of these in the third case (rpi-imager model) the SSH host keys will always be generated during the first (zeroth in sdm terms) system boot.
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
