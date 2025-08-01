@@ -26,7 +26,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|sshuser|authkey|import-key|keyname|keytype|passphrase|putty-keyname|"
+vldargs="|sshuser|authkey|import-key|import-pubkey|keyname|keytype|passphrase|putty-keyname|"
 rqdargs="sshuser"                   # |list|of|required|args|or|nullstring|
 vkeytypes="ecdsa|ecdsa-sk|ed25519|ed25519-sk|rsa|"
 redactargs="passphrase"
@@ -48,6 +48,12 @@ then
 	[ -f $import__key ] || logtobothex "? Plugin $pfx: Import key file '$import__key' not found"
 	logtoboth "> Plugin $pfx: Copy import-key file '$import__key' to $assetdir"
 	cp $import__key $assetdir
+    fi
+    if [ "$import__pubkey" != "" ]
+    then
+	[ -f $import__pubkeykey ] || logtobothex "? Plugin $pfx: Import pubkey file '$import__pubkey' not found"
+	logtoboth "> Plugin $pfx: Copy import-pubkey file '$import__pubkey' to $assetdir"
+	cp $import__pubkey $assetdir
     fi
     [ "$keytype" == "" ] && keytype=ecdsa
     [[ "$vkeytypes" =~ "$keytype|" ]] || logtobothex "> Plugin $pfx: Unrecognized ssh key type '$keytype'"
@@ -72,17 +78,26 @@ then
 	
     if [ "$import__key" == "" ]
     then
-	[ "$keytype" == "" ] && keytype=ecdsa
-	[ -v authkey ] && authkey=y
-	[ -n "$authkey" ] && aks=" and add public key to authorized_keys"
-	logtoboth "> Plugin $pfx: Create key '$keyname' type '$keytype' for user '$sshuser'$aks"
-	makesshdir
-	rm -f $xhdir/.ssh/$keyname $xhdir/.ssh/$keyname.pub
-	ssh-keygen -C $keyname -f $xhdir/.ssh/$keyname -t $keytype -N "$passphrase" <<< \$'y' >$assetdir/keygen-$keyname.log 2>&1
-	setfileownmode $xhdir/.ssh/$keyname 600 $xuser:$xgx
-	setfileownmode $xhdir/.ssh/$keyname.pub 644 $xuser:$xgx
-	[ $? -ne 0 ] && logtobothex "? Plugin $pfx: ssh-keygen returned an error; see $assetdir/keygen-$keyname.log"
-	[ "$authkey" != "" ] && cat $xhdir/.ssh/$keyname.pub >> $xhdir/.ssh/authorized_keys && setfileownmode $xhdir/.ssh/authorized_keys 600 $xuser:$xgx
+	if [ "$import__pubkey" != "" ]
+	then
+	    ikfn="$(basename $import__pubkey)"
+	    logtoboth "> Plugin $pfx: Add SSH public key '$ikfn' from $assetdir to user '$sshuser' authorized_keys"
+	    makesshdir
+	    cat $assetdir/$ikfn >> $xhdir/.ssh/authorized_keys
+	    setfileownmode $xhdir/.ssh/authorized_keys 600 $xuser:$xgx
+	else
+	    [ "$keytype" == "" ] && keytype=ecdsa
+	    [ -v authkey ] && authkey=y
+	    [ -n "$authkey" ] && aks=" and add public key to authorized_keys"
+	    logtoboth "> Plugin $pfx: Create key '$keyname' type '$keytype' for user '$sshuser'$aks"
+	    makesshdir
+	    rm -f $xhdir/.ssh/$keyname $xhdir/.ssh/$keyname.pub
+	    ssh-keygen -C $keyname -f $xhdir/.ssh/$keyname -t $keytype -N "$passphrase" <<< \$'y' >$assetdir/keygen-$keyname.log 2>&1
+	    [ $? -ne 0 ] && logtobothex "? Plugin $pfx: ssh-keygen returned an error; see $assetdir/keygen-$keyname.log"
+	    setfileownmode $xhdir/.ssh/$keyname 600 $xuser:$xgx
+	    setfileownmode $xhdir/.ssh/$keyname.pub 644 $xuser:$xgx
+	    [ "$authkey" != "" ] && cat $xhdir/.ssh/$keyname.pub >> $xhdir/.ssh/authorized_keys && setfileownmode $xhdir/.ssh/authorized_keys 600 $xuser:$xgx
+	fi
     else
 	ikfn="$(basename $import__key)"
 	logtoboth "> Plugin $pfx: Copy SSH key '$(basename $import__key)' from $assetdir to user '$sshuser' .ssh directory"
