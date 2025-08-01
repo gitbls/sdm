@@ -36,6 +36,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    [[ "$foundkeys" =~ serial ]] && logtobothex "? Plugin $pfx: Option 'serial' superceded by 'serial' plugin"
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
