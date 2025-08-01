@@ -183,7 +183,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V13.12"
+version="V14.1"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -198,6 +198,7 @@ burndev=""                  #SD card device name for --burn
 burnfile=0                  #1=Burn image to a file
 burnfilefile=""             #Filename for --burnfile
 burnplugins=""              #Burn-time plugin list
+extractscript=""            #Extract log additional script to run 
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 cvtrootfs=""                #--convert-root
@@ -265,13 +266,14 @@ vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
 vdebug="|all|apt|"          #Valid --debug settings
-vpoptions="|noupdate|noupgrade|noautoremove|nologdates|none|" #Valid --poptions
+vpoptions="|noupdate|noupgrade|noautoremove|nologdates|none|confold|confdef|" #Valid --poptions
 #vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vloadopts="|wifi|"          #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
 vbupdopts="|plugin|plugins|sdm|" #Valid options for --bupdate
 vrunonlyopts="|plugin|plugins|"  #Valid options for --runonly
 showapt=0                   #1=Display apt output on terminal as well as logging
+xspdev=""                   #Additional dev names to check as special (add to mmcblk and nvme)
 pi1bootconf=""              #Command-line specified 1piboot.conf file to use
 custom1=""                  #For custom use
 custom2=""                  #For custom use
@@ -280,7 +282,6 @@ custom4=""                  #For custom use
 
 src=$(dirname "$(realpath "$0")")
 source $src/sdm-cparse           # Get function defs
-#[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"  # Done after cmd parse so --help works w/o sudo
 #
 # Parse the command line
 #
@@ -288,7 +289,7 @@ cmdline="$0 $*"
 longopts="help,1piboot:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-root,extend,\
-extract-log:,extract-logs:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
+extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
@@ -333,6 +334,7 @@ do
 	--explore)     fexplore=1    ; shift 1 ;;
 	--extend)      fextend=1     ; shift 1 ;;
 	--extract-log|--extract-logs) extractlogdir=$2 ; shift 2 ;;
+	--extract-script) extractscript=$2 ; shift 2 ;;
 	--gpt)         fgpt=1        ; shift 1 ;;
 	--groups)      dgroups=$2    ; shift 2 ;;
 	--hostname|--host) hname=$2  ; shift 2 ;;
@@ -376,7 +378,6 @@ do
     esac
 done
 
-[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 dimg="$1"
 [ $pvers -eq 1 ] && echo "sdm $version" && exit 0
 
@@ -425,6 +426,7 @@ Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'"
 exit 0
 fi
 [ "${dimg,,}" == "help" ] && printhelp && exit
+[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 declare -a cmsgs                    # In case customization messages generated before we're ready to logtoboth them
 cscript="$(fndotfullpath $cscript)"
 [[ $burn -eq 1 ]] && [[ $burnfile -eq 1 ]] && errexit "? Switch conflict: --burn and --burnfile"
@@ -557,6 +559,7 @@ checkpluginsx "$burnplugins" n
 #
 # Check sanity of the disk image argument
 #
+xspdev=$(get1config xspdev /etc/sdm/cparams)  #Grab xspdev from host system config so available 
 dimgdevname="IMG"
 [ "$dimg" == "" ] && errexit "? No disk image specified"
 dimgdev=0
@@ -610,6 +613,16 @@ then
     [ "$ebg" == "" ] && ebg="gray"
     [ "$ecursor" == "" ] && ecursor="red"
     ecolors="$efg:$ebg:$ecursor"
+fi
+#
+# Validate extract-script argument
+#
+if [ "$extractscript" != "" ]
+then
+    [ -f $extractscript ] || errlog "? Extract script '$extractscript' not found"
+    [ -x $extractscript ] || errlog "? Extract script '$extractscript' not executable"
+    extractscript=$(realpath $extractscript)
+    echo "Extract script: $extractscript"
 fi
 #
 # Process the command. Actions are burn, customize, mount, runonly, extract logs, and standalone --extend
