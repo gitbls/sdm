@@ -5,65 +5,56 @@
 To install sdm into /usr/local/sdm from the latest release use
 
 ```sh
-curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/install-sdm | bash
 ```
 
 ## Flexible install
 
 Alternatively, if you want to install a specific branch or use a directory other than /usr/local/sdm:
 ```sh
-curl -L https://raw.githubusercontent.com/gitbls/sdm/<branch-name>/EZsdmInstaller -o /path/to/EZsdmInstaller
-chmod 755 /path/to/EZsdmInstaller
-# Inspect the EZsdmInstaller script if desired
-sudo /path/to/EZsdmInstaller
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/install-sdm -o /path/to/install-sdm
+chmod 755 /path/to/install-sdm
+# Inspect the install-sdm script if desired
+/path/to/install-sdm V13.12
 ```
-For instance, to install the V8.6 version:
-```sh
-curl -L https://raw.githubusercontent.com/gitbls/sdm/V8.6/EZsdmInstaller -o /path/to/EZsdmInstaller
-chmod 755 /path/to/EZsdmInstaller
-# Inspect the EZsdmInstaller script if desired
-sudo /path/to/EZsdmInstaller V8.6
-```
+NOTE: install-sdm can only install releases V13.12 and later. Use EZsdmInstaller for earlier releases.
 
-## EZsdmInstaller command line documentation
+## install-sdm command line documentation
 
 Full command syntax:
 
 ```sh
-sudo /path/to/EZsdmInstaller branch hostdir
+sudo /path/to/install-sdm release-name install-directory repo-name saved-local-tarball
 ```
 Where:
 
-* `branch` is the name of the release branch install [Default: latest, which is `master`]
-* `hostdir` is the full path to where sdm should be installed [Default: /usr/local/sdm]
+* `release-name` is the name of the release (e.g., V14.1). [Default: latest]
+* `install-directory` is the directory on the host where sdm will be installed [Default:/usr/local/sdm]
+* `repo-name` is the repository name [Default:gitbls/sdm]
+* `saved-local-tarball` is the full path to a saved local copy of the tarball [Default:""]
 
-Both arguments are optional and will use the above defaults.
+All arguments are optional and will use the above defaults.
 
 ### Examples
 
 Install the latest release into the default directory (/usr/local/sdm)
 
 ```sh
-sudo /path/to/EZsdmInstaller
+/path/to/install-sdm
 ```
 Install the latest release into a specific directory
 ```sh
-sudo /path/to/EZsdmInstaller "" /usr/local/zsdm
+/path/to/install-sdm "" /usr/local/zsdm
 ```
 
 Install a specific branch into the default directory
 ```sh
-sudo /path/to/EZsdmInstaller V9.1
+/path/to/install-sdm V13.12
 ```
 Install a specific branch into a specific directory
 ```sh
-sudo /path/to/EZsdmInstaller V9.1 /usr/local/zsdm
+/path/to/install-sdm V13.12 /usr/local/zsdm
 ```
-
-**NOTE:** In order to install a version other than the latest release, be sure to use the EZsdmInstaller for that version. To pick up, for instance, the V8.6 EZsdmInstaller, use:
-
-
-    curl -L https://raw.githubusercontent.com/gitbls/sdm/V8.6/EZsdmInstaller -o /path/to/EZsdmInstaller
 
 ## Removing sdm
 
