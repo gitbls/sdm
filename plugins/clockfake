@@ -45,17 +45,33 @@ then
 #!$(type -p python3)
 
 from datetime import datetime, timezone
+import os
+import syslog
 import time
 
-fakefile = "/etc/fake-hwclock.data"
-# sleeptime is $interval minutes
-sleeptime = $interval*60
-while True:
-    with open(fakefile, 'w') as f:
-        now = datetime.now(timezone.utc)
-        f.write("{}\n".format(datetime.strftime(now, "%Y-%m-%d %H:%M:%S")))
-    time.sleep(sleeptime)
+def syslogger(logstring):
+    syslog.syslog(syslog.LOG_NOTICE, logstring)
 
+fakefile = "/etc/fake-hwclock.data"
+# sleeptime is 10 minutes
+sleeptime = 10*60
+
+pid=os.fork()
+if pid > 0:
+    # Executed by parent
+    syslogger(f"clockfake forked to pid {pid}")
+    exit(0)
+elif pid==0:
+    # executed by child
+    syslogger(f"clockfake now running in fork")
+    while True:
+        with open(fakefile, 'w') as f:
+            now = datetime.now(timezone.utc)
+            f.write(f"{datetime.strftime(now, '%Y-%m-%d %H:%M:%S')}\n")
+        time.sleep(sleeptime)
+else:
+    syslogger(f"clockfake error {pid} from fork")
+    exit(0)
 EOF
     chmod 755 /usr/local/bin/clockfake
     rm -f /etc/systemd/system/clockfake.service
@@ -65,8 +81,10 @@ Description=Fake HW clock
 After=network-online.target
 
 [Service]
-Type=simple
+Type=forking
 ExecStart=/usr/local/bin/clockfake
+ExecStop=/sbin/fake-hwclock save
+RemainAfterExit=yes
 Restart=on-failure
 RestartSec=60s
 
