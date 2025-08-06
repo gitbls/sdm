@@ -1443,10 +1443,10 @@ Plugins are run in the order they are specified on the command line. I recommend
 * **createoptions** &mdash; Switches to add to the `python -m venv` command (e.g., `--system-site-packages`; see <a href="https://docs.python.org/3/library/venv.html"> Creating virtual environments</a>)
 * **install** &mdash; Comma-separated list of pip modules to install
 * **installoptions** &mdash; Switches to add to the `pip install` command (see `sudo pip install --help | less`)
-* **list** &mdash; After the venv has created, list the installed modules with `pip list`
+* **list** &mdash; After the venv has created, list the installed modules with `pip list` to the console and /etc/sdm/history
 * **path** &mdash; Path to venv directory specifies the path to the venv
 * **requirements** &mdash; /path/to/requirements-file. See <a href="https://pip.pypa.io/en/stable/reference/requirements-file-format/">Requirements file format</a>
-* **runphase** &mdash; Specify the phase when the venv should be created. Values are `phase1` or `post-install`
+* **runphase** &mdash; Specify the phase when the venv should be created. Values are `phase1` or `post-install` [D:phase1]
 * **pyver** &mdash; Specify the python version. Not currently used, and set to "3"
 * **name** &mdash; Name to use for the venv asset storage. Default is the *filename* of the `path`. Must be used if, for instance two venv invocations create venvs with the same directory name in the same IMG customization
 
