@@ -31,14 +31,7 @@ function dovenv() {
     # createoptions for the python -m venv $path
     # pyver
     # optional pip list command at end
-    function venvpline() {
-	local line
-	while read line
-	do
-	    logtoboth "  $line"
-	    echo $line >> /usr/local/bin/logit.txt
-	done
-    }
+
     local pip python fcreate=0
 
     python="python${pyver}"
@@ -64,7 +57,7 @@ function dovenv() {
 	copt=""
 	[ "$createoptions" != "" ] && copt=" with create options '$createoptions'"
 	logtoboth "> Plugin $pfx: Create venv '$path'$copt"
-	docmdlog "$python -m venv $createoptions $path" /etc/sdm/apt.log || logtobothex "? Plugin $pfx: Python venv create returned an error"
+	runcaptureout "$python -m venv $createoptions $path" /etc/sdm/apt.log || logtobothex "? Plugin $pfx: Python venv create returned an error"
     fi
 
     [[ ! -d $path ]] || [[ ! -f $path/pyvenv.cfg ]] && logtobothex "? Plugin $pfx: Python venv $path does not exist"
@@ -95,7 +88,7 @@ function dovenv() {
     if [ "$list" != "" ]
     then
 	logtoboth "> Plugin $pfx: $pip list venv '$path'"
-	{ { { {  $path/bin/$pip list 2>&1; echo $? >&3; } | venvpline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+	runcaptureout "$path/bin/$pip list" || logtobothex "? Error returned from '$path/bin/$pip list' ($?)"
     fi
 }
 
