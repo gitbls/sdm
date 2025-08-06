@@ -137,6 +137,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|country|localsrc|btwifidir|password|timeout|logfile|wificountry|"
+rqdargs=""
 redactargs="password"
 loadparams
 
@@ -146,7 +147,7 @@ then
     # In Phase 0 all references to directories in the image must be preceded by $SDMPT
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|wifcountry|" || exit
+    plugin_getargs $pfx "$args" "$vldargs" "" || exit
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
@@ -155,6 +156,7 @@ then
     # Check country value
     #
     [ "$country" == "" ] && country=$wificountry
+    [ "$country" == "" ] && logtobothex "? Plugin $pfx: WiFi country must be specified with argument 'wificountry' or 'country'"
     ckwificountry $country || logtobothex "? Plugin $pfx: Unknown WiFi country '$country'"
     #
     # Copy the btwifiset files
