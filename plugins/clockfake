@@ -109,6 +109,7 @@ else
     fi
     logtoboth "* Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
     [ -f /etc/cron.hourly/fake-hwclock ] && mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
+    [ -f /lib/systemd/system/fake-hwclock-save.timer ] && systemctl disable fake-hwclock-save.timer # New in Trixie
     #
     # Run the program once here to set the fake hw clock
     #
