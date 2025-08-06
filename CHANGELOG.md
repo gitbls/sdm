@@ -1,5 +1,13 @@
 # Changelog
 
+## V14.2
+* New Features
+* Improvements
+  * `clockfake` plugin disables fake-hwclock-save.timer if present (new in Trixie)
+* Bug Fixes
+  * Correct broken country checking in `btwifiset` plugin
+  * Correct broken `venv` plugin and add it to the sdm tarball
+
 ## V14.1
 
 * New Features
