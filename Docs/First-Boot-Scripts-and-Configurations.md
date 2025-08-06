@@ -24,7 +24,7 @@ The file `/etc/sdm/auto-1piboot.conf` is populated by sdm as needed during custo
 There are several plugins that implement some of their functionality by writing to auto-1piboot.conf. These include:
 
 * `graphics` plugin &mdash; delayed_boot_behavior
-* `raspiconfig` plugin &mdash; All settings except `serial`, which is set immediately using `raspi-config`
+* `raspiconfig` plugin &mdash; All settings
 * `system` plugin &mdash; `fstab`, `service-enable` and `service-disable` functions
 
 In addition, sdm will write the `delayed_boot_behavior` setting to auto-1piboot.conf if the IMG being customized has a known Display Manager (lightdm, xdm, or wdm) or Window Manager (LXDE). sdm will set the boot behavior for the First system boot to `console no login`, and during the First system boot then sets the boot behavior as specified in `delayed_boot_behavior` for subsequent system boots.
