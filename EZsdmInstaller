@@ -58,6 +58,7 @@ function getosdistro() {
 myscript="$0 $@"
 #IFS=":" read osdistro osversion <<< $(getosdistro)
 [ "$(type -p apt)" == "" ] && errexit "? apt not found; cannot install on this system"
+etc="/etc"
 #
 # Create directories and download sdm
 #
