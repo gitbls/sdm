@@ -1274,7 +1274,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
   * **service-disable** &mdash; Comma-separated list of services to disable
   * **service-enable** &mdash; Comma-separated list of services to enable
   * **service-mask** &mdash; Comma-separated list of services to mask
-* **swap** &mdash; **disable** or integer swapsize in MB to set
+* **swap** &mdash; **disable** or integer swapsize in MB to set. If the package `rpi-swap` is available (as in Trixie), `swap=zram` will install it.
 * **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
 * **systemd-config** &mdash; Comma-separated list of `type:/path/to/file.conf`, where type is one of *login*, *network*, *resolve*, *system*, *timesync*, or *user*. Copies the provided file to /etc/systemd/*type*.conf.d NOTE: file must be specified as a full /path/to/file.conf and the file type MUST be `.conf`
 * **udev** &mdash; Comma-separated list of files to copy to /etc/udev/rules.d
@@ -1505,6 +1505,52 @@ wificonfig is used to enable the sdm Captive Portal to delay WiFi SSID/Password 
 * **retries=n** &mdash;Maximum number of retries for the user to set the SSID/Password. Default: *5*
 * **timeout=n** &mdash;Captive Portal timeout (interval between network packets from the connecting device). Default: *900 seconds* (15 minutes)
 * **wifilog=/path/to/wifilog** &mdash;Log file for the Captive Portal. Default: */etc/sdm/wifi-config.log*
+
+### wireguard
+
+The `wireguard` plugin simplifies and scripts the configuration of Wireguard endpoints. The plugin design is oriented around easily configuring a two-node Wireguard VPN but it can be used for general wireguard host configuration as well.
+
+#### Arguments
+
+* **address** &mdash; Specifies the IP address for this end of the tunnel. In the form x.x.x.x/24, e.g., 10.1.10.1/24
+* **allowed-ips** &mdash; Specifies the remote IP addresses that can access the tunnel. Typically this will include the remote host's tunnel IP address (e.g., 10.1.10.2/24) and the remote host's LAN IP address (192.168.44.10/24)
+* **addpeer** &mdash; Add a Peer section to an existing interface configuration. Settings supported: `allowed-ips`, `endpoint`, `remote-public-key`, `generate-remote-keys`, `preshared-key`, `persistent-keepalive`
+* **dns** &mdash; Specify the DNS server for the tunnel peer(s). Typically a DNS server on the host's LAN or a public DNS server (1.1.1.1, 8.8.8.8, etc)
+* **endpoint** &mdash; Specify the remote endpoint DNS name or IP address, and port in the form dns-or-name:port (e.g., myhost.domain.com:51820 or 44.44.44.44:51820)
+* **generate-host-keys** &mdash; Generate host public and private keys for this interface. Conflicts with `import-public-key` and `import-private-key`
+* **generate-remote-keys** &mdash; Generate remote keys for this `addpeer`. Conflicts with `import-public-key` on an `addpeer` peer configuration
+* **import-private-key** &mdash; Import a host's private key specified by /path/to/private-key. Conflicts with `generate-host-keys` on an interface definition
+* **import-public-key** &mdash; Import a host's public key specified by /path/to/public-key. Conflicts with `generate-host-keys` on an interface definition
+* **ipforward** &mdash; Enable IP forwarding on this host onto the LAN (See below for details)
+* **listen-port** &mdash; Port on which wireguard should listen [D:51820]
+* **persistent-keepalive** &mdash; See the section <a href="https://www.wireguard.com/quickstart/">NAT and Firewall Traversal Persistence</a> for details on `persistent-keepalive`
+* **preshared-key** &mdash; Specify a pre-shared key for a peer. Both peers must share the same key
+* **preup** &mdash; Command to run immediately prior to a connection starting
+* **predown** &mdash; Command to run immediately prior to a connection terminating
+* **postup** &mdash; Command to run immediately after a connection is started
+* **postdown** &mdash; Command to run immediately after a connection is terminated
+* **remote-public-key** &mdash; Provide the public key for a remote host in the form /path/to/remote.public-key
+* **svcenable** &mdash; Enable the connection
+* **wghostname** &mdash; Provide a hostname to use for the host keys instead of the connection name [D:copied from `wgname`]
+* **wgname** &mdash; Specify the connection name [D:wg0]
+
+#### Notes
+
+Use `ipforward` on a host if you want the remote host to have access to other hosts on this host's LAN.
+  * `ipforward=nftables`, `ipforward=y` or simply `ipforward` &mdash; Enable IP forwarding with `nftables` and enable `net.ipv4.ip_forward=1`
+  * `ipforward=iptables` &mdash; Use iptables rules instead of nftables
+
+In each of the above cases, `postup` and `postdown` settings are configured for nftables or iptables as appropriate.
+
+The default preup/postup/predown/postdown settings can be overridden by specifying any one of them. In that case, all that should be set must be specified.
+
+In all the above cases, `net.ipv4.ip_forward` is set, and the system will route wireguard packets for this wireguard interface to the LAN
+
+#### Examples
+
+Creating a fully-configured Wireguard interface requires two unique invocations of the `wireguard` plugin. The first time defines the interface (e.g., wg0), and the second (and others, if desired) defines the Wireguard peer using the `addpeer` argument.
+
+See this <a href="Cool-Things-You-Can-Do-wireguard.md">detailed guide</a> for information on the 3 different strategies for configuring wireguard keys, and fully-functional examples.
 
 ### wsdd
 
