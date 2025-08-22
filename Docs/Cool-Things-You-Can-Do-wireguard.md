@@ -160,7 +160,7 @@ sudo apt upgrade --yes
 * Make an empty directory and `cd` into it. This is important; the scripts will fail if you aren't in the correct directory.
 * Download the tarball and untar it
 ```
-curl --fail --silent --show-error -L https://github.com/gitbls/sdm/??? | tar --extract --xz --verbose --file - --overwrite -C .
+curl --fail --silent --show-error -L  https://raw.githubusercontent.com/gitbls/sdm/master/extras/wireguard-example.tar.xz | tar --extract --xz --verbose --file - --overwrite -C .
 ```
 * Run the script `bin/create-base-img` to build a customized base IMG: `bin/create-base-img`
 
