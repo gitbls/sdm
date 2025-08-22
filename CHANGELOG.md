@@ -1,5 +1,17 @@
 # Changelog
 
+## V14.3
+
+* New Features
+  * `wireguard` plugin to easily configure both ends of a wireguard VPN
+  * <a href="Docs/Plugins.md#wireguard">Documentation</a>
+  * <a href="Docs/Cool-Things-You-Can-Do-wireguard.md">Complete working wireguard demo</a>
+* Improvements
+  * Automatically rerun sdm as root if needed
+  * `system` plugin argument `swap` value of `zram` installs `rpi-swap` if it's available (e.g., Trixie)
+  * Some long overdue internal restructuring
+* Bug Fixes
+
 ## V14.2
 * New Features
 * Improvements

@@ -94,6 +94,84 @@ function poptcheck() {
     fi
 }
 
+function loadsdm() {
+    #
+    # Load sdm into the disk/IMG mounted on $SDMPT
+    #
+    [ -d $SDMPT/etc/sdm ] && echo "% sdm already in $dimg; recopy not done" && return
+    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,local-assets}
+    [ -f $SDMPT/etc/sdm/history ] || touch $SDMPT/etc/sdm/history
+    chmod 700 $SDMPT/etc/sdm
+    echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
+    mkdir -p $SDMPT/$sdmdir/1piboot
+    for f in $sdmflist
+    do
+	cp -a $src/$f $SDMPT/$sdmdir
+	setfileownmode $SDMPT/$sdmdir/$f 755
+    done
+    rm -f $SDMPT/usr/local/bin/sdm
+    ln -s $sdmdir/sdm $SDMPT/usr/local/bin
+    mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
+    if compgen -G "$src/plugins/*" > /dev/null
+    then
+	cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
+	setfileownmode "$SDMPT/$sdmdir/plugins/*" 755
+    fi
+    if compgen -G "$src/local-plugins/*" > /dev/null
+    then
+	cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
+	setfileownmode "$SDMPT/$sdmdir/local-plugins/*" 755
+    fi
+    cp -a $src/sdm-readparams $SDMPT/etc/sdm
+    setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
+    chown -R root:root $SDMPT/$sdmdir
+    writeconfig
+}
+
+function sdmrunplugins () {
+    if [ "$plugins" != "" ]
+    then
+	allplugins=$(get1config allplugins $SDMPT/etc/sdm/cparams)
+	if [[ $fdirtree -eq 1 ]] && [[ "$dimg" == "/" ]]
+	then
+	    if [ $oklive -eq 0 ]
+	    then
+		if israspios
+		then
+		    askyn "** Do you really want to run plugins live on the running host RasPiOS system" || exit 1
+		else
+		    errexit "? Host OS is not RasPiOS. Use --oklive to run plugins live on this system"
+		fi
+	    fi
+	    # Either --oklive or said yes to modify running system
+	    live0scripts "/etc/sdm/0piboot/*.sh" clear
+	    logtoboth "* Run selected plugins on the host system"
+	    declare -x SDMPT=""
+	    declare -x SDMNSPAWN="Live0"
+	    runplugins_exit "$plugins" 0
+	    declare -x SDMNSPAWN="Live1"
+	    runplugins_exit "$plugins" 1
+	    runplugins_exit "$plugins" post-install
+	    live0scripts "/etc/sdm/0piboot/*.sh" run
+	else
+	    # Operating on an IMG or disk
+	    if [ "$SDMPT" == "" ]
+	    then
+		declare -x SDMPT=$(makemtpt)
+		domount "$dimg" $dimgdevname
+	    fi
+	    initvirt write_premsg
+	    [ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
+	    runplugins_exit "$plugins" 0
+	    sdm_runspawncmd Phase1 run-plugin-list 1 "$plugins" || exit
+	    sdm_runspawncmd Phase1 run-plugin-list post-install "$plugins" || exit
+	    printnotes
+	fi
+	resetpluginlist
+    fi
+
+}
+
 function printhelp() {
     echo $"sdm $version
 Usage:
@@ -174,6 +252,7 @@ Command Switches for --customize and --burn or as noted
  --restart           20 seconds after first boot has completed restart the system
  --runonly plugins   Do no customization, ony run requested plugins
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
+ --sdmprep           Install sdm into the IMG or Device but do not customize it
  --showapt           Display apt output as well as logging it
  --xmb n             Set the --extend size in MB [2048]
  --version           Print sdm version number"
@@ -183,7 +262,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V14.2"
+version="V14.3"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -222,6 +301,7 @@ fencrypted=0                #1=rootfs is encrypted
 fexplore=0                  #1=Just fire up nspawn to explore the system
 fextend=0                   #1=extend image by --xmb MB
 fextendonly=0               #1=Just extend and exit (this if no other command specified)
+fsdmprep=0                  #1=Install sdm into the IMG or device, but do not run phase 0 or phase 1
 extractlogdir=""            #non-null=Extract the logs to the specified directory
 fgpt=0                      #1=Convert burned device to gpt format
 fnoexpandroot=0             #1=Don't expand root partition and don't let RasPiOS do it either
@@ -260,8 +340,7 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key sdm-collect-labwc-config"
-swapsize=0                  #Set swap size to nMB (overrides --disable swap)
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-spawn sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key sdm-collect-labwc-config"
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
@@ -292,7 +371,7 @@ customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,ex
 extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
-regen-ssh-host-keys,restart,runonly:,sdmdir:,showapt,shrink,swap:,\
+regen-ssh-host-keys,restart,runonly:,sdmdir:,sdmprep,showapt,shrink,\
 bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
 OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
@@ -362,9 +441,10 @@ do
 	--restart)     reboot=1      ; shift 1 ;;
 	--runonly)     runonly="${2,,}" ; shift 2 ;;
 	--sdmdir)      sdmdir=$2     ; shift 2 ;;
+	--sdmprep)     fsdmprep=1    ;
+		       fcustomize=1  ; shift 1 ;;
 	--showapt)     showapt=1     ; shift 1 ;;
 	--shrink)      fshrink=1     ; shift 1 ;;
-	--swap)        swapsize=$2   ; shift 2 ;;
 	--bupdate)     bupdate=$(appendvalue "$bupdate" "$2" "|") ; shift 2 ;;
 	--xmb)         imgext=$2     ; shift 2 ;;
 	--custom1)     custom1=$2    ; shift 2 ;;
@@ -426,7 +506,12 @@ Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'"
 exit 0
 fi
 [ "${dimg,,}" == "help" ] && printhelp && exit
-[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
+if [ $EUID -ne 0 ]
+then
+    echo "% Re-running sdm with 'sudo $cmdline'"
+    sudo $cmdline
+    exit
+fi
 declare -a cmsgs                    # In case customization messages generated before we're ready to logtoboth them
 cscript="$(fndotfullpath $cscript)"
 [[ $burn -eq 1 ]] && [[ $burnfile -eq 1 ]] && errexit "? Switch conflict: --burn and --burnfile"
@@ -448,6 +533,7 @@ cscript="$(fndotfullpath $cscript)"
 [[ $fgpt -eq 1 ]] && [[ "$cvtrootfs" == "" ]] && cvtrootfs=ext4
 [[ $fppart -eq 1 ]] && [[ $((burning+fcustomize+fexplore+fdomount+fshrink)) -ne 0 ]] && errexit "? Switch conflict: --ppart and any of 'burn,burnfile,explore,mount,shrink'"
 [[ $fencrypted -eq 1 ]] && [[ $((fdomount+fexplore)) -eq 0 ]] && errexit "? Switch conflict: --encrypted only valid with --explore and --mount"
+[[ $fsdmprep -eq 1 ]] && [[ $((burning+fexplore+fdomount+fppart+fshrink)) -ne 0 ]] && errexit "? Switch conflict: --sdmprep and any of 'burn,explore,mount,ppart,shrink'"
 if [ "$aptmaint" != "" ]
 then
     [ $((burning+fcustomize+fexplore+fdomount+fshrink+fppart)) -gt 0 ] && errexit "? One or more switches conflict with --aptmaint"
@@ -462,7 +548,7 @@ fi
 #
 # Ensure action requested: aptmaint, burn, customize, explore, mount, shrink, ppart 
 #
-if [ $((aptfunction+burning+fcustomize+fexplore+fdomount+fshrink+fppart+frunonly)) -eq 0 ]
+if [ $((aptfunction+burning+fcustomize+fexplore+fdomount+fsdmprep+fshrink+fppart+frunonly)) -eq 0 ]
 then
     if [ "$extractlogdir" == "" ]
     then
@@ -470,7 +556,7 @@ then
 	then
 	    fextendonly=1
 	else
-	    errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, --version)"
+	    errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, , --sdmprep, --version)"
 	fi
     fi
 fi
@@ -715,6 +801,7 @@ fi
 #
 # IMG architecture not detected before this point so don't yet know if chroot
 #
+
 #
 # Handle --runonly plugins
 #
@@ -722,38 +809,7 @@ if [ $frunonly -eq 1 ]
 then
     if [ "$plugins" != "" ]
     then
-	if [[ $fdirtree -eq 1 ]] && [[ "$dimg" == "/" ]]
-	then
-	    if [ $oklive -eq 0 ]
-	    then
-		if israspios
-		then
-		    askyn "** Do you really want to run plugins live on the running host RasPiOS system" || exit 1
-		else
-		    errexit "? Host OS is not RasPiOS. Use --oklive to run plugins live on this system"
-		fi
-	    fi
-	    # Either --oklive or said yes to modify running system
-	    live0scripts "/etc/sdm/0piboot/*.sh" clear
-	    logtoboth "* Run selected plugins on the host system"
-	    declare -x SDMPT=""
-	    declare -x SDMNSPAWN="Live0"
-	    runplugins_exit "$plugins" 0
-	    declare -x SDMNSPAWN="Live1"
-	    runplugins_exit "$plugins" 1
-	    runplugins_exit "$plugins" post-install
-	    live0scripts "/etc/sdm/0piboot/*.sh" run
-	else
-	    # Operating on an IMG or disk
-	    declare -x SDMPT=$(makemtpt)
-	    domount "$dimg" $dimgdevname
-	    initvirt write_premsg
-	    [ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
-	    runplugins_exit "$plugins" 0
-	    sdm_runspawncmd Phase1 run-plugin-list 1 "$plugins" || exit
-	    sdm_runspawncmd Phase1 run-plugin-list post-install "$plugins" || exit
-	    printnotes
-	fi
+	sdmrunplugins
 	exit 0
     elif [ "$burnplugins" != "" ]
     then
@@ -778,7 +834,7 @@ then
     if [ "$aptmaint" != "" ]
     then
 	fbatch=1
-	spawncmd="$sdmdir/sdm-phase1 apt $aptmaint"
+	spawncmd="$sdmdir/sdm-spawn apt $aptmaint"
 	if [ ! -f $SDMPT/$sdmdir/sdm-phase1 ]
 	then
 	    errexit "? sdm has not customized $dimgdevname '$dimg'"
@@ -824,38 +880,7 @@ else
     fi
     pi1bootconf="$(fndotfullpath $pi1bootconf)"
     spawncmd="$sdmdir/sdm-phase1"
-    #
-    # Create and populate $sdmdir tree
-    #
-    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,local-assets}
-    touch $SDMPT/etc/sdm/history
-    chmod 700 $SDMPT/etc/sdm
-    echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
-    mkdir -p $SDMPT/$sdmdir/1piboot
-    for f in $sdmflist
-    do
-	cp -a $src/$f $SDMPT/$sdmdir
-	setfileownmode $SDMPT/$sdmdir/$f 755
-    done
-    rm -f $SDMPT/usr/local/bin/sdm
-    ln -s $sdmdir/sdm $SDMPT/usr/local/bin
-    mkdir -p $SDMPT/$sdmdir/{plugins,local-plugins}
-    if compgen -G "$src/plugins/*" > /dev/null
-    then
-	cp -a $src/plugins/* $SDMPT/$sdmdir/plugins
-	setfileownmode "$SDMPT/$sdmdir/plugins/*" 755
-    fi
-    if compgen -G "$src/local-plugins/*" > /dev/null
-    then
-	cp -a $src/local-plugins/* $SDMPT/$sdmdir/local-plugins
-	setfileownmode "$SDMPT/$sdmdir/local-plugins/*" 755
-    fi
-    ## Always set this in case system with non-std location does sdm and sets it to /usr/local/sdm
-    #sed -i "s#SDMDIR=\".*\"#SDMDIR=\"$sdmdir\"#" $SDMPT/$sdmdir/sdm-gburn
-    cp -a $src/sdm-readparams $SDMPT/etc/sdm
-    setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
-
-    chown -R root:root $SDMPT/$sdmdir
+    loadsdm
     logtoboth "* Start Configuration"
     if compgen -G "$src/1piboot/*.sh" > /dev/null
     then
@@ -957,6 +982,11 @@ else
     # Write the config settings into the IMG
     #
     writeconfig
+    if [ $fsdmprep -eq 1 ]
+    then
+	logtoboth "* sdmprep Complete"
+	exit 0
+    fi
     #
     # Perform Phase 0 on the image
     #
