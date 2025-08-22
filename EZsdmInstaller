@@ -98,6 +98,7 @@ for f in sdm sdm-phase0 \
 	     sdm-phase1 \
 	     sdm-cparse \
 	     sdm-cmdsubs \
+	     sdm-spawn \
 	     sdm-readparams \
 	     sdm-rpcsubs \
 	     sdm-firstboot \
@@ -157,6 +158,7 @@ for f in sdm sdm-phase0 \
 	     plugins/runscript \
 	     plugins/rxapp \
 	     plugins/samba \
+	     plugins/sdm.phaseops \
 	     plugins/serial \
 	     plugins/speedtest \
 	     plugins/sshd \
@@ -170,6 +172,7 @@ for f in sdm sdm-phase0 \
 	     plugins/user \
 	     plugins/vnc \
 	     plugins/wificonfig \
+	     plugins/wireguard \
 	     plugins/wsdd \
 	     1piboot/1piboot.conf
 do
