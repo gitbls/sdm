@@ -10,9 +10,6 @@
 #    https://rainbow.chard.org/2013/01/30/how-to-align-partitions-for-best-performance-using-parted/
 #
 #
-# TODO: Update addtofstab, imgmakepartition, makepartition for exfat, udf, xfs
-#       addtofstab: $3 default is weird???
-#       Figure out if docleanups are correct
 
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams

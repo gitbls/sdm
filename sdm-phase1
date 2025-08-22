@@ -2,25 +2,6 @@
 # This script runs in the nspawn image
 #
 
-function upgkeepconf() {
-    #
-    # Write /etc/apt/apt.conf.d/02sdm-myconf
-    # Forcing apt to not query about conf file changes
-    # $1 = "--yes" or ""
-    # $2 = $showapt or 0 to not display output
-    # $3 = 0 [upgrade] or 1 [dist-upgrade]
-    #
-cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
-    Dpkg::Options {
-   "--force-confdef";
-   "--force-confold";
-}
-EOF
-[ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
-doaptrpterror "$1 $upg" "$2"
-rm -f /etc/apt/apt.conf.d/02sdm-myconf
-}
-
 function p1exit() {
     #
     # Clean up when Phase 1 (or any of the container commands) exits
@@ -46,141 +27,11 @@ function logfreeandexit() {
 #
 source /etc/sdm/sdm-readparams
 
-#
-# Handle commands which are run in the context of the container. They are here as a matter of
-# programming convenience ;)
-#
-cmd="$(stripquotes "$1")"
-cmdoptions="$(stripquotes "$2")"
-#logtoboth "DD-1 cmd:|$cmd| cmdoptions:|$cmdoptions| 2:|$2| 3:|$3|"
-# case stmt falls through if not processed within
 trap "doctrlcp1" SIGINT
 trap p1exit EXIT
-adjust_initramfs_all
-case "$cmd" in
-    apt)
-	logtoboth "* Start apt maintenance"
-	logfreespace "at start of 'apt $cmdoptions'"
-	[[ "$cmdoptions" =~ "update" ]] &&  { logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0 || logfreeandexit ; }
-	[[ "$cmdoptions" =~ "upgrade" ]] && { logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade || logfreeandexit ; }
-	[[ "$cmdoptions" =~ "autoremove" ]] && { logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0 || logfreeandexit ; }
-	logfreespace "at end of 'apt $cmdoptions'"
-	logtoboth "* apt maintenance Completed"
-	exit 0
-	;;
-    b1script)   # Burn time run script 
-	fn="/etc/sdm/assets/$(basename $cmdoptions)"
-	if [ -f $fn ]
-	then
-	    logtoboth "> Run script '$cmdoptions' [$fn] in nspawn"
-	    /etc/sdm/assets/$(basename $cmdoptions)
-	else
-	    logtoboth "? Internal error: Script '$fn' not found"
-	fi
-	exit
-	;;
-    burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
-	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning" || exit
-	exit
-	;;
-    run-all-plugins)  # Run Plugin phase 1 or post-install
-	phase=$cmdoptions
-	runplugins "$plugins" $phase || exit
-	exit
-        ;;
-    run-plugin-list) # Run list of plugins phase 1 or post-install
-	phase=$cmdoptions
-	theseplugins="$(stripquotes "$3")"
-	runplugins "$theseplugins" $phase || exit
-	exit
-	;;
-    run-one-plugin)  # Run Plugin phase 1 or post-install
-	# $cmdoptions: plugin name and args $3: Phase
-	p="$cmdoptions"
-	phase="$(stripquotes "$3")"
-	runonepluginx "$p" $phase || exit
-	exit
-        ;;
-    run-command)  # Run a single command in phase 1 or post-install
-	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
-	$runcmd || exit
-	exit
-        ;;
-    run-command-quietly)  # Run a single command in phase 1 or post-install
-	runcmd="$cmdoptions $3 $4 $5 $6 $7 $8"
-	$runcmd > /dev/null 2>&1 || exit
-	exit
-        ;;
-esac
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
-
-#
-# Set up sdm-firstboot service. This service processes some settings that can only be done
-# on the first boot of the system.
-#
-logtoboth "> Configure and enable sdm FirstBoot service (sdm-firstboot)"
-rm -f /etc/systemd/system/sdm-firstboot.service
-cat > /etc/systemd/system/sdm-firstboot.service <<EOF
-[Unit]
-Description=sdm FirstBoot System Configuration
-After=network.target
-#Before=rc-local.service
-
-[Service]
-Type=forking
-ExecStart=$sdmdir/sdm-firstboot
-TimeoutSec=0
-RemainAfterExit=yes
-GuessMainPID=no
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl enable sdm-firstboot > /dev/null 2>&1
-
-[ "$hname" != "" ] && updatehostname $hname   # If hostname specified on customize then set it
-
-#
-# Set up apt-cacher-ng client if requested
-#
-if [ "$aptcache" != "" ]
-then
-    logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
-    $sdmdir/sdm-apt-cacher client $aptcache
-fi
-if [ $swapsize -gt 0 ]
-then
-    logtoboth "> Set Swap Size to ${swapsize}MB"
-    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=$swapsize/" /etc/dphys-swapfile
-fi
-
-#
-# Configure confold and confdef if requested
-#
-rm -f /etc/apt/apt.conf.d/10-sdm-force
-if [[ "$poptions" =~ confold ]]
-then
-    logtoboth "> Enable apt force-confold per --apt-options confold"
-    echo 'Dpkg::Options "--force-confold";' >> /etc/apt/apt.conf.d/10-sdm-force
-fi
-
-if [[ "$poptions" =~ confdef ]]
-then
-    logtoboth "> Enable apt force-confdef per --apt-options confdef"
-    echo 'Dpkg::Options "--force-confdef";' >> /etc/apt/apt.conf.d/10-sdm-force
-fi
-
-if ! [[ "$poptions" =~ "noupdate" ]]
-then
-    logtoboth "> Start 'apt update'"
-    logfreespace "at start of 'apt update'"
-    doaptrpterror "update" $showapt
-    logfreespace "at end of 'apt update'"
-else
-    logtoboth "> Skip 'apt update' per --apt-options noupdate"
-fi    
+runoneplugin sdm.phaseops 1 "ops=apt-cacher,apt-conf,apt-update"
 
 if [ "$cscript" != "" ]
 then
@@ -194,32 +45,12 @@ fi
 # Run requested plugins Phase 1
 #
 runplugins "$plugins" 1 || exit
-
 #
 # Post-install Configuration
 #
 logtoboth "* Phase 1 post-app installation/configuration"
 
-if ! [[ "$poptions" =~ "noupgrade" ]]
-then
-    [ $aptdistupgrade -eq 0 ] && upg="upgrade" || upg="dist-upgrade"
-    logtoboth "> Start 'apt $upg'"
-    logfreespace "at start of 'apt $upg'"
-    upgkeepconf "-y" "$showapt" $aptdistupgrade
-    logfreespace "at end of 'apt $upg'"
-else
-    logtoboth "> Skip 'apt upgrade' per --apt-options noupgrade"
-fi    
-
-if [[ ! "$poptions" =~ "noautoremove" ]]
-then
-    logtoboth "> Start 'apt autoremove'"
-    logfreespace "at start of 'apt autoremove'"
-    doaptrpterror "--yes autoremove" $showapt
-    logfreespace "at end of 'apt autoremove'"
-else
-    logtoboth "> Skip 'apt autoremove' per --apt-options noautoremove"
-fi
+runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove"
 
 logfreespace "at end of Phase 1 image customization"
 logtoboth "* Phase 1 Completed"
@@ -234,72 +65,9 @@ fi
 #
 runplugins "$plugins" post-install || exit
 #
-# Complete graphics post-install if graphics plugin not selected
-# This is a hack. Proper fix needs more thought
+# Run final post-customization stuff
 #
-if ! ispluginselected graphics "$plugins"
-then
-    logtoboth "> Run graphics post-install configuration"
-    source $sdmdir/plugins/graphics
-    gargs=$(getpluginargs graphics "$plugins")
-    [[ "$gargs" =~ "nodmconsole" ]] && nodmconsole=1 || nodmconsole=0
-    gfxcfgpostinstall yes
-fi
-
-if ! ispluginselected sshd "$plugins"
-then
-    logtoboth "> Plugin phase1: Configure SSH"
-    dosshsetup service phase1
-fi
-
-    logtoboth "> Plugin phase1: Write sdm FirstBoot L10n configuration script"
-    cat >| /etc/sdm/xpiboot/010-l10n-setup.sh <<EOF
-#!/bin/bash
-
-# wificountry done first so network can come up a wee bit faster
-for kn in wificountry timezone keymap locale
-do
-    [ -f /etc/sdm/locale/\$kn ] && read value < /etc/sdm/locale/\$kn || value=""
-    if [ "\$value" != "" ]
-    then
-        logger "sdm FirstBoot: Configure \$kn to '\$value'"
-        case "\$kn" in
-            wificountry)
-                SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
-                ;;
-            timezone)
-                SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
-                ;;
-            keymap)
-                SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
-                ;;
-            locale)
-                SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
-                ;;
-        esac
-    fi
-done
-EOF
-
-resetpluginlist
-
-logfreespace "at end of image customization"
-
-printnotes
-
-#
-# Check for apt issues in the apt log
-#
-if [ -f /etc/sdm/apt.log ]
-then
-    grep -q " E:" /etc/sdm/apt.log && logtobothex "? apt reported errors; review /etc/sdm/apt.log"
-    if grep -q " W: An error occurred" /etc/sdm/apt.log || grep -q " W: Failed to fetch" /etc/sdm/apt.log \
-	    || grep -q "signatures were invalid" /etc/sdm/apt.log || grep -q " W: Some index files failed to download" /etc/sdm/apt.log
-    then
-	[ "$aptcache" == "" ] && logtobothex "? apt reported warnings; review /etc/sdm/apt.log" \
-		|| logtobothex "? apt reported warnings; review /etc/sdm/apt.log and check your apt-cacher-ng server for problems"
-    fi
-fi
+runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-customization"
 #
 # Report run time
 #
@@ -307,22 +75,7 @@ customizeend="$(getcdate)"
 logtoboth "> Customize elapsed time: $(datediff $customizestart $customizeend)"
 if [ $fbatch -eq 0 ]
 then
-    if [ -t 0 ]
-    then
-	logtoboth "* Enter Shell Command Prompt"
-	logtoboth "  'exit' to exit back to host system"
-	if [ "$ecolors" != "0" ]
-	then
-	    IFS=":" read efg ebg ecursor <<< $ecolors
-	    stermcolors "$efg" "$ebg" "$ecursor" x1
-	fi
-	bash -i
-	logtoboth "* Customization complete"
-	[ "$ecolors" != "0" ] && resetcolors x1
-    else
-	logtoboth "* Run bash on non-terminal standard input"
-	bash
-    fi
+    runoneplugin sdm.phaseops 1 "op=shell"
 else
     logtoboth "* Customization complete"
     logtoboth "* Batch Mode exit"
