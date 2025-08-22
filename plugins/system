@@ -332,6 +332,15 @@ EOF
 			systemctl disable dphys-swapfile
 			# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
 			#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+		    elif [ "$swap" == "zram" ]
+		    then
+			if pkgexists rpi-swap
+			then
+			    logtoboth "> Plugin $pfx: Process swap=zram"
+			    installpkgsif "rpi-swap"
+			else
+			    logtoboth "% Plugin $pfx: Ignoring swap=zram; Package rpi-swap does not exist"
+			fi
 		    else
 			# set swap size
 			swapsize=$(($swap))
