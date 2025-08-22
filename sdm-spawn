@@ -1,0 +1,116 @@
+#!/bin/bash
+# This script runs in the nspawn image
+#
+
+function upgkeepconf() {
+    #
+    # Write /etc/apt/apt.conf.d/02sdm-myconf
+    # Forcing apt to not query about conf file changes
+    # $1 = "--yes" or ""
+    # $2 = $showapt or 0 to not display output
+    # $3 = 0 [upgrade] or 1 [dist-upgrade]
+    #
+cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
+    Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+EOF
+[ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
+doaptrpterror "$1 $upg" "$2"
+rm -f /etc/apt/apt.conf.d/02sdm-myconf
+}
+
+function p1exit() {
+    #
+    # Clean up when the container commands exit
+    #
+    unadjust_initramfs_all
+    exit
+}
+
+function doctrlcp1() {
+    echo "% Caught CTRL/C. Exiting Phase 1..."
+    unadjust_initramfs_all  #Be clean
+    exit 1     #Can't use poweroff since no job control in either nspawn or chroot
+}
+
+function logfreeandexit() {
+    local sts=$?
+    logfreespace "at end of 'apt $cmdoptions'"
+    exit $sts
+}
+
+#
+# Read configuration information from sdm
+#
+source /etc/sdm/sdm-readparams
+
+#
+# Handle commands which are run in the context of the container
+#
+cmd="$(stripquotes "$1")"
+cmdoptions="$(stripquotes "$2")"
+#logtoboth "DD-1 cmd:|$cmd| cmdoptions:|$cmdoptions| 2:|$2| 3:|$3|"
+trap "doctrlcp1" SIGINT
+trap p1exit EXIT
+case "$cmd" in
+    apt)
+	logtoboth "* Start apt maintenance"
+	logfreespace "at start of 'apt $cmdoptions'"
+	adjust_initramfs_all
+	[[ "$cmdoptions" =~ "update" ]] &&  { logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0 || logfreeandexit ; }
+	[[ "$cmdoptions" =~ "upgrade" ]] && { logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade || logfreeandexit ; }
+	[[ "$cmdoptions" =~ "autoremove" ]] && { logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0 || logfreeandexit ; }
+	logfreespace "at end of 'apt $cmdoptions'"
+	logtoboth "* apt maintenance Completed"
+	exit 0
+	;;
+    b1script)   # Burn time run script 
+	fn="/etc/sdm/assets/$(basename $cmdoptions)"
+	if [ -f $fn ]
+	then
+	    logtoboth "> Run script '$cmdoptions' [$fn] in nspawn"
+	    /etc/sdm/assets/$(basename $cmdoptions)
+	else
+	    logtoboth "? Internal error: Script '$fn' not found"
+	fi
+	exit
+	;;
+    burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
+	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning" || exit
+	exit
+	;;
+    run-all-plugins)  # Run Plugin phase 1 or post-install
+	phase=$cmdoptions
+	runplugins "$plugins" $phase || exit
+	exit
+        ;;
+    run-plugin-list) # Run list of plugins phase 1 or post-install
+	phase=$cmdoptions
+	theseplugins="$(stripquotes "$3")"
+	runplugins "$theseplugins" $phase || exit
+	exit
+	;;
+    run-one-plugin)  # Run Plugin phase 1 or post-install
+	# $cmdoptions: plugin name and args $3: Phase
+	p="$cmdoptions"
+	phase="$(stripquotes "$3")"
+	runonepluginx "$p" $phase || exit
+	exit
+        ;;
+    run-command)  # Run a single command in phase 1 or post-install
+	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
+	$runcmd || exit
+	exit
+        ;;
+    run-command-quietly)  # Run a single command in phase 1 or post-install
+	runcmd="$cmdoptions $3 $4 $5 $6 $7 $8"
+	$runcmd > /dev/null 2>&1 || exit
+	exit
+        ;;
+    *) # None of the above
+	logtobothex "? Invalid sdm-spawn function '$cmd'"
+	exit
+	;;
+esac

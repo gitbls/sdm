@@ -1,0 +1,268 @@
+#!/bin/bash
+# This is plugin sdm.phaseops
+# phaser is currently undocumented. Use at your own risk
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function upgkeepconf() {
+    #
+    # Write /etc/apt/apt.conf.d/02sdm-myconf
+    # Forcing apt to not query about conf file changes
+    # $1 = "--yes" or ""
+    # $2 = $showapt or 0 to not display output
+    # $3 = 0 [upgrade] or 1 [dist-upgrade]
+    #
+cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
+    Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+EOF
+[ "$3" == "0" ] && upg="upgrade" || upg="dist-upgrade"
+doaptrpterror "$1 $upg" "$2"
+rm -f /etc/apt/apt.conf.d/02sdm-myconf
+}
+
+function p1exit() {
+    #
+    # Clean up when Phase 1 (or any of the container commands) exits
+    #
+    unadjust_initramfs_all
+    exit
+}
+
+function doctrlcp1() {
+    echo "% Caught CTRL/C. Exiting Phase 1..."
+    unadjust_initramfs_all  #Be clean
+    exit 1     #Can't use poweroff since no job control in either nspawn or chroot
+}
+
+function logfreeandexit() {
+    local sts=$?
+    logfreespace "at end of 'apt $cmdoptions'"
+    exit $sts
+}
+
+# These operations will be executed when in Phase1
+# invocation: sdm.phaseops:ops=op1,op2,...
+#
+phase=$1
+if [ "$phase" == "1" ]
+then
+    pfx="$(basename $0)"     #For messages
+    args="$2"
+    loadparams
+    vldargs="|ops|op|"
+    vops="|update-apt-cacher|apt-conf|apt-update|apt-upgrade|apt-autoremove|finish-customization|config-firstboot|graphics|pre-phase1|post-customization|post-phase1|shell|ssh|writeL10n|"
+    rqdargs=""
+    assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    #plugin_printkeys
+    [ "$ops$op" == "" ] && logtobothex "? Plugin $pfx: Missing argument 'ops'"
+    [ "$ops" == "" ] && ops=$op
+
+    IFS="|" read -r -a optlist <<< "${vops#|}"
+    for op in "${optlist[@]}"
+    do
+	if [[ "$ops" =~ $op ]]
+	then
+	    case "$op" in
+		apt-conf)
+		    #
+		    # Configure confold and confdef if requested
+		    #
+		    rm -f /etc/apt/apt.conf.d/10-sdm-force
+		    if [[ "$poptions" =~ confold ]]
+		    then
+			logtoboth "> Enable apt force-confold per --apt-options confold"
+			echo 'Dpkg::Options "--force-confold";' >> /etc/apt/apt.conf.d/10-sdm-force
+		    fi
+
+		    if [[ "$poptions" =~ confdef ]]
+		    then
+			logtoboth "> Enable apt force-confdef per --apt-options confdef"
+			echo 'Dpkg::Options "--force-confdef";' >> /etc/apt/apt.conf.d/10-sdm-force
+		    fi
+		    ;;
+		apt-update)
+		    if ! [[ "$poptions" =~ "noupdate" ]]
+		    then
+			logtoboth "> Start 'apt update'"
+			logfreespace "at start of 'apt update'"
+			doaptrpterror "update" $showapt
+			logfreespace "at end of 'apt update'"
+		    else
+			logtoboth "> Skip 'apt update' per --apt-options noupdate"
+		    fi    
+		    ;;
+		apt-upgrade)
+		    if ! [[ "$poptions" =~ "noupgrade" ]]
+		    then
+			adjust_initramfs_all
+			[ $aptdistupgrade -eq 0 ] && upg="upgrade" || upg="dist-upgrade"
+			logtoboth "> Start 'apt $upg'"
+			logfreespace "at start of 'apt $upg'"
+			upgkeepconf "-y" "$showapt" $aptdistupgrade
+			logfreespace "at end of 'apt $upg'"
+			unadjust_initramfs_all
+		    else
+			logtoboth "> Skip 'apt upgrade' per --apt-options noupgrade"
+		    fi    
+		;;
+		apt-autoremove)
+		    if [[ ! "$poptions" =~ "noautoremove" ]]
+		    then
+			logtoboth "> Start 'apt autoremove'"
+			logfreespace "at start of 'apt autoremove'"
+			doaptrpterror "--yes autoremove" $showapt
+			logfreespace "at end of 'apt autoremove'"
+		    else
+			logtoboth "> Skip 'apt autoremove' per --apt-options noautoremove"
+		    fi
+		    ;;
+		finish-customization)
+		    resetpluginlist
+		    logfreespace "at end of image customization"
+		    printnotes
+		    #
+		    # Check for apt issues in the apt log
+		    #
+		    if [ -f /etc/sdm/apt.log ]
+		    then
+			grep -q " E:" /etc/sdm/apt.log && logtobothex "? apt reported errors; review /etc/sdm/apt.log"
+			if grep -q " W: An error occurred" /etc/sdm/apt.log || grep -q " W: Failed to fetch" /etc/sdm/apt.log \
+				|| grep -q "signatures were invalid" /etc/sdm/apt.log || grep -q " W: Some index files failed to download" /etc/sdm/apt.log
+			then
+			    [ "$aptcache" == "" ] && logtobothex "? apt reported warnings; review /etc/sdm/apt.log" \
+				    || logtobothex "? apt reported warnings; review /etc/sdm/apt.log and check your apt-cacher-ng server for problems"
+			fi
+		    fi
+		    ;;
+		config-firstboot)
+		    #
+		    # Set up sdm-firstboot service. This service processes some settings that can only be done
+		    # on the first boot of the system.
+		    #
+		    logtoboth "> Configure and enable sdm FirstBoot service (sdm-firstboot)"
+		    rm -f /etc/systemd/system/sdm-firstboot.service
+		    cat > /etc/systemd/system/sdm-firstboot.service <<EOF
+[Unit]
+Description=sdm FirstBoot System Configuration
+After=network.target
+#Before=rc-local.service
+
+[Service]
+Type=forking
+ExecStart=$sdmdir/sdm-firstboot
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+		    systemctl enable sdm-firstboot > /dev/null 2>&1
+		    [ "$hname" != "" ] && updatehostname $hname   # If hostname specified on customize then set it
+		    ;;
+		graphics)
+		    #
+		    # Complete graphics post-install if graphics plugin not selected
+		    # This is a hack. Proper fix needs more thought
+		    #
+		    if ! ispluginselected graphics "$plugins~$allplugins"
+		    then
+			logtoboth "> Run graphics post-install configuration"
+			gargs=$(getpluginargs graphics "$plugins")
+			[[ "$gargs" =~ "nodmconsole" ]] && nodmconsole=1 || nodmconsole=0
+			gfxcfgpostinstall yes
+		    fi
+		    ;;
+		pre-phase1)
+		    logtoboth "> Run pre-Phase1 steps"
+		    runoneplugin sdm.phaseops 1 "ops=apt-cacher,apt-conf,apt-update"
+		    ;;
+		post-customization)
+		    logtoboth "> Run post-Customization steps"
+		    runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-customization"
+		    ;;
+		post-phase1)
+		    logtoboth "> Run post-Phase1 steps"
+		    runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove"
+		    ;;
+		shell)
+		    if [ -t 0 ]
+		    then
+			logtoboth "* Enter Shell Command Prompt"
+			logtoboth "  'exit' to exit back to host system"
+			if [ "$ecolors" != "0" ]
+			then
+			    IFS=":" read efg ebg ecursor <<< $ecolors
+			    stermcolors "$efg" "$ebg" "$ecursor" x1
+			fi
+			bash -i
+			logtoboth "* Customization complete"
+			[ "$ecolors" != "0" ] && resetcolors x1
+		    else
+			logtoboth "* Run bash on non-terminal standard input"
+			bash
+		    fi
+		    ;;
+		ssh)
+		    if ! ispluginselected sshd "$plugins~$allplugins"
+		    then
+			logtoboth "> Configure SSH"
+			dosshsetup service sdm.phaseops
+		    fi
+		    ;;
+		update-apt-cacher)
+		    #
+		    # Set up apt-cacher-ng client if requested
+		    #
+		    if [ "$aptcache" != "" ]
+		    then
+			logtoboth "> Set image as apt-cacher-ng client using server $aptcache"
+			$sdmdir/sdm-apt-cacher client $aptcache
+		    fi
+		    ;;
+		writeL10n)
+		    logtoboth "> Write sdm FirstBoot L10n configuration script"
+		    cat >| /etc/sdm/xpiboot/010-l10n-setup.sh <<EOF
+#!/bin/bash
+
+# wificountry done first so network can come up a wee bit faster
+for kn in wificountry timezone keymap locale
+do
+    [ -f /etc/sdm/locale/\$kn ] && read value < /etc/sdm/locale/\$kn || value=""
+    if [ "\$value" != "" ]
+    then
+        logger "sdm FirstBoot: Configure \$kn to '\$value'"
+        case "\$kn" in
+            wificountry)
+                SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
+                ;;
+            timezone)
+                SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
+                ;;
+            keymap)
+                SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
+                ;;
+            locale)
+                SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
+                ;;
+        esac
+    fi
+done
+EOF
+		    ;;
+		*)
+		    logtobothex "? Plugin $pfx: Unrecognized ops value '$op'"
+		    ;;
+	    esac
+	fi
+    done
+fi
