@@ -23,11 +23,44 @@ function errexit() {
     exit 1
 }
 
+function stripquotes() {
+    #
+    # Remove leading/trailing single and double quotes
+    # If $2 != "" then quote $ character
+    #
+    local str="$1" qd="$2" snolq
+    [[ "$qd" != "" ]] && [[ "$str" =~ "$" ]] && str=${str//$/\\$}    # Replace $ with \$
+    str="${str%"${str##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
+    snolq="${str#\"}"         # Get string without open quote
+    if [ "$snolq" != "$str" ] # if lq was there, then update string and also del close quote
+    then
+	str="$snolq"
+	str="${str%\"}"
+    fi
+    snolq="${str#\'}"         # Get string without open quote
+    if [ "$snolq" != "$str" ] # Ditto double quote comment
+    then
+	str="$snolq"
+	str="${str%\'}"
+    fi
+    echo "$str"
+}
+
+function getosinfo() {
+    #
+    # extract an element from /etc/os-release
+    #
+    local item="$1" where="$2"
+    str="$( { IFS="=" read id name ; echo $name ;} <<< $(grep ^$item= $where/etc/os-release))"
+    echo $(stripquotes "$str")
+}
+
 #
 # Check OS Distro and version
 #
 myscript="$0 $@"
 [ "$(type -p apt)" == "" ] && errexit "? apt not found; cannot use this script to install sdm on this system"
+[[ $EUID -ne 0 ]] && sudo="sudo"
 #
 # Create directories and download sdm
 #
@@ -69,7 +102,9 @@ else
     echo "* Install sdm from tarball '$tarball' to '$dir'"
     $sudo tar --extract --xz $v --file $tarball --overwrite -C $dir || errexit "? Error ($?) untarring sdm tarball '$tarball'"
 fi
+
 etc="/etc"
+
 if [ "$dir" == "/usr/local/sdm" ]
 then
     echo "* Create link for sdm: /usr/local/bin/sdm"
@@ -81,12 +116,14 @@ $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 $sudo mkdir -p $etc/sdm/{0piboot,1piboot,xpiboot,assets,local-assets}
 $sudo chmod 700 $etc/sdm
+$sudo touch $etc/sdm/history
 $sudo rm -f $etc/sdm/sdm-readparams
 $sudo cp -a $dir/sdm-readparams $etc/sdm
 if [ "$($sudo bash -c '[ -f $etc/sdm/cparams ] || echo "no"')" == "no" ]
 then
     myuser=$(whoami)
     hostname=$(hostname)
+    raspiosver="$(getosinfo VERSION_ID $SDMPT)"
     cat <<EOF | $sudo tee $etc/sdm/cparams >/dev/null
 # Written by install-sdm $(date +'%Y-%m-%d %H:%M:%S')
 version:"V12.6"
@@ -124,7 +161,7 @@ os:""
 pi1bootconf:""
 plugindebug:"0"
 poptions:""
-raspiosver:""
+raspiosver:"$raspiosver"
 reboot:""
 fredact:"0"
 regensshkeys:""
