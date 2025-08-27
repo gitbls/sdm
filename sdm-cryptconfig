@@ -421,10 +421,13 @@ esac
 
 . /usr/share/initramfs-tools/hook-functions
 
+# Don't assume that sdmcryptfs-required pgms are in initramfs
 copy_exec /usr/sbin/resize2fs /usr/sbin
 copy_exec /usr/sbin/fdisk /usr/sbin
+copy_exec /usr/sbin/parted /usr/sbin
 copy_exec /usr/sbin/cryptsetup /usr/sbin
 copy_exec /usr/bin/bash /usr/bin
+copy_exec /usr/bin/dd /usr/bin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
 # OK if this fails; means it was copied due to keyscript in crypttab and copied in /usr/share/initramfs-tools/hooks/cryptroot
 copy_file text /usr/bin/sdmluksunlock || true
