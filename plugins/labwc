@@ -57,8 +57,17 @@ function stuffconfig() {
             wf-panel-pi)
 		if [ -f $assetconfig/wf-panel-pi.ini ]
 		then
-		    logtoboth "> Plugin $pfx: Copy 'wf-panel-pi' from $assetconfig/wf-panel-pi.ini to $config"
-		    cp -a $assetconfig/wf-panel-pi.ini $config
+		    case "$raspiosver" in
+			12)
+			    logtoboth "> Plugin $pfx: Copy 'wf-panel-pi' from $assetconfig/wf-panel-pi.ini to $config"
+			    cp -a $assetconfig/wf-panel-pi.ini $config
+			    ;;
+			*)
+			    logtoboth "> Plugin $pfx: Copy 'wf-panel-pi' from $assetconfig/wf-panel-pi.ini to $config/wf-panel-pi"
+			    mkdir -p $config/wf-panel-pi
+			    cp -a $assetconfig/wf-panel-pi.ini $config/wf-panel-pi
+			    ;;
+		    esac
 		fi
 		;;
 	esac
@@ -254,10 +263,22 @@ else
 	wfppasset="$assetdir/$srcuser/wf-panel-pi.ini"
 	if [ -f $wfppasset ]
 	then
-	    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config"
-	    cp -a $wfppasset /home/$dstuser/.config
-	    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi.ini"
-	    setfileownmode /home/$dstuser/.config/wf-panel-pi.ini 644 $dstuser:$gx
+	    case "$raspiosver" in
+		12)
+		    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config"
+		    cp -a $wfppasset /home/$dstuser/.config
+		    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi.ini"
+		    setfileownmode /home/$dstuser/.config/wf-panel-pi.ini 644 $dstuser:$gx
+		    ;;
+		*)
+		    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini"
+		    mkdir -p /home/$dstuser/.config/wf-panel-pi
+		    cp -a $wfppasset /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini
+		    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini"
+		    setfileownmode /home/$dstuser/.config/wf-panel-pi 700 $dstuser:$gx
+		    setfileownmode /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini 644 $dstuser:$gx
+		    ;;
+	    esac
 	fi
 
 	# Copy all-config files

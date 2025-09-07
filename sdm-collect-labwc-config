@@ -71,7 +71,11 @@ do
 	    fi
 	    ;;
 	wf-panel-pi)
-	    if [ -f $config/wf-panel-pi.ini ]
+	    if [ -f $config/wf-panel-pi/wf-panel-pi.ini ]
+	    then
+		echo "> Copy '$config/wf-panel-pi/wf-panel-pi.ini' to '$destdir'"
+		cp -a $config/wf-panel-pi/wf-panel-pi.ini $destdir
+	    elif [ -f $config/wf-panel-pi.ini ]
 	    then
 		echo "> Copy '$config/wf-panel-pi.ini' to '$destdir'"
 		cp -a $config/wf-panel-pi.ini $destdir
