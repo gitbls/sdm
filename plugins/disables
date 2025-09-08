@@ -88,12 +88,17 @@ EOF
 		    rm -f /etc/xdg/autostart/deluser.desktop
 		    ;;
 		triggerhappy)
-		    logtoboth "> Plugin $pfx: Disable triggerhappy service"
-		    systemctl disable triggerhappy.service
-		    systemctl disable triggerhappy.socket
-		    #Eliminate thd.socket errors from udev
-		    [ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
-		    [ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/thd.sdm
+		    if [ -f /lib/systemd/system/triggerhappy.service ]
+		    then
+			logtoboth "> Plugin $pfx: Disable triggerhappy service"
+			systemctl disable triggerhappy.service
+			systemctl disable triggerhappy.socket
+			#Eliminate thd.socket errors from udev
+			[ -f /lib/udev/rules.d/60-triggerhappy.rules ] && mv /lib/udev/rules.d/60-triggerhappy.rules /lib/udev/rules.d/.60-triggerhappy-sdm.rules
+			[ -f /usr/sbin/thd ] && mv /usr/sbin/thd /usr/sbin/thd.sdm
+		    else
+			logtoboth "> Plugin $pfx: Service 'triggerhappy' is not installed"
+		    fi
 		    ;;
 		wifi)
 		    fndis="/etc/sdm/0piboot/055-disable-wifi.sh"
