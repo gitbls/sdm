@@ -73,6 +73,13 @@ runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-
 #
 customizeend="$(getcdate)"
 logtoboth "> Customize elapsed time: $(datediff $customizestart $customizeend)"
+if grep -q ' % ' /etc/sdm/history
+then
+    logtoboth ""
+    logtoboth "% Customization warning messages:"
+    logtoboth "  $(grep ' % ' /etc/sdm/history | grep -v 'Customization warning messages:')"
+    logtoboth ""
+fi
 if [ $fbatch -eq 0 ]
 then
     runoneplugin sdm.phaseops 1 "op=shell"
