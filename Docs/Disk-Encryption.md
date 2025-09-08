@@ -117,7 +117,7 @@ Switches to sdm-cryptconfig include:
 * `--ssh` &mdash; Enable SSH in initramfs. Requires `--authorized-keys` to provide an authorized keys file for SSH security
 * `--sshbash` &mdash; Leave bash enabled in the SSH session rather than switching to the captive `cryptroot-unlock` (DEBUG only!)
 * `--sshport portnum` &mdash; Use the specified port rather than the Default 22
-* `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 300 seconds
+* `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 3600 seconds
 * `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * `--sdm` &mdash; sdm `cryptroot` plugin sets this. Not for manual use
 * `--tries n` &mdash; Set the number of retries to decrypt rootfs before giving up [Default: 0 (infinite)]
