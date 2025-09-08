@@ -77,9 +77,18 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     if [ ${raspiosver} -ge 12 ]
     then
-	logtoboth "> Plugin $pfx: Install wsdd"
-	installpkgsif wsdd
-	exit 0
+	case "$raspiosver" in
+	    12)
+		logtoboth "> Plugin $pfx: Install wsdd"
+		installpkgsif wsdd
+		exit 0
+		;;
+	    13)
+		logtoboth "> Plugin $pfx: Install wsdd2"
+		installpkgsif wsdd2
+		exit 0
+		;;
+	esac
     else
 	logtoboth "* Plugin $pfx: Add unprivileged user 'wsdd' in group 'wsdd'"
 	groupadd --system wsdd
