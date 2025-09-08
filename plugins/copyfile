@@ -60,6 +60,11 @@ then
 fi
 mkdir -p $dest
 logtoboth "> Plugin $pfx: Copy '$bn' from /etc/sdm/assets/copyfile/$spath to '$dest'"
+if [ -f $dbn ]
+then
+    logtoboth "% Plugin $pfx: Destination file '$dbn' exists; renaming to '$dbn.sdm'"
+    mv $dbn $dbn.sdm
+fi
 cp -a /etc/sdm/assets/copyfile/$spath/$bn $dest
 EOF
     chmod 755 $runfile
