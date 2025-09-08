@@ -248,7 +248,7 @@ Command Switches for --customize and --burn or as noted
  --reboot n          n seconds after first boot has completed restart the system
  --redact            Redact passwords in /etc/sdm/cparams and /etc/sdm/history
  --redo-customize    If image already customized, redo without prompting
- --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot
+ --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot after system time sync
  --restart           20 seconds after first boot has completed restart the system
  --runonly plugins   Do no customization, ony run requested plugins
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
@@ -262,7 +262,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V14.3"
+version="V14.4"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -368,7 +368,7 @@ cmdline="$0 $*"
 longopts="help,1piboot:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-root,extend,\
-extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,locale:,logwidth:,\
+extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,sdmprep,showapt,shrink,\
