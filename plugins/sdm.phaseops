@@ -250,6 +250,7 @@ do
                 ;;
             keymap)
                 SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
+                systemctl enable keyboard-setup
                 ;;
             locale)
                 SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
