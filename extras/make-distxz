@@ -1,0 +1,132 @@
+#!/bin/bash
+#
+# Generate an sdm install tarball
+#
+# usage: make-distxz <version> <sdmsrcdir>
+#
+# sdm.tar.xz is created in the current directory
+#
+function dogen() {
+    tmp=$(mktemp -d)
+    pushd $tmp > /dev/null
+    echo "> Populate tmpdir '$tmp'"
+    echo "sdm version: $sdmversion" > $tmp/version.sdm
+    mkdir -p plugins 1piboot
+    for f in ${sdmlist[*]}
+    do
+	#echo "file: |$f|"
+	cp $src/$f .
+    done
+
+    for f in ${pluglist[*]}
+    do
+	#echo "plugin: |$f|"
+	cp $src/plugins/$f plugins
+    done
+    cp $src/1piboot/1piboot.conf 1piboot
+
+
+    # Set owner and protection
+    sudo chown -R root:root $tmp
+    sudo chmod 755 $tmp
+    echo "> Create tarball '$src/sdm.tar.xz'"
+    rm -f $src/sdm.tar.xz
+    v=""
+    tar -cJf$v $src/sdm.tar.xz .
+
+    popd > /dev/null
+    echo "> Remove tmpdir '$tmp'"
+    sudo rm -rf $tmp
+}
+#
+# Main
+#
+sdmlist=(install-sdm \
+	     completion.sdm \
+	     sdm \
+	     sdm-phase0 \
+	     sdm-phase1 \
+	     sdm-cparse \
+	     sdm-cmdsubs \
+	     sdm-readparams \
+	     sdm-rpcsubs \
+	     sdm-spawn \
+	     sdm-firstboot \
+	     sdm-collect-labwc-config \
+	     sdm-cryptconfig \
+	     sdmcryptfs \
+	     sdm-apt-cacher \
+	     sdm-apt \
+	     sdm-customphase \
+	     sdm-apps-example \
+	     sdm-xapps-example \
+	     sdm-cportal \
+	     sdm-logmsg \
+	     sdm-gburn \
+	     sdm-make-luks-usb-key \
+	     sdm-add-luks-key \
+	     sdm-ssh-initramfs)
+pluglist=(apps \
+	      apt-addrepo \
+	      apt-cacher-ng \
+	      apt-file \
+	      bootconfig \
+	      btwifiset \
+	      cmdline \
+	      chrony \
+	      clockfake \
+	      copydir \
+	      copyfile \
+	      cryptroot \
+	      disables \
+	      docker-install \
+	      dovecot-imap \
+	      explore \
+	      extractfs \
+	      gadgetmode \
+	      git-clone \
+	      graphics \
+	      hotspot \
+	      imon \
+	      knockd \
+	      L10n \
+	      labwc \
+	      logwatch \
+	      lxde \
+	      mkdir \
+	      modattr \
+	      ndm \
+	      network \
+	      parted \
+	      piapps \
+	      pistrong \
+	      postburn \
+	      postfix \
+	      quietness \
+	      raspiconfig \
+	      runatboot \
+	      runscript \
+	      rxapp \
+	      samba \
+	      serial \
+	      speedtest \
+	      sshd \
+	      sshhostkey \
+	      sshkey \
+	      sdm.phaseops \
+	      sdm-plugin-template \
+	      syncthing \
+	      system \
+	      trim-enable \
+	      ufw \
+	      user \
+	      venv \
+	      vnc \
+	      wificonfig \
+	      wireguard \
+	      wsdd)
+
+sdmversion=${1:-unknown}
+src=${2:-/l/work/sdm}
+echo "> Make sdm.tar.xz sdm Version $sdmversion"
+dogen
