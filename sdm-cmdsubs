@@ -503,7 +503,7 @@ EOF
 
 	if [ $regensshkeys -eq 1 ]
 	then
-	    msg="> Disable regenerate_ssh_host_keys service"
+	    msg="> Disable regenerate_ssh_host_keys/sshd-keygen service(s)"
 	    if [ $sshhostkey -eq 0 ]
 	    then
 		msg="${msg}; sdm FirstBoot will run it instead"
@@ -512,7 +512,9 @@ EOF
 		regensshkeys=0   #Written to config below; firstboot will not regen again
 	    fi
 	    write_burnmsg "$msg"
-	    sdm_runspawncmd Burn1 run-command-quietly "systemctl disable regenerate_ssh_host_keys"
+	    [ -f $SDMPT/lib/systemd/system/regenerate_ssh_host_keys.service ] && sdm_runspawncmd Burn1 run-command-quietly "systemctl disable regenerate_ssh_host_keys"
+	    [ -f $SDMPT/lib/systemd/system/sshd-keygen.service ] && sdm_runspawncmd Burn1 run-command-quietly "systemctl disable sshd-keygen"
+	    #[ $sshhostkey -eq 0 ] && rm -f $SDMPT/etc/ssh/ssh_host_*_key* #Remove any existing keys
 	    touch $SDMPT/etc/ssh/sshd_not_to_be_run
 	fi
 	#
