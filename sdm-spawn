@@ -73,7 +73,7 @@ case "$cmd" in
 	    logtoboth "> Run script '$cmdoptions' [$fn] in nspawn"
 	    /etc/sdm/assets/$(basename $cmdoptions)
 	else
-	    logtoboth "? Internal error: Script '$fn' not found"
+	    logtobothex "? Internal error: Script '$fn' not found"
 	fi
 	exit
 	;;
