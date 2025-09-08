@@ -195,11 +195,8 @@ if [ $regensshkeys -eq 1 ]
 then
     write_console "Regenerate SSH Host Keys"
     bootlog "Regenerate SSH Host Keys"
-    systemctl start regenerate_ssh_host_keys
-    while [ "$(systemctl show -p ActiveState regenerate_ssh_host_keys --value)" == "active" ]
-    do
-	sleep 1
-    done
+    rm -f /etc/ssh/ssh_host_*_key*    #Remove any existing keys
+    /usr/bin/ssh-keygen -A || bootlog "? ssh-keygen returned an error (?$)"
 fi
 rm -f /etc/ssh/sshd_not_to_be_run
 
