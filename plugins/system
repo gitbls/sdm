@@ -5,6 +5,18 @@
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
 
+function adjustzram() {
+    local swapsize=$1
+    if [ -f /etc/rpi/swap.conf ]
+    then
+	mkdir -p /etc/rpi/swap.conf.d
+	cp /etc/rpi/swap.conf /etc/rpi/swap.conf.d/99-sdm-swap.conf
+	sed -i "s/#MaxSizeMiB=.*/MaxSizeMiB=$swapsize/" /etc/rpi/swap.conf.d/99-sdm-swap.conf
+    else
+	logtobothex "? Plugin $pfx: rpi-swap installed but /etc/rpi/swap.conf not found"
+    fi
+}
+
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
@@ -107,7 +119,7 @@ then
 		    done
 		    ;;
 		eeprom)
-		    ! [[ "$eepromvals" =~ "$cval" ]] && logtoboth "? Plugin $pfx: eeprom value '$cval' is unknown"
+		    ! [[ "$eepromvals" =~ "$cval" ]] && logtobothex "? Plugin $pfx: eeprom value '$cval' is unknown"
 		    ;;
 		rclocal)
 		    mkdir -p $assetdir/rclocal
@@ -230,7 +242,7 @@ EOF
 		    persistent|volatile|none)
 			logtoboth "> Plugin $pfx: Set system journal to '$journal' and disable rsyslog if installed"
 			mkdir -p /etc/systemd/journald.conf.d
-			cat > /etc/systemd/journald.conf.d/030-sdm-journal.conf <<EOF
+			cat > /etc/systemd/journald.conf.d/99-sdm-journal.conf <<EOF
 [Journal]
 Storage=$journal
 ForwardToSyslog=no
@@ -326,33 +338,40 @@ EOF
 	    swap)
 		if [ "$swap" != "" ]
 		then
-		    if [ "$swap" == "disable" ]
-		    then
-			logtoboth "> Plugin $pfx: Disable swapfile"
-			systemctl disable dphys-swapfile
-			# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
-			#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
-		    elif [ "$swap" == "zram" ]
-		    then
-			if pkgexists rpi-swap
-			then
-			    logtoboth "> Plugin $pfx: Process swap=zram"
-			    installpkgsif "rpi-swap"
-			else
-			    logtoboth "% Plugin $pfx: Ignoring swap=zram; Package rpi-swap does not exist"
-			fi
-		    else
-			# set swap size
-			swapsize=$(($swap))
-			if [ $swapsize -gt 0 ]
-			then
-			    logtoboth "> Plugin $pfx: Set swap ${swapsize}MB"
-			    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=$swapsize/" /etc/dphys-swapfile
-			    systemctl enable dphys-swapfile
-			else
-			    logtoboth "% Plugin $pfx: Swap not configured per swap '$swap'"
-			fi
-		    fi
+		    case "$swap" in
+			disable)
+			    if ispkginstalled rpi-swap
+			    then
+				logtoboth "> Plugin $pfx: Disable zram"
+				adjustzram 0
+			    elif ispkginstalled dphy-swapfile
+			    then
+				logtoboth "> Plugin $pfx: Disable swapfile"
+				systemctl disable dphys-swapfile
+				# Don't need to change CONF_SWAPSIZE if dphys-swapfile service is disabled
+				#    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=0/" /etc/dphys-swapfile
+			    fi
+			    ;;
+			*)
+			    # set swap size
+			    swapsize=$(($swap))
+			    if [ $swapsize -gt 0 ]
+			    then
+				if ispkginstalled rpi-swap
+				then
+				    logtoboth "> Plugin $pfx: Set zram size to ${swapsize}MB"
+				    adjustzram $swapsize
+				elif ispkginstalled dphy-swapfile
+				then
+				    logtoboth "> Plugin $pfx: Set swap ${swapsize}MB"
+				    sed -i "s/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=$swapsize/" /etc/dphys-swapfile
+				    systemctl enable dphys-swapfile
+				fi
+			    else
+				logtoboth "% Plugin $pfx: Swap not configured per swap '$swap'"
+			    fi
+			    ;;
+		    esac
 		fi
 		;;
 	    sysctl)
