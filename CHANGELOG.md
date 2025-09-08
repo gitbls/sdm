@@ -1,5 +1,27 @@
 # Changelog
 
+## V14.4
+
+* New Features
+  * Bash sdm command completion
+* Improvements
+  * Trixie updates
+    * Update `labwc` plugin and `sdm-collect-labwc-config` for wf-panel-pi directory change
+    * Update `graphics` plugin labwc handling to accomodate raspi-config changes
+    * Update `wsdd` plugin for package name change
+  * `sdm-cryptconfig` `--sshtimeout` default increased to 3600 seconds (1 hour)
+  * Improve ssh host key and `--regen-ssh-host-keys` handling
+  * Rename journald logging config file created by the `system` plugin to better ensure it wins the systemd config search path bingo
+  * Include `parted` in initramfs when using cryptroot/sdm-cryptconfig for distros that don't (e.g., Ubuntu)
+  * Plugin `copyfile` now renames the destination file if it exists, with a warning
+  * Improve plugin `disables` handling of triggerhappy if it's not installed
+  * `system` plugin `swap` feature automatically handles configuration of `rpi-swap` and `dphys-swapfile`
+  * Keep `sgdisk -p` happy by leaving 33*2 'blocks' at end of disk on expand
+  * Highlight sdm warning messages (if any) at the end of customization
+* Bug Fixes
+  * Re-enable the `keyboard-setup` service during FirstBoot
+  * Correct `labwc` `kanshi` config file handling
+
 ## V14.3
 
 * New Features
@@ -13,6 +35,7 @@
 * Bug Fixes
 
 ## V14.2
+
 * New Features
 * Improvements
   * `clockfake` plugin disables fake-hwclock-save.timer if present (new in Trixie)
@@ -27,9 +50,7 @@
   * `hotspot` plugin has new arguments to augment default nmcli config for hotspot, bridge master, and bridge slave. See <a href="Docs/Plugins.md#hotspot">here</a> for details.
 * Improvements
   * `clockfake` plugin now forks so it can do a last gasp system time update as system shuts down
-  * Update `labwc` plugin and `sdm-collect-labwc-config` for Trixie
   * `sshkey` plugin has new `import-pubkey` argument that provides a public key to add to the specified user's authorized_keys
-  * Rename journald logging config file created by the `system` plugin to ensure it wins the systemd config search path bingo
   * `sdm --version`, `sdm --help`, and `sdm --info` do not require `sudo`
   * Add `--extract-script` to extend `--extract-log`
   * Accomodate other devices that get partition names with '**p***n*' appended to them (ala nvme and mmcblk). See <a href="Docs/Disks-Partitions.md#device-names">here</a> for details.
