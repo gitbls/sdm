@@ -60,7 +60,6 @@ function getosinfo() {
 #
 myscript="$0 $@"
 [ "$(type -p apt)" == "" ] && errexit "? apt not found; cannot use this script to install sdm on this system"
-[[ $EUID -ne 0 ]] && sudo="sudo"
 #
 # Create directories and download sdm
 #
@@ -110,6 +109,7 @@ then
     echo "* Create link for sdm: /usr/local/bin/sdm"
     [ -L /usr/local/bin/sdm ] && $sudo rm -f /usr/local/bin/sdm
     $sudo ln -s /usr/local/sdm/sdm /usr/local/bin/sdm
+    [ -d /etc/bash_completion.d ] && $sudo cp /usr/local/sdm/completion.sdm /etc/bash_completion.d/sdm
 fi
 
 $sudo chmod -R 755 $dir/*
