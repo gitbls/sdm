@@ -97,7 +97,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --ssh -- Enable SSH in initramfs
 * --sshbash -- Leave ssh session bash enabled [Default: use cryptroot-unlock]
 * --sshport port -- Specify initramfs SSH port [Default: 22]
-* --sshtimeout timeout -- Specify initramfs SSH timeout [Default: 300]
+* --sshtimeout timeout -- Specify initramfs SSH timeout [Default: 3600]
 * --tries n -- Specify number of unlock tries before giving up [Default: 0 (infinite)]
 * --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
 
@@ -562,7 +562,7 @@ xsdm=0
 xssh=0
 xsshbash=0
 xsshport="22"
-xsshtimeout="300"
+xsshtimeout="3600"
 xtries="0"
 xunique=0
 src=$(dirname "$(realpath "$0")")
