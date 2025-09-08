@@ -1274,7 +1274,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
   * **service-disable** &mdash; Comma-separated list of services to disable
   * **service-enable** &mdash; Comma-separated list of services to enable
   * **service-mask** &mdash; Comma-separated list of services to mask
-* **swap** &mdash; **disable** or integer swapsize in MB to set. If the package `rpi-swap` is available (as in Trixie), `swap=zram` will install it.
+* **swap** &mdash; **disable** or integer swapsize in MB to set
 * **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
 * **systemd-config** &mdash; Comma-separated list of `type:/path/to/file.conf`, where type is one of *login*, *network*, *resolve*, *system*, *timesync*, or *user*. Copies the provided file to /etc/systemd/*type*.conf.d NOTE: file must be specified as a full /path/to/file.conf and the file type MUST be `.conf`
 * **udev** &mdash; Comma-separated list of files to copy to /etc/udev/rules.d
@@ -1290,6 +1290,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 If you're having issues with settings in your `systemd-config` files, here are two handy infobits:
 * The command `sudo systemd-analyze cat-config systemd/service.conf` (where *service* is one of journald, logind, networkd, pstore, sleep, system, timesyncd, or user) will display the settings in precedence order. This is very handy in sorting out what config file is providing which setting.
 * The files in /lib/systemd/*service*.conf.d and /etc/systemd/*service*.conf.d appear to have their files unified and processed in ascending alphabetical order. For instance,with /lib/systemd/journal.conf.d/70-xx.conf and /etc/systemd/journal.conf.d/030-xx.conf, 030-xx.conf is processed *first*, so any settings in 70-xx.conf will override settings in 030-xx.conf. 
+* The `swap` argument controls whichever of `rpi-swap` or `dphys-swapfile` is installed. `swap=0` disables swap.
 
 ### trim-enable
 
