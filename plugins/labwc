@@ -20,7 +20,7 @@ function stuffconfig() {
 	fi
     done
 
-    for f in bookmarks desktop-items libfm pcmanfm lxterminal wf-panel-pi
+    for f in bookmarks desktop-items kanshi libfm pcmanfm lxterminal wf-panel-pi
     do
 	case $f in
             bookmarks)
@@ -44,6 +44,14 @@ function stuffconfig() {
 		    logtoboth "> Plugin $pfx: Copy 'desktop-items*' from $assetconfig to $config/pcmanfm/LXDE-pi"
 		    mkdir -p $config/pcmanfm/LXDE-pi
 		    cp -a $assetconfig/desktop-items*.conf $config/pcmanfm/LXDE-pi
+		fi
+		;;
+	    kanshi)
+		mkdir -p $config/$f
+		if [ -f $assetconfig/$f.conf ]
+		then
+		    logtoboth "> Plugin $pfx: Copy '$f.conf' from $assetdirconfig to $config/$f"
+		    cp -a $assetconfig/$f.conf $config/$f/config
 		fi
 		;;
             libfm|lxterminal)
@@ -260,26 +268,6 @@ else
     then
 	[ -d /home/$dstuser/.config/labwc ] || logtoboth "> Plugin $pfx: labwc is installed; Configure user '$dstuser'"
 	mkdir -p /home/$dstuser/.config/labwc
-	wfppasset="$assetdir/$srcuser/wf-panel-pi.ini"
-	if [ -f $wfppasset ]
-	then
-	    case "$raspiosver" in
-		12)
-		    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config"
-		    cp -a $wfppasset /home/$dstuser/.config
-		    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi.ini"
-		    setfileownmode /home/$dstuser/.config/wf-panel-pi.ini 644 $dstuser:$gx
-		    ;;
-		*)
-		    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini"
-		    mkdir -p /home/$dstuser/.config/wf-panel-pi
-		    cp -a $wfppasset /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini
-		    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini"
-		    setfileownmode /home/$dstuser/.config/wf-panel-pi 700 $dstuser:$gx
-		    setfileownmode /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini 644 $dstuser:$gx
-		    ;;
-	    esac
-	fi
 
 	# Copy all-config files
 	if [ "$all__config" != "" ]
@@ -329,10 +317,37 @@ else
 		    bookmarks)
 			logtoboth "> Plugin $pfx: Copy '$lcname' to /home/$dstuser/.gtk-bookmarks"
 			cp -a $assetdir/$srcuser/$(basename $lcfname) /home/$dstuser/.gtk-bookmarks
-			chown $dstuser:$gx /home/$dstuser/.gtk-bookmarks
 			;;
 		esac
 	    done
+	fi
+
+	wfppasset="$assetdir/$srcuser/wf-panel-pi.ini"
+	if [ -f $wfppasset ]
+	then
+	    case "$raspiosver" in
+		12)
+		    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config"
+		    cp -a $wfppasset /home/$dstuser/.config
+		    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi.ini"
+		    setfileownmode /home/$dstuser/.config/wf-panel-pi.ini 644 $dstuser:$gx
+		    ;;
+		*)
+		    logtoboth "> Plugin $pfx: Copy $wfppasset to /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini"
+		    mkdir -p /home/$dstuser/.config/wf-panel-pi
+		    cp -a $wfppasset /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini
+		    logtoboth "> Plugin $pfx: Set protection on /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini"
+		    setfileownmode /home/$dstuser/.config/wf-panel-pi 700 $dstuser:$gx
+		    setfileownmode /home/$dstuser/.config/wf-panel-pi/wf-panel-pi.ini 644 $dstuser:$gx
+		    ;;
+	    esac
+	fi
+
+	if [ -f $assetdir/$srcuser/kanshi.conf ]
+	then
+	    mkdir -p /home/$dstuser/.config/kanshi
+	    logtoboth "> Plugin $pfx: Copy kanshi config file from $assetdir/$srcuser/kanshi.conf to /home/$dstuser/.config/kanshi/config"
+	    cp $assetdir/$srcuser/kanshi.conf /home/$dstuser/.config/kanshi/config
 	fi
 
 	# Set left-handed mouse if requested
@@ -348,13 +363,6 @@ else
 	    [ "$numlock" == "" ] && numlock=off
 	    logtoboth "> Plugin $pfx: Configure numlock to '$numlock' for user '$dstuser'"
 	    addelmtoxml /openbox_config/keyboard numlock $numlock
-	fi
-
-	if [ -f $assetdir/$srcuser/kanshi.conf ]
-	then
-	    mkdir -p /home/$dstuser/.config/kanshi
-	    logtoboth "> Plugin $pfx: Copy kanshi config file from $assetdir/$srcuser/kanshi.conf to /home/$dstuser/.config/kanshi/config"
-	    cp $assetdir/$srcuser/kanshi.conf /home/$dstuser/.config/kanshi/config
 	fi
 
 	logtoboth "> Plugin $pfx: Set owner to '$dstuser:$gx' and protection to 700 on '/home/$dstuser/.config' directory tree"
