@@ -116,6 +116,7 @@ for f in sdm sdm-phase0 \
 	     sdm-make-luks-usb-key \
 	     sdm-add-luks-key \
 	     sdm-ssh-initramfs \
+	     completion.sdm \
 	     plugins/apps \
 	     plugins/apt-addrepo \
 	     plugins/apt-cacher-ng \
@@ -202,8 +203,10 @@ $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
 $sudo mkdir -p $etc/sdm/{0piboot,1piboot,xpiboot,assets,local-assets}
 $sudo chmod 700 /etc/sdm
+$sudo touch /etc/sdm/history
 $sudo rm -f /etc/sdm/sdm-readparams
 $sudo cp -a $dir/sdm-readparams /etc/sdm
+[ -d /etc/bash_completion.d ] && $sudo cp /usr/local/sdm/completion.sdm /etc/bash_completion.d/sdm
 if [ "$($sudo bash -c '[ -f /etc/sdm/cparams ] || echo "no"')" == "no" ]
 then
     myuser=$(whoami)
