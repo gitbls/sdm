@@ -83,21 +83,24 @@ then
 	rm -f /etc/xdg/autostart/deluser.desktop
     fi
     case "${graphics,,}" in
-	labwc)
+	labwc|wayland)
 	    case "$raspiosver" in
 		12) logtoboth "> Plugin $pfx: Set Graphics mode to Wayland Labwc"
 		    do_raspiconfig do_wayland W3
+		    ;;
+		13) logtoboth "> Plugin $pfx: Set Graphics mode to Wayland Labwc"
+		    do_raspiconfig do_wayland W2
 		    ;;
 		*) logtobothex "? Plugin $pfx: sdm does not support Labwc pre-Bookworm"
 		   ;;
 	    esac
 	    ;;
-	wayfire|wayland)
+	wayfire)
 	    case "$raspiosver" in
 		12) logtoboth "> Plugin $pfx: Set Graphics mode to Wayland Wayfire"
 		    do_raspiconfig do_wayland W2
 		    ;;
-		*) logtobothex "? n Plugin $pfx: sdm does not support Wayfire pre-Bookworm"
+		*) logtobothex "? n Plugin $pfx: sdm does not support Wayfire except on Bookworm"
 		   ;;
 	    esac
 	    ;;
@@ -130,6 +133,6 @@ then
 	logtoboth "> Plugin $pfx: Run function: $runfunction $runargs"
 	$runfunction $runargs
     else
-	logtoboth "? Plugin $pfx: Run function called with no function"
+	logtobothex "? Plugin $pfx: Run function called with no function"
     fi
 fi
