@@ -573,8 +573,7 @@ then
 	    logtoboth "> Plugin $pfx: Write hotspot config to $assetdir/config"
 	    writehsconfig
 	else
-	    logtoboth "% Plugin $pfx: Config file '$config' not found"
-	    exit
+	    logtobothex "? Plugin $pfx: Config file '$config' not found"
 	fi
 
     else
@@ -619,7 +618,7 @@ else
 	cfgnetman
 	[[ "$ipforward" != "" ]] && [[ "$type" == "routed" ]] && enablerouting
     else
-	logtoboth "? Plugin $pfx: Hotspot '$hsname' config file '$assetdir/config' not found"
+	logtobothex "? Plugin $pfx: Hotspot '$hsname' config file '$assetdir/config' not found"
     fi
     if [ "$device" == "usb0" ]
     then
