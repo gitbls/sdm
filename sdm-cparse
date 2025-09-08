@@ -427,7 +427,7 @@ function do_raspiconfig() {
     then
 	SUDO_USER=${myuser:-nobody} raspi-config $cmd "$value" nonint # prefer to not block outputs! > /dev/null 2>&1
     else
-	logtoboth "% Unable to find raspi-config for function '$cmd' with value '$value'"
+	logtobothex "? Unable to find raspi-config for function '$cmd' with value '$value'"
     fi
 }
 
@@ -1715,10 +1715,11 @@ function expandpartition() {
     pbytes=$((partsize*512))
     if [ $sexp -eq 0 ]
     then
+	devsize=$((devsize-(33*2)))  # Eliminate sgdisk -p 33 'block' complaint
 	nbytes=$(((devsize*512)-partend+pbytes))
 	newend=$((devsize-1))                  # 512byte blocks
     else
-	nbytes=$(((pbytes+($sexp*1048576)))) #1024*1024
+	nbytes=$(((pbytes+(sexp*1048576)))) #1024*1024
 	newend=$(((nbytes+partstart)/512))
     fi
     [ "$plugindebug" == "" ] && plugindebug=0
