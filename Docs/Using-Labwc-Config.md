@@ -20,7 +20,7 @@ Here's how to establish your custom configuration files:
 
 If the target IMG does not have Labwc installed no changes will be made, although the files will be copied to /etc/sdm/assets/labwc
 
-NOTE: the `labwc` plugin takes other arguments as well. See <a href="Docs/Plugins.md#labwc">labwc plugin documentation</a> for complete details.
+NOTE: the `labwc` plugin takes other arguments as well. See <a href="Plugins.md#labwc">labwc plugin documentation</a> for complete details.
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
