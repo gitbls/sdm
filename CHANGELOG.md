@@ -1,5 +1,14 @@
 # Changelog
 
+## V14.5
+
+* New Features
+  * `update-alternatives` plugin to manipulate Debian alternatives
+    * <a href="Docs/Plugins.md#update-alternatives">Documentation</a>
+* Improvements
+* Bug Fixes
+  * Correct `user` plugin so `userdel` followed by `adduser` of the first user (e.g., pi) doesn't remove the login directory
+
 ## V14.4
 
 * New Features
