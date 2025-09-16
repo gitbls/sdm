@@ -1317,8 +1317,47 @@ Install and configure the ufw firewall
 * **`savescriptdir`** &mdash; Specifies a directory where the ufw plugin will save the provided `ufwscript` scripts. If not provided, the scripts will be saved in `/usr/local/bin`.
 
 #### Examples
+
 * `--plugin ufw:"/ufwscript=/path/to/script1,/path/to/script2"` &mdash; Install ufw and configure it with the two provided script files. Save the script files in the IMG in /usr/local/bin
 * `--plugin ufw` &mdash; Install ufw, do not configure any rules. ufw documentation says that all inbound network accesses are denied by default
+
+### update-alternatives
+
+Use the `update-alternatives` plugin to manipulate the Debian alternatives system.
+
+#### Arguments
+
+* **get-selections** &mdash; Output the current alternatives list to the console and /etc/sdm/history
+* **set-one** &mdash; Set one alternative. `set-one` provides the name to set (e.g., `editor`) and `path` provides the value
+* **setpath** &mdash; The path to a registered alternative for selection `set-one`
+* **set-many** &mdash; Set a series of alternatives. See below
+* **install-alternative** &mdash; Install an alternative in the system with the name provided as the `install-alternative` value. Requires `link`, `installpath`, and `priority` arguments. See Examples
+* **link** &mdash; The generic name for the master link (e.g., /usr/bin/something)
+* **installpath** &mdash; The path to an alternative for `install-alternative`
+* **priority** &mdash; Sets the priority for the alternative. When a link group is in automatic mode, the alternatives pointed to will be those which have the highest priority.
+
+#### Examples
+
+* `--plugin update-alternatives:get-selections` &mdash; Print the list of selections to the console and the log
+* `--plugin update-alternatives:"set-one=x-terminal-emulator|setpath=/usr/bin/xterm"` &mdash; Set the selection `x-terminal-emulator` to alternative `/usr/bin/xterm`
+* `--plugin update-alternatives:"set-many=/path/to/list"` &mdash; Set many alternatives at once.
+* `--plugin update-alternatives:"install-alternative=x-www-browser|link=/usr/bin/x-www-browser|installpath=/usr/bin/netsurf|priority=40"` Install a new alternative group
+
+#### Example series of alternatives for `set-many`
+
+Each line in the file for `set-many` consists of three fields: *selection-name* `manual` `/path/to/alternative`
+The specified alternative must already be registered in the Debian alternatives system, typically when the package is installed
+```
+editor manual /bin/ed
+pager manual /bin/more
+```
+
+These two paragraphs from the `update-alternatives` man page are helpful in understanding whether to use `auto` or `manual`. Hint: Use `manual` if you want the alternative setting to actually change.
+
+Each link group is, at any given time, in one of two modes: automatic or manual.  When a group is in automatic mode, the alternatives system will automatically decide, as packages are installed and removed, whether and how to update the links.  In manual mode, the alternatives system will retain the choice of the administrator and avoid changing the links (except when something is broken).
+
+Link groups are in automatic mode when they are first introduced to the system.  If the system administrator makes changes to the system's automatic settings, this will be noticed the next time update-alternatives is run on the changed link's group, and the group will automatically be switched to manual mode.
+
 
 ### user
 
