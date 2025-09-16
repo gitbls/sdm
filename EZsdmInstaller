@@ -170,6 +170,7 @@ for f in sdm sdm-phase0 \
 	     plugins/system \
 	     plugins/trim-enable \
 	     plugins/ufw \
+	     plugins/update-alternatives \
 	     plugins/user \
 	     plugins/vnc \
 	     plugins/wificonfig \
