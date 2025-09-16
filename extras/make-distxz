@@ -119,6 +119,7 @@ pluglist=(apps \
 	      system \
 	      trim-enable \
 	      ufw \
+	      update-alternatives \
 	      user \
 	      venv \
 	      vnc \
