@@ -129,7 +129,8 @@ function delete_user() {
     if getent passwd $user > /dev/null
     then
 	logtoboth "> Plugin $pfx: Delete user '$user'"
-	userdel --remove $user
+	[ "$user" != "$myuser" ] && rmv="--remove"
+	userdel $rmv $user
     else
 	logtoboth "% Plugin $pfx: User '$user' not found for deluser"
     fi
