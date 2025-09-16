@@ -234,7 +234,24 @@ function runcaptureout() {
         done
     }
 
-    { { { {  $cmd 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+    { { { { $cmd 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+}
+
+function bruncaptureout() {
+    #
+    # Run command, capturing output via logtoboth. command string can contain redirection
+    #
+    local cmd="$1" outlog="$2"
+
+    function pline() {
+        local line
+        while read line
+        do
+            logtoboth "$line" $outlog
+        done
+    }
+
+    { { { { bash -c "$cmd 2>&1" ; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
 }
 
 function setfileownmode() {
