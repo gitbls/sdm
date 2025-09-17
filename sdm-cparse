@@ -228,7 +228,7 @@ function runcaptureout() {
 
     function pline() {
         local line
-        while read line
+        while IFS="" read line
         do
             logtoboth "$line" $outlog
         done
@@ -241,13 +241,13 @@ function bruncaptureout() {
     #
     # Run command, capturing output via logtoboth. command string can contain redirection
     #
-    local cmd="$1" outlog="$2"
+    local cmd="$1" outlog="$2" filterch="$3"
 
     function pline() {
         local line
-        while read line
+        while IFS="" read line
         do
-            logtoboth "$line" $outlog
+            [[ "$filterch" == "" ]] || [[ ! "$line" =~ $filterch ]] && logtoboth "$line" $outlog
         done
     }
 

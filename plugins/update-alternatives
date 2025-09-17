@@ -23,7 +23,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
 vldargs="|get-selections|set-one|set-many|setpath|"
-vldargs="|$vldargs|install-alternative|installpath|link|priority|"
+vldargs="|$vldargs|query-selection|install-alternative|installpath|link|priority|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -52,6 +52,10 @@ then
 	[ -f $set__many ] || logtobothex "? Plugin $pfx: 'set-list' file '$set__many' not found"
 	logtoboth "> Plugin $pfx: Copy '$set__many' to $assetdir/$(basename $set__many).setlist"
 	cp $set__many $assetdir/$(basename $set__many).setlist
+    fi
+    if [ -v query__selection ]
+    then
+	[ "$query__selection" == "" ] && logtobothex "? Plugin $pfx: No alternatives provided for 'query-selection'"
     fi
     if [ "$install__alternative" != "" ]
     then
@@ -104,6 +108,15 @@ then
 	logtoboth "> Plugin $pfx: Install link name '$install__alternative' with path '$installpath' link '$link' priority '$priority'"
 	runcaptureout "update-alternatives --install $link $install__alternative $installpath $priority" || logtobothex "? Plugin $pfx: Error '$?' from update-alternatives"
 
+    fi
+    if [ "$query__selection" != "" ]
+    then
+	IFS="," read -a qitems <<< "$query__selection"
+	for alt in "${qitems[@]}"
+	do
+	    logtoboth "> Plugin $pfx: Configuration for alternative '$alt'"
+	    bruncaptureout "update-alternatives --config $alt < /dev/null" nosplit "<" || logtobothex "? Plugin $pfx: Error '$?' from update-alternatives"
+	done
     fi
     #logfreespace "at end of $pfx Custom Phase post-install"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
