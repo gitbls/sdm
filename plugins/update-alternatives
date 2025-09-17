@@ -23,7 +23,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
 vldargs="|get-selections|set-one|set-many|setpath|"
-vldargs="|$vldargs|query-selection|install-alternative|installpath|link|priority|"
+vldargs="|$vldargs|query-alternative|install-alternative|installpath|link|priority|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -53,9 +53,9 @@ then
 	logtoboth "> Plugin $pfx: Copy '$set__many' to $assetdir/$(basename $set__many).setlist"
 	cp $set__many $assetdir/$(basename $set__many).setlist
     fi
-    if [ -v query__selection ]
+    if [ -v query__alternative ]
     then
-	[ "$query__selection" == "" ] && logtobothex "? Plugin $pfx: No alternatives provided for 'query-selection'"
+	[ "$query__alternative" == "" ] && logtobothex "? Plugin $pfx: No alternatives provided for 'query-selection'"
     fi
     if [ "$install__alternative" != "" ]
     then
@@ -109,9 +109,9 @@ then
 	runcaptureout "update-alternatives --install $link $install__alternative $installpath $priority" || logtobothex "? Plugin $pfx: Error '$?' from update-alternatives"
 
     fi
-    if [ "$query__selection" != "" ]
+    if [ "$query__alternative" != "" ]
     then
-	IFS="," read -a qitems <<< "$query__selection"
+	IFS="," read -a qitems <<< "$query__alternative"
 	for alt in "${qitems[@]}"
 	do
 	    logtoboth "> Plugin $pfx: Configuration for alternative '$alt'"

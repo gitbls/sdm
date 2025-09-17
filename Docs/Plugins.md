@@ -1328,7 +1328,7 @@ Use the `update-alternatives` plugin to manipulate the Debian alternatives syste
 #### Arguments
 
 * **get-selections** &mdash; Output the current alternatives list to the console and /etc/sdm/history
-* **query-selection** &mdash; Provide a listing of the specified alternatives in a human-readable format
+* **query-alternative** &mdash; Provide a listing of the specified alternatives in a human-readable format
 * **set-one** &mdash; Set one alternative. `set-one` provides the name to set (e.g., `editor`) and `path` provides the value
 * **setpath** &mdash; The path to a registered alternative for selection `set-one`
 * **set-many** &mdash; Set a series of alternatives. See below
@@ -1340,7 +1340,7 @@ Use the `update-alternatives` plugin to manipulate the Debian alternatives syste
 #### Examples
 
 * `--plugin update-alternatives:get-selections` &mdash; Print the list of alternatives
-* `--plugin update-alternatives:"query-selection=editor,pager"` &mdash; Print the configuration of the specified alternatives
+* `--plugin update-alternatives:"query-alternative=editor,pager"` &mdash; Print the configuration of the specified alternatives
 * `--plugin update-alternatives:"set-one=x-terminal-emulator|setpath=/usr/bin/xterm"` &mdash; Set the selection `x-terminal-emulator` to alternative `/usr/bin/xterm`
 * `--plugin update-alternatives:"set-many=/path/to/list"` &mdash; Set many alternatives at once.
 * `--plugin update-alternatives:"install-alternative=x-www-browser|link=/usr/bin/x-www-browser|installpath=/usr/bin/netsurf|priority=40"` Install a new alternative group
