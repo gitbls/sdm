@@ -14,7 +14,7 @@ function do_runscript() {
     # $1: Phase to run
     local thisscript="$1" thisphase="$2"
     local line runphase rundir script user stdout stderr savehost
-    local xdo="" xo="root" xu="" xdir="$assetdir"
+    local xdo="" xo="root" xu="" xdir="$assetdir" cdcmd="" docmd="" mdir=""
     IFS="|" read script runphase rundir user stdout stderr < $assetdir/$thisscript-info
     if [[ "$runphase" == "$thisphase" ]]
     then
@@ -25,11 +25,6 @@ function do_runscript() {
 	    xu=" as user '$user'"
 	    xdo="sudo -i -u $user"
 	    xo="$user"
-	    if [ "$rundir" != "" ]
-	    then
-		logtoboth "% Plugin $pfx: Argument 'dir' value '$rundir' cannot be honored with 'user' specified"
-		rundir=""
-	    fi
 	    hostname $thishost
 	fi
 	if [ "$rundir" != "" ]
@@ -44,18 +39,19 @@ function do_runscript() {
 	else
 	    rundir=$assetdir
 	fi
+	[[ "$user" != "" ]] && [[ "$rundir" != "" ]] && docmd="bash -c \"pushd $rundir ; /tmp/$script $thisphase; \"" || docmd="/tmp/$script $thisphase"
 	[ "$stdout" == "" ] && stdout="$xdir/$script.out"
 	[ "$stderr" == "" ] && stderr="$xdir/$script.error"
 	cp $assetdir/$script /tmp
 	[ "$user" != "" ] && setfileownmode /tmp/$script 0755 $xo:$xo
-	[ "$rundir" == "$assetdir" ] && mdir="" || mdir=" in directory '$rundir'"
+	[ "$rundir" != "$assetdir" ] && mdir=" in directory '$rundir'"
 	logtoboth "> Plugin $pfx: Run script '$script'${xu}${mdir}"
 	echo "[ Run script $script${xu} at $(date +"%Y-%m-%d") ]" >>$stdout
 	echo "" >> $stdout
 	echo "[ Run script $script${xu} at $(date +"%Y-%m-%d") ]" >>$stderr
 	echo "" >> $stderr
 	pushd $rundir >/dev/null
-	${xdo} /tmp/$script $thisphase >>$stdout 2>>$stderr || logtobothex "? Plugin $pfx: Script $script exited with error"
+	${xdo} eval "$docmd" >>$stdout 2>>$stderr || logtobothex "? Plugin $pfx: Script $script exited with error"
 	popd >/dev/null
 	hostname $savehost
     fi
