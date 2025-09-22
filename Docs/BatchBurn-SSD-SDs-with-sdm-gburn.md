@@ -70,7 +70,7 @@ Valid [case-insensitive] responses:
  Y - Burn the disk for user 'bls' (or press ENTER)
  N or S - Skip burning disk for user 'bls'
  Q - Do not burn the disk for user 'bls' and exit
- L - Display the generated b0script/b1script for user 'bls'
+ L - Display the generated plugins for 'bls'
  H - Print this help
 Ready to burn '/dev/sdc' for user 'bls'? [YES/no/skip/quit/list/help]
 ```
