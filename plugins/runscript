@@ -19,31 +19,40 @@ function do_runscript() {
     if [[ "$runphase" == "$thisphase" ]]
     then
 	savehost=$(hostname)
+	if [ "$user" != "" ]
+	then
+	    [ "$(getent passwd $user)" == "" ] && logtobothex "? Plugin $pfx: User '$user' not found"
+	    xu=" as user '$user'"
+	    xdo="sudo -i -u $user"
+	    xo="$user"
+	    if [ "$rundir" != "" ]
+	    then
+		logtoboth "% Plugin $pfx: Argument 'dir' value '$rundir' cannot be honored with 'user' specified"
+		rundir=""
+	    fi
+	    hostname $thishost
+	fi
 	if [ "$rundir" != "" ]
 	then
-	    logtoboth "> Plugin $pfx: Create directory $rundir"
-	    mkdir -p $rundir
-	    setfileownmode $rundir 0755 $xo
+	    if [ ! -d $rundir ]
+	    then
+		logtoboth "> Plugin $pfx: Create directory $rundir"
+		mkdir -p $rundir
+		setfileownmode $rundir 0755 $xo:$xo
+	    fi
 	    xdir="$rundir"
 	else
 	    rundir=$assetdir
 	fi
 	[ "$stdout" == "" ] && stdout="$xdir/$script.out"
 	[ "$stderr" == "" ] && stderr="$xdir/$script.error"
-	if [ "$user" != "" ]
-	then
-	    [ "$(getent passwd $user)" == "" ] && logtobothex "? Plugin $pfx: User '$user' not found"
-	    xu="as user $user"
-	    xdo="sudo -i -u $user"
-	    xo="$user"
-	    hostname $thishost
-	fi
 	cp $assetdir/$script /tmp
-	[ "$user" != "" ] && setfileownmode /tmp/$script 0755 $xo
-	logtoboth "> Plugin $pfx: Run script $script $xu"
-	echo "[ Run script $script at $(date +"%Y-%m-%d") ]" >>$stdout
+	[ "$user" != "" ] && setfileownmode /tmp/$script 0755 $xo:$xo
+	[ "$rundir" == "$assetdir" ] && mdir="" || mdir=" in directory '$rundir'"
+	logtoboth "> Plugin $pfx: Run script '$script'${xu}${mdir}"
+	echo "[ Run script $script${xu} at $(date +"%Y-%m-%d") ]" >>$stdout
 	echo "" >> $stdout
-	echo "[ Run script $script at $(date +"%Y-%m-%d") ]" >>$stderr
+	echo "[ Run script $script${xu} at $(date +"%Y-%m-%d") ]" >>$stderr
 	echo "" >> $stderr
 	pushd $rundir >/dev/null
 	${xdo} /tmp/$script $thisphase >>$stdout 2>>$stderr || logtobothex "? Plugin $pfx: Script $script exited with error"
