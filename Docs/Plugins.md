@@ -1028,27 +1028,15 @@ The default for `stdout` and `stderr` if not specified are `$(basename $script).
 * `--plugin runscript:"stdout=/dev/stdout|stderr=/dev/stderr|script=/path/to/my/script"` &mdash; redirect the output of the script to the console instead of a file in the image
 #### Example runscript
 
-This simple script downloads the btop sources and builds/installs btop into the IMG being customized. All prerequisites such as make, gcc, etc must already be installed before this runscript is executed.
+This simple demo script prints out some environmental information including the username, group ids, and current working directory. Save the file somewhere with execute permission and use `--plugin runscript:"script=myrunscript.sh|stdout=/dev/stdout|stderr=/dev/stderr"`
+
 ```
 #!/bin/bash
 
-#
-# Download the tar file
-#
-btopver="1.3.2"
-mkdir -p /home/work/btop
-pushd /home/work/btop >/dev/null
-wget https://github.com/aristocratos/btop/releases/download/v${btopver}/btop-aarch64-linux-musl.tbz -O btop-aarch64-linux-musl.tbz
-#
-# Expand the tar file (creates directory btop)
-#
-tar -xjvf btop-aarch64-linux-musl.tbz
-#
-# cd into the directory, build, and install btop
-#
-cd btop
-make install
-
+echo "In the runscript"
+echo "* whoami: $(whoami)"
+echo "* ids: $(id)"
+echo "* pwd: $(pwd)"
 ```
 
 ### rxapp
