@@ -477,11 +477,19 @@ EOF
 	[ $sshhostkey -eq 1 ] && regensshkeys=1   # For this test VV
 	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
 	then
-	    write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
-	    if [ -f $SDMPT/boot/firmware/cmdline.txt ]
+	    if [ -f $SDMPT/boot/firmware/cmdline.txt ] # Bookworm + later
 	    then
-		sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
-	    elif [ -f $SDMPT/boot/cmdline.txt ]
+		if grep -q 'init=' $SDMPT/boot/firmware/cmdline.txt
+		then
+		    write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
+		    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
+		fi
+		if grep -q 'resize' $SDMPT/boot/firmware/cmdline.txt
+		then
+		    write_burnmsg "> Remove 'resize' from cmdline.txt per sdm expanding rootfs"
+		    sed -i 's| resize||' $SDMPT/boot/firmware/cmdline.txt
+		fi
+	    elif [ -f $SDMPT/boot/cmdline.txt ]   # Pre-bookworm
 	    then
 		sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
 	    fi
