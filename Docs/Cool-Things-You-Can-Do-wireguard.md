@@ -19,6 +19,8 @@ This document will show you how you can
 
 As noted in the `wireguard` plugin documentation, creating a fully-configured Wireguard interface requires two unique invocations of the `wireguard` plugin. The first invocation defines the interface (e.g., wg0), and the second (and others, if desired) define the Wireguard peer using the plugin's `addpeer` argument.
 
+See <a href="Cool-Things-You-Can-Do-vpn.md">Cool and Useful Things: VPN</a> to see how sdm can simplify fully configuring an IPSEC VPN for you.
+
 ## Introduction
 
 You can use sdm to create two systems to be Wireguard VPN endpoints very easily. The two endpoints have identical RasPiOS software configurations, since they will be built from a single customized IMG. You can, of course, use different customized IMGs for each end if desired.

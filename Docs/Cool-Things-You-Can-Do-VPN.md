@@ -12,6 +12,8 @@ This example also shows how you can
 * Extract host-specific files (e.g., Certs) from an IMG or burned disk in this case
 * Configure a host with a static IP address
 
+See <a href="Cool-Things-You-Can-Do-wireguard.md">Cool and Useful Things: wireguard</a> to see how sdm can simplify fully configuring a Wireguard VPN for you.
+
 ## Introduction
 
 You can use sdm to create two systems to be Host-to-Host or Site-to-Site endpoints very easily. The two endpoints have identical RasPiOS software configurations, since they will be built from a single customized IMG. You can, of course, use different base customized IMGs, but not recommended for reasons of preserving sanity.

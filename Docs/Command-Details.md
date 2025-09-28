@@ -55,6 +55,18 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--1piboot` *conffile* &mdash; Specify a 1piboot.conf file to use instead of the one in /usr/local/sdm/1piboot/1piboot.conf.
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--apt-dist-upgrade` &mdash; Some RasPiOS Bullseye images have a strange software configuration, which causes `apt-get upgrade` to fail. This switch forces sdm to use `apt-get --dist-upgrade` which updates correctly. [In the 2021-10-30 set of images, the "with Desktop" versions have a set of problematic VLC modules installed.]
+* `--apt-options` *value* &mdash; Controls which functions will be performed by sdm-phase1. `--apt-options` and `--poptions` are synonyms. Possible values include:
+    * **no-install-recommends** &mdash; Enable --no-install-recommends on the resulting system. sdm always uses this during customization.
+    * **noautoremove** &mdash; do not do an `apt autoremove`
+    * **nologdates** &mdash; do not include date/times in apt.log
+    * **noupdate** &mdash; do not do an `apt update`
+    * **noupgrade** &mdash; do not do an `apt upgrade`
+    * **none** &mdash; set noupdate,noupgrade,noautoremove,no-install-recommends
+    * **confold** &mdash;always keep old unmodified copy of a config file without prompting
+    * **confdef** &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
+
+    Enter multiple values as a single string separated by commas. For example `--poptions noupdate,noupgrade`
+
 * `--autologin` &mdash; Cause the user to autologin when the system restarts
 * `--b0script` *script* &mdash; Call the function `do_b0script` in *script* when burning. *script* will be called after the output has been burned, and operates in effectively a *Phase 0* environment. See <a href="Burn-Scripts.md">Burn Scripts</a>
 * `--b1script` *script* &mdash; Like `--b0script`, but is called in an nspawn container. See <a href="Burn-Scripts.md">Burn Scripts</a>
@@ -86,17 +98,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--nspawnsw` *"switches"* &mdash; Provide additional switches for the systemd-nspawn command. See `man systemd-nspawn`.
 * `--plugin plugin-name:"arguments"` &mdash; Include the named plugin with its arguments. sdm interprets a plugin name that starts with **"@"** as a file containing a list of plugins to include See <a href="Plugins.md">Plugins</a> for complete plugin details
 * `--plugin-debug` &mdash; Enable additional debug printout in plugins (useful for plugin development)
-* `--poptions` *value* &mdash; Controls which functions will be performed by sdm-phase1. `--apt-options` and `--poptions` are synonyms. Possible values include:
-    * **noautoremove** &mdash; do not do an `apt autoremove`
-    * **nologdates** &mdash; do not include date/times in apt.log
-    * **noupdate** &mdash; do not do an `apt update`
-    * **noupgrade** &mdash; do not do an `apt upgrade`
-    * **none** &mdash; set noupdate,noupgrade,noautoremove
-    * **confold** &mdash;always keep old unmodified copy of a config file without prompting
-    * **confdef** &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
-
-    Enter multiple values as a single string separated by commas. For example `--poptions noupdate,noupgrade`
-
+* `--poptions` *value* &mdash; See `--apt-options` above for details. `--apt-options` and `--poptions` are synonyms.
 * `--reboot n` &mdash; Restart the system at the end of the First Boot after waiting an additional *n* seconds. The `-reboot` switch can be used on the command when customizing the IMG (will apply to all SD Cards) or on the `--burn` command (will apply only to SD cards burned with `--restart` set. The system will not restart until the boot process has fully completed. Waiting an additional time may be useful if your system has services that take longer to start up on the first boot. sdm waits until *n* seconds (n=20 for `--restart) after the graphical or multi-user target is reached.
 * `--redact` &mdash; See <a href="Passwords.md">Passwords</a> for details.
 * `--redo-customize` &mdash; Directs sdm to not prompt for confirmation to redo the customization on a target found to already be customized.
