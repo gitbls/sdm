@@ -73,8 +73,12 @@ then
 	    case "$op" in
 		apt-conf)
 		    #
-		    # Configure confold and confdef if requested
+		    # Configure no-install-recommends, confold and confdef if requested
 		    #
+		    if [[ "$poptions" =~ no-install-recommends ]]
+		    then
+			echo "APT::Install-Recommends \"false\";" >> /etc/apt/apt.conf.d/03-sdm-norecommends
+		    fi
 		    rm -f /etc/apt/apt.conf.d/10-sdm-force
 		    if [[ "$poptions" =~ confold ]]
 		    then
