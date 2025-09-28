@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|bluetooth|piwiz|triggerhappy|wifi|"
+vldargs="|bluetooth|cloudinit|piwiz|triggerhappy|wifi|"
 rqdargs=""
 
 if [ "$phase" == "0" ]
@@ -73,8 +73,21 @@ else
 blfile="blacklist-sdm-bluetooth.conf"
 logger "sdm FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
 printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
-systemctl disable hciuart
+[ -f /lib/systemd/system/hciuart.service ] && systemctl disable hciuart
 EOF
+		    fi
+		    ;;
+		cloudinit)
+		    if [ -f /lib/systemd/system/cloud-init-main.service ]
+		    then
+			logtoboth "> Plugin $pfx: Disable cloud-init services"
+			systemctl disable cloud-config > /dev/null 2>&1
+			systemctl disable cloud-final  > /dev/null 2>&1
+			systemctl disable cloud-init-hotplugd > /dev/null 2>&1
+			systemctl disable cloud-init-local    > /dev/null 2>&1
+			systemctl disable cloud-init-main     > /dev/null 2>&1
+			systemctl disable cloud-init-network  > /dev/null 2>&1
+			systemctl disable cloud-init-hotplugd.socket > /dev/null 2>&1
 		    fi
 		    ;;
 		piwiz)
