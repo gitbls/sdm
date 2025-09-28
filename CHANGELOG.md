@@ -1,5 +1,16 @@
 # Changelog
 
+## V14.6
+
+* New Features
+* Improvements
+  * Add `--apt-options no-install-recommends`, which can also be enabled with `--apt-options none`. sdm uses `--no-install-recommends` when installing apps. This enables it for use in the running system
+  * Updates for Trixie
+    * Add `cloudinit` as an option to the `disables` plugin, which disables all cloud-init services
+    * Remove `resize` from cmdline.txt if sdm expands rootfs (`--expand-root`)
+* Bug Fixes
+  * Resolve a few issues in the `runscript` plugin
+
 ## V14.5
 
 * New Features
