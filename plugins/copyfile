@@ -13,8 +13,9 @@ function geninstance() {
     #
     # make a unique instance name for the run-files
     #
-    local from="$1" to="$2" instance
-    [ "$from" != "" ] && instance="$from-$to"
+    local from="$1" to="$2" instance flistnm="$3"
+    instance="$from-$to"
+    [ "$flistnm" != "" ] && instance="$instance-$flistnm"
     echo "${instance//\/}"    # Remove slashes
 }
 
@@ -25,10 +26,11 @@ function p0copyfile() {
     # so it can be moved to its destination with the correct
     # protection and owner
     #
-    local src=$1 dest=$2 owner=$3 mode=$4 mkdirif=$5 phase=$6
+    local src=$1 dest=$2 owner=$3 mode=$4 mkdirif=$5 phase=$6 flistnm=$7
     local bn=$(basename $src) spath=$(dirname $src)
     local dbn="$dest/$bn"
     local dirflag
+
     spath=${spath//\/} # src path with slashes removed
     [ "$phase" == "" ] && phase="phase1"
     if [ "$mkdirif" != "" ]
@@ -36,8 +38,8 @@ function p0copyfile() {
 	dirflag="mkdir-${dest//\/}"   # strip slashes to make a nice flag file name
 	touch $assetdir/$dirflag
     fi
-    runfile="$assetdir/run-$phase-$(geninstance $src $dest)"
-    [ -f $runfile ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'"
+    runfile="$assetdir/run-$phase-$(geninstance $src $dest $flistnm)"
+    [ -f $runfile ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'" && mv $runfile $runfile.old
     logtoboth "> Plugin $pfx: Add '$src' to files to copy"
     logtoboth "> Plugin $pfx: Copy '$src' to '$assetdir/$spath'"
     mkdir -p $assetdir/$spath
@@ -90,6 +92,28 @@ EOF
     fi
 }
 
+function runfile() {
+    local runphase=$1 src=$2 dest=$3 flist=$4 runfile runf
+
+    compgen -G "$assetdir/run-$runphase-*" > /dev/null || return
+    if [ "$flist" != "" ]
+    then
+	if compgen -G "$assetdir/run-$runphase-*-$flist" > /dev/null
+	then
+	    for runf in $assetdir/run-$runphase-*-$flist
+	    do
+		logtoboth "> Plugin $pfx: Run $runf"
+		$runf || exit 1
+	    done
+	else
+	    logtobothex "? Plugin $pfx: No runfiles for filelist '$flist' found"
+	fi
+    else
+	runfile="$assetdir/run-$runphase-$(geninstance $src $dest $flist)"
+	[ -f $runfile ] && { $runfile || exit 1 ; } || logtobothex "? Plugin $pfx: Error: runfile '$runfile' not found"
+    fi
+}
+
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -133,14 +157,15 @@ then
     if [[ "$from" != "" ]] && [[ "$to" != "" ]]
     then
 	[ -v mkdirif ] && mkdirif="yes"
-	p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" $runphase
+	p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" $runphase ""
     fi
     if [ "$filelist" != "" ]
     then
+	flistnm="$(basename $filelist)"
 	if [ -f $filelist ]
 	then
 	    logtoboth "> Plugin $pfx: Process filelist '$filelist'"
-	    cp $filelist $assetdir/filelist-$(basename $filelist)
+	    cp $filelist $assetdir/filelist-$flistnm
 	    # read the file and add each specified file to the list
 	    while read line
 	    do
@@ -157,7 +182,7 @@ then
 		    fi
 		fi
 		[ -v mkdirif ] && mkdirif="yes"
-		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" $runphase
+		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" "$runphase" "$flistnm"
 	    done < $filelist
 	else
 	    logtobothex "? Plugin $pfx: File for filelist '$filelist' not found"
@@ -174,13 +199,11 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
-    if compgen -G "$assetdir/run-phase1-*" >/dev/null
+    if [ "$filelist" == "" ]
     then
-	for runf in $assetdir/run-phase1-*
-	do
-	    logtoboth "> Plugin $pfx: Run $runf"
-	    $runf || exit 1
-	done
+	runfile phase1 "$from" "$to" ""
+    else
+	runfile phase1 "" "" "$(basename $filelist)"
     fi
     #
     #logfreespace "at end of $pfx Phase 1"
@@ -193,13 +216,11 @@ else
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase post-install"
     #
-    if compgen -G "$assetdir/run-postinstall-*" >/dev/null
+    if [ "$filelist" == "" ]
     then
-	for runf in $assetdir/run-postinstall-*
-	do
-	    logtoboth "> Plugin $pfx: Run $runf"
-	    $runf || exit 1
-	done
+	runfile postinstall "$from" "$to" ""
+    else
+	runfile postinstall "" "" "$(basename $filelist)"
     fi
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
