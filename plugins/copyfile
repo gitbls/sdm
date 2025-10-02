@@ -14,8 +14,7 @@ function geninstance() {
     # make a unique instance name for the run-files
     #
     local from="$1" to="$2" instance flistnm="$3"
-    instance="$from-$to"
-    [ "$flistnm" != "" ] && instance="$instance-$flistnm"
+    [ "$flistnm" == "" ] && instance="$from-$to" || instance="$flistnm-$from-$to"
     echo "${instance//\/}"    # Remove slashes
 }
 
@@ -95,22 +94,23 @@ EOF
 function runfile() {
     local runphase=$1 src=$2 dest=$3 flist=$4 runfile runf
 
-    compgen -G "$assetdir/run-$runphase-*" > /dev/null || return
     if [ "$flist" != "" ]
     then
-	if compgen -G "$assetdir/run-$runphase-*-$flist" > /dev/null
+	if compgen -G "$assetdir/run-$runphase-$flist-*" > /dev/null
 	then
-	    for runf in $assetdir/run-$runphase-*-$flist
+	    for runf in $assetdir/run-$runphase-$flist-*
 	    do
-		logtoboth "> Plugin $pfx: Run $runf"
+		logtoboth "> Plugin $pfx: Run filelist '$flist' runfile '$runf'"
 		$runf || exit 1
 	    done
-	else
-	    logtobothex "? Plugin $pfx: No runfiles for filelist '$flist' found"
 	fi
     else
-	runfile="$assetdir/run-$runphase-$(geninstance $src $dest $flist)"
-	[ -f $runfile ] && { $runfile || exit 1 ; } || logtobothex "? Plugin $pfx: Error: runfile '$runfile' not found"
+	runfile="$assetdir/run-$runphase-$(geninstance $src $dest)"
+	if [ -f $runfile ]
+	then
+	    logtoboth "> Plugin $pfx: Run runfile '$runfile'"
+	    $runfile || exit 1
+	fi
     fi
 }
 
