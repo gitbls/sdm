@@ -25,6 +25,7 @@
 <br><a href="fstab.md">fstab</a>
 <br><a href="Hints-Commands.md">Hints: sdm Commands</a>
 <br><a href="Hints-NetworkManager.md">Hints: Configuring Network Manager</a>
+<br><a href="Hints-Trixie.md">Hints: Trixie</a>
 <br><a href="Hint-Using-sdm-on-2022-04-04-and-later-images.md">Hint: Using sdm on 2022-04-04 and Later IMGs</a>
 <br><a href="Hotspot.md">Hotspot</a>
 <br><a href="Detailed-Installation-Guide.md">Installing and Removing sdm</a>
