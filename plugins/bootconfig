@@ -140,6 +140,15 @@ then
 		    #[ "$value" != "${value#\\n}" ] && value="\n#${value#\\n}" || value="#${value}"
 		    writecfg "$value\n"
 		    ;;
+		commentize)
+		    if grep -q "$commentize" $cfgdir/config.txt
+		    then
+			logtoboth "> Plugin $pfx: Commentize '$commentize' in $cfgdir/config.txt"
+			sed -i "s/^$commentize/#$commentize/" $cfgdir/config.txt
+		    else
+			logtoboth "% Plugin $pfx: Line '$commentize' not found to commentize in $cfgdir/config.txt"
+		    fi
+		    ;;
 		#inline)
 		    #inline="1"  # Already set above of course
 		    #;;
