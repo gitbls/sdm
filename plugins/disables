@@ -70,24 +70,37 @@ else
 			logtoboth "> Plugin $pfx: Set Bluetooth to disable in sdm FirstBoot"
 			cat > $fndis <<EOF
 #!/bin/bash
+source /etc/sdm/sdm-readparams
 blfile="blacklist-sdm-bluetooth.conf"
-logger "sdm FirstBoot: Disable bluetooth using /etc/modprobe.d/\$blfile"
+bootlog "Disable bluetooth using /etc/modprobe.d/\$blfile"
 printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
 [ -f /lib/systemd/system/hciuart.service ] && systemctl disable hciuart
 EOF
 		    fi
 		    ;;
 		cloudinit)
-		    if [ -f /lib/systemd/system/cloud-init-main.service ]
+		    if [ $raspiosver -eq 13 ]
 		    then
-			logtoboth "> Plugin $pfx: Disable cloud-init services"
-			systemctl disable cloud-config > /dev/null 2>&1
-			systemctl disable cloud-final  > /dev/null 2>&1
-			systemctl disable cloud-init-hotplugd > /dev/null 2>&1
-			systemctl disable cloud-init-local    > /dev/null 2>&1
-			systemctl disable cloud-init-main     > /dev/null 2>&1
-			systemctl disable cloud-init-network  > /dev/null 2>&1
-			systemctl disable cloud-init-hotplugd.socket > /dev/null 2>&1
+			if false
+			then
+			    logtoboth "> Plugin $pfx: Disable cloud-init services"
+			    systemctl disable cloud-config > /dev/null 2>&1
+			    systemctl disable cloud-final  > /dev/null 2>&1
+			    systemctl disable cloud-init-hotplugd > /dev/null 2>&1
+			    systemctl disable cloud-init-local    > /dev/null 2>&1
+			    systemctl disable cloud-init-main     > /dev/null 2>&1
+			    systemctl disable cloud-init-network  > /dev/null 2>&1
+			    systemctl disable cloud-init-hotplugd.socket > /dev/null 2>&1
+			fi
+			logtoboth "> Plugin $pfx: Remove cloud-init services"
+			doapt "remove --yes cloud-guest-utils cloud-init" $showapt
+			#
+			# Fix network-manager
+			#
+			logtoboth "> Plugin $pfx: Install Non-netplan version of network-manager and libnm0 version 1.52.1-1"
+			doapt "install --yes --allow-downgrades --no-install-recommends libnm0=1.52.1-1 network-manager=1.52.1-1" $showapt
+			logtoboth "> Plugin $pfx: Mark hold libnm0 and network-manager to prevent unwanted updates"
+			apt-mark hold libnm0 network-manager
 		    fi
 		    ;;
 		piwiz)
@@ -122,8 +135,9 @@ EOF
 			logtoboth "> Plugin $pfx: Set WiFi to disable in sdm FirstBoot"
 			cat > $fndis <<EOF
 #!/bin/bash
+source /etc/sdm/sdm-readparams
 blfile="blacklist-sdm-wifi.conf"
-logger "sdm FirstBoot: Disable wlan0 using /etc/modprobe.d/\$blfile"
+bootlog "Disable wlan0 using /etc/modprobe.d/\$blfile"
 printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
 EOF
 		    fi
