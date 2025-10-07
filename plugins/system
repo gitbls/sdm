@@ -31,7 +31,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 maxsys=32                #Max number times system plugin can be invoked
 loadparams
-vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|service-mask|swap|sysctl|systemd-config|udev|"
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|service-enable-at-boot|service-mask|swap|sysctl|systemd-config|udev|"
 rqdargs=""
 argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
 eepromvals="|critical|stable|beta|"
@@ -218,7 +218,8 @@ EOF
 		logtoboth "> Plugin $pfx: Set rpi-eeprom to '$eeprom' during sdm FirstBoot"
 		cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
 #!/bin/bash
-logger "sdm FirstBoot: Set rpi-eeprom to '$eeprom'"
+source /etc/sdm/sdm-readparams
+bootlog "Set rpi-eeprom to '$eeprom'"
 sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
 EOF
 		;;
@@ -324,6 +325,24 @@ EOF
 		    logtoboth "> Plugin $pfx: Enable service '$c'"
 		    systemctl enable -q $c
 		    warnifrc $? "% Plugin $pfx: Error enabling service '$c'"
+		done
+		;;
+	    service-enable-at-boot)
+		shfile=/etc/sdm/0piboot/040-enable-services-at-boot.sh
+		cat > $shfile <<EOF
+#!/bin/bash
+source /etc/sdm/sdm-readparams
+bootlog "Enable at-boot services"
+EOF
+		IFS="," read -a ssvc <<< "$cval"
+		for c in "${ssvc[@]}"
+		do
+		    logtoboth "> Plugin $pfx: Disable service '$c'"
+		    systemctl disable -q $c
+		    warnifrc $? "% Plugin $pfx: Error disabling enable-at-boot service '$c'"
+		    logtoboth "> Plugin $pfx: Service '$c' will be enabled during sdm FirstBoot"
+		    echo "bootlog 'Enable service $c'" >> $shfile
+		    echo "systemctl enable -q $c" >> $shfile
 		done
 		;;
 	    service-mask)
