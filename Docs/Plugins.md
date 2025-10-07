@@ -163,6 +163,7 @@ The `bootconfig` plugin configures the contents of /boot/firmware/config.txt.
 #### Arguments
 
 * **comment** &mdash; Append the comment to the end of config.txt. Comments can also be specified by an argument starting with `#` or `\n`. In the latter case, the comment is transformed to `\n# comment string` resulting in a blank line before the comment.
+* **commentize** &mdash; Comment out the specified line if it exists in config.txt. The line must be fully-specified and exactly match.
 * **inline** &mdash; If `inline` is provided as an argument (does not take a value), the plugin will replace existing settings in config.txt (if they exist) with any new value provided to the plugin. If it doesn't exist, or if `inline` is not provided, new arguments are appended to the end of the file.
 * **reset** &mdash; If `reset` is provided /boot/firmware/config.txt will be saved as /boot/firmware/config.txt.sdm. If no value is provided for `reset` then /boot/firmware/config.txt will be set to a null file. If `reset=/path/to/file` is provided, the specified file will replace /boot/firmware/config.txt. To work correctly, `reset` must be specified before any other arguments (this is not enforced or specifically logged by sdm).
 * **section** &mdash; The `section` argument takes a value like `pi4` or `[pi4]`, and appends the appropriately-bracketed section value to the end of config.txt preceded by a blank line.
@@ -172,6 +173,7 @@ The `bootconfig` plugin configures the contents of /boot/firmware/config.txt.
 #### Examples
 
 * `--plugin bootconfig:"section=[pi4]|somesetting=somevalue"`
+* `--plugin bootconfig:"commentize=camera_auto_detect=1"`
 * `--plugin bootconfig:"inline|hdmi_group=72|hdmi_force_hotplug=1|hdmi_mode=40|hdmi_ignore_edid"` &mdash; The plugin adds the correct value for `hdmi_ignore_edid` (0xa5000080)
 * `--plugin bootconfig:"reset|dtparam=audio=on|camera_auto_detect=1|display_auto_detect=1|dtoverlay=vc4-kms-v3d|max_framebuffers=2|arm_64bit=1|disable_overscan=1|section=cm4|otg_mode=1|section=pi4|arm_boost=1|section=all"` &mdash; An identical replacement for the Bullseye /boot/config.txt but with no comments or blank lines
 
