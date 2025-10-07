@@ -31,7 +31,7 @@ trap "doctrlcp1" SIGINT
 trap p1exit EXIT
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
-runoneplugin sdm.phaseops 1 "ops=apt-cacher,apt-conf,apt-update"
+runoneplugin sdm.phaseops 1 "ops=apt-cacher,apt-conf,apt-update" || exit
 
 if [ "$cscript" != "" ]
 then
@@ -50,7 +50,7 @@ runplugins "$plugins" 1 || exit
 #
 logtoboth "* Phase 1 post-app installation/configuration"
 
-runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove"
+runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove" || exit
 
 logfreespace "at end of Phase 1 image customization"
 logtoboth "* Phase 1 Completed"
@@ -58,7 +58,7 @@ logtoboth "* Phase 1 Completed"
 if [ "$csfn" != "" ]
 then
     logtoboth "> Run Custom Phase Script '$csfn' post-install"
-    $csfn post-install
+    $csfn post-install || exit
 fi
 #
 # Run requested plugins post-install phase
@@ -67,7 +67,7 @@ runplugins "$plugins" post-install || exit
 #
 # Run final post-customization stuff
 #
-runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-customization"
+runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-customization" || exit
 #
 # Report run time
 #
