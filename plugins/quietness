@@ -47,7 +47,7 @@ then
     #
     cat > /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparam
+source /etc/sdm/sdm-readparams
 EOF
     if [ -v consoleblank ]
     then
