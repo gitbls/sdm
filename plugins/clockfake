@@ -41,7 +41,11 @@ then
     [ "$interval" == "" ] && interval=60
     logtoboth "* Plugin $pfx: Install clockfake"
     rm -f /usr/local/bin/clockfake
-    cat >> /usr/local/bin/clockfake <<EOF
+    rm -f /etc/systemd/system/clockfake.service
+    if [ $raspiosver -lt 13 ]
+    then
+	logtoboth "> Plugin $pfx: Write /usr/local/bin/clockfake"
+	cat >> /usr/local/bin/clockfake <<EOF
 #!$(type -p python3)
 
 from datetime import datetime, timezone
@@ -73,9 +77,8 @@ else:
     syslogger(f"clockfake error {pid} from fork")
     exit(0)
 EOF
-    chmod 755 /usr/local/bin/clockfake
-    rm -f /etc/systemd/system/clockfake.service
-    cat >> /etc/systemd/system/clockfake.service <<EOF
+	logtoboth "> Plugin $pfx: Create systemd clockfake service"
+	cat >> /etc/systemd/system/clockfake.service <<EOF
 [Unit]
 Description=Fake HW clock
 After=network-online.target
@@ -92,6 +95,62 @@ RestartSec=60s
 WantedBy=multi-user.target
 
 EOF
+    else
+	logtoboth "> Plugin $pfx: Write /usr/local/bin/clockfake"
+	cat >> /usr/local/bin/clockfake <<EOF
+#!$(type -p python3)
+
+from datetime import datetime, timezone
+import os
+import syslog
+import time
+
+def syslogger(logstring):
+    syslog.syslog(syslog.LOG_NOTICE, logstring)
+
+fakefile = "/var/lib/systemd/timesync/clock"
+# sleeptime is 10 minutes
+sleeptime = 10*60
+
+pid=os.fork()
+if pid > 0:
+    # Executed by parent
+    syslogger(f"clockfake forked to pid {pid}")
+    exit(0)
+elif pid==0:
+    # executed by child
+    syslogger(f"clockfake now running in fork")
+    while True:
+        with open(fakefile, 'w') as f:
+            now = datetime.now(timezone.utc)
+            f.write(f"{datetime.strftime(now, '%s')}\n")
+        time.sleep(sleeptime)
+else:
+    syslogger(f"clockfake error {pid} from fork")
+    exit(0)
+EOF
+	logtoboth "> Plugin $pfx: Create systemd clockfake service"
+	cat >> /etc/systemd/system/clockfake.service <<EOF
+[Unit]
+Description=Fake HW clock
+After=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/clockfake
+ExecStop=/bin/bash -c 'date -u +"%s" >| /var/lib/systemd/timesync/clock'
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=60s
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+	mkdir -p /var/lib/systemd/timesync
+	rm -rf /var/lib/systemd/timesync/clock
+    fi
+    chmod 755 /usr/local/bin/clockfake
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
@@ -109,19 +168,24 @@ else
     fi
     logtoboth "* Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
     [ -f /etc/cron.hourly/fake-hwclock ] && mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
-    [ -f /lib/systemd/system/fake-hwclock-save.timer ] && systemctl disable fake-hwclock-save.timer # New in Trixie
     #
     # Run the program once here to set the fake hw clock
     #
     if [ "$burntime" == "y" ]
     then
-	logtoboth "> Plugin $pfx: Update fake hw clock"
-	python3 <<EOF
+	if [ $raspiosver -lt 13 ]
+	then
+	    logtoboth "> Plugin $pfx: Update fake hw clock"
+	    python3 <<EOF
+
 from datetime import datetime, timezone
 with open("/etc/fake-hwclock.data", 'w') as f:
     now = datetime.now(timezone.utc)
     f.write("{}\n".format(datetime.strftime(now, "%Y-%m-%d %H:%M:%S")))
 EOF
+	else
+	    date -u +"%s" >| /var/lib/systemd/timesync/clock
+	fi
     fi
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
