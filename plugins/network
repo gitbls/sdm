@@ -108,7 +108,7 @@ function getctype() {
 
     if [ "$ctype" != "" ]
     then
-	[[ "wifi|ethernet" =~ "$ctype" ]] || logtobothex "? Plugin $pfx: '$ctype' is an invalid value for 'ctype'"
+	[[ "loopback|wifi|ethernet" =~ "$ctype" ]] || logtobothex "? Plugin $pfx: '$ctype' is an invalid value for 'ctype'"
 	thisctype=$ctype
     fi
     if [[ "$thisctype" == "" ]]
