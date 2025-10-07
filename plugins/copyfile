@@ -169,20 +169,24 @@ then
 	    # read the file and add each specified file to the list
 	    while read line
 	    do
-		unset mkdirif
-		from="" ; to="" ; chown="" ; chmod=""
-		plugin_getargs $pfx "$line" "$vldargs" "|from|to|"
-		if [ "$runphase" != "" ]
+		if [[ ! "$line" =~ ^\ *# && -n $line ]]  # Skip comment and blank lines
 		then
-		    runphase="${runphase,,}"
-		    if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
+		    line="${line%#*}"   # strip trailing comment
+		    unset mkdirif
+		    from="" ; to="" ; chown="" ; chmod=""
+		    plugin_getargs $pfx "$line" "$vldargs" "|from|to|"
+		    if [ "$runphase" != "" ]
 		    then
-			logtoboth "% Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
-			runphase="phase1"
+			runphase="${runphase,,}"
+			if ! [[ "|phase1|postinstall|" =~ "$runphase" ]]
+			then
+			    logtoboth "% Unrecognized 'runphase' value '$runphase'; assuming 'phase1'"
+			    runphase="phase1"
+			fi
 		    fi
+		    [ -v mkdirif ] && mkdirif="yes"
+		    p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" "$runphase" "$flistnm"
 		fi
-		[ -v mkdirif ] && mkdirif="yes"
-		p0copyfile "$from" "$to" "$chown" "$chmod" "$mkdirif" "$runphase" "$flistnm"
 	    done < $filelist
 	else
 	    logtobothex "? Plugin $pfx: File for filelist '$filelist' not found"
