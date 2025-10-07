@@ -1,5 +1,20 @@
 # Changelog
 
+## V14.7
+
+* New Features
+  * Plugin `bootconfig` argument `commentize` will comment out the specified line in config.txt
+  * Plugin `system` argument `service-enable-at-boot` disables the specified services and re-enables them during FirstBoot
+* Improvements
+  * Plugin `disable` argument `cloudinit` also properly configures NetworkManager to avoid using /run/NetworkManager/system-connections. See <a href="Docs/Hints-Trixie.md">Trixie Hints</a> for details.
+  * Plugin `user` sets new user home directory protections to 700 to conform with Debian
+  * Enhance customization out of disk space error so it's (hopefully) much, much, much more obvious
+  * Log boot-time final configuration events such as localization, hotspot, and other plugins with late configuration in /etc/sdm/history
+* Bug Fixes
+  * Update `hotspot` plugin to accomodate NetworkManager breaking change
+  * Correct `copyfile` file list handling and allow blank and comment lines
+  * Correctly exit on errors during apt upgrade and apt autoremove
+
 ## V14.6
 
 * New Features
