@@ -181,7 +181,8 @@ then
     logtoboth "> Plugin $pfx: Set trim to enable during sdm FirstBoot"
     cat > /etc/sdm/0piboot/020-trim-enable.sh <<EOF
 #!/bin/bash
-logger "sdm FirstBoot: Enable trim"
+source /etc/sdm/sdm-readparams
+bootlog "Enable trim"
 $sdmdir/plugins/trim-enable boot "$args"
 EOF
     logtoboth "* Plugin $pfx: Complete Phase post-install"

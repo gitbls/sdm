@@ -56,17 +56,18 @@ then
     logtoboth "> Plugin $pfx: Defer final ufw configuration/enable to sdm FirstBoot"
     cat > $SDMPT/etc/sdm/0piboot/090-ufw.sh <<EOF
 #!/bin/bash
-logger "sdm FirstBoot: Configure and Enable ufw"
+source /etc/sdm/sdm-readparams
+bootlog "Configure and Enable ufw"
 if compgen -G "/etc/sdm/assets/ufw/*" > /dev/null
 then
     for cufw in /etc/sdm/assets/ufw/*
     do
-        logger "sdm FirstBoot: Run ufwscript \$cufw"
+        bootlog "Run ufwscript \$cufw"
         \$cufw
     done
 fi
 ufw enable
-[ \$? -ne 0 ] && logger "sdm FirstBoot: ? ufw enable failed"
+[ \$? -ne 0 ] && bootlog "? ufw enable failed"
 EOF
     logtoboth "* Plugin $pfx: Complete Phase post-install"
     #plugin_dbgprint "This is how to do a Plugin Debug printout"      # Will only be printed if --plugin-debug specified

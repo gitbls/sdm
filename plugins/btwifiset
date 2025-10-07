@@ -198,7 +198,7 @@ then
     # Phase 1 (in nspawn)
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|wificountry|"
+    plugin_getargs $pfx "$args" "$vldargs" ""
     #logfreespace "at start of Plugin $pfx Phase 1"
     [ "$country" == "" ] && country=$wificountry
 
@@ -213,22 +213,22 @@ then
 # Configure btwifiset password
 #
 source /etc/sdm/sdm-readparams
-logger "sdm FirstBoot: Complete btwifiset configuration"
+bootlog "Complete btwifiset configuration"
 pwd=\$(hostname)
 [ "$password" != "" ] && pwd="$password"
 if systemctl --quiet is-active btwifiset
 then
-    logger "sdm FirstBoot: Stop btwifiset service"
+    bootlog "Stop btwifiset service"
     systemctl stop btwifiset >/dev/null 2>&1
 fi
-logger "sdm FirstBoot: Set btwifiset host bluetooth password to '\$pwd'"
+bootlog "Set btwifiset host bluetooth password to '\$pwd'"
 printf "\$pwd\n" >>$btwifidir/crypto
 if [[ \$reboot -eq 0 ]]
 then
-    logger "sdm FirstBoot: Enable and start btwifiset service"
+    bootlog "Enable and start btwifiset service"
     systemctl enable --now btwifiset
 else
-    logger "sdm FirstBoot: Enable btwifiset service"
+    bootlog "Enable btwifiset service"
     systemctl enable btwifiset
 fi
 EOF
@@ -245,7 +245,7 @@ else
     # Plugin Post-install edits
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
-    plugin_getargs $pfx "$args" "$vldargs" "|country|wificountry|"
+    plugin_getargs $pfx "$args" "$vldargs" ""
     #logfreespace "at start of Plugin $pfx Phase post-install"
     [ "$country" == "" ] && country=$wificountry
     [ "$btwifidir" == "" ] && btwifidir="/usr/local/btwifiset"

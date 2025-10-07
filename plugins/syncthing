@@ -140,12 +140,13 @@ EOF
     # Run syncthing configuration script at end of sdm FirstBoot
     cat > /etc/sdm/0piboot/098-enable-syncthing-$runasuser.sh <<EOF
 #!/bin/bash
-logger "sdm FirstBoot: Configure and Enable syncthing for user $runasuser"
+source /etc/sdm/sdm-readparams
+bootlog "Configure and Enable syncthing for user $runasuser"
 # Use /tmp b/c runasuser can't read/write $assetdir
 cp $assetdir/cfgsyncthing /tmp/cfgsyncthing-$runasuser
 chmod 755 /tmp/cfgsyncthing-$runasuser
-logger "sdm FirstBoot: Configure syncthing as user '$runasuser' using '$assetdir/cfgsyncthing'"
-logger "               Log: $assetdir/cfgsyncthing-$runasuser.log"
+bootlog "Configure syncthing as user '$runasuser' using '$assetdir/cfgsyncthing'"
+bootlog "Log: $assetdir/cfgsyncthing-$runasuser.log"
 su --login $runasuser /tmp/cfgsyncthing-$runasuser </dev/null >/tmp/cfgsyncthing-$runasuser.log 2>&1
 mv /tmp/cfgsyncthing-$runasuser.log $assetdir
 rm -f /tmp/cfgsyncthing-$runasuser  # be neat
@@ -154,12 +155,12 @@ rm -f /tmp/cfgsyncthing-$runasuser  # be neat
 #chown -R $runasuser:\$gx $homedir/.config
 if [ "$nolinger" != "y" ]
 then
-    logger "sdm FirstBoot: Enable linger for user '$runasuser'"
+    bootlog "Enable linger for user '$runasuser'"
     loginctl enable-linger $runasuser
 fi
 if [ "$enablesvc" == "y" ]
 then
-    logger "sdm FirstBoot: Enable syncthing user service for '$runasuser'"
+    bootlog "Enable syncthing user service for '$runasuser'"
     systemctl --machine "$runasuser@" --user enable syncthing
     #ln -s /usr/lib/systemd/user/syncthing.service $homedir/.config/systemd/user/multi-user.target.wants
 fi

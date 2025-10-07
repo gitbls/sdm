@@ -101,7 +101,7 @@ else
 	cat > $pf01 <<EOF
 #!/bin/bash
 source /etc/sdm/sdm-readparams
-logger "sdm FirstBoot: Complete postfix configuration"
+bootlog "Complete postfix configuration"
 hostname="\$(hostname)"
 hostname="\${hostname%.*}"
 sed -i "s/myhostname = .*/myhostname = \${hostname}${dmn}/" /etc/postfix/main.cf

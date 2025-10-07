@@ -47,6 +47,7 @@ then
     #
     cat > /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 #!/bin/bash
+source /etc/sdm/sdm-readparam
 EOF
     if [ -v consoleblank ]
     then
@@ -73,7 +74,7 @@ EOF
 	    if [ "$noquiet" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "sdm FirstBoot: Re-add 'quiet' to $cfgdir/cmdline.txt"
+bootlog "Re-add 'quiet' to $cfgdir/cmdline.txt"
 sed -i "s/ quiet//g" $cfgdir/cmdline.txt
 sed -i "s/rootwait/rootwait quiet/g" $cfgdir/cmdline.txt
 EOF
@@ -100,7 +101,7 @@ EOF
 	    if [ "$nosplash" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "sdm FirstBoot: Re-add 'splash' to $cfgdir/cmdline.txt"
+bootlog "Re-add 'splash' to $cfgdir/cmdline.txt"
 sed -i "s/ splash//g" $cfgdir/cmdline.txt
 sed -i "s/rootwait/rootwait splash/g" $cfgdir/cmdline.txt
 EOF
@@ -124,7 +125,7 @@ EOF
 		systemctl mask $svc >/dev/null 2>&1
 	    done
 	    cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-logger "sdm FirstBoot: Re-enable Plymouth services"
+bootlog "Re-enable Plymouth services"
 for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
 do
     systemctl unmask $svc >/dev/null 2>&1

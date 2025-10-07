@@ -105,7 +105,9 @@ then
     [ "$noauto" == "y" ] && escript0=".099-enable-auto-encrypt.sh" || escript0="099-enable-auto-encrypt.sh"
     cat > /etc/sdm/0piboot/$escript0 <<EOF
 #!/bin/bash
-logger "sdm FirstBoot: Create automatic disk encryption service"
+
+source /etc/sdm/sdm-readparams
+bootlog "Create and enable automatic disk encryption service"
 cat > /etc/systemd/system/sdm-auto-encrypt.service <<ZEOF
 [Unit]
 Description=sdm cryptroot automatic encryption

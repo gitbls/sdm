@@ -339,9 +339,10 @@ function getnwtype() {
     fi
 }
 
-logger "sdm FirstBoot: Configure routed NetworkManager-controlled hotspot"
+source $SDMPT/etc/sdm/sdm-readparams
+bootlog "Configure routed NetworkManager-controlled hotspot"
 nwtype=\$(getnwtype $device)
-logger "sdm FirstBoot: Device: $device Network Type: \$nwtype"
+bootlog "Device: $device Network Type: \$nwtype"
 [ "\$nwtype" == "wifi" ] && rfkill unblock wlan
 
 # See if other connection exists that use this device
@@ -354,41 +355,46 @@ else
     grep -qs id=preconfigured /etc/NetworkManager/system-connections/*.nmconnection && [[ "$device" == "wlan0" ]] && excname=preconfigured
 fi
 
-logger "sdm FirstBoot: Before configuration:"
-logger "\$(nmcli c show)"
-logger "sdm FirstBoot: Before configuration [active]:"
-logger " \$(nmcli c show --active)"
+bootlog "Before configuration:" noprefix
+bootlog "$(printf "\n\$(nmcli c show)\n")" noprefix
+bootlog "" noprefix
+bootlog "Before configuration [active]:" noprefix
+bootlog "$(printf "\n\$(nmcli c show --active)\n")" noprefix
+bootlog "" noprefix
+
 nmcli device down $device >/dev/null 2>&1
 # Create hotspot
 if [ "\$nwtype" == "wifi" ]
 then
-    logger "sdm FirstBoot: Create wifi hotspot '$hsname' for device $device"
+    bootlog "Create wifi hotspot '$hsname' for device $device"
     nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid password $wifipassword # band bg 
 else
-    logger "sdm FirstBoot: Create hotspot '$hsname' for device $device"
+    bootlog "Create hotspot '$hsname' for device $device"
     nmcli c add ifname $device con-name $hsname type ethernet
 fi
 # Configure the hotspot
 nmcli c modify $hsname ipv4.method $ipv4method ipv6.method disabled $ipad autoconnect $acsts connection.autoconnect-priority 150
-[ "$hotspot__add__config" != "" ] && { logger "sdm FirstBoot: Update hotspot $hsname config: $hotspot__add__config" ; nmcli c modify $hsname $hotspot__add__config ; }
+[ "$hotspot__add__config" != "" ] && { bootlog "Update hotspot $hsname config: $hotspot__add__config" ; nmcli c modify $hsname $hotspot__add__config ; }
 nmcli c down $hsname >/dev/null 2>&1
-[[ "\$excname" != "" ]] && [[ "$acsts" == "on" ]] && logger "sdm FirstBoot: Stop connection '\$excname'" && nmcli c down "\$excname" >/dev/null 2>&1
+[[ "\$excname" != "" ]] && [[ "$acsts" == "on" ]] && bootlog "Stop connection '\$excname'" && nmcli c down "\$excname" >/dev/null 2>&1
 nmcli c reload
 if [ "$acsts" == "on" ]
 then
-    logger "sdm FirstBoot: Enable IPV4 forwarding and nftables masquerade"
+    bootlog "Enable IPV4 forwarding and nftables masquerade"
     [[ "$dhcpmode" != "nm" ]] && [[ "$ipforward" != "" ]] && sysctl 'net.ipv4.ip_forward=1' >/dev/null && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
     if [ "$device" != "usb0" ]
     then
-        logger "sdm FirstBoot: Start hotspot '$hsname'"
+        bootlog "Start hotspot '$hsname'"
         nmcli c up $hsname
     fi
 fi
 
-logger "sdm FirstBoot: After configuration:"
-logger "\$(nmcli c show)"
-logger "sdm FirstBoot: After configuration [active]:"
-logger "\$(nmcli c show --active)"
+bootlog "After configuration:" noprefix
+bootlog "$(printf "\n\$(nmcli c show)\n")" noprefix
+bootlog "" noprefix
+bootlog "After configuration [active]:"
+bootlog "$(printf "\n\$(nmcli c show --active)\n")" noprefix
+bootlog "" noprefix
 EOF
     else
 	logtoboth "> Plugin $pfx: Write sdm First Boot script to configure bridged hotspot '$hsname'"
@@ -419,15 +425,18 @@ function getnwtype() {
     fi
 }
 
-logger "sdm FirstBoot: Configure bridged NetworkManager-controlled hotspot"
+source $SDMPT/etc/sdm/sdm-readparams
+bootlog "Configure bridged NetworkManager-controlled hotspot"
 nwtype=\$(getnwtype $device)
-logger "sdm FirstBoot: Device: $device Network Type: \$nwtype"
+bootlog "Device: $device Network Type: \$nwtype"
 [ "\$nwtype" == "wifi" ] && rfkill unblock wlan
 
-logger "sdm FirstBoot: Before configuration:"
-logger "\$(nmcli c show)"
-logger "sdm FirstBoot: Before configuration [active]:"
-logger " \$(nmcli c show --active)"
+bootlog "Before configuration:" noprefix
+bootlog "$(printf "\n\$(nmcli c show)\n")" noprefix
+bootlog "" noprefix
+bootlog "Before configuration [active]:" noprefix
+bootlog "$(printf "\n\$(nmcli c show --active)\n")" noprefix
+bootlog "" noprefix
 
 # Disable autoconnect on any connections for $fwdev that are not part of the hotspot
 while read nmfile
@@ -437,7 +446,7 @@ do
         IFS="=" read idx cname < <(grep ^id= \$nmfile)
         if ! [[ "\$cname" =~ $hsname ]]
         then
-            logger "sdm FirstBoot: Disable connection '\$cname'"
+            bootlog "Disable connection '\$cname'"
             nmcli c down "\$cname"
             nmcli c modify "\$cname" autoconnect off
         fi
@@ -447,59 +456,61 @@ do
         IFS="=" read idx cname < <(grep ^id= \$nmfile)
         if ! [[ "\$cname" =~ $hsname ]]
         then
-            logger "sdm FirstBoot: Disable connection '\$cname'"
+            bootlog "Disable connection '\$cname'"
             nmcli c down "\$cname"
             nmcli c modify "\$cname" autoconnect off
         fi
     fi
 done < <(compgen -G "/etc/NetworkManager/system-connections/*.nmconnection")
 
-logger "sdm FirstBoot: Stop 'Wired connnection 1'"
+bootlog "Stop 'Wired connnection 1'"
 nmcli c down "Wired connection 1" >/dev/null 2>&1
 
 #
 # Create and configure bridge $hsname-br0
 #
-logger "sdm FirstBoot: Create bridge '$hsname-br0'"
+bootlog "Create bridge '$hsname-br0'"
 nmcli c add ifname "$hsname-br0" type bridge con-name "$hsname-br0" bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1 autoconnect $acsts
-[ "$bridge__add__config" != "" ] && { logger "sdm FirstBoot: Update hotspot bridge $hsname-br0 config: $bridge__add__config" ; nmcli c modify $hsname-br0 $bridge__add__config ; }
+[ "$bridge__add__config" != "" ] && { bootlog "Update hotspot bridge $hsname-br0 config: $bridge__add__config" ; nmcli c modify $hsname-br0 $bridge__add__config ; }
 #nmcli c show "$hsname-br0"  > /root/"$hsname-br0".nmcli
 #nmcli c down "$hsname-br0"
 #
 # Create the bridge slave $hsname-bridge-slave-$fwdev with bridge $hsname-br0 as its master 
 #
-logger "sdm FirstBoot: Create bridge slave '$hsname-bridge-slave-$fwdev'"
+bootlog "Create bridge slave '$hsname-bridge-slave-$fwdev'"
 nmcli c add type bridge-slave ifname $fwdev con-name "$hsname-bridge-slave-$fwdev" master "$hsname-br0" autoconnect $acsts
-[ "$bridge__slave__add__config" != "" ] && { logger "sdm FirstBoot: Update hotspot bridge slave $hsname-bridge-slave-$fwdev config: $bridge__slave__add__config" ; nmcli c modify $hsname-bridge-slave-$fwdev $bridge__slave__add__config ; }
+[ "$bridge__slave__add__config" != "" ] && { bootlog "Update hotspot bridge slave $hsname-bridge-slave-$fwdev config: $bridge__slave__add__config" ; nmcli c modify $hsname-bridge-slave-$fwdev $bridge__slave__add__config ; }
 #nmcli c show "$hsname-bridge-slave-$fwdev"  > /root/"$hsname-bridge-slave-$fwdev".nmcli
 
 #?needed? connection.autoconnect-slave yes
 # Create the hotspot based on the hotspot device type (wifi or otherwise)
 if [ "\$nwtype" == "wifi" ]
 then
-    logger "sdm FirstBoot: Create wifi hotspot '$hsname'"
+    bootlog "Create wifi hotspot '$hsname'"
     nmcli device wifi hotspot ifname $device con-name $hsname ssid $wifissid # band bg
 else
-    logger "sdm FirstBoot: Create ethernet hotspot '$hsname'"
+    bootlog "Create ethernet hotspot '$hsname'"
     nmcli c add ifname $device con-name $hsname type ethernet
 fi
 #nmcli c show $hsname  > /root/$hsname.nmcli
 nmcli c down $hsname >/dev/null 2>&1
-logger "sdm FirstBoot: Modify hotspot '$hsname' for bridge configuration"
+bootlog "Modify hotspot '$hsname' for bridge configuration"
 if [ "\$nwtype" == "wifi" ]
 then
     nmcli c modify $hsname slave-type bridge master "$hsname-br0" autoconnect $acsts wifi-sec.key-mgmt wpa-psk 802-11-wireless-security.psk $wifipassword
 else
     nmcli c modify $hsname slave-type bridge master "$hsname-br0" autoconnect $acsts
 fi
-[ "$hotspot__add__config" != "" ] && { logger "sdm FirstBoot: Update bridged hotspot $hsname config: $hotspot__add__config" ; nmcli c modify $hsname $hotspot__add__config ; }
+[ "$hotspot__add__config" != "" ] && { bootlog "Update bridged hotspot $hsname config: $hotspot__add__config" ; nmcli c modify $hsname $hotspot__add__config ; }
 #nmcli c show $hsname  > /root/$hsname-after-modify.nmcli
 # ipv4.addresses $wlanip/24
 
-logger "sdm FirstBoot: After configuration:"
-logger "\$(nmcli c show)"
-logger "sdm FirstBoot: After configuration [active]:"
-logger "\$(nmcli c show --active)"
+bootlog "After configuration:" noprefix
+bootlog "$(printf "\n\$(nmcli c show)\n")" noprefix
+bootlog "" noprefix
+bootlog "After configuration [active]:" noprefix
+bootlog "$(printf "\n\$(nmcli c show --active)\n")" noprefix
+bootlog "" noprefix
 
 if [ "$acsts" == "on" ]
 then
@@ -513,8 +524,8 @@ then
 fi
 if [ "$hsenable" == "y" ] && pgrep systemd >/dev/null 2>&1
 then
-    [ -f /etc/systemd/system/sdm-hotspot-portal.service ] && logger "sdm FirstBoot: Enable and start Portal service" && systemctl enable --now sdm-hotspot-portal >/dev/null 2>&1
-    [ -f /etc/systemd/system/sdm-hotspot-masquerade.service ] && logger "sdm FirstBoot: Enable and start hotspot nftables service" && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
+    [ -f /etc/systemd/system/sdm-hotspot-portal.service ] && bootlog "Enable and start Portal service" && systemctl enable --now sdm-hotspot-portal >/dev/null 2>&1
+    [ -f /etc/systemd/system/sdm-hotspot-masquerade.service ] && bootlog "Enable and start hotspot nftables service" && systemctl enable --now sdm-hotspot-masquerade >/dev/null 2>&1
 fi
 EOF
     fi

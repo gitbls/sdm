@@ -238,13 +238,15 @@ EOF
 		    cat >| /etc/sdm/xpiboot/010-l10n-setup.sh <<EOF
 #!/bin/bash
 
+source $SDMPT/etc/sdm/sdm-readparams
+
 # wificountry done first so network can come up a wee bit faster
 for kn in wificountry timezone keymap locale
 do
     [ -f /etc/sdm/locale/\$kn ] && read value < /etc/sdm/locale/\$kn || value=""
     if [ "\$value" != "" ]
     then
-        logger "sdm FirstBoot: Configure \$kn to '\$value'"
+        bootlog "Configure \$kn to '\$value'"
         case "\$kn" in
             wificountry)
                 SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
@@ -254,6 +256,7 @@ do
                 ;;
             keymap)
                 SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
+                bootlog "Enable keyboard-setup service"
                 systemctl enable keyboard-setup
                 ;;
             locale)
