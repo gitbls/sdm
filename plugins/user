@@ -234,7 +234,11 @@ function add_user() {
 	fi
 	uhomedir="$homedir"
 	[[ "$nohomedir" =~ "y" ]] && [[ "$homedir" == "" ]] && uhomedir="/dev/null"
-	[ "$uhomedir" != "" ] && logtoboth "> Plugin $pfx: Update user '$user' home directory to '$uhomedir'" && usermod --home $uhomedir $user
+	if [ "$uhomedir" != "" ]
+	then
+	    logtoboth "> Plugin $pfx: Update user '$user' home directory to '$uhomedir'"
+	    usermod --home $uhomedir $user
+	fi
 	[ "$shell" != "" ] && logtoboth "> Plugin $pfx: Update user '$user' shell to '$shell'" && usermod --shell $shell $user
     fi
     # Get username and group name
@@ -284,8 +288,9 @@ function add_user() {
 	IFS=":" read gxnm xpw xgx rest <<< $(getent group $gx)
 	if [ "$nochown" == "" -a -d $uhomedir ]
 	then
-	    logtoboth "> Plugin $pfx: Set user '$user' home directory '$uhomedir' owner to '$xuser:$gxnm'"
+	    logtoboth "> Plugin $pfx: Set user '$user' home directory '$uhomedir' owner to '$xuser:$gxnm' and protection to 700"
 	    chown -R $user:$gxnm $uhomedir
+	    chmod 700 $uhomedir
 	else
 	    plugin_dbgprint "> Plugin $pfx: Skip change owner for user '$user' home directory '$uhomedir' to '$xuser:$gxnm'"
 	fi
@@ -361,8 +366,8 @@ function addp1user() {
 	if [ "$linger" == "y" ]
 	then
 	    logtoboth "> Plugin $pfx: Enable linger for user '$adduser'"
-	    [ ! -f /etc/sdm/0piboot/091-enable-linger.sh ] && echo "#!/bin/bash" >/etc/sdm/0piboot/091-enable-linger.sh
-	    echo "logger 'sdm FirstBoot: Enable linger for user $adduser'" >>/etc/sdm/0piboot/091-enable-linger.sh
+	    [ ! -f /etc/sdm/0piboot/091-enable-linger.sh ] && printf "#!/bin/bash\nsource /etc/sdm/sdm-readparams\n" >/etc/sdm/0piboot/091-enable-linger.sh
+	    echo "bootlog 'Enable linger for user $adduser'" >>/etc/sdm/0piboot/091-enable-linger.sh
 	    echo "loginctl enable-linger $adduser" >>/etc/sdm/0piboot/091-enable-linger.sh
 	fi
     elif [ "$deluser" != "" ]
