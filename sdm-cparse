@@ -36,8 +36,11 @@ function logit {
     # $1="message string"
     # $2=/path/to/log [/etc/sdm/history]
     #
-    msg="$1" logf=${2:-/etc/sdm/history}
-    [ -f $SDMPT/$logf ] && echo "$(thisdate) $msg" >> $SDMPT/$logf
+    msg="$1" logf=${2:-/etc/sdm/history} flags=$3
+    if [[ -f $SDMPT/$logf ]]
+    then
+	[[ "$flags" != "noprefix" ]] && echo "$(thisdate) $msg" >> $SDMPT/$logf || echo "$msg" >> $SDMPT/$logf
+    fi
 }
 
 function logtoboth() {
@@ -77,8 +80,15 @@ function logtobothex() {
 
 function bootlog() {
     # Write string in $1 to the system log/journal and /etc/sdm/history.log
-    logger "sdm FirstBoot: $1"
-    logit "> sdm FirstBoot: $1"
+    local msg="$1" flags=$2
+    if [ "$flags" != "noprefix" ]
+    then
+	logger "sdm FirstBoot: $msg"
+	logit "> sdm FirstBoot: $msg"
+    else
+	logger "$msg"
+	logit "$msg" "" $flags
+    fi
 }
 
 function bootlogx() {
@@ -425,12 +435,16 @@ function logfreespace() {
     dused=$(getfsdf / pcent)
     if [ $dused -ge 98 ]
     then
-	logtoboth "!!!"
-	logtoboth "% $dimgdevname '$dimg' is ${dused}% full" nosplit
-	logtoboth "% Review /etc/sdm/apt.log in the IMG for insufficient disk space errors" nosplit
-	logtoboth "% If needed use --extend --xmb nnnn with --customize to create more space in the IMG" nosplit
-	logtoboth "% Customization terminated due to low disk space condition" nosplit
-	logtoboth "!!!"
+	logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!"
+ 	logtoboth "!!! ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR !!!"
+	logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!"
+	logtoboth "!!!>>  $dimgdevname '$dimg' is ${dused}% full" nosplit
+	logtoboth "!!!>>  Review /etc/sdm/apt.log in the IMG for insufficient disk space errors" nosplit
+	logtoboth "!!!>>  Use '--extend --xmb nnnn' with --customize to create more space in the IMG" nosplit
+	logtoboth "!!!>>  Customization terminated due to low disk space condition" nosplit
+	logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!"
+	logtoboth "!!! ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR !!!"
+	logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!"
 	exit 1
     fi
 }
@@ -1429,7 +1443,7 @@ function deferqemu() {
 # Install qemu-user-static. Install deferred because it can't be installed in a chroot
 #
 source /etc/sdm/sdm-readparams
-bootlogx "Install qemu-user-static"
+bootlog "Perform deferred install of qemu-user-static"
 installpkgsif qemu-user-static
 EOF
     fi
