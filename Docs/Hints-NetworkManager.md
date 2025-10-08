@@ -10,7 +10,7 @@ This page discusses nm sdm-fu and overall more depth on the `network` plugin.
 
 On Bullseye and earlier systems, the `network` plugin by default uses dhcpcd for `netman`, as it is on an uncustomized RasPiOS. The `network` plugin accepts a file via the `dhcpcdappend` argument that is appended to /etc/dhcpcd.conf. The `wpa` argument file will be copied to /etc/wpa_supplicant/wpa_supplicant.conf. Alternatively, if the arguments `wifissid`, `wifipassword`, and `wificountry` are all set, wpa_supplicant.conf will be written with this configuration.
 
-On Bookworm, nm is used by default for network management. You can also select nm on Bullseye with the `netman=nm` argument to the `network` plugin. Likewise, if you want to use dhcpcd on Bookworm, use `netman=dhcpcd`.
+On Bookworm and later, nm is used by default for network management. You can also select nm on Bullseye with the `netman=nm` argument to the `network` plugin. Likewise, if you want to use dhcpcd on Bookworm, use `netman=dhcpcd`.
 
 When configuring nm, a WiFi connection can be configured with the arguments `wifissid`, `wifipassword`, and `wificountry`. If all 3 are provided to the network plugin an nm connection file will be created using the `wifissid` as the connection name. If these arguments are not provided, the plugin will get the values from a provided `wpa` argument file. If neither of these are provided, no WiFi connection will be configured unless one is provided with an `nmconn` argument.
 

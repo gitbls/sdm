@@ -29,7 +29,7 @@ Additionally, <a href="https://en.wikipedia.org/wiki/Linux_Unified_Key_Setup">th
 sdm supports enabling rootfs encryption configuration in two different ways:
 
 * sdm-integrated, using the `cryptroot` plugin
-* Standalone on RasPiOS and Debian Bookworm without needing all of sdm by using `sdm-cryptconfig` on your running system
+* Standalone on RasPiOS and Debian Bookworm and later without needing all of sdm by using `sdm-cryptconfig` on your running system
 
 These two methods are discussed in the following sections.
 

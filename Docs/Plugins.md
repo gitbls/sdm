@@ -469,7 +469,7 @@ The videomode argument takes a string of the form: 'HDMI-A-1:1024x768M@60D'. sdm
 
 ### hotspot
 
-The hotspot plugin configures the specified wireless device or USB0 to be a hotspot. The hotspot plugin only supports Bookworm and is implemented using NetworkManager. In most situations a routed hotspot is preferable, but both are provided.
+The hotspot plugin configures the specified wireless device or USB0 to be a hotspot. The hotspot plugin supports Bookworm and later releases and is implemented using NetworkManager. In most situations a routed hotspot is preferable, but both are provided.
 
 #### Arguments
 
@@ -733,7 +733,7 @@ sdm does not pay attention to, nor do anything to improve or restrict multiple c
 
 All arguments except `dhcpcdappend`, `dhcpcdwait`, `nowifi`, and `wpa` are valid for NetworkManager. The only arguments valid for dhcpcd are these four plus `noipv6`
 
-* **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). If `netman` is not specified, by default sdm will use dhcpcd on Bullseye (Debian 11) and earlier, while on Bookworm (Debian 12) sdm will use NetworkManager.
+* **netman** &mdash; Specify which network manager to use. Supported values are `dhcpcd`, `network-manager`, and `nm` (short for network-manager). If `netman` is not specified, by default sdm will use dhcpcd on Bullseye (Debian 11) and earlier, while on Bookworm and later sdm will use NetworkManager.
 * **autoconnect** &mdash; Takes the value `true` or `false`. Sets the connection's autoconnect value
 * **autoconnect-priority** &mdash; Sets the connection's `autoconnect-priority` to the provided value
 * **cname** &mdash; Name the NetworkManager connection. Default is `ifname`, the interface name
@@ -1251,7 +1251,7 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 * **eeprom** &mdash; Supported values are ***critical***, ***stable***, and ***beta***
 * **exports** &mdash; Comma-separated list of files to append to /etc/exports
 * **fstab** &mdash; Comma-separated list of files to append to /etc/fstab
-* **journal** &mdash; Configure systemd journal. Supported values are ***persistent***, ***volatile***, and ***none***. By default Bullseye uses rsyslog and `journal=volatile` while Bookworm uses `journal=persistent`.
+* **journal** &mdash; Configure systemd journal. Supported values are ***persistent***, ***volatile***, and ***none***. By default Bullseye uses rsyslog and `journal=volatile` while Bookworm uses `journal=persistent`. NB RasPiOS changed again. It's best to use this configuration setting if you care.
     * `persistent`: Makes a permanent journal in /var/log
     * `volatile`: The journal is in memory and not retained across system restarts
     * `none`: There is no system journal
