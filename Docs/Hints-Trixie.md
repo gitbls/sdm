@@ -29,6 +29,13 @@ switch on the command line. This will relocate lo.nmconnection to /etc/NetworkMa
 
 Alternatively you can use `copyfile` or your own mechanism to copy a prebuilt lo.nmconnection to /etc/NetworkManager/system-connections
 
+If you'd prefer to not use sdm, here are the commands that sdm's `disables:cloudinit` function performs:
+```
+sudo apt remove --yes cloud-guest-utils cloud-init
+sudo apt install --yes --allow-downgrades --no-install-recommends libnm0=1.52.1-1 network-manager=1.52.1-1
+sudo apt-mark hold libnm0 network-manager
+```
+
 ## labwc
 
 The script `sdm-collect-labwc-config` can be run on either Bookworm or Trixie to gather your changes to the labwc config files into a single directory.
