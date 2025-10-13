@@ -193,6 +193,7 @@ sdm keeps all the context in /etc/sdm/cparams, which is read by each module (via
 * `--directory`         &mdash; $fdirtree=1
 * `--domain` name       &mdash; $domain
 * `--ecolors` fg:bg:cur &mdash; $ecolors
+* `--expand-at-boot`    &mdash; $expandatboot
 * `--expand-root`       &mdash; $expandroot=1
 * `--extend`            &mdash; $fextend=1
 * `--groups` list       &mdash; $groups
