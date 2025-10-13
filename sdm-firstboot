@@ -22,6 +22,14 @@ function doscripts() {
     done
 }    
 
+function dozzscripts() {
+    if compgen -G "/etc/sdm/zzpiboot/*" > /dev/null
+    then
+	chmod 755 /etc/sdm/zzpiboot/0*-*.sh   #Ensure all executable
+	doscripts "/etc/sdm/zzpiboot/0*-*.sh" "Generated sdm FirstBoot"
+    fi
+}
+
 function doconfig() {
     cfgfile="$1"
     [ ! -f $cfgfile ] && bootlog "? Config file $cfgfile not found...skipping" && exit
@@ -204,6 +212,7 @@ if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
     wait_startup_complete "System will restart automatically after system startup has completed"
     [ -f /etc/sdm/assets/cryptbbh ] && bootlog "Skip set boot behavior per cryptroot plugin" || do_delayed_boot_behavior reboot
+    dozzscripts
     write_console "System startup complete; System will restart in $rebootwait seconds"
     bootlog "System will restart in $rebootwait seconds"
     sleep $rebootwait
@@ -215,6 +224,7 @@ else
     [ "$(systemctl is-enabled ssh)" == "enabled" -a $reboot -ne 1 ] && systemctl start ssh
     wait_startup_complete "System will continue without restarting after system startup has completed"
     [ -f /etc/sdm/assets/cryptbbh ]  && bootlog "Skip set boot behavior per cryptroot plugin" || do_delayed_boot_behavior noreboot
+    dozzscripts
     write_console "System startup complete"
     bootlog "System startup complete"
 fi
