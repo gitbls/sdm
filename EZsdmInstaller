@@ -202,7 +202,7 @@ fi
 
 $sudo chmod -R 755 $dir/*
 $sudo chmod 644 $dir/{sdm-apps-example,sdm-xapps-example} $dir/1piboot/1piboot.conf
-$sudo mkdir -p $etc/sdm/{0piboot,1piboot,xpiboot,assets,local-assets}
+$sudo mkdir -p $etc/sdm/{0piboot,1piboot,xpiboot,zzpiboot,assets,local-assets}
 $sudo chmod 700 /etc/sdm
 $sudo touch /etc/sdm/history
 $sudo rm -f /etc/sdm/sdm-readparams
