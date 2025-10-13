@@ -658,7 +658,7 @@ function writeconfig() {
     echo "#Arguments passed from sdm into the IMG on $(date +'%Y-%m-%d %H:%M:%S')" > $paramfile
     for e in version thishost aptcache aptdistupgrade autologin fbatch b0script b1script bootscripts \
 		     burnplugins cscript csrc customizestart datefmt debugs dimg dimgdev dimgdevname domain ecolors \
-		     expandroot exports fchroot fdirtree fnoexpandroot hname hostname loadlocal logwidth \
+		     expandatboot expandroot exports fchroot fdirtree fnoexpandroot hname hostname loadlocal logwidth \
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
 		     redocustomize sdmdir sdmflist showapt src \
