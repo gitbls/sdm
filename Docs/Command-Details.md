@@ -84,6 +84,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--datefmt "fmt"` &mdash; Use the specified date format instead of the default "%Y-%m-%d %H:%M:%S". See `man date` for format string details.
 * `--ddsw` *"switches"* &mdash; Provide switches for the `dd` command used with `--burn`. The default is "bs=16M iflag=direct". If `--ddsw` is specified, it replaces the default value.
 * `--encrypted` &mdash; Use with the `--explore` and `--mount` commands to access encrypted disks. See <a href="Disk-Encryption.md">Disk Encryption.</a>
+* `--expand-at-boot` &mdash; The rootfs will be expanded when the system first boots. You must either use `--regen-ssh-host-keys` or `--plugin sshhostkey:generate-keys`. This switch is only supported with Trixie and later IMGs; however, the version is not checked.
 * `--expand-root` &mdash; Used with `--burn`. Expands the root partition on the SSD/SD Card after burning, and disables the default (quick) first boot that does this, since sdm has already expanded the partition
 * `--extend` &mdash; Used in conjunction with the `--xmb` switch to extend an image. If used without `--customize` the IMG is extended but no other action is taken. If used with `--customize` the IMG is extended before the IMG is customized.
 * `--extract-log` */path/to/dir* &mdash; Extract the log files /etc/sdm/apt.log and /etc/sdm/history from the device or IMG and save them in the specified directory
