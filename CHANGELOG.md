@@ -1,5 +1,19 @@
 # Changelog
 
+## V14.8
+
+* New Features
+  * `--expand-at-boot` does the rootfs expansion at boot time, but relies on you to do SSH host key generation using `--regen-ssh-host-keys` or `--plugin sshhostkey:generate-keys` at burn time. Trixie only
+  * Plugin `system` argument `service-disable-at-boot` argument to disable services at the very end of the first system boot
+* Improvements
+  * Minor doc updates for Trixie
+  * Use internal `do_raspiconfig` everywhere, removing a few errant naked raspi-config calls
+  * Add `--no-last-reboot` to sdm-cryptconfig. Useful (for me) when debugging ;)
+  * Enhance error messages when an apt failure is identified during customization
+  * Plugin `disable` argument `cloudinit` only supported on 64-bit OS
+* Bug Fixes
+  * apt autoremove was getting done too early as a result of some internal code shuffling. Shuffled it a bit more
+
 ## V14.7
 
 * New Features

@@ -99,7 +99,7 @@ function loadsdm() {
     # Load sdm into the disk/IMG mounted on $SDMPT
     #
     [ -d $SDMPT/etc/sdm ] && echo "% sdm already in $dimg; recopy not done" && return
-    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,local-assets}
+    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,zzpiboot,local-assets}
     [ -f $SDMPT/etc/sdm/history ] || touch $SDMPT/etc/sdm/history
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
@@ -123,6 +123,11 @@ function loadsdm() {
 	setfileownmode "$SDMPT/$sdmdir/local-plugins/*" 755
     fi
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
+    if [ -f $src/completion.sdm ]
+    then
+	mkdir -p /etc/bash_completion.d
+	cp $src/completion.sdm $SDMPT/etc/bash_completion.d/sdm
+    fi
     setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
     chown -R root:root $SDMPT/$sdmdir
     writeconfig
@@ -217,6 +222,7 @@ Command Switches for --customize and --burn or as noted
  --chroot            Use chroot rather than systemd-nspawn (for use on certain host OSes)
  --convert-root fmt  Use the specified rootfs format (btrfs, lvm) instead of ext4
  --encrypted         The rootfs is encrypted and must be decrypted by sdm
+ --expand-at-boot    rootfs expansion done at boot (Trixie and later)
  --extract-log dir   Extract the sdm history and apt.log to the named directory
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
@@ -262,7 +268,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V14.7"
+version="V14.8"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -291,6 +297,7 @@ dimg=""                     #IMG Name
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
 domain=""                   #--domain name
 ecolors="blue:gray:red"     #fg:bg:cursor
+expandatboot=0              #1=expand rootfs at boot time (Trixie)
 expandroot=0                #1=Expand root after burning it to a device
 fchroot=0                   #1=Use chroot instead of systemd-nspawn
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
@@ -367,7 +374,7 @@ source $src/sdm-cparse           # Get function defs
 cmdline="$0 $*"
 longopts="help,1piboot:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
-customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-root,extend,\
+customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-at-boot,expand-root,extend,\
 extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
@@ -409,6 +416,7 @@ do
 	--domain)      domain=$2     ; shift 2 ;;
 	--ecolors)     ecolors=$2    ; shift 2 ;;
 	--encrypted)   fencrypted=1  ; shift 1 ;;
+	--expand-at-boot) expandatboot=1 ; shift 1 ;;
 	--expand-root) expandroot=1  ; shift 1 ;;
 	--explore)     fexplore=1    ; shift 1 ;;
 	--extend)      fextend=1     ; shift 1 ;;
