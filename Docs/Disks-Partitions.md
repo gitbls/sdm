@@ -59,6 +59,7 @@ Supported scenarios include:
 * **Expand rootfs after burning the disk.** Use `--expand-root`. The system will boot with the rootfs fully-expanded.
 * **Do not expand rootfs after burning the disk.** Use `--no-expand-root`. You can perform further partition manipulation using the `parted` plugin on the burn command such as: resize rootfs, add additional partitions, etc.
 * **Expand rootfs the same way that rpi-imager does.** Do not add any rootfs expansion-related switches to the command line. The system will boot and immediately expand the rootfs, regenerate SSH keys, and reboot. You must define at least one user with the `user` plugin and include `--plugin disables:piwiz` on either the customize or burn command.
+* **Expand rootfs at first system boot.** (Trixie and later). You must also either use `--regen-ssh-host-keys` or `--plugin sshhostkey:generate-keys`.
 
 In the first two cases, you should include `--regen-ssh-host-keys` on either the customize or burn command or use the `sshhoskey` plugin to ensure that the SSH host keys are generated. If you do either of these in the third case (rpi-imager model) the SSH host keys will always be generated during the first (zeroth in sdm terms) system boot.
 <br>
