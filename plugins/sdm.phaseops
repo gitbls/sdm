@@ -26,6 +26,18 @@ doaptrpterror "$1 $upg" "$2"
 rm -f /etc/apt/apt.conf.d/02sdm-myconf
 }
 
+function rptapterror() {
+    msg="$1"
+    logtoboth ""
+    logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!" nosplit
+    logtoboth "!!! ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR !!!" nosplit
+    logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!" nosplit
+    logtoboth "!!!>> $msg" nosplit nosplit
+    logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!" nosplit
+    logtoboth "!!! ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR !!!" nosplit
+    logtobothex "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!" nosplit
+}
+
 function p1exit() {
     #
     # Clean up when Phase 1 (or any of the container commands) exits
@@ -56,7 +68,7 @@ then
     args="$2"
     loadparams
     vldargs="|ops|op|"
-    vops="|update-apt-cacher|apt-conf|apt-update|apt-upgrade|apt-autoremove|finish-customization|config-firstboot|graphics|pre-phase1|post-customization|post-phase1|shell|ssh|writeL10n|"
+    vops="|update-apt-cacher|apt-conf|apt-update|apt-upgrade|apt-autoremove|finish-customization|config-firstboot|graphics|pre-phase1|post-customization|shell|ssh|writeL10n|"
     rqdargs=""
     assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -137,12 +149,12 @@ then
 		    #
 		    if [ -f /etc/sdm/apt.log ]
 		    then
-			grep -q " E:" /etc/sdm/apt.log && logtobothex "? apt reported errors; review /etc/sdm/apt.log"
+			grep -q " E:" /etc/sdm/apt.log && rptapterror "? apt reported errors; review /etc/sdm/apt.log"
 			if grep -q " W: An error occurred" /etc/sdm/apt.log || grep -q " W: Failed to fetch" /etc/sdm/apt.log \
 				|| grep -q "signatures were invalid" /etc/sdm/apt.log || grep -q " W: Some index files failed to download" /etc/sdm/apt.log
 			then
-			    [ "$aptcache" == "" ] && logtobothex "? apt reported warnings; review /etc/sdm/apt.log" \
-				    || logtobothex "? apt reported warnings; review /etc/sdm/apt.log and check your apt-cacher-ng server for problems"
+			    [ "$aptcache" == "" ] && rptapterror "? apt reported warnings; review /etc/sdm/apt.log" \
+				    || rptapterror "? apt reported warnings; review /etc/sdm/apt.log and check your apt-cacher-ng server for problems"
 			fi
 		    fi
 		    ;;
@@ -194,10 +206,10 @@ EOF
 		    logtoboth "> Run post-Customization steps"
 		    runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-customization"
 		    ;;
-		post-phase1)
-		    logtoboth "> Run post-Phase1 steps"
-		    runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove"
-		    ;;
+		#post-phase1)
+		    #logtoboth "> Run post-Phase1 steps"
+		    #runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove"
+		    #;;
 		shell)
 		    if [ -t 0 ]
 		    then
@@ -249,18 +261,22 @@ do
         bootlog "Configure \$kn to '\$value'"
         case "\$kn" in
             wificountry)
-                SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
+                do_raspiconfig do_wifi_country  "\${value^^}"
+                #SUDO_USER=$myuser raspi-config do_wifi_country "\${value^^}" nonint
                 ;;
             timezone)
-                SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
+                do_raspiconfig do_change_timezone "\$value"
+                #SUDO_USER=$myuser raspi-config do_change_timezone "\$value" nonint
                 ;;
             keymap)
-                SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
+                do_raspiconfig do_configure_keyboard "\$value"
+                #SUDO_USER=$myuser raspi-config do_configure_keyboard "\$value" nonint
                 bootlog "Enable keyboard-setup service"
                 systemctl enable keyboard-setup
                 ;;
             locale)
-                SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
+                do_raspiconfig do_change_locale "\$value"
+                #SUDO_USER=$myuser raspi-config do_change_locale "\$value" nonint
                 ;;
         esac
     fi
