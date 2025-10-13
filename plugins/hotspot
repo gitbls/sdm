@@ -637,7 +637,7 @@ else
 	logtoboth "> Plugin $pfx: Blacklist module cdc_subset may improve USB link detection reliability (but disabled for now)"
 	logtoboth "  Undot /etc/modprobe.d/.blacklist-cdc-subset.conf if you're having issues"
 	echo "blacklist cdc_subset" >| /etc/modprobe.d/.blacklist-cdc-subset.conf
-	# This is neededd b/c cdc_subset and cdc_ether for some crazy reason detect the usb host gadget as eth1
+	# This is needed b/c cdc_subset and cdc_ether for some crazy reason detect the usb host gadget as eth1
 	# Write hack /etc/systemd/network/10-usb.link
 	logtoboth "> Plugin $pfx: Write /etc/systemd/network/10-usb.link to work around usb device detected as eth1"
 	cat > /etc/systemd/network/10-usb.link <<EOF
