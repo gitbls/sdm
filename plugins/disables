@@ -92,15 +92,18 @@ EOF
 			    systemctl disable cloud-init-network  > /dev/null 2>&1
 			    systemctl disable cloud-init-hotplugd.socket > /dev/null 2>&1
 			fi
+			is64bit || logtobothex "? Plugin $pfx: 'disable:cloudinit' not supported on 32-bit RasPiOS"
 			logtoboth "> Plugin $pfx: Remove cloud-init services"
-			doapt "remove --yes cloud-guest-utils cloud-init" $showapt
+			doaptrpterror "remove --yes cloud-guest-utils cloud-init" $showapt
 			#
 			# Fix network-manager
 			#
-			logtoboth "> Plugin $pfx: Install Non-netplan version of network-manager and libnm0 version 1.52.1-1"
-			doapt "install --yes --allow-downgrades --no-install-recommends libnm0=1.52.1-1 network-manager=1.52.1-1" $showapt
+			logtoboth "> Plugin $pfx: Install netplan-free version of network-manager and libnm0 version 1.52.1-1"
+			doaptrpterror "install --yes --allow-downgrades --no-install-recommends libnm0=1.52.1-1 network-manager=1.52.1-1" $showapt
 			logtoboth "> Plugin $pfx: Mark hold libnm0 and network-manager to prevent unwanted updates"
 			apt-mark hold libnm0 network-manager
+		    else
+			logtoboth "% Plugin $pfx: 'cloudinit' skipped; Not Trixie"
 		    fi
 		    ;;
 		piwiz)

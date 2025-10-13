@@ -331,6 +331,7 @@ The disables plugin makes it easy to disable a few *complex* functions.
 #### Arguments
 
 * **bluetooth** &mdash; Disables bluetooth via a blacklist file in /etc/modprobe.d
+* **cloudinit** &mdash; Disables cloud-init and netplan to fix "misplaced" nmconnection files. Only supported on 64-bit RasPiOS.
 * **piwiz** &mdash; Disables piwiz during the first system boot. You must set up everything with sdm that piwiz does or you may not like the results: User, Password, Keymap, Locale, and Timezone.
 * **triggerhappy** &mdash; Disable the triggerhappy service. If you're not using it, this will eliminate the log spew it creates
 * **wifi** &mdash; Disables WiFi via a blacklist file in /etc/modprobe.d
@@ -1164,6 +1165,8 @@ Importing SSH host keys is useful to generate images with deterministic keys.
 Generating SSH host keys during an sdm customize or burn can be beneficial because the entropy during Pi's first boot is very limited, whereas sdm can access the entropy pool of the host OS.
 
 Note, however, that unless you fully understand the ramifications of multiple hosts sharing SSH host keys, if the customized IMG is to be used by multiple host systems, you should only use the `sshhostkey` plugin during burn so that each host has unique SSH host keys.
+
+One nice use of this plugin in Trixie is to use it at burn time, along with the `--expand-at-boot` command line switch.
 
 #### Arguments
 
