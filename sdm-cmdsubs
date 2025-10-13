@@ -426,7 +426,7 @@ EOF
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="autologin b0script b1script bootscripts burnplugins domain expandroot exports fchroot hname fredact fnoexpandroot myuser noreboot"
+	xsettings="autologin b0script b1script bootscripts burnplugins domain expandatboot expandroot exports fchroot hname fredact fnoexpandroot myuser noreboot"
 	xsettings="$xsettings nowaittimesync plugindebug plugins reboot rebootwait regensshkeys xspdev"
 	# Save settings made with the --burn command
 	# Define variable b<varname> for each <varname>
@@ -449,6 +449,7 @@ EOF
 	[ "$bburnplugins" != "" ] && burnplugins="$bburnplugins"
 	expandroot=$((bexpandroot|expandroot))
 	fchroot=$((bfchroot|fchroot))
+	fexpandatboot=$((bexpandatboot|expandatboot))
 	fnoexpandroot=$((bfnoexpandroot|fnoexpandroot))
 	regensshkeys=$((bregensshkeys|regensshkeys))
 	nowaittimesync=$((bnowaittimesync|nowaittimesync))
@@ -475,27 +476,32 @@ EOF
 	writediskids
 	ispluginselected sshhostkey "${allplugins}~${burnplugins}" && sshhostkey=1 || sshhostkey=0
 	[ $sshhostkey -eq 1 ] && regensshkeys=1   # For this test VV
-	if [ $((fnoexpandroot|expandroot)) -eq 1 -a $regensshkeys -eq 1 ]
+	if  [ $fexpandatboot -eq 1 ]
 	then
-	    if [ -f $SDMPT/boot/firmware/cmdline.txt ] # Bookworm + later
-	    then
-		if grep -q 'init=' $SDMPT/boot/firmware/cmdline.txt
-		then
-		    write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
-		    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
-		fi
-		if grep -q 'resize' $SDMPT/boot/firmware/cmdline.txt
-		then
-		    write_burnmsg "> Remove 'resize' from cmdline.txt per sdm expanding rootfs"
-		    sed -i 's| resize||' $SDMPT/boot/firmware/cmdline.txt
-		fi
-	    elif [ -f $SDMPT/boot/cmdline.txt ]   # Pre-bookworm
-	    then
-		sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
-	    fi
-	    [ -f $SDMPT/etc/init.d/resize2fs_once ] && mv $SDMPT/etc/init.d/resize2fs_once $SDMPT/etc/init.d/.sdm.resize2fs_once
+	    write_burnmsg "> Rootfs will be expanded during first system boot"
 	else
-	    write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
+	    if [[ $((fnoexpandroot|expandroot)) -eq 1 ]] && [[ $regensshkeys -eq 1 ]]
+	    then
+		if [ -f $SDMPT/boot/firmware/cmdline.txt ] # Bookworm + later
+		then
+		    if grep -q 'init=' $SDMPT/boot/firmware/cmdline.txt
+		    then
+			write_burnmsg "> Disable unneeded RasPiOS firstboot service and /etc/init.d/resize2fs_once"
+			sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/firmware/cmdline.txt
+		    fi
+		    if grep -q 'resize' $SDMPT/boot/firmware/cmdline.txt
+		    then
+			write_burnmsg "> Remove 'resize' from cmdline.txt per sdm expanding rootfs"
+			sed -i 's| resize||' $SDMPT/boot/firmware/cmdline.txt
+		    fi
+		elif [ -f $SDMPT/boot/cmdline.txt ]   # Pre-bookworm
+		then
+		    sed -i 's| init=/usr/lib/raspberrypi-sys-mods/firstboot||' $SDMPT/boot/cmdline.txt
+		fi
+		[ -f $SDMPT/etc/init.d/resize2fs_once ] && mv $SDMPT/etc/init.d/resize2fs_once $SDMPT/etc/init.d/.sdm.resize2fs_once
+	    else
+		write_burnmsg "> RasPiOS firstboot service not disabled; at least one of --expand-root and --regen-ssh-host-keys not set"
+	    fi
 	fi
 	case "$cvtrootfs" in
 	    btrfs)
