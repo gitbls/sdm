@@ -50,7 +50,7 @@ runplugins "$plugins" 1 || exit
 #
 logtoboth "* Phase 1 post-app installation/configuration"
 
-runoneplugin sdm.phaseops 1 "ops=apt-upgrade,apt-autoremove" || exit
+runoneplugin sdm.phaseops 1 "ops=apt-upgrade" || exit
 
 logfreespace "at end of Phase 1 image customization"
 logtoboth "* Phase 1 Completed"
@@ -67,7 +67,7 @@ runplugins "$plugins" post-install || exit
 #
 # Run final post-customization stuff
 #
-runoneplugin sdm.phaseops 1 "ops=config-firstboot,graphics,ssh,writeL10n,finish-customization" || exit
+runoneplugin sdm.phaseops 1 "ops=apt-autoremove,config-firstboot,graphics,ssh,writeL10n,finish-customization" || exit
 #
 # Report run time
 #
