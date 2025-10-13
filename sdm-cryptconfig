@@ -90,6 +90,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --keyfile keyfile -- Key file for USB-based key unlock
 * --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --mask netmask -- Set network mask for initramfs
+* --no-last-reboot -- Don't do final reboot after sdm-cryptfs-cleanup
 * --nopwd -- No password on encrypted rootfs; keyfile (required) is only unlock
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
 * --reboot -- Reboot the system (into initramfs) when sdm-cryptconfig is complete
@@ -271,13 +272,20 @@ rm -f /etc/systemd/system/sdm-auto-encrypt.service
 systemctl daemon-reload
 
 wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
-secs=5
-echolog "sdm-cryptfs-cleanup: The system will restart in \$secs seconds"
-sleep \$secs
-echolog "sdm-cryptfs-cleanup: System restarting now"
-rm -f /usr/local/bin/sdm-cryptfs-cleanup
-sleep 2
-reboot
+
+if [ $xnolastrb -eq 0 ]
+then
+    secs=5
+    echolog "sdm-cryptfs-cleanup: The system will restart in \$secs seconds"
+    sleep \$secs
+    echolog "sdm-cryptfs-cleanup: System restarting now"
+    rm -f /usr/local/bin/sdm-cryptfs-cleanup
+    sleep 2
+    reboot
+else
+    echolog "sdm-cryptfs-cleanup: Complete"
+    exit 0
+fi
 EOF
     chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
     pgrep systemd >/dev/null 2>&1 && echo "> Ignore RequiresMountsFor errors in the system journal" && systemctl daemon-reload
@@ -286,7 +294,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -304,6 +312,7 @@ function parsecmd() {
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
 	    --mapper|--mappername) xmapper=$2 ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	    --no-last-reboot)  xnolastrb=1  ; shift 1 ;;
 	    --nopwd)           xnopwd=1     ; shift 1 ;;
 	    --quiet)           xquiet=1     ; shift 1 ;;
 	    --reboot)          xreboot=1    ; shift 1 ;;
@@ -555,6 +564,7 @@ xipaddr=""
 xkeyfile=""
 xmapper=""
 xnetmask=""
+xnolastrb=0
 xnopwd=0
 xquiet=0
 xreboot=0
