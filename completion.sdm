@@ -16,7 +16,7 @@ _sdm() {
 
     local -A OPTS=(
 	[STANDALONE]='--help --apt-dist-upgrade --autologin --batch --bootscripts --chroot
-	--ddextend --directory --encrypted --expand-root
+	--ddextend --directory --encrypted --expand-at-boot --expand-root
 	--gpt --no-expand-root --norestart --noreboot --nowait-timesync --oklive
 	--plugin-debug --redact --redo-customize --regen-ssh-host-keys --restart --showapt --version'
 	[ARG]='--1piboot --aptcache --aptmaint --apt-options --b0script --b1script
