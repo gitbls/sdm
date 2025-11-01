@@ -31,9 +31,7 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 
 **Throughout this document read "SD Card" as "SSD or SD Card".** sdm treats them equivalently.
 
-# Installing or Removing sdm
-
-## Installing sdm
+## Install sdm
 
 ```sh
 curl -L https://raw.githubusercontent.com/gitbls/sdm/master/install-sdm | bash
