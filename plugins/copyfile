@@ -28,7 +28,7 @@ function p0copyfile() {
     local src=$1 dest=$2 owner=$3 mode=$4 mkdirif=$5 phase=$6 flistnm=$7
     local bn=$(basename $src) spath=$(dirname $src)
     local dbn="$dest/$bn"
-    local dirflag
+    local dirflag difflag=0
 
     spath=${spath//\/} # src path with slashes removed
     [ "$phase" == "" ] && phase="phase1"
@@ -38,13 +38,23 @@ function p0copyfile() {
 	touch $assetdir/$dirflag
     fi
     runfile="$assetdir/run-$phase-$(geninstance $src $dest $flistnm)"
-    [ -f $runfile ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'" && mv $runfile $runfile.old
-    logtoboth "> Plugin $pfx: Add '$src' to files to copy"
-    logtoboth "> Plugin $pfx: Copy '$src' to '$assetdir/$spath'"
-    mkdir -p $assetdir/$spath
-    cp -a $src $assetdir/$spath/$bn
-    # NOTE: can't use $assetdir in runfile b/c $SDMPT will be wrong for phase1/postinstall
-    cat > $runfile <<EOF
+    dsrc=$assetdir/$spath/$bn
+    if [ -f $runfile ]
+    then
+	diff -q $src $dsrc >/dev/null 2>/dev/null || difflag=1  # 1=src file differs
+	[ $difflag -eq 1 ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'" || logtoboth "> Plugin $pfx: Skip recopy of identical file '$src' to '$dest'"
+	mv $runfile $runfile.old 
+    else
+	difflag=-1  # runfile does not exist
+    fi
+    if [[ $difflag -ne 0 ]]  # -1: runfile doesn't exist, 0: runfile exists, but files identical, 1: files are different
+    then
+	logtoboth "> Plugin $pfx: Add '$src' to files to copy"
+	logtoboth "> Plugin $pfx: Copy '$src' to '$assetdir/$spath'"
+	mkdir -p $assetdir/$spath
+	cp -a $src $dsrc
+	# NOTE: can't use $assetdir in runfile b/c $SDMPT will be wrong for phase1/postinstall
+	cat > $runfile <<EOF
 #!/bin/bash
 source \$SDMPT/etc/sdm/sdm-readparams
 logtoboth "> Plugin $pfx: Process file '$src'"
@@ -59,35 +69,45 @@ then
     fi
     logtoboth "> Plugin $pfx: Create destination directory '$dest'"
 fi
-mkdir -p $dest
-logtoboth "> Plugin $pfx: Copy '$bn' from /etc/sdm/assets/copyfile/$spath to '$dest'"
-if [ -f $dbn ]
+if [ $difflag -ne 0 ]
 then
-    logtoboth "% Plugin $pfx: Destination file '$dbn' exists; renaming to '$dbn.sdm'"
-    mv $dbn $dbn.sdm
-fi
-cp -a /etc/sdm/assets/copyfile/$spath/$bn $dest
-EOF
-    chmod 755 $runfile
-    if [ "$owner" != "" ]
+    mkdir -p $dest
+    logtoboth "> Plugin $pfx: Copy '$bn' from /etc/sdm/assets/copyfile/$spath to '$dest'"
+    if [ -f $dbn ]
     then
-	cat >> $runfile <<EOF
-if [ -f $dbn ]
-then
-    logtoboth "> Plugin $pfx: Set file '$dbn' owner '$owner'"
-    chown $owner $dbn
-fi
-EOF
+        logtoboth "% Plugin $pfx: Destination file '$dbn' exists; renaming to '$dbn.sdm'"
+        mv $dbn $dbn.sdm
     fi
-    if [ "$mode" != ""  ]
-    then
-	cat >> $runfile <<EOF
-if [ -f $dbn ]
-then
-    logtoboth "> Plugin $pfx: Set file '$dbn' protection '$mode'"
-    chmod $mode $dbn
+    cp -a /etc/sdm/assets/copyfile/$spath/$bn $dest
 fi
 EOF
+	chmod 755 $runfile
+	if [ "$owner" != "" ]
+	then
+	    cat >> $runfile <<EOF
+if [ $difflag -ne 0 ]
+then
+    if [ -f $dbn ]
+    then
+        logtoboth "> Plugin $pfx: Set file '$dbn' owner '$owner'"
+        chown $owner $dbn
+    fi
+fi
+EOF
+	fi
+	if [ "$mode" != ""  ]
+	then
+	    cat >> $runfile <<EOF
+if [ $difflag -ne 0 ]
+then
+    if [ -f $dbn ]
+    then
+        logtoboth "> Plugin $pfx: Set file '$dbn' protection '$mode'"
+        chmod $mode $dbn
+    fi
+fi
+EOF
+	fi
     fi
 }
 
@@ -100,8 +120,11 @@ function runfile() {
 	then
 	    for runf in $assetdir/run-$runphase-$flist-*
 	    do
-		logtoboth "> Plugin $pfx: Run filelist '$flist' runfile '$runf'"
-		$runf || exit 1
+		if [ "$runf" == "${runf%%.old}" ]   #Don't rerun .old files
+		then
+		    logtoboth "> Plugin $pfx: Run filelist '$flist' runfile '$runf'"
+		    $runf || exit 1
+		fi
 	    done
 	fi
     else
