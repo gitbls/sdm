@@ -39,20 +39,22 @@ function p0copyfile() {
     fi
     runfile="$assetdir/run-$phase-$(geninstance $src $dest $flistnm)"
     dsrc=$assetdir/$spath/$bn
-    if [ -f $runfile ]
+    if [ -f $dsrc ]
     then
 	diff -q $src $dsrc >/dev/null 2>/dev/null || difflag=1  # 1=src file differs
-	[ $difflag -eq 1 ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'" || logtoboth "> Plugin $pfx: Skip recopy of identical file '$src' to '$dest'"
-	mv $runfile $runfile.old 
+	[ $difflag -ne 0 ] && logtoboth "% Plugin $pfx: Over-writing previous copy of '$src' to '$dest'" || logtoboth "> Plugin $pfx: Skip recopy of identical file '$src' to '$dest'"
     else
-	difflag=-1  # runfile does not exist
+	difflag=-1  # dsrc file does not exist
     fi
-    if [[ $difflag -ne 0 ]]  # -1: runfile doesn't exist, 0: runfile exists, but files identical, 1: files are different
+    if [[ $difflag -eq 0 ]]  # -1: dest file doesn't exist, 0: dest file exists, but files identical, 1: files are different
     then
+	[ -f $runfile ] && mv $runfile $runfile.old 
+    else
 	logtoboth "> Plugin $pfx: Add '$src' to files to copy"
 	logtoboth "> Plugin $pfx: Copy '$src' to '$assetdir/$spath'"
 	mkdir -p $assetdir/$spath
 	cp -a $src $dsrc
+	[ -f $runfile ] && mv $runfile $runfile.old 
 	# NOTE: can't use $assetdir in runfile b/c $SDMPT will be wrong for phase1/postinstall
 	cat > $runfile <<EOF
 #!/bin/bash
