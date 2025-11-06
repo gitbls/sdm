@@ -155,8 +155,10 @@ fi
 declare -x SDMNSPAWN="FirstBoot"
 source /etc/sdm/sdm-readparams
 
-write_console "Start sdm FirstBoot Service"
-bootlog "Start sdm FirstBoot Service"
+pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model)
+IFS=" " read ign pimem units <<< $(grep -i MemTotal /proc/meminfo)
+write_console "Start sdm FirstBoot Service on a $pimem $units '$pimodel' hostname '$hname'"
+bootlog "Start sdm FirstBoot Service on a ${pimem}GB '$pimodel' hostname '$hname'"
 
 #
 # Run any scripts that are must run ASAP (like network configuration)
