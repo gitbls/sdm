@@ -81,20 +81,14 @@ EOF
 		cloudinit)
 		    if [ $raspiosver -eq 13 ]
 		    then
-			if false
+			if is64bit
 			then
+			    logtoboth "> Plugin $pfx: Remove cloud-init services"
+			    doaptrpterror "remove --yes cloud-guest-utils cloud-init" $showapt
+			else
 			    logtoboth "> Plugin $pfx: Disable cloud-init services"
-			    systemctl disable cloud-config > /dev/null 2>&1
-			    systemctl disable cloud-final  > /dev/null 2>&1
-			    systemctl disable cloud-init-hotplugd > /dev/null 2>&1
-			    systemctl disable cloud-init-local    > /dev/null 2>&1
-			    systemctl disable cloud-init-main     > /dev/null 2>&1
-			    systemctl disable cloud-init-network  > /dev/null 2>&1
-			    systemctl disable cloud-init-hotplugd.socket > /dev/null 2>&1
+			    touch /etc/cloud/cloud-init.disabled
 			fi
-			is64bit || logtobothex "? Plugin $pfx: 'disable:cloudinit' not supported on 32-bit RasPiOS"
-			logtoboth "> Plugin $pfx: Remove cloud-init services"
-			doaptrpterror "remove --yes cloud-guest-utils cloud-init" $showapt
 			#
 			# Fix network-manager
 			#
