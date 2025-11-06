@@ -331,7 +331,7 @@ The disables plugin makes it easy to disable a few *complex* functions.
 #### Arguments
 
 * **bluetooth** &mdash; Disables bluetooth via a blacklist file in /etc/modprobe.d
-* **cloudinit** &mdash; Disables cloud-init and netplan to fix "misplaced" nmconnection files. Only supported on 64-bit RasPiOS.
+* **cloudinit** &mdash; Disables cloud-init and netplan to fix "misplaced" nmconnection files. On 64-bit RasPiOS the cloud services are removed. On 32-bit the cloud services are disabled.
 * **piwiz** &mdash; Disables piwiz during the first system boot. You must set up everything with sdm that piwiz does or you may not like the results: User, Password, Keymap, Locale, and Timezone.
 * **triggerhappy** &mdash; Disable the triggerhappy service. If you're not using it, this will eliminate the log spew it creates
 * **wifi** &mdash; Disables WiFi via a blacklist file in /etc/modprobe.d
@@ -1024,6 +1024,8 @@ The script is called with one argument: the current Phase (either `1` or `post-i
 
 The default for `stdout` and `stderr` if not specified are `$(basename $script).out` and `$(basename $script).error`. If `dir` is specified the files will be written to `dir`. If not, the files will be written to `/etc/sdm/assets/runscript`. 
 
+Each script (unique filename) can be run on behalf of multiple users, by using multiple invocations of the `runscript` plugin with different users, but each script can ONLY be run ONCE PER USER. A second `runscript` call with the same script name and user will elicit an error. This plugin treats the same script name in different directories as the same script, so qualify them further for uniqueness if needed.
+
 #### Examples
 
 * `--plugin runscript:"dir=/home/work|script=/path/to/my/script|user=bls"` &mdash; The directory /home/work is created and owned by user bls. The script specified is run during Phase 1, and the ouptut and error files are saved in /home/work
@@ -1598,6 +1600,34 @@ Note that wsdd is available in Bookworm via apt, so this plugin is not needed on
 * **wsddswitches=switchlist** &mdash; List of switches to write into /etc/default/wsdd
 * **localsrc=/path/to/files** &mdash; Local directory with cached copy of wsdd (files: wsdd.py wsdd.8 wsdd.defaults wsdd.service)
 
+### yubi
+
+The `yubi` plugin configures an already-encrypted rootfs to be unlocked with a Yubikey in addition to the rootfs passphrase. This plugin MUST be run on a booted system, as it requires access to the Yubikey hardware.
+
+The yubikey will be implemented in passphrase/response mode. At the moment, FIDO2 mode is not supported.
+
+To use the `yubi` plugin, first encrypt rootfs per <a href="Disk-Encryption.md">the Disk encryption documentation</a> using a rootfs passphrase.
+
+Next, run the yubi plugin on the booted, encrypted rootfs system. For example:
+```
+sdm --runonly plugins --oklive --plugin yubi:"partition=/dev/sdX|luksphrase=lukspassphrase|ykphrase=yubikeyphrase"
+```
+
+#### Arguments
+
+The plugin will prompt for the Luks unlock passhrase and the Yubikey passphrase if not provided.
+
+* **noautounlock** &mdash; By default the yubikey will auto-unlock the encrypted partition. If `noautounlock` is provided a prompt will be issued for the yubikey challenge phrase.
+* **initialize** &mdash; If provided the yubikey is (re)-initialized with `ykpersonalize`
+* **luksphrase** &mdash; Phrase used when the partition was Luks encrypted [Required or Requested]
+* **luksslot** &mdash; Luks keyslot to use for the yubikey response [D:2]
+* **mapper** &mdash; The value of `mapper` previously provided to the `cryptroot` plugin or directly to `sdm-cryptconfig`
+* **ykphrase** &mdash; Challenge phrase to provide to the Luks key [Required or Requested]
+* **ykslot** &mdash; Yubikey slot for the challenge/response [D:2]. Yubikey only supports slots 1 and 2 for Challenge/Response.
+
+See <a href="Disk-Encryption.md#using-the-yubikey">Using the Yubikey</a> for further operational details.
+
+NOTE: If you're security conscious do not specify `luksphrase` or `ykphrase` on the command line, as they will unfortunately be captured in the log. Values for these arguments provided interactively are not logged.
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
