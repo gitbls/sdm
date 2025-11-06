@@ -83,6 +83,11 @@ else
     [ ! -w ${dir%/*} ] && sudo="sudo" # Directory does not exist; do we have write access to where it will be created?
 fi
 
+echo ""
+echo "This script is the old installer and is deprecated"
+echo "The new installer, install-sdm, is MUCH faster!"
+echo "Please refer to https://github.com/gitbls/sdm#install-sdm for details"
+echo ""
 # Can get here without using curl so ensure curl installed
 if [[ "$curl" == "curl" ]] && [[ "$(type -p curl)" == "" ]]
 then
@@ -176,6 +181,7 @@ for f in sdm sdm-phase0 \
 	     plugins/wificonfig \
 	     plugins/wireguard \
 	     plugins/wsdd \
+	     plugins/yubi \
 	     1piboot/1piboot.conf
 do
     echo "Downloading '$f' to '$dir/$f'"
