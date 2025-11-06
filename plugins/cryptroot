@@ -73,21 +73,21 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     converty
-    [ "$mappername" == "" ] && mappername="cryptroot"
+    [ "$mapper" == "" ] && mapper="cryptroot"
     [ "$crypto" == "" ] && xcrypto="aes" || xcrypto=$crypto
     logtoboth "> Plugin $pfx: Copy sdm-cryptconfig and sdmcryptfs to /usr/local/bin"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
     # These are only for tracking, not used by sdm-cryptconfig
     [ "$keyfile" != "" ] && keyfile="$(basename $keyfile)"
-    echo "$mappername" > $assetdir/mappername
+    echo "$mapper" > $assetdir/mappername
     echo "$xcrypto" > $assetdir/sdmcrypto
     echo "$keyfile" > $assetdir/keyfile
 
     logtoboth "> Plugin $pfx: Install cryptsetup cryptsetup-initramfs cryptsetup-bin"
     installpkgsif "cryptsetup cryptsetup-initramfs cryptsetup-bin"
     logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration with crypto '$xcrypto'"
-    osw="--mappername $mappername"
+    osw="--mapper $mapper"
     [ "$authkeys" != "" ] && osw="${osw} --authorized-keys $assetdir/$(basename $authkeys)"
     [ "$crypto" != "" ] && osw="${osw} --crypto $xcrypto"
     [ "$dns" != "" ] && osw="${osw} --dns $dns"
