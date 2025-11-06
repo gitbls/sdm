@@ -43,6 +43,7 @@ function dogen() {
 #
 sdmlist=(install-sdm \
 	     completion.sdm \
+	     ezsdm \
 	     sdm \
 	     sdm-phase0 \
 	     sdm-phase1 \
@@ -125,7 +126,8 @@ pluglist=(apps \
 	      vnc \
 	      wificonfig \
 	      wireguard \
-	      wsdd)
+	      wsdd \
+	      yubi)
 
 sdmversion=${1:-unknown}
 src=${2:-/l/work/sdm}
