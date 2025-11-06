@@ -11,11 +11,14 @@ function loadparams() {
 
 function do_runscript() {
     #
-    # $1: Phase to run
-    local thisscript="$1" thisphase="$2"
-    local line runphase rundir script user stdout stderr savehost
+    # $1: User-provided Script name
+    # $2: user to run under
+    # $3: Current phase
+    local thisscript="$1" thisuser="$2" thisphase="$3"
+    local line runphase rundir user script stdout stderr savehost
     local xdo="" xo="root" xu="" xdir="$assetdir" cdcmd="" docmd="" mdir=""
-    IFS="|" read script runphase rundir user stdout stderr < $assetdir/$thisscript-info
+    IFS="|" read script runphase rundir user stdout stderr < $assetdir/$thisscript-$thisuser-info
+    [ "$user" == "$thisuser" ] || logtobothex "? Plugin $pfx: Internal error '$thisuser' <> '$user'"
     if [[ "$runphase" == "$thisphase" ]]
     then
 	savehost=$(hostname)
@@ -69,6 +72,7 @@ loadparams
 vldargs="|dir|runphase|script|user|stdout|stderr|"
 rqdargs="|script|"
 assetdir="$SDMPT/etc/sdm/assets/runscript"
+[ "$user" == "" ] && user=root
 
 if [ "$phase" == "0" ]
 then
@@ -83,11 +87,12 @@ then
     mkdir -p $assetdir
     if [ -f $script ]
     then
-	sbn=$(basename $script)
-	cp -a $script $assetdir/${sbn}
+	sbn=$(basename $script)-$user
+	[ -f $assetdir/$sbn ] && logtobothex "? Plugin $pfx: Script '$(basename $script)' can only be run once for user '$user'"
+	cp -a $script $assetdir/$sbn
 	chmod 755 $assetdir/$sbn
 	logtoboth "> Plugin $pfx: Script '$sbn' will be run during Phase '$runphase'"
-	echo "${sbn}|$runphase|$dir|$user|$stdout|$stderr|" >> $assetdir/$sbn-info
+	echo "$sbn|$runphase|$dir|$user|$stdout|$stderr|" >> $assetdir/$sbn-info
     else
 	logtobothex "? Plugin $pfx: Script file '$script' not found"
     fi
@@ -100,7 +105,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$allargs" "$vldargs" "$rqdargs"
     plugin_printkeys
-    do_runscript $(basename $script) "$phase"
+    do_runscript $(basename $script) $user "$phase"
     logtoboth "* Plugin $pfx: Complete Phase 1"
 else
     #
@@ -109,6 +114,6 @@ else
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$allargs" "$vldargs" "$rqdargs"
     plugin_printkeys
-    do_runscript $(basename $script) "$phase"
+    do_runscript $(basename $script) $user "$phase"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
