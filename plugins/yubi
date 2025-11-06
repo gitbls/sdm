@@ -1,0 +1,264 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: yubi
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+# TODO
+#  Passphrases via files so nothing in the logs
+#
+
+function yubikey_luks_enroll() {
+    local partition="$1" lkslot=$2 lukspwd="$3" ykslot=$4 ykpwd="$5"
+    local ykresp
+    #
+    # Kill the Luks slot and then add the new key
+    #
+    logtoboth "> Plugin $pfx: Delete luks slot '$lkslot'"
+    cryptsetup luksKillSlot $partition $lkslot 
+    ykresp="$(printf %s "$ykpwd" | ykchalresp -$ykslot -i- 2>/dev/null || true)"
+    logtoboth "> Plugin $pfx: Add key to luks slot '$lkslot'"
+    printf '%s\n' "$lukspwd" "$ykresp" "$ykresp" | cryptsetup --key-slot $lkslot luksAddKey $partition || logtobothex "? Plugin $pfx: luksAddKey failed ($?) for slot '$lkslot' on '$partition'"
+}
+
+function updykluks_script() {
+    logtoboth "> Plugin $pfx: Improve /usr/share/yubikey-luks/ykluks-keyscript"
+    [ -f /usr/share/yubikey-luks/ykluks-keyscript ] && mv /usr/share/yubikey-luks/ykluks-keyscript /usr/share/yubikey-luks/.sdm.orig-ykluks-keyscript
+    cat > /usr/share/yubikey-luks/ykluks-keyscript <<EOF
+#!/bin/bash
+#
+# Called when time to unlock the encrypted rootfs either with a Yubikey or a Luks passphrase
+#
+function askyn() {
+    local ans
+    read -u 2 -p "\$1 [Y/n]? " ans
+    [[ -z "\$ans" ]] && ans=y
+    case "\$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function pmsg() {
+    local msg="\$1" pfx="\${2:-n}" fpfx=""
+
+    [[ "\$pfx" == "n" ]] || fpfx="\${pfx} "
+    echo "\${fpfx}\$msg" >/dev/console
+    return 0
+}
+
+function isyubi() {
+    local yks slot="\${1:-2}"
+    yks="\$(ykinfo -q -\${slot} 2>&1)"
+    echo "\$yks"
+    return 0
+}
+
+function tryyubi()
+{
+    local pwd="\$1"
+
+    YUBIKEY_LUKS_SLOT=2 #Set in case missing in /etc/ykluks.cfg
+    . /etc/ykluks.cfg
+    pmsg "Look for Yubikey to unlock rootfs"
+    while :; do
+	if [[  "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]]
+	then
+	    pmsg "Found Yubikey"
+	    PW="\$pwd"
+	    if [ "\$HASH" == "1" ]; then
+		PW=\$(printf %s "\$PW" | sha256sum | awk '{print \$1}')
+	    fi
+	    R="\$(printf %s "\$PW" | ykchalresp -"\$YUBIKEY_LUKS_SLOT" -i- 2>/dev/null || true)"
+	    if [ "\$R" ]; then
+		pmsg "Yubikey provided response"
+		if [ "\$CONCATENATE" == "1" ]; then
+		    printf '%s' "\$PW\$R"
+		else
+		    printf '%s' "\$R"
+                    pmsg "Yubikey unlock provided to cryptsetup"
+                    exit 0  # Keep next code for a bit
+                    pmsg "Ignore 'process killed' messages"
+                    aps=\$(ps e | grep askpass | grep -v grep | awk '{print \$1}')
+                    [ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+                    aps=\$(ps e | grep sleep | grep -v grep | awk '{print \$1}')
+                    [ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+                    exit 0
+		fi
+	    else
+		pmsg "Failed to obtain Yubikey response" "?"
+	    fi
+	else
+	    pmsg "Please insert the Yubikey"
+	    sleep 1
+	fi
+    done
+    return 0
+}
+
+YUBIKEY_LUKS_SLOT=2 #Set in case missing in /etc/ykluks.cfg
+. /etc/ykluks.cfg
+# For Testing:
+#YUBIKEY_CHALLENGE=""
+if [[ "\$1" == "tryyubi" ]]
+then
+    touch /tmp/ftryyubi
+    tryyubi "\$2"
+    exit
+else
+    if [[ ! -f /tmp/ftryyubi ]] && [[ "\$YUBIKEY_CHALLENGE" != "" ]] && [[ "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]]
+    then
+	( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "\$YUBIKEY_CHALLENGE" </dev/null & )
+	#sleep infinity
+	#pmsg "Continuing..."
+    else
+	if [[ "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]] || askyn "Use Yubikey to unlock"
+	then
+	    read -rs -u 2 -p "Enter Yubikey passphrase then press ENTER: " passphrase
+	    pmsg ""
+	    pmsg "Ensure the Yubikey is connected; I'll wait forever"
+	    ( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "\$passphrase" </dev/null & )
+	    #sleep infinity
+	    #pmsg "Continuing..."
+	else
+	    /lib/cryptsetup/askpass "Enter Luks passphrase then press ENTER: "
+	fi
+    fi
+fi
+# Clean up 
+#aps=\$(ps e | grep tryyubi | grep -v grep | awk '{print \$1}')
+#[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+exit 0
+EOF
+    chmod 755 /usr/share/yubikey-luks/ykluks-keyscript
+}
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|noautounlock|concatenate|hash|initialize|luksphrase|luksslot|mapper|ykphrase|ykslot|"    #"|list|of|valid|args|"
+rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    [ "$SDMNSPAWN" == "Live0" ] || logtobothex "? Plugin $pfx: Plugin can only be run on a booted system with 'sdm --runonly plugins --oklive'" nosplit
+    mkdir -p $assetdir
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+     #
+    [[ "$(type -p cryptsetup)" == "" ]] && logtobothex "? Plugin $pfx: cryptsetup not found"
+
+    while true ; do
+	if lsusb | grep -iq 'yubico'; then break; fi
+	printf "Please insert a yubikey and press enter: "
+	read -r _ </dev/tty
+    done
+
+    luksslot=${luksslot:-2}
+    ykslot=${ykslot:-2}
+    mapper=${mapper:-cryptroot}
+    #
+    # Get partition name from /etc/crypttab
+    #
+    [ -f /etc/crypttab ] || logtobothex "? Cannot find /etc/crypttab"
+    IFS=$' \t' read junk partition therest < <(grep $mapper /etc/crypttab)
+    [[ "$partition" == "" ]] && logtobothex "? Plugin $pfx: Unable to determine physical partition for mapper '$mapper'"
+    [[ "$(lsblk --noheadings --output TYPE $partition | grep part 2>/dev/null)" == "part" ]] || logtobothex "? Plugin $pfx: Partition '$partition' from crypttab is not a partition?"
+    ( cryptsetup luksDump $partition >/dev/null 2>&1 ) || logtobothex "? Plugin $pfx: Strange error: '$partition' is not already Luks-encrypted"
+    logtoboth "> Plugin $pfx: Encrypted rootfs partition: $partition"
+    [[ $ykslot -eq 0 ]] || [[ $ykslot -gt 2 ]] && logtobothex "? Plugin $pfx: yubikey hardware only supports slots 1 and 2 for Challenge/Response"
+
+    if [ "$luksphrase" == "" ]
+    then
+	while [ true ]
+	do
+	    read -s -p "Luks unlock passphrase: " luksphrase
+	    echo ""
+	    [ "$luksphrase" == "" ] || break
+	done
+    fi
+    if [ "$ykphrase" == "" ]
+    then
+	while [ true ]
+	do
+	    read -s -p "Yubikey passphrase: " ykphrase
+	    echo ""
+	    [ "$ykphrase" == "" ] || break
+	done
+    fi
+
+    logtoboth "> Plugin $pfx: Install yubikey-luks and yubikey-personalization"
+    installpkgsif "yubikey-luks yubikey-personalization"
+
+    if [ "$(ykinfo -q -$ykslot 2>/dev/null)" == "1" ]
+    then
+	askyn "% Yubikey slot $ykslot is not empty; Do you want to continue" || { logtoboth "? Plugin exit per user request" ; exit 1 ; }
+    fi
+    if [ -v initialize ]
+    then
+	logtoboth "> Plugin $pfx: Initialize Yubikey slot '$ykslot'"
+	runcaptureout "ykpersonalize -y -$ykslot -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible" || logtobothex "? Plugin $pfx: ykpersonalize failed"
+    fi
+
+    logtoboth "> Plugin $pfx: Enroll the Yubikey for use with Luks"
+    #runcaptureout "yubikey-luks-enroll -d $partition -s 1" || logtobothex "? Plugin $pfx: yubikey-luks-enroll failed"
+    yubikey_luks_enroll "$partition" "$luksslot" "$luksphrase"  "$ykslot" "$ykphrase"
+    #
+    # Update ykluks-keyscript with one that works better and update /etc/crypttab
+    #
+    updykluks_script
+    sed -i "s#discard#discard,keyscript=/usr/share/yubikey-luks/ykluks-keyscript#" /etc/crypttab
+    #
+    # Update ykluks.cfg as needed
+    #
+    [[ -v noautounlock ]] || echo "YUBIKEY_CHALLENGE='$ykphrase'" >> /etc/ykluks.cfg
+    echo "YUBIKEY_LUKS_SLOT=$ykslot" >> /etc/ykluks.cfg
+    #HASH and CONCATENATE NOT TESTED
+    #[ -v hash ] && echo "HASH=1" >> /etc/ykluks.cfg
+    #[ -v concatenate ] && echo "CONCATENATE=1" >> /etc/ykluks.cfg
+    chmod 600 /etc/ykluks.cfg
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    #plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+    logtoboth "> Plugin $pfx: Update initramfs with configured yubikey"
+    update-initramfs -u
+    #
+    logtoboth ""
+    logtoboth "Reboot the system when you are ready"
+    logtoboth ""
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
