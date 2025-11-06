@@ -1,5 +1,18 @@
 # Changelog
 
+## V14.9
+
+* New Features
+  * Plugin 'yubi' enables encrypted rootfs unlock via a Yubikey when used with `cryptroot` and/or `sdm-cryptconfig`
+* Improvements
+  * `--extract-log` files inherit owner of output directory
+  * Print Pi model and memory to history at start of sdm FirstBoot in the system journal and /etc/sdm/history
+  * `copyfile` plugin duplicate file copies eliminated
+* Bug Fixes
+  * `--aptcache` was broken. Not any more.
+  * `runscript` plugin can now be used to run the same script for multiple users, although only once per user.
+  * Fix mounting of on-disk IMGs with more than 2 partitions so that bootfs and rootfs are correctly mounted (exhibited via `parted` plugin applied to an IMG)
+
 ## V14.8
 
 * New Features
