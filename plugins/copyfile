@@ -50,8 +50,7 @@ function p0copyfile() {
     then
 	[ -f $runfile ] && mv $runfile $runfile.old
     else
-	logtoboth "> Plugin $pfx: Add '$src' to files to copy"
-	logtoboth "> Plugin $pfx: Copy '$src' to '$assetdir/$spath'"
+	logtoboth "> Plugin $pfx: Add '$src' to files to copy; copy to '$assetdir/$spath'"
 	mkdir -p $assetdir/$spath
 	cp -a $src $asrc
 	[ -f $runfile ] && mv $runfile $runfile.old
