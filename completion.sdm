@@ -21,7 +21,7 @@ _sdm() {
 	--plugin-debug --redact --redo-customize --regen-ssh-host-keys --restart --showapt --version'
 	[ARG]='--1piboot --aptcache --aptmaint --apt-options --b0script --b1script
 	--burn --burnfile --burn-plugin --cscript --convert-root --csrc --customize --datefmt --ddsw
-	--debug --domain --ecolors --explore  --extend --extract-log --extract-script --groups --host --hostname --info --keyfile --logwidth
+	--debug --domain --ecolors --explore  --extend --extract-log --extract-script --groups --hostname --info --keyfile --logwidth
 	--mcolors --mount --nspawnsw --os --plugin --plugins --poptions --ppart --reboot --runonly --sdmdir --sdmprep --shrink
 	--bupdate --xmb' # Leave these out so --customize can be shortcutted --custom1 --custom2 --custom3 --custom4
     )
