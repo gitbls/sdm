@@ -1,10 +1,10 @@
 # rootfs Disk Encryption
 
-One tool that can be used to increase system security is encryption. This article discusses using sdm to configure encryption for the rootfs partition on a Raspberry Pi system disk. This makes the loss of a disk far less of a problem, since the content cannot be read, nor can the disk be booted,  without knowing how to decrypt the partition either with a passphrase or a USB Keyfile Disk.
+One tool that can be used to increase system security is encryption. This article discusses using sdm to configure encryption for the rootfs partition on a Raspberry Pi system disk. This makes the loss of a disk far less of a problem, since the content cannot be read, nor can the disk be booted,  without knowing how to decrypt the partition either with a passphrase, Yubikey, or a USB Keyfile Disk.
 
 Although encryption does increase security, there are some challenges, such as:
 
-* The rootfs passphrase must be typed **on the console** *every* time the Pi reboots, but you can also use a USB Keyfile Disk, or enter the passphrase remotely via SSH. sdm fully supports both methods. Details below.
+* The rootfs passphrase must be typed **on the console** *every* time the Pi reboots, but you can also use a Yubikey or a USB Keyfile Disk, or enter the passphrase remotely via SSH. sdm fully supports both methods. Details below.
 * rootfs encryption does not make the running system any more secure
 * This tool does not provide any way to undo disk encryption if you decide you don't want it
   * You'll have to rebuild the system disk
@@ -33,6 +33,15 @@ sdm supports enabling rootfs encryption configuration in two different ways:
 
 These two methods are discussed in the following sections.
 
+This tool supports multiple methods of unlocking the encrypted rootfs. These include:
+* **Passphrase** &mdash; When the system boots the passphrase must be provided to the prompt on the console. The passphrase can also be provided if <a href="Disk-Encryption.md#ssh-and-initramfs">SSH was configured into the initramfs</a>
+* **Keyfile** &mdash; A <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">keyfile</a> on a USB disk can unlock the rootfs
+* **Yubikey** &mdash; A <a href="Disk-Encryption.md#unlocking-rootfs-with-a-yubikey"> Yubikey </a> can unlock the rootfs
+
+Passphrase on the console is the default and madatory method. Keyfile and Yubikey are optional, but only one of Keyfile or Yubikey can be enabled. Specifically, enabling the Yubikey will render any configured keyfile ignored.
+
+SSH unlock can be used in any configuration.
+
 ## sdm-Integrated rootfs Encryption Configuration
 
 ### Terse Description
@@ -49,7 +58,7 @@ The system reboots a couple of times, performing steps during each reboot:
 
     **NOTE:** You MUST wait for this stage to automatically reboot or the encryption will fail
 * **Final reboot:** System is now running on an encrypted rootfs
-  * All system boots now require the rootfs unlock passphrase or USB Keyfile Disk to continue
+  * All system boots now require the rootfs unlock passphrase, Yubikey, or USB Keyfile Disk to continue
 
 ### Details
 
@@ -139,7 +148,7 @@ At this point, you need to know two important details:
 * The name of your system disk, which will most likely be `/dev/mmcblk0` (integrated SD reader), `/dev/sda` (a USB-connected disk), or `/dev/nvme0n1` for an NVME disk
 * The name of the scratch disk, which must be larger than the *used* space on your rootfs. sdm-cryptconfig will tell you what size this must be
 
-It's best to not plug in the scratch disk until you are at the (initramfs) prompt, because log messages will tell you the name of the disk you just plugged in.
+If using a USB-connected scratch disk, it's best to not plug it in until you are at the (initramfs) prompt, because log messages will tell you the name of the disk you just plugged in.
 
 With this information, you'll enter the command (for example):
 ```
@@ -166,10 +175,10 @@ sdmcryptfs will then:
   * Automatically reboots the system one last time
 * As the system reboots you'll once again be prompted for the rootfs passphrase
   * **NOTE:** Without the 30 tries!
-  * If using a USB Keyfile Disk insert the disk into the reader at any time
-* The system will now ask for the rootfs passphrase like this (or use the USB Keyfile Disk) every time the system boots
+  * If using a Yubikey or USB Keyfile Disk, plug it in at any time
+* The system will now ask for the rootfs passphrase like this (or use the Yubikey or USB Keyfile Disk) every time the system boots
 
-**Do not lose or forget the rootfs passphrase. It is not possible to unlock the encrypted rootfs without a USB Keyfile Disk or rootfs passphrase**
+**Do not lose or forget the rootfs passphrase. It is not possible to unlock the encrypted rootfs without a configured Yubikey, USB Keyfile Disk or rootfs passphrase**
 
 ### Sample initramfs/sdmcryptfs Console Interaction
 Lines not preceded by `> yyyy-mm-dd hh:mm:ss` are the output of programs (dd, cryptsetup, resize2fs) that are run by sdmcryptfs. The date/time may be incorrect if the system doesn not have a battery backed up clock.
@@ -217,14 +226,14 @@ Enter the 'exit' command to resume the system boot
 
 If the Pi is *headless* (no keyboard/video/mouse) it is quite difficult (OK, it's impossible or close to it) to unlock the rootfs partition. There are two solutions that you can use with sdm's encrypted rootfs support. You can:
 
-* Use a USB Keyfile Disk (described in the next section).
+* Use a Yubikey or USB Keyfile Disk (described in following sections).
 * Enable SSH in the initramfs. When the system boots you can SSH into the initramfs and you'll be prompted for the rootfs unlock passphrase. After you enter it correctly, the system boot will proceed.
 
 SSH can also be used during the initial rootfs encryption process, discussed in the next section. Everything works exactly the same as if you are sitting on the console, with the exception that log entries (e.g. plugging in a disk) do not show up in the SSH session.
 
 You can use `parted -l` in the initramfs to determine which disks are plugged in to decide, for example, what scratch disk to use with `sdmcryptfs`.
 
-Note that once you've enabled SSH in the initramfs, sdm does not provide an easy way to disable it. That said, it is typically not active for very long, and once encryption has been configured the SSH port is locked down to only prompting for the unlock passphrase.
+Note that once you've enabled SSH in the initramfs, sdm does not provide an easy way to disable it. That said, it is typically not active for very long, and once encryption has been configured, by default the SSH port is locked down to only prompting for the unlock passphrase.
 
 `sdm-cryptconfig` switches relevant for SSH are:
 
@@ -252,11 +261,50 @@ sdm-ssh-initramfs has a few other configuration switches. They are documented ab
 
 Things to know when using SSH as documented here:
 
-* You must use `ssh root@address`. The username `root` is important, as that's how SSH is configured in the initramfs
+* You must specify the username `root`. This is ***important***, as that's how SSH is configured in the initramfs
 * You can use `ssh root@hostname` if DNS (not MDNS) on your network is set up correctly for resolving local host names.
 * You will not be able to SSH using ".local" names when initramfs SSH is running; avahi is not running in the initramfs so the system is unknown to MDNS (that's the protocol that is used for ".local")
-* If your local network does not have a properly-configured DNS server, you'll need to use `ssh root@ip.ad.dd.rs`
+* If your local network does not have a properly-configured DNS server (<a href="https://github.com/gitbls/ndm">example</a>), you'll need to use `ssh root@ip.ad.dd.rs`
 * WiFi is not supported for the SSH initramfs connection
+
+## Unlocking rootfs with a Yubikey
+
+The Yubikey is a cryptographic USB device that can be used to unlock the rootfs.
+
+The yubikey can unlock the encrypted rootfs automatically if present. If this is not desired, specify `noautounlock` as an argument to the `yubi` plugin and the initramfs code will prompt for the Yubikey passphrase.
+
+### Enabling the rootfs for Yubikey unlock
+
+First, fully configure encryption on the system using `sdm-cryptconfig` as documented above. Once that has completed and the system is fully operational, you can add Yubikey unlock as a second method to unlock rootfs.
+
+The sdm plugin `yubi` will enable your Yubikey to unlock the rootfs. It must be used on the running system so that it can access the Yubikey and add the Yubikey as an unlock method to the encrypted rootfs.
+
+The plugin documentation is <a href="Plugins.md#yubi">here</a>. Here's an example usage:
+```
+sudo sdm --runonly plugins --oklive --plugin yubi
+```
+`luksphrase`, the phrase used when the rootfs was initially encrypted, is required to add another slot to the Luks-encrypted partition, and `ykphrase` is the phrase that will be provided to the Yubikey. If these arguments are not provided to the plugin, you will be prompted for them on the terminal.
+
+By default the Yubikey will automatically unlock the rootfs if/when the Yubikey is inserted.
+
+### Using the Yubikey
+
+When the system with a Yubikey-enabled encrypted rootfs boots, there are a few different possible scenarios. In all scenarios the Yubikey can be removed after the encrypted rootfs is unlocked.
+
+* Autounlock enabled and Yubikey inserted
+  * Non-stop boot &mdash; The system will use the autounlock-enabled Yubikey passphrase to unlock the rootfs
+* Autounlock and yubikey not inserted
+  * A prompt will ask if you want to use the yubikey
+    * If **Y** (default), waits until the Yubikey is inserted then proceeds to unlock the encrypted rootfs
+    * If **N**, the system will prompt for the Luks passphrase (the passphrase used when the rootfs was initially encrypted)
+* No autounlock and Yubikey inserted
+  * A prompt will request the Yubikey passphrase
+* No autounlock and Yubikey not inserted
+  * A prompt will ask if you want to use the yubikey
+    * If **Y** (default), a prompt will request the Yubikey passphrase, then waits until the Yubikey is inserted, and then unlocks the encrypted rootfs
+    * If **N**, the system will prompt for the Luks passphrase (the passphrase used when the rootfs was initially encrypted)
+
+In all the above scenarios, passphrases that are typed are not echoed on the console. If a passphrase is mistyped, power-cycle the system and try again. Since no disks are mounted, there is no possibility of disk corruption.
 
 ## Unlocking rootfs with a USB Keyfile Disk
 
