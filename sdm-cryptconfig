@@ -225,7 +225,7 @@ echolog "sdm-cryptfs-cleanup: Starting; System will restart automatically when c
 echolog "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-hooks.old
 # Leave bash in initramfs rather than special case remove if no --sshbash PLUS required by sdmluksunlock
-grep -v -E "sdmcryptfs|mappername|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
+grep -v -E "sdmcryptfs|mapper|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
 [ $xsshbash -eq 0 ] && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
@@ -294,7 +294,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mappername:,mask:,netmask:,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -310,7 +310,7 @@ function parsecmd() {
 	    --hostname)        xhostname=$2 ; shift 2 ;;
 	    --ipaddr)          xipaddr=$2   ; shift 2 ;;
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
-	    --mapper|--mappername) xmapper=$2 ; shift 2 ;;
+	    --mapper)          xmapper=$2 ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
 	    --no-last-reboot)  xnolastrb=1  ; shift 1 ;;
 	    --nopwd)           xnopwd=1     ; shift 1 ;;
