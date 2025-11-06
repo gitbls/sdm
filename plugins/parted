@@ -32,13 +32,18 @@ function write_burnmsg() {
 function flush_burnmsgs() {
     local bdev=${burndev:-$burnfilefile}
 
-    echo "> Plugin $pfx: Flush parted messages to burned $imgtype"
     declare -x SDMPT=$(makemtpt)
     domount "$bdev" "$imgtype" $SDMPT
-    for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
-    do
-	echo "${burnmsg[$i]}" >> $SDMPT/etc/sdm/history
-    done
+    if [ -f $SDMPT/etc/sdm/history ]
+    then
+	echo "> Plugin $pfx: Flush parted messages to burned $imgtype"
+	for (( i=0 ; i < ${#burnmsg[@]} ; i++ ))
+	do
+	    echo "${burnmsg[$i]}" >> $SDMPT/etc/sdm/history
+	done
+    else
+	echo "> IMG '$bdev' not sdm-customized; parted plugin messages will not be saved"
+    fi
     docleanup
 }
 
