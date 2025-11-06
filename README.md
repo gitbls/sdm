@@ -11,6 +11,8 @@ Raspberry Pi SSD/SD Card Image Manager
 
 * want to be nice to your future self and make it super-easy to build fresh, customized systems when that next release of RasPiOS comes out.
 
+* want to produce disks or IMGs for others without risk of having ANY of your own bits accidentally distributed
+
 * want to do the above repeatedly and a LOT more quickly and easily.
 
 What does *ready-to-go* mean? It means that every one of your systems is fully configured with Keyboard mapping, Locale, Timezone, and WiFi set up as you want, all of your personal customizations and all desired RasPiOS packages and updates installed.
@@ -32,33 +34,43 @@ Here's how to quickly and easily to create and customize an IMG file and burn it
 **Throughout this document read "SD Card" as "SSD or SD Card".** sdm treats them equivalently.
 
 ## Install sdm
-```sh
-curl -L https://raw.githubusercontent.com/gitbls/sdm/master/EZsdmInstaller | bash
-```
 
-* sdm will download the files to /usr/local/sdm by default, and make a link for sdm in /usr/local/bin for ease of use.
+```sh
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/install-sdm | bash
+```
+`install-sdm` installs the sdm files to /usr/local/sdm, and installs other required RasPiOS packages if they are not installed (binfmt-support coreutils gdisk keyboard-configuration parted qemu-user-static rsync systemd-container uuid)
+
+**Or, download the Installer script to examine it before running:**
+```sh
+curl -L https://raw.githubusercontent.com/gitbls/sdm/master/install-sdm -o /path/to/install-sdm
+chmod 755 /path/to/install-sdm
+# Inspect the install-sdm script if desired
+/path/to/install-sdm
+```
+## Grab an IMG to customize
+
 * **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip** or **unxz** it.
 * Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D)
-* Pick the latest (Bookworm) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Bullseye images are in the folders **raspios_oldstable_lite_armhf** and **raspios_oldstable_armhf**.
+* Pick the latest (Trixie) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Bookworm images are in the **raspios_oldstable** folders.
 
 ## Customize the image with sdm
-```sh
-sudo sdm --customize --plugin user:"adduser=bls|password=mypassword" --plugin L10n:host --plugin disables:piwiz --expand-root --regen-ssh-host-keys --restart 2023-12-05-raspios-bookworm-arm64.img
-```
 
-sdm will make the following changes to your IMG file:
+The easiest way to get started with sdm customization is to take a copy of `/usr/local/sdm/ezsdm` into your own directory and edit it as desired.
+
+If you use the default `ezsdm` without modifying it, sdm will make the following changes to your IMG file:
 * Copy your **Localization settings** (Keymap, Locale, Timezone, and WiFi Country) from the system on which it's running (if running on RasPiOS, Debian, or a Debian derivative such as Mint or Ubuntu)
 * Configure the system in the IMG file to have **SSH enabled**
-* Creates the specified user with the given password and enables sudo for that user
+* Create the user `myuser` with the given password and enable sudo for that user
 * Do an `apt update` and `apt upgrade`
+* Installs a few example apps
+* Configures WiFi for SSID `myssid` and password `mywifipassword`
 * Prevents piwiz from running (not needed) and regenerates SSH host keys after the system time has been synchronized during the first system boot
-
-No additional packages are installed in this example, but as you'll see, it's a simple addition to the command line to install your list of packages.
 
 ## Burn the image onto the SD Card
 ```sh
-sudo sdm --burn /dev/sde --hostname mypi1 --expand-root 2023-12-05-raspios-bookworm-arm64.img
+sudo sdm --burn /dev/sdX --hostname mypi1 --expand-root 2025-10-01-raspios-trixie-arm64.img
 ```
+Modify `/dev/sdX` to refer to the disk you want to burn.
 
 ## Boot and Go
 
@@ -67,7 +79,7 @@ Load the SD card into a Pi and power it up. The system will come up as it always
 * **WILL NOT:** Resize the root file system and restarts automatically, thanks to the use of `--expand-root`, which expands the root file system on the SD Card after the burn completes.
 * After the system starts it goes through a complete system startup, just as it always does on a fresh SD Card
 * Toward the end of the boot process the sdm FirstBoot service runs (once). It takes other actions as needed to fulfill the requested configuration.
-* When the system boot is fully complete (it can take a while on a large SD card!), the system automatically restarts again
+* When the system boot is fully complete, the system automatically restarts again
 
 When the system comes back up your Pi is all happy, ready to go, and configured with:
 
@@ -79,8 +91,10 @@ When the system comes back up your Pi is all happy, ready to go, and configured 
 
 You can review the output of the sdm first boot script on the newly-booted system with:
 ```sh
-sudo journalctl -b -1 | grep FirstBoot
+journalctl -b -1 | grep FirstBoot
 ```
+
+NOTE: Sometime late in Bookworm the default retention of the system journal changed from keeping them all to removing them on shutdown. If you want to retain all system journals, add `system:journal=persistent` to your personal `ezsdm` script.
 
 ## Next steps
 
@@ -108,9 +122,13 @@ Here are a few examples:
 
 * **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>.
 
+* **Automatic rootfs encryption** &mdash; Make your system more secure with an encrypted root file system using only a few commands.
+
 * **Burn SD Card Image for network distribution** &mdash; You can also burn a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
 
     The recipient can burn the SD Card using any one of a number of tools on Linux ([Installing Operating System Images](https://www.raspberrypi.org/documentation/installation/installing-images/)), Windows ([Installing Operating System Images Using Windows](https://www.raspberrypi.org/documentation/installation/installing-images/windows.md)), or MacOS ([Installing Operating System Images Using MacOS](https://www.raspberrypi.org/documentation/installation/installing-images/mac.md)).
+
+* **Choose from a wide selection of sdm plugins** &mdash; sdm Plugins are <a href="Docs/Plugins.md">fully documented</a> and provide a broad set of functionality including: copy files into the IMG, install IPSEC or Wireguard VPNs, configure SSH host and user keys, install PiApps, etc.
 
 * **Update an already-burned RasPiOS SD Card or SSD** &mdash; use the `--explore` command switch to nspawn into the SD Card or SSD. While in the nspawn you can take care of system management activities in a near-online manner, such as changing the password for an account, installing additional packages, etc.
 
@@ -121,9 +139,5 @@ Here are a few examples:
 Need more details? You'll find complete details about sdm in the <a href="Docs/Index.md">online documentation</a> and plugin-specific documentation <a href="Docs/Plugins.md">here.</a>
 
 You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a> It's an older video and doesn't use plugins, but will give you a good idea of how sdm works.
-
-## Platform Support Notes
-
-Several people have run into issues with using sdm on a Mac. Unless you are technical enough to sort out how to make it work, or care enough to permanently donate a Mac to the sdm project, <b>sdm is not supported on the Mac</b>.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gitbls/sdm)
