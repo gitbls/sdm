@@ -31,7 +31,7 @@ trap "doctrlcp1" SIGINT
 trap p1exit EXIT
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
-runoneplugin sdm.phaseops 1 "ops=apt-cacher,apt-conf,apt-update" || exit
+runoneplugin sdm.phaseops 1 "ops=update-apt-cacher,apt-conf,apt-update" || exit
 
 if [ "$cscript" != "" ]
 then
