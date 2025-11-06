@@ -144,14 +144,17 @@ function logapterror() {
 
 function extractlogs() {
     local rdir=$(realpath $extractlogdir)
+    local down=$(stat -c %U:%G $rdir)
 
     logtoboth "> Copy sdm logs to $rdir"
+
     for fn in apt.log history
     do
 	if [ -f $SDMPT/etc/sdm/$fn ]
 	then
 	    logtoboth ">   /etc/sdm/$fn to host $rdir/$fn"
 	    cp $SDMPT/etc/sdm/$fn $rdir
+	    [ "$down" != "root:root" ] && chown $down $rdir/$fn
 	else
 	    logtoboth "%   /etc/sdm/$fn not present"
 	fi
@@ -1943,19 +1946,23 @@ function domount() {
 	notmounted $mdir && errexit "? Error mounting --bind '$dmimg'"
     elif [ "$imgtype" == "IMG" ]
     then
-	pinfo=($(fdisk --bytes -lo Start,Size "${dmimg}" | tail -n 2))
-	while read line
-	do
-	    if [[ "$line" =~ ^Sector\ size\ \(logical/physical\)\:\ ([[:digit:]]{,4}) ]]
-	    then
-		csize="${BASH_REMATCH[1]}"
-		break
-	    fi
-	done < <(fdisk -l "${dmimg}")
-	bootstart=$((${pinfo[0]}*csize))
-	bootsize=${pinfo[1]}
-	rootstart=$((${pinfo[2]}*csize))
-	rootsize=${pinfo[3]}
+        while read line
+        do
+            if [[ "$line" =~ ^Sector\ size\ \(logical/physical\)\:\ ([[:digit:]]{,4}) ]]
+            then
+                csize="${BASH_REMATCH[1]}"
+                break
+            fi
+	    # Gather bootfs (partition 1) and rootfs (partition 2) start and size
+            if [[ "$line" =~ ^${dmimg}1 ]]
+            then
+                IFS=" " read pname bootstart bootsize <<< "$line"
+            elif
+                [[ "$line" =~ ^${dmimg}2 ]]
+            then
+                IFS=" " read pname rootstart rootsize <<< "$line"
+            fi
+        done < <(fdisk -l "${dmimg}")
         echo "* Mount IMG '$dmimg'"
 	#
 	# Try mounting with offset/sizelimit with automatic loop device management first
