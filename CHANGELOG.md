@@ -1,5 +1,13 @@
 # Changelog
 
+## V14.10
+
+* New Features
+  * Also display host pagesize in /etc/sdm/history at start of customization
+* Improvements
+* Bug Fixes
+  * `disables` plugin `cloudinit` now actually works for 32-bit systems
+
 ## V14.9
 
 * New Features
