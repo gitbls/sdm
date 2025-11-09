@@ -200,7 +200,7 @@ EOF
 		    ;;
 		pre-phase1)
 		    logtoboth "> Run pre-Phase1 steps"
-		    runoneplugin sdm.phaseops 1 "ops=apt-cacher,apt-conf,apt-update"
+		    runoneplugin sdm.phaseops 1 "ops=update-apt-cacher,apt-conf,apt-update"
 		    ;;
 		post-customization)
 		    logtoboth "> Run post-Customization steps"
