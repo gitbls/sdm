@@ -271,21 +271,29 @@ Things to know when using SSH as documented here:
 
 The Yubikey is a cryptographic USB device that can be used to unlock the rootfs.
 
-The yubikey can unlock the encrypted rootfs automatically if present. If this is not desired, specify `noautounlock` as an argument to the `yubi` plugin and the initramfs code will prompt for the Yubikey passphrase.
+The yubikey can unlock the encrypted rootfs automatically if present. If this is not desired, specify the `--noautounlock` switch to `sdm-yubi-config` and the initramfs code will prompt for the Yubikey passphrase.
 
 ### Enabling the rootfs for Yubikey unlock
 
 First, fully configure encryption on the system using `sdm-cryptconfig` as documented above. Once that has completed and the system is fully operational, you can add Yubikey unlock as a second method to unlock rootfs.
 
-The sdm plugin `yubi` will enable your Yubikey to unlock the rootfs. It must be used on the running system so that it can access the Yubikey and add the Yubikey as an unlock method to the encrypted rootfs.
+The sdm script `sdm-yubi-config` will configure your encrypted rootfs to be unlockable with a Yubikey. Like sdm-cryptconfig, sdm-yubi-config does not require sdm to be installed.
 
-The plugin documentation is <a href="Plugins.md#yubi">here</a>. Here's an example usage:
-```
-sudo sdm --runonly plugins --oklive --plugin yubi
-```
-`luksphrase`, the phrase used when the rootfs was initially encrypted, is required to add another slot to the Luks-encrypted partition, and `ykphrase` is the phrase that will be provided to the Yubikey. If these arguments are not provided to the plugin, you will be prompted for them on the terminal.
+sdm-yubi-config switches include:
 
-By default the Yubikey will automatically unlock the rootfs if/when the Yubikey is inserted.
+* `--initialize` &mdash; Initialize the Yubikey slot. If not specified the slot must be previously configured
+* `--luks-phrase` &mdash; Specifies the configured Luks unlock phrase
+* `--luks-slot` &mdash; Specifies the Luks slot to use [Default:2]
+* `--mapper` &mdash; Specifies the cryptroot mapper name [Default:cryptroot]
+* `--noautounlock` &mdash; Do not automatically unlock rootfs; prompt for Yubikey passphrase [Default:autounlock]
+* `--yubi-phrase` &mdash; Specifies the Yubikey passphrase
+* `--yubi-slot` &mdash; Specifies the Yubikey slot to use [Default:2]
+
+All switches are optional. sdm-yubi-config will prompt for the Luks passphrase and the Yubikey passphrase if not provided on the command line.
+
+You must reboot the system after sdm-yubi-config completes.
+
+NOTE: Yubikey unlock and USB Keyfile unlock are mutually exclusive. Only one can be configured.
 
 ### Using the Yubikey
 
