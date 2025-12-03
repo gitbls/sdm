@@ -30,16 +30,30 @@ function mkhomedir() {
 	mkdir -p $SDMPT/$homedir
     fi
 }
+
 function getpassword() {
-    local pwd pwuser="$1"
+    local pwd pwd2 pwuser="$1"
+
     while [ true ]
     do
-        echo -n "Password for $pwuser: " && read -u 0 -s pwd
-        echo ""
-        [ "$pwd" != "" ] && break
+        while [ true ]
+        do
+            echo -n "Password for $pwuser: " && read -u 0 -s pwd
+            echo ""
+            [ "$pwd" != "" ] && break
+        done
+
+        while [ true ]
+        do
+            echo -n "Retype password for $pwuser: " && read -u 0 -s pwd2
+            echo ""
+            [ "$pwd2" != "" ] && break
+        done
+        [ "$pwd" = "$pwd2" ] && break || echo "Passwords do not match. Try again."
     done
+
     # userpwd must be defined in scope above this so it can be used
-    # had problems calling this as a function 
+    # had problems calling this as a function
     printf -v userpwd "%s" "$pwd"
 }
 
