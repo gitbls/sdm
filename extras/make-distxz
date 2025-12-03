@@ -66,7 +66,9 @@ sdmlist=(install-sdm \
 	     sdm-gburn \
 	     sdm-make-luks-usb-key \
 	     sdm-add-luks-key \
-	     sdm-ssh-initramfs)
+	     sdm-ssh-initramfs \
+	     sdm-yubi-config \
+	)
 pluglist=(apps \
 	      apt-addrepo \
 	      apt-cacher-ng \
@@ -127,7 +129,7 @@ pluglist=(apps \
 	      wificonfig \
 	      wireguard \
 	      wsdd \
-	      yubi)
+	      )
 
 sdmversion=${1:-unknown}
 src=${2:-/l/work/sdm}
