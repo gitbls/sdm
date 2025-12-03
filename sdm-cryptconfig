@@ -340,14 +340,13 @@ function parsecmd() {
 }
 
 function doconfiginitramfs() {
-    local kcmd="" knopwd="" kskip=""
+    local kcmd="" knopwd=""
 
     # These both need to be set on initramfs-tools 0.142+rpt1 and earlier. This assumes OK. Remove uncommented line for earlier initramfs-tools
     echo "> Update initramfs configuration for 'MODULES=most' and 'update_initramfs=all'"
     sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf
 #*  sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
 
-    [ $xnopwd -eq 1 ] && kskip="&& /bin/false"
     echo "> Create /usr/bin/sdmluksunlock; runs in initramfs to unlock rootfs"
     cat > /usr/bin/sdmluksunlock <<EOF
 #!/bin/bash
@@ -437,6 +436,7 @@ copy_exec /usr/sbin/parted /usr/sbin
 copy_exec /usr/sbin/cryptsetup /usr/sbin
 copy_exec /usr/bin/bash /usr/bin
 copy_exec /usr/bin/dd /usr/bin
+copy_exec /usr/bin/lsusb /usr/bin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
 # OK if this fails; means it was copied due to keyscript in crypttab and copied in /usr/share/initramfs-tools/hooks/cryptroot
 copy_file text /usr/bin/sdmluksunlock || true
