@@ -1,5 +1,15 @@
 # Changelog
 
+## V14.11
+
+* New Features
+  * New plugin `cloudinit` facilitates adding cloud-init user-data to leverage cloud-init capabilities if desired
+* Improvements
+  * Plugin `disables` argument `cloudinit` now only disables cloudinit. No need to touch NM on Trixie as of RasPiOS 2025-11-24
+  * Remove `yubi` plugin and replace with sdm-yubi-config which does not require sdm
+  * Plugin `user` argument `prompt` for password now asks for a retype and tests for the two passwords match
+* Bug Fixes
+
 ## V14.10
 
 * New Features
