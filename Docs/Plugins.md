@@ -236,6 +236,20 @@ The fake-hwclock provided with RasPiOS runs hourly as a cron job. clockfake does
 
 * **interval** &mdash; Interval in minutes between fake hardware clock updates
 
+### cloudinit
+
+The `cloudinit` plugin facilitates adding additional yaml information to /boot/firmware/user-data, which will get processed at the next reboot.
+
+#### Arguments
+
+* **userdata** &mdash; Specifies a yaml file to append to /boot/firmware/user-data
+
+Refer to <a href="https://cloudinit.readthedocs.io/en/latest/reference/modules.html">Complete cloud-init documentation</a> for details on the available cloud-init modules, examples, etc.
+
+After cloud-init has processed the user-data file, subsequent runs will NOT redo the operations unless something changes in the OS (app or configuration removed, etc).
+
+If desired, cloud-init processing can be disabled by: `sudo touch /etc/cloud/cloud-init.disabled`. Similarly, cloud-init can be re-enabled by `sudo rm -f /etc/cloud/cloud-init.disabled`.
+
 ### cmdline
 
 Replace cmdline.txt with a new command line and/or modify the existing cmdline.txt. If /boot/firmware/cmdline.txt is present it will be used. If not, /boot/cmdline.txt is assumed.
@@ -1600,34 +1614,6 @@ Note that wsdd is available in Bookworm via apt, so this plugin is not needed on
 * **wsddswitches=switchlist** &mdash; List of switches to write into /etc/default/wsdd
 * **localsrc=/path/to/files** &mdash; Local directory with cached copy of wsdd (files: wsdd.py wsdd.8 wsdd.defaults wsdd.service)
 
-### yubi
-
-The `yubi` plugin configures an already-encrypted rootfs to be unlocked with a Yubikey in addition to the rootfs passphrase. This plugin MUST be run on a booted system, as it requires access to the Yubikey hardware.
-
-The yubikey will be implemented in passphrase/response mode. At the moment, FIDO2 mode is not supported.
-
-To use the `yubi` plugin, first encrypt rootfs per <a href="Disk-Encryption.md">the Disk encryption documentation</a> using a rootfs passphrase.
-
-Next, run the yubi plugin on the booted, encrypted rootfs system. For example:
-```
-sdm --runonly plugins --oklive --plugin yubi:"partition=/dev/sdX|luksphrase=lukspassphrase|ykphrase=yubikeyphrase"
-```
-
-#### Arguments
-
-The plugin will prompt for the Luks unlock passhrase and the Yubikey passphrase if not provided.
-
-* **noautounlock** &mdash; By default the yubikey will auto-unlock the encrypted partition. If `noautounlock` is provided a prompt will be issued for the yubikey challenge phrase.
-* **initialize** &mdash; If provided the yubikey is (re)-initialized with `ykpersonalize`
-* **luksphrase** &mdash; Phrase used when the partition was Luks encrypted [Required or Requested]
-* **luksslot** &mdash; Luks keyslot to use for the yubikey response [D:2]
-* **mapper** &mdash; The value of `mapper` previously provided to the `cryptroot` plugin or directly to `sdm-cryptconfig`
-* **ykphrase** &mdash; Challenge phrase to provide to the Luks key [Required or Requested]
-* **ykslot** &mdash; Yubikey slot for the challenge/response [D:2]. Yubikey only supports slots 1 and 2 for Challenge/Response.
-
-See <a href="Disk-Encryption.md#using-the-yubikey">Using the Yubikey</a> for further operational details.
-
-NOTE: If you're security conscious do not specify `luksphrase` or `ykphrase` on the command line, as they will unfortunately be captured in the log. Values for these arguments provided interactively are not logged.
 <br>
 <form>
 <input type="button" value="Back" onclick="history.back()">
