@@ -1,0 +1,321 @@
+#!/bin/bash
+#
+# sdm-yubi-config adds Yubikey unlock to an already-encrypted rootfs
+#
+# TODO: ykman with fido.
+# https://forum.garudalinux.org/t/use-yubikey-to-unlock-luks-on-root-partition/32743
+# Search: use yubikey "ykman" to unlock luks
+#
+
+function errexit() {
+    echo -e "$1"
+    exit 1
+}
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function ispkginstalled() {
+    #
+    # $1 has package name
+    #
+    iver=$(apt-cache policy $1 | grep Installed: 2> /dev/null)
+    if [ "$iver" == "" ]
+    then
+        return 1
+    else
+        [[ "$iver" =~ "(none)" ]] && return 1 || return 0
+    fi
+    return
+}
+
+function installpkgsif() {
+    local pkglist="$1" pkgs=() newpkgs="" p
+
+    IFS=" " read -a pkgs <<< $pkglist
+    for p in "${pkgs[@]}"
+    do
+	ispkginstalled $p || newpkgs="$newpkgs $p"
+    done
+    [ "$newpkgs" == "" ] ||  apt install --no-install-recommends --yes $newpkgs
+}
+
+function getphrase() {
+    local phrasetype="$1"
+    local phrase phrase2
+    while [ true ]
+    do
+	while [ true ]
+	do
+	    read -s -p "$phrasetype passphrase: " phrase
+	    echo "" >/dev/tty
+	    [ "phrase" == "" ] || break
+	done
+	while [ true ]
+	do
+	    read -s -p "Retype $phrasetype passphrase: " phrase2
+	    echo "" >/dev/tty
+	    [ "$phrase2" == "" ] || break
+	done
+	[ "$phrase" == "$phrase2" ] && break
+	echo "% Phrases do not match; try again" >/dev/tty
+    done
+    echo "$phrase"
+}
+
+function yubikey_luks_enroll() {
+    local partition="$1" lkslot=$2 lukspwd="$3" ykslot=$4 ykpwd="$5"
+    local ykresp
+    #
+    # Kill the Luks slot and then add the new key
+    #
+    echo "> Delete Luks slot $lkslot"
+    printf '%s\n' "$lukspwd" | cryptsetup luksKillSlot $partition $lkslot 
+    ykresp="$(printf %s "$ykpwd" | ykchalresp -$ykslot -i- 2>/dev/null || true)"
+    [ "$ykresp" == "" ] && errexit "? Yubikey failed to return a response"
+    echo "> Add key to Luks slot $lkslot"
+    echo "  Ignore the --key-slot parameter warning message"
+    printf '%s\n%s\n%s\n' "$lukspwd" "$ykresp" "$ykresp" | cryptsetup --key-slot $lkslot luksAddKey $partition || errexit "? luksAddKey failed ($?) for slot $lkslot on '$partition'"
+}
+
+function updykluks_script() {
+    echo "> Improve /usr/share/yubikey-luks/ykluks-keyscript"
+    [ -f /usr/share/yubikey-luks/ykluks-keyscript ] && mv /usr/share/yubikey-luks/ykluks-keyscript /usr/share/yubikey-luks/.sdm.orig-ykluks-keyscript
+    cat > /usr/share/yubikey-luks/ykluks-keyscript <<EOF
+#!/bin/bash
+#
+# Called when time to unlock the encrypted rootfs either with a Yubikey or a Luks passphrase
+#
+function askyn() {
+    local ans
+    read -u 2 -p "\$1 [Y/n]? " ans
+    [[ -z "\$ans" ]] && ans=y
+    case "\$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function pmsg() {
+    local msg="\$1" pfx="\${2:-n}" fpfx=""
+
+    [[ "\$pfx" == "n" ]] || fpfx="\${pfx} "
+    echo "\${fpfx}\$msg" >/dev/console
+    return 0
+}
+
+function isyubi() {
+    local yks slot="\${1:-2}"
+    yks="\$(ykinfo -q -\${slot} 2>&1)"
+    echo "\$yks"
+    return 0
+}
+
+function tryyubi()
+{
+    local pwd="\$1"
+
+    YUBIKEY_LUKS_SLOT=2 #Set in case missing in /etc/ykluks.cfg
+    . /etc/ykluks.cfg
+    pmsg "Look for Yubikey to unlock rootfs"
+    while :; do
+	if [[  "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]]
+	then
+	    pmsg "Found Yubikey"
+	    PW="\$pwd"
+	    if [ "\$HASH" == "1" ]; then
+		PW=\$(printf %s "\$PW" | sha256sum | awk '{print \$1}')
+	    fi
+	    R="\$(printf %s "\$PW" | ykchalresp -"\$YUBIKEY_LUKS_SLOT" -i- 2>/dev/null || true)"
+	    if [ "\$R" != "" ]; then
+		pmsg "Yubikey provided response"
+		if [ "\$CONCATENATE" == "1" ]; then
+		    printf '%s' "\$PW\$R"
+		else
+		    printf '%s' "\$R"
+                    pmsg "Yubikey unlock provided to cryptsetup"
+                    exit 0  # Keep next code for a bit
+                    #pmsg "Ignore 'process killed' messages"
+                    #aps=\$(ps e | grep askpass | grep -v grep | awk '{print \$1}')
+                    #[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+                    #aps=\$(ps e | grep sleep | grep -v grep | awk '{print \$1}')
+                    #[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+                    #exit 0
+		fi
+	    else
+		pmsg "Failed to obtain Yubikey response" "?"
+	    fi
+	else
+	    pmsg "Insert the Yubikey"
+	    sleep 1
+	fi
+    done
+    return 0
+}
+
+YUBIKEY_LUKS_SLOT=2 #Set in case missing in /etc/ykluks.cfg
+. /etc/ykluks.cfg
+# For Testing of noautounlock:
+#YUBIKEY_CHALLENGE=""
+if [[ "\$1" == "tryyubi" ]]
+then
+    touch /tmp/ftryyubi
+    tryyubi "\$2"
+    exit
+else
+    if [[ ! -f /tmp/ftryyubi ]] && [[ "\$YUBIKEY_CHALLENGE" != "" ]] && [[ "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]]
+    then
+	( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "\$YUBIKEY_CHALLENGE" </dev/null & )
+	#sleep infinity
+	#pmsg "Continuing..."
+    else
+	if [[ "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]] || askyn "Use Yubikey to unlock"
+	then
+	    read -rs -u 2 -p "Enter Yubikey passphrase and press ENTER: " passphrase
+	    pmsg ""
+	    pmsg "Ensure the Yubikey is connected; I'll wait forever"
+	    ( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "\$passphrase" </dev/null & )
+	    #sleep infinity
+	    #pmsg "Continuing..."
+	else
+	    /lib/cryptsetup/askpass "Enter Luks passphrase then press ENTER: "
+	fi
+    fi
+fi
+# Clean up 
+#aps=\$(ps e | grep tryyubi | grep -v grep | awk '{print \$1}')
+#[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+exit 0
+EOF
+    chmod 755 /usr/share/yubikey-luks/ykluks-keyscript
+}
+
+function printhelp() {
+# concatenate, hash not done
+    echo $"
+sdm-yubi command line switches:
+--initialize   Initialize the Yubikey slot
+--luks-phrase  Specifies the configured Luks unlock phrase
+--luks-slot    Specifies the Luks slot to use [D:2]
+--mapper       Specifies the cryptroot mapper name [D:cryptroot]
+--noautounlock Do not automatically unlock rootfs; prompt for Yubikey passphrase
+--yubi-phrase  Specifies the Yubikey passphrase
+--yubi-slot    Specifies the Yubikey slot to use [D:2]
+"
+}
+
+function parsecmd() {
+    local cmd="$1" args="$2"
+    local longopts="help,initialize,init-slot,luks-phrase:,luks-slot:,mapper:,noautounlock,yubi-phrase:,yubi-slot:"
+
+    OARGS=$(getopt -o h --longoptions $longopts -n 'sdm-yubi' -- $args)
+    [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
+    eval set -- "$OARGS"
+    while true
+    do
+	case "${1,,}" in
+	    # 'shift 2' if switch has argument, else just 'shift'
+	    --initialize) xinitialize=1     ; shift 1 ;;
+	    --luks-phrase) xluksphrase="$2" ; shift 2 ;;
+	    --luks-slot) xluksslot="$2"     ; shift 2 ;;
+	    --mapper) xmapper="$2"          ; shift 2 ;;
+	    --noautounlock) xautounlock=0   ; shift 1 ;;
+	    --yubi-phrase) xyubiphrase="$2" ; shift 2 ;;
+	    --yubi-slot) xyubislot="$2"     ; shift 2 ;;
+	    --) shift ; break ;;
+	    -h|--help)  printhelp ; shift ; exit ;;
+	    *) errexit "? $cmd: Internal error" ;;
+	esac
+    done
+    return 0
+}
+
+#
+# Main
+#
+if [ $EUID -ne 0 ]
+then
+    cmdline="$0 $*"
+    echo "% Re-running $0 with 'sudo $cmdline'"
+    sudo $cmdline
+    exit
+fi
+
+xinitialize=0
+xluksphrase=""
+xluksslot=2
+xmapper=cryptroot
+xautounlock=1
+xyubiphrase=""
+xyubislot=2
+
+parsecmd $0 "$*" || errexit "? Command parse error"
+
+[[ "$(type -p cryptsetup)" == "" ]] && errexit "? cryptsetup not found"
+
+#
+# Get partition name from /etc/crypttab
+#
+[ -f /etc/crypttab ] || errexit "? Cannot find /etc/crypttab"
+IFS=$' \t' read junk partition therest < <(grep $xmapper /etc/crypttab)
+[[ "$partition" == "" ]] && errexit "? Unable to determine physical partition for mapper '$xmapper' in /etc/crypttab"
+[[ "$(lsblk --noheadings --output TYPE $partition | grep part 2>/dev/null)" == "part" ]] || errexit "? Partition '$partition' from crypttab is not a partition?"
+( cryptsetup luksDump $partition >/dev/null 2>&1 ) || errexit "? Strange error: '$partition' is not already Luks-encrypted"
+echo "> Found encrypted rootfs partition '$partition'"
+
+xyubislot=$((xyubislot))  # Ensure numeric (non-numeric becomes 0)
+[[ $xyubislot -eq 0 ]] || [[ $xyubislot -gt 2 ]] && errexit "? Yubikey hardware only supports slots 1 and 2 for Challenge/Response"
+
+[ "$xluksphrase" == "" ] && xluksphrase="$(getphrase "Luks unlock")"
+[ "$xyubiphrase" == "" ] && xyubiphrase="$(getphrase "Yubikey")"
+
+echo "> Install yubikey-luks and yubikey-personalization"
+installpkgsif "yubikey-luks yubikey-personalization" || errexit "? apt install returned an error"
+
+while true ; do
+    if lsusb | grep -iq 'yubico'; then break; fi
+    read -p "Insert Yubikey and press ENTER: "
+done
+
+if [ "$xinitialize" == "1" ]
+then
+    if [ "$(ykinfo -q -$xyubislot 2>/dev/null)" == "1" ]
+    then
+	askyn "% Yubikey slot $xyubislot is not empty; Continue" || errexit "? Exit per user request"
+    fi
+    echo "> Initialize Yubikey slot $xyubislot"
+    ykpersonalize -y -$xyubislot -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible || errexit "? ykpersonalize failed"
+fi
+
+echo "> Enroll the Yubikey for use with Luks"
+yubikey_luks_enroll "$partition" "$xluksslot" "$xluksphrase"  "$xyubislot" "$xyubiphrase" || errexit "? yubikey-luks-enroll failed"
+#
+# Update ykluks-keyscript with one that works better and update /etc/crypttab
+#
+updykluks_script
+sed -i "s#discard#discard,keyscript=/usr/share/yubikey-luks/ykluks-keyscript#" /etc/crypttab
+#
+# Update ykluks.cfg as needed
+#
+sed -i "/YUBIKEY_CHALLENGE/d" /etc/ykluks.cfg
+sed -i "/YUBIKEY_LUKS_SLOT/d" /etc/ykluks.cfg
+[[ "$xautounlock" == "1" ]] && echo "YUBIKEY_CHALLENGE='$xyubiphrase'" >> /etc/ykluks.cfg
+echo "YUBIKEY_LUKS_SLOT=$xyubislot" >> /etc/ykluks.cfg
+#HASH and CONCATENATE NYI
+#[ -v hash ] && echo "HASH=1" >> /etc/ykluks.cfg
+#[ -v concatenate ] && echo "CONCATENATE=1" >> /etc/ykluks.cfg
+chmod 600 /etc/ykluks.cfg
+
+echo "> Update initramfs with configured Yubikey"
+update-initramfs -u
+
+echo ""
+echo "Reboot the system when you are ready"
+echo ""
+exit
