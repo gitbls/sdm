@@ -77,7 +77,7 @@ if grep -q ' % ' /etc/sdm/history
 then
     logtoboth ""
     logtoboth "% Customization warning messages:"
-    logtoboth "  $(grep ' % ' /etc/sdm/history | grep -v 'Customization warning messages:')"
+    logtoboth "$(grep ' % ' /etc/sdm/history | grep -v 'Customization warning messages:')"
     logtoboth ""
 fi
 if [ $fbatch -eq 0 ]
