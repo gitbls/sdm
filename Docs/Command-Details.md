@@ -90,7 +90,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--extract-log` */path/to/dir* &mdash; Extract the log files /etc/sdm/apt.log and /etc/sdm/history from the device or IMG and save them in the specified directory
 * `--extract-script` */path/to/script* &mdash; Run the provided script when extracting log information. Can be used for correctness checking, etc.
 * `--gpt` &mdash; Directs the `--burn` command to set the burned disk to GPT partitions
-* `--groups` *grouplist* &mdash; Specify the groups to be added to new users created with the `user` plugin. The default list is: `dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio`
+* `--groups` *grouplist* &mdash; Specify the groups to be added to new users created with the `user` plugin. The default list is: `users,adm,dialout,audio,netdev,video,plugdev,cdrom,games,input,gpio,spi,i2c,render,sudo`
 * `--host` *hostname* or `--hostname` *hostname* &mdash; Specifies the name of the host to set onto the SD Card when burning it.
 * `--loadlocal wifi` &mdash; Starts a WiFi Captive Portal to obtain and test the WiFi Credentials during the First Boot. See <a href="Captive-Portal.md">Captive Portal</a> for details. The *flashled* and *internet* options are not supported with `--loadlocal wifi`.
 * `--logwidth` *N* &mdash; Set the maximum log line width before lines are split. Default is 96 characters.
