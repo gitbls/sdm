@@ -415,7 +415,7 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
 
   The above changes are made to ensure that you have full visibility into what's happening in the boot process. You can override these changes with the sdm-cryptconfig `--quiet` switch.
 
-  After the system has fully completed the encryption process, if you want you can `sudoedit /boot/firmware/cmdline.txt` and add `quiet splash`. Also, if you want to re-enable plymouth, do the following once you're logged in:
+  After the system has fully completed the encryption process, if you want you can `sudoedit /boot/firmware/cmdline.txt` and add `quiet`. Do NOT add `splash` to cmdline.txt or the prompt for the unlock passphrase will not display. Also, if you want to re-enable plymouth, do the following once you're logged in:
 ```sh
 for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
 do
