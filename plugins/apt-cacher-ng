@@ -18,7 +18,7 @@ function loadparams() {
 phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
-vldargs="|gentargetmode|bindaddress|cachedir|port|tunnelenable|proxy|"
+vldargs="|gentargetmode|bindaddress|cachedir|port|tunnelenable|proxy|vfileops|"
 rqdargs=""
 loadparams
 
@@ -42,7 +42,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     #logfreespace "at start of Plugin $pfx Phase 1"
     #
-    plugin_getargs $pfx "$args" "|gentargetmode|bindaddress|cachedir|port|tunnelenable|proxy|"
+    plugin_getargs $pfx "$args" "$vldargs"
     plugin_printkeys
 
     #  Possible choices FOR gentargetmode: Set up once, Set up now and update later, No automated setup
@@ -84,6 +84,15 @@ else
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     plugin_printkeys
 
+    if [ -v vfileops ]
+    then
+	logtoboth "% Plugin $pfx: VfileUseRangeOps will remain enabled"
+	logtoboth "% Plugin $pfx: If apt-cacher-ng becomes unreliable use:"
+	logtoboth "% Plugin $pfx:   sudo sed -i '/# VfileUseRangeOps: 1/aVfileUseRangeOps: 0' /etc/apt-cacher-ng/acng.conf"
+    else
+	logtoboth "> Plugin $pfx: Disable VfileUseRangeOps for improved reliability"
+	sed -i "/# VfileUseRangeOps: 1/aVfileUseRangeOps: 0" /etc/apt-cacher-ng/acng.conf
+    fi
     #  Possible choices FOR gentargetmode: Set up once, Set up now and update later, No automated setup
     #  Other settings: "keep" keeps the value from the default install
 
