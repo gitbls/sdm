@@ -242,13 +242,23 @@ The `cloudinit` plugin facilitates adding additional yaml information to /boot/f
 
 #### Arguments
 
-* **userdata** &mdash; Specifies a yaml file to append to /boot/firmware/user-data
+* **cfg** &mdash; Specifies a comma-separated list of yaml files with file type `.cfg` to place in /etc/cloud/cloud.cfg.d for system-level configuration
+* **netconfig** &mdash; Specifies a comma-separated list of yaml files with file type `.yaml` to append to /boot/firmware/network-config for network configuration
+* **userdata** &mdash; Specifies a comma-separated list of yaml files with file type `.yaml` to append to /boot/firmware/user-data for user-level configuration
+
+The `cfg` files are processed by cloud-init in lexical order. Values in lexically later files overwrite values in earlier files.
+
+See https://www.raspberrypi.com/news/cloud-init-on-raspberry-pi-os/ for overview information on RasPiOS and cloud-init.
 
 Refer to <a href="https://cloudinit.readthedocs.io/en/latest/reference/modules.html">Complete cloud-init documentation</a> for details on the available cloud-init modules, examples, etc.
 
 After cloud-init has processed the user-data file, subsequent runs will NOT redo the operations unless something changes in the OS (app or configuration removed, etc).
 
 If desired, cloud-init processing can be disabled by: `sudo touch /etc/cloud/cloud-init.disabled`. Similarly, cloud-init can be re-enabled by `sudo rm -f /etc/cloud/cloud-init.disabled`.
+
+#### Examples
+
+* `--plugin cloudinit:"cfg=/path/to/99cfg1.cfg,/path/to/99cfg2.cfg|netconfig=/path/netcfg.yaml|userdata=/path/usercfg.yaml"`
 
 ### cmdline
 
@@ -1408,7 +1418,7 @@ Use the `user` plugin to delete, create, or set passwords for users
   * Syntax: `groupadd=groups,to,add`
 * **groups** &mdash; Set the list of groups for a user. If not specified, `--groups` is used, with the default:
 ```
-dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio
+users,adm,dialout,audio,netdev,video,plugdev,cdrom,games,input,gpio,spi,i2c,render,sudo
 ```
 * **prompt** &mdash; Prompt for the user's password
   * Syntax: `prompt`
