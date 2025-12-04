@@ -266,6 +266,11 @@ else
 #        fi
     fi
 fi
+if grep -q -s re-enable-tty1 /etc/sdmscdefault
+then
+    echolog "sdm-cryptfs-cleanup: Re-enable getty@tty1"
+    systemctl -q enable getty@tty1
+fi
 systemctl disable sdm-cryptfs-cleanup
 rm -f /etc/systemd/system/sdm-cryptfs-cleanup.service
 rm -f /etc/systemd/system/sdm-auto-encrypt.service
@@ -651,13 +656,24 @@ else
 	#
 	# Desktop. Enable console boot and modify quietness unless --quiet
 	#
-	systemctl get-default >/etc/sdmscdefault
-	echo "> Enable console boot for next system restart; will be reset to $(systemctl get-default) subsequently"
-	systemctl -q set-default multi-user.target
+	cmode="$(systemctl get-default)"
+	echo $cmode >/etc/sdmscdefault
+	if [ "$cmode" == "graphical.target" ]
+	then
+	    echo "> Disable graphical console for encryption process; will be reset to $(systemctl get-default) later"
+	    systemctl -q set-default multi-user.target
+	fi
+	if systemctl --quiet is-enabled getty@tty1
+	then
+	    echo "> Disable getty@tty1; will be re-enabled later"
+	    systemctl -q disable getty@tty1
+	    echo "re-enable-tty1" >>/etc/sdmscdefault
+	fi
 	if [ $xquiet -eq 0 ]
 	then
 	    echo "> Enable verbose system restart"
 	    grep -q -s quiet /boot/firmware/cmdline.txt && echo "quiet" >>/etc/sdmscdefault
+	    # NB restoring splash currently disabled bc passphrase prompt gets hidden
 	    grep -q -s splash /boot/firmware/cmdline.txt && echo "splash" >>/etc/sdmscdefault
 	    sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
 	    sed -i "s/ splash//g" /boot/firmware/cmdline.txt
