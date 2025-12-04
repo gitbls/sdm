@@ -355,7 +355,7 @@ The disables plugin makes it easy to disable a few *complex* functions.
 #### Arguments
 
 * **bluetooth** &mdash; Disables bluetooth via a blacklist file in /etc/modprobe.d
-* **cloudinit** &mdash; Disables cloud-init and netplan to fix "misplaced" nmconnection files. On 64-bit RasPiOS the cloud services are removed. On 32-bit the cloud services are disabled.
+* **cloudinit** &mdash; Disables cloud-init services.
 * **piwiz** &mdash; Disables piwiz during the first system boot. You must set up everything with sdm that piwiz does or you may not like the results: User, Password, Keymap, Locale, and Timezone.
 * **triggerhappy** &mdash; Disable the triggerhappy service. If you're not using it, this will eliminate the log spew it creates
 * **wifi** &mdash; Disables WiFi via a blacklist file in /etc/modprobe.d
