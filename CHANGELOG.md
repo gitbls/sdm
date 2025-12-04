@@ -1,5 +1,15 @@
 # Changelog
 
+## V14.12
+
+* New Features
+  * `cloudinit` plugin actually included now, and improved to optionally add yaml-formatted cfg files to /etc/cloud/cloud.cfg.d
+* Improvements
+  * Plugin `apt-cacher-ng` now disables VfileUseRangeOps by default for improved reliability
+  * sdm-cryptconfig properly disables getty@tty1 before encryption and re-enables it afterwards, correcting an annoying issue (at least to me!) on Desktop systems
+  * Update list of default user groups for consistency with rpi-imager and Trixie
+* Bug Fixes
+
 ## V14.11
 
 * New Features

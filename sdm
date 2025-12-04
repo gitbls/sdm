@@ -237,7 +237,6 @@ Command Switches for --customize and --burn or as noted
  --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
  --gpt               Create GPT partition table (instead of MBR). Use with --burn
  --groups list,of,groups Use this list of groups as the default for the user plugin
-                     [dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio]
  --host hostname     Hostname to write onto the storage device with --burn
  --key-file kf       Specify a key-file for certain commands
  --loadlocal args    Load WiFi Credentials from USB stick during first boot (see README)
@@ -268,7 +267,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V14.11"
+version="V14.12"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -292,7 +291,7 @@ ddpid=""                    #Holds pid of dd during IMG Extend
 ddextend=0                  #1=use dd for extend instead of qemu-img
 ddsw="bs=16M iflag=direct"  #Switches for dd
 debugs=""                   #Debug settings
-dgroups="dialout,cdrom,floppy,audio,video,plugdev,users,adm,sudo,users,input,netdev,spi,i2c,gpio" #Add created users to these groups
+dgroups="users,adm,dialout,audio,netdev,video,plugdev,cdrom,games,input,gpio,spi,i2c,render,sudo" #Add created users to these groups
 dimg=""                     #IMG Name
 dimgdevname=""              #Set to "IMG", "Device", or "Directory" once determined
 domain=""                   #--domain name
