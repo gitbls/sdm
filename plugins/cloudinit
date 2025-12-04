@@ -1,0 +1,147 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: cloudinit
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|cfg|userdata|netconfig|"
+rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_printkeys
+    mkdir -p $assetdir/{userdata,netconfig,cfg}
+    if [ -v userdata ]
+    then
+	[ -f $SDMPT/boot/firmware/user-data ] || printf "#cloud-config\n" > $SDMPT/boot/firmware/user-data
+	IFS="," read -a cargs <<< "$userdata"
+	for udf in "${cargs[@]}"
+	do
+	    [ -f $udf ] || logtobothex "? Plugin $pfx: userdata file '$udf' not found"
+	    logtoboth "> Plugin $pfx: Copy userdata file '$udf' to $assetdir/userdata"
+	    # Force .yaml file type in assetdir
+	    [ "${udf%%.yaml}" == "$udf" ] && tfn="$(basename ${udf}.yaml)" || tfn=$(basename $udf)
+	    [ -f $assetdir/userdata/$tfn ] && logtobothex "? Plugin $pfx: cloud-init file '$tfn' already in this IMG"
+	    cp $udf $assetdir/userdata/$tfn
+	done
+    fi
+    if [ -v netconfig ]
+    then
+	IFS="," read -a cargs <<< "$netconfig"
+	for udf in "${cargs[@]}"
+	do
+	    [ -f $udf ] || logtobothex "? Plugin $pfx: netconfig file '$udf' not found"
+	    logtoboth "> Plugin $pfx: Copy netconfig file '$udf' to $assetdir/netconfig"
+	    # Force .yaml file type in assetdir
+	    [ "${udf%%.yaml}" == "$udf" ] && tfn="$(basename ${udf}.yaml)" || tfn=$(basename $udf)
+	    [ -f $assetdir/netconfig/$tfn ] && logtobothex "? Plugin $pfx: cloud-init file '$tfn' already in this IMG"
+	    cp $udf $assetdir/netconfig/$tfn
+	done
+    fi
+    if [ -v cfg ]
+    then
+	IFS="," read -a cargs <<< "$cfg"
+	for udf in "${cargs[@]}"
+	do
+	    [ -f $udf ] || logtobothex "? Plugin $pfx: cfg file '$udf' not found"
+	    logtoboth "> Plugin $pfx: Copy cfg file '$udf' to $assetdir/cfg"
+	    # Force .cfg file type in assetdir
+	    [ "${udf%%.cfg}" == "$udf" ] && tfn="$(basename ${udf}.cfg)" || tfn=$(basename $udf)
+	    [ -f $assetdir/cfg/$tfn ] && logtobothex "? Plugin $pfx: cloud-init file '$tfn' already in this IMG"
+	    cp $udf $assetdir/cfg/$tfn
+	done
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    #
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+    if [ -v userdata ]
+    then
+	[ -f /boot/firmware/user-data ] || logtobothex "? Plugin $pfx: /boot/firmware/user-data has disappeared since Phase 0"
+	IFS="," read -a cargs <<< "$userdata"
+	for udf in "${cargs[@]}"
+	do
+	    [ "${udf%%.yaml}" == "$udf" ] && tfn="$(basename ${udf}.yaml)" || tfn=$(basename $udf)
+	    [ -f $assetdir/userdata/$tfn ] || logtobothex "? Plugin $pfx: userdata file '$assetdir/userdata/$tfn' not found"
+	    logtoboth "> Plugin $pfx: Append userdata '$assetdir/userdata/$tfn' to /boot/firmware/user-data"
+	    printf "\n# sdm appended userdata file '$tfn' on $(thisdate)\n" >> /boot/firmware/user-data
+	    cat $assetdir/userdata/$tfn >> /boot/firmware/user-data
+	    printf "\n# End sdm userdata file '$tfn'\n" >> /boot/firmware/user-data
+	done
+    fi
+
+    if [ -v netconfig ]
+    then
+	IFS="," read -a cargs <<< "$netconfig"
+	for udf in "${cargs[@]}"
+	do
+	    [ "${udf%%.yaml}" == "$udf" ] && tfn="$(basename ${udf}.yaml)" || tfn=$(basename $udf)
+	    [ -f $assetdir/netconfig/$tfn ] || logtobothex "? Plugin $pfx: netconfig file '$assetdir/netconfig/$tfn' not found"
+	    logtoboth "> Plugin $pfx: Append netconfig '$assetdir/netconfig/$tfn' to /boot/firmware/network-config"
+	    printf "\n# sdm appended netconfig file '$tfn' on $(thisdate)\n" >> /boot/firmware/network-config
+	    cat $assetdir/netconfig/$tfn >> /boot/firmware/network-config
+	    printf "\n# End sdm netconfig file '$tfn'\n" >> /boot/firmware/network-config
+	done
+    fi
+
+    if [ -v cfg ]
+    then
+	IFS="," read -a cargs <<< "$cfg"
+	for udf in "${cargs[@]}"
+	do
+	    [ "${udf%%.cfg}" == "$udf" ] && tfn="$(basename ${udf}.cfg)" || tfn=$(basename $udf)
+	    [ -f $assetdir/cfg/$tfn ] || logtobothex "? Plugin $pfx: cfg file '$assetdir/cfg/$tfn' not found"
+	    logtoboth "> Plugin $pfx: Copy cloud cfg '$assetdir/cfg/$tfn' to /etc/cloud/cloud.cfg.d"
+	    cp $assetdir/cfg/$tfn /etc/cloud/cloud.cfg.d
+	done
+    fi
+    if [ -f /etc/cloud/cloud-init.disabled ]
+    then
+	logtoboth "% Plugin $pfx: Re-enable cloud-init"
+	rm -f /etc/cloud/cloud-init.disabled
+    fi
+    #
+    #logfreespace "at end of $pfx Custom Phase post-install"
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
