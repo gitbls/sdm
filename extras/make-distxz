@@ -78,6 +78,7 @@ pluglist=(apps \
 	      cmdline \
 	      chrony \
 	      clockfake \
+	      cloudinit \
 	      copydir \
 	      copyfile \
 	      cryptroot \
