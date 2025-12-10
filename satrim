@@ -56,6 +56,11 @@ function trimcfg() {
 	    then
 		lbacount=$(sg_vpd -p bl $diskname | grep "unmap LBA" | (read w1 w2 w3 w4 lbc rest; echo $lbc))
 		unmapsupp=$(sg_vpd -p lbpv $diskname | grep "Unmap command supported" | (read w1 w2 w3 w4 ws ; echo $ws))
+		if [ "$unmapsupp" == "" ]
+		then
+		    [ "$(sg_vpd -p lbpv $diskname 2>/dev/null | grep "LBPU=1" | (read w1 w2 ; echo $w1))" == "LBPU=1" ] && unmapsupp=1
+		fi
+		lbacount=$((lbacount))
 		if [ $lbacount -gt 0 -a $unmapsupp -eq 1 ]
 		then
 		    maxbytes=$((lbacount*512))

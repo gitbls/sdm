@@ -45,7 +45,11 @@ function trimcfg() {
 	    then
 		lbacount=$(sg_vpd -p bl $diskname 2>/dev/null| grep "unmap LBA" | (read w1 w2 w3 w4 lbc rest; echo $lbc))
 		unmapsupp=$(sg_vpd -p lbpv $diskname 2>/dev/null | grep "Unmap command supported" | (read w1 w2 w3 w4 ws ; echo $ws))
-		[ "$lbacount" == "" ] && lbacount=0
+		if [ "$unmapsupp" == "" ]
+		then
+		    [ "$(sg_vpd -p lbpv $diskname 2>/dev/null | grep "LBPU=1" | (read w1 w2 ; echo $w1))" == "LBPU=1" ] && unmapsupp=1
+		fi
+		[ "$lbacount" == "" ] && lbacount=0 || lbacount=$((lbacount))
 		[ "$unmapsupp" == "" ] && unmapsupp=0
 		if [[ $lbacount -gt 0 ]] && [[ $unmapsupp -eq 1 ]]
 		then
