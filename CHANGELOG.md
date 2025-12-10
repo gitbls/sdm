@@ -1,5 +1,13 @@
 # Changelog
 
+## V14.13
+
+* New Features
+  * `sdm-cryptconfig` can now enable using WiFi for unloking an encrypted rootfs. Thanks @pygmymarmoset!
+* Improvements
+* Bug Fixes
+  * Update `trim-enable` and standalone `satrim` for Trixie. Disks that are trim-capable will get trim enabled
+
 ## V14.12
 
 * New Features
