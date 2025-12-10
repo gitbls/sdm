@@ -123,18 +123,23 @@ Switches to sdm-cryptconfig include:
 * `--mask netmask` &mdash; Set network mask for initramfs
 * `--nopwd` &mdash; Do not configure passphrase unlock; a keyfile is required
 * `--quiet` &mdash; Keep graphical desktop startup quiet (see 'known issues' below)
+* `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * `--ssh` &mdash; Enable SSH in initramfs. Requires `--authorized-keys` to provide an authorized keys file for SSH security
 * `--sshbash` &mdash; Leave bash enabled in the SSH session rather than switching to the captive `cryptroot-unlock` (DEBUG only!)
 * `--sshport portnum` &mdash; Use the specified port rather than the Default 22
 * `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 3600 seconds
-* `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * `--sdm` &mdash; sdm `cryptroot` plugin sets this. Not for manual use
 * `--tries n` &mdash; Set the number of retries to decrypt rootfs before giving up [Default: 0 (infinite)]
 * `--unique-ssh` &mdash; Use a different SSH host key in initramfs than the host OS SSH key
+* `--wifi-password` &mdash; Specify WiFi password for the WiFi connection
+* `--wifi-ssid` &mdash; Enable WiFi in initramfs and specify the connection's SSID (Requires: `--ssh`, `--authorized-keys`, and `--wifi-password`)
+* `--wifi-use-psk` &mdash; Convert WiFi password to a WPA hased PSK in wpa_supplicant.conf. The WiFi password is not recorded anywhere.
 
 The network configuration switches (`dns`, `gateway`, `hostname`, `ipaddr`, and `mask`) are only needed and should only be used if you know that the system is unable to get an IP address and network configuration information from the network (e.g., via DHCP). These settings are ONLY used in the initramfs if SSH is enabled and are not automatically removed.
 
-A fully-booted RasPiOS system uses a different mechanism to configure a static network, such as Network Manager, or other network configuration tools.
+WiFi in initramfs only uses DHCP so the network configuration switches are ignored for an initramfs  WiFi connection.
+
+A fully-booted RasPiOS system uses a different mechanism to configure a static network, such as Network Manager, systemd-networkd, or other network configuration tools.
   
 ## initramfs
 

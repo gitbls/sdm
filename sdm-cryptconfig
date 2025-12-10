@@ -18,7 +18,7 @@ function wait_startup_complete {
     do
         if [ $lc -eq 0 ]
         then
-            logger "$msg"
+	    logger "$msg"
 	    echo "$msg" > /dev/console
             lc=1
         fi
@@ -77,6 +77,47 @@ function checknumeric() {
     return
 }
 
+function iswifienabled() {
+    # Look for any wireless interface (wlan*, wlp*, etc)
+    for iface in /sys/class/net/w*
+    do
+        [ -d $iface/wireless ] && return 0
+    done
+    return 1
+}
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function getphrase() {
+    local pprompt="$1"
+    local phrase phrase2 silent="-s" #silent=""
+    while [ true ]
+    do
+	while [ true ]
+	do
+	    read $silent -p "${pprompt}: " phrase
+	    [ "$silent" != "" ] && echo "" >/dev/tty
+	    [ "phrase" == "" ] || break
+	done
+	while [ true ]
+	do
+	    read $silent -p "Retype ${pprompt}: " phrase2
+	    [ "$silent" != "" ] && echo "" >/dev/tty
+	    [ "$phrase2" == "" ] || break
+	done
+	[ "$phrase" == "$phrase2" ] && break
+	echo "% Phrases do not match; try again" >/dev/tty
+    done
+    echo "$phrase"
+}
+
 function printhelp() {
     echo $"
 sdm-cryptconfig has several command line switches, all of which are optional
@@ -101,6 +142,9 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --sshtimeout timeout -- Specify initramfs SSH timeout [Default: 3600]
 * --tries n -- Specify number of unlock tries before giving up [Default: 0 (infinite)]
 * --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
+* --wifi-password -- Specify WiFi password for the WiFi connection
+* --wifi-ssid -- Enable WiFi in initramfs and specify the WiFi SSID for connection (Requires --ssh, --authorized-keys, and --wifi-password)
+* --wifi-use-psk -- Convert WiFi password to a WPA PSK in wpa_supplicant.conf
 
 The network configuration switches (dns, gateway, hostname, ipaddr, and mask) are only needed
 and should only be used if you know that the system is unable to get an IP address and network
@@ -178,11 +222,221 @@ NOTE: You have configured SSH
     fi
 }
 
+function wifimakewpa() {
+    local pwd="$1" hashed=$2 psks
+
+    echo "> Create wpa_supplicant config for WiFi in initramfs"
+    mkdir -p /etc/wpa_supplicant
+    [ "$hashed" == "" ] && psks="psk\"$pwd\"" || psks="psk=$pwd"
+    cat > /etc/wpa_supplicant/wpa_supplicant-luks.conf << EOF
+ctrl_interface=/run/wpa_supplicant
+update_config=1
+
+network={
+    ssid="$xwifissid"
+    $psks
+    scan_ssid=1
+}
+EOF
+    chmod 600 /etc/wpa_supplicant/wpa_supplicant-luks.conf
+}
+
+function wificonfiginitramfs() {
+    echo "> Create WiFi initramfs hook /etc/initramfs-tools/hooks/sdm-enable-wifi"
+    cat > /etc/initramfs-tools/hooks/sdm-enable-wifi << 'EOF'
+#!/bin/sh
+set -e
+PREREQ=""
+
+prereqs() {
+    echo "${PREREQ}"
+}
+
+case "${1}" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+# Add the wireless modules
+manual_add_modules brcmfmac
+manual_add_modules brcmfmac-wcc
+
+# Copy wpa_supplicant binaries
+copy_exec /sbin/wpa_supplicant
+copy_exec /sbin/wpa_cli
+
+# Copy rfkill to unblock WiFi radio
+copy_exec /usr/sbin/rfkill
+
+# Copy wpa_supplicant config
+mkdir -p ${DESTDIR}/etc/wpa_supplicant
+cp /etc/wpa_supplicant/wpa_supplicant-luks.conf ${DESTDIR}/etc/wpa_supplicant/wpa_supplicant.conf
+
+# Copy Broadcom firmware (copy actual files, not symlinks)
+mkdir -p ${DESTDIR}/usr/lib/firmware/brcm
+mkdir -p ${DESTDIR}/usr/lib/firmware/cypress
+
+# Copy the actual cyfmac files
+cp /lib/firmware/cypress/cyfmac43455-sdio-standard.bin ${DESTDIR}/usr/lib/firmware/cypress/cyfmac43455-sdio.bin
+cp /lib/firmware/cypress/cyfmac43455-sdio.clm_blob ${DESTDIR}/usr/lib/firmware/cypress/
+
+# Copy all the brcm files, following symlinks to get actual content
+cd /lib/firmware/brcm
+for file in *43455*; do
+    if [ -e "$file" ]; then
+        cp -L "$file" ${DESTDIR}/usr/lib/firmware/brcm/ 2>/dev/null || true
+    fi
+done
+
+# Copy regulatory database (follow symlinks to get actual files)
+cp -L /lib/firmware/regulatory.db ${DESTDIR}/usr/lib/firmware/regulatory.db 2>/dev/null || \
+    cp /lib/firmware/regulatory.db-debian ${DESTDIR}/usr/lib/firmware/regulatory.db
+cp -L /lib/firmware/regulatory.db.p7s ${DESTDIR}/usr/lib/firmware/regulatory.db.p7s 2>/dev/null || \
+    cp /lib/firmware/regulatory.db.p7s-debian ${DESTDIR}/usr/lib/firmware/regulatory.db.p7s
+EOF
+
+    chmod 755 /etc/initramfs-tools/hooks/sdm-enable-wifi
+
+    # Create init-premount script
+    echo "> Create WiFi initramfs init-premount script /etc/initramfs-tools/scripts/init-premount/sdm-premount-enable-wifi"
+    cat > /etc/initramfs-tools/scripts/init-premount/sdm-premount-enable-wifi << 'EOF'
+#!/bin/sh
+PREREQ=""
+prereqs()
+{
+    echo "$PREREQ"
+}
+case $1 in
+prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+. /scripts/functions
+
+# Load the wireless module explicitly
+log_begin_msg "Loading brcmfmac module"
+modprobe brcmfmac
+log_end_msg
+
+# Wait for wireless interface to appear (with timeout)
+log_begin_msg "Waiting for wireless interface"
+TIMEOUT=10
+COUNTER=0
+WLAN_INTERFACE=""
+
+while [ $COUNTER -lt $TIMEOUT ]; do
+    # Look for any wireless interface (wlan*, wlp*, etc)
+    for iface in /sys/class/net/w*; do
+        if [ -d "$iface/wireless" ]; then
+            WLAN_INTERFACE=$(basename "$iface")
+            break 2
+        fi
+    done
+
+    # Also check specifically for wlan0
+    if [ -d "/sys/class/net/wlan0" ]; then
+        WLAN_INTERFACE="wlan0"
+        break
+    fi
+
+    sleep 1
+    COUNTER=$((COUNTER + 1))
+done
+log_end_msg
+
+if [ -z "$WLAN_INTERFACE" ]; then
+    log_failure_msg "No wireless interface found after ${TIMEOUT} seconds"
+    # Don't panic - allow boot to continue (ethernet might work)
+    exit 0
+fi
+
+log_success_msg "Found wireless interface: ${WLAN_INTERFACE}"
+
+# Unblock WiFi radio (RF-kill)
+log_begin_msg "Unblocking WiFi radio"
+rfkill unblock wifi 2>/dev/null || true
+rfkill unblock all 2>/dev/null || true
+log_end_msg
+
+# Bring interface up
+log_begin_msg "Bring up ${WLAN_INTERFACE}"
+ip link set ${WLAN_INTERFACE} up
+sleep 2
+log_end_msg
+
+# Start wpa_supplicant
+log_begin_msg "Starting wpa_supplicant on ${WLAN_INTERFACE}"
+mkdir -p /run/wpa_supplicant
+/sbin/wpa_supplicant -i${WLAN_INTERFACE} -c/etc/wpa_supplicant/wpa_supplicant.conf -P/run/initram-wpa_supplicant.pid -B -f /tmp/wpa_supplicant.log -C/run/wpa_supplicant
+sleep 3
+log_end_msg
+
+# Wait for connection (with timeout)
+log_begin_msg "Waiting for WiFi association"
+TIMEOUT=30
+COUNTER=0
+CONNECTED=0
+
+while [ $COUNTER -lt $TIMEOUT ]; do
+    if /sbin/wpa_cli -p/run/wpa_supplicant status 2>/dev/null | grep -q "wpa_state=COMPLETED"; then
+        CONNECTED=1
+        break
+    fi
+    sleep 1
+    COUNTER=$((COUNTER + 1))
+done
+
+if [ $CONNECTED -eq 1 ]; then
+    log_success_msg "WiFi connected"
+
+    # Configure IP address
+    log_begin_msg "Configuring IP address via DHCP"
+    ipconfig -t 10 ${WLAN_INTERFACE}
+    log_end_msg
+else
+    log_failure_msg "WiFi connection failed after ${TIMEOUT} seconds"
+fi
+
+exit 0
+EOF
+
+    chmod 755 /etc/initramfs-tools/scripts/init-premount/sdm-premount-enable-wifi
+
+    # Create local-bottom script to kill wpa_supplicant
+    echo "> Create WiFi initramfs local-bottom cleanup script /etc/initramfs-tools/scripts/local-bottom/sdm-kill-wireless"
+    cat > /etc/initramfs-tools/scripts/local-bottom/sdm-kill-wireless << 'EOF'
+#!/bin/sh
+PREREQ=""
+prereqs()
+{
+    echo "$PREREQ"
+}
+case $1 in
+prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+echo "Killing wpa_supplicant so the system takes over later."
+if [ -f /run/initram-wpa_supplicant.pid ]; then
+    kill $(cat /run/initram-wpa_supplicant.pid) 2>/dev/null || true
+fi
+EOF
+    chmod 755 /etc/initramfs-tools/scripts/local-bottom/sdm-kill-wireless
+}
+
 function configcleanupsvc() {
 #
 # Set up service to run after next reboot that will rebuild initramfs (again) and reboot
 #
-    echo "> Set up run-once service to rebuild initramfs after encrytped rootfs boot"
+    echo "> Configure run-once service to cleanup and rebuild initramfs after rootfs encryption completes and boots"
     cat > /etc/systemd/system/sdm-cryptfs-cleanup.service <<EOF
 [Unit]
 Description=sdm cryptroot cleanup service
@@ -197,69 +451,69 @@ WantedBy=multi-user.target
 EOF
 
     echo "> Create /usr/local/bin/sdm-cryptfs-cleanup script"
-    cat > /usr/local/bin/sdm-cryptfs-cleanup <<EOF
+    cat > /usr/local/bin/sdm-cryptfs-cleanup <<'EOF'
 #!/bin/bash
 
 function wait_startup_complete() {
     # $1 is the message to write
-    local lc=0 msg=\$1
-    while [[ "\$(systemctl show -p ActiveState graphical.target --value)" != "active" ]] && [[ "\$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]]
+    local lc=0 msg=$1
+    while [[ "$(systemctl show -p ActiveState graphical.target --value)" != "active" ]] && [[ "$(systemctl show -p ActiveState multi-user.target --value)" != "active" ]]
     do
-        if [ \$lc -eq 0 ]
+        if [ $lc -eq 0 ]
         then
-            logger "\$msg"
-	    echo "\$msg" > /dev/console
+            logger "$msg"
+	    echo "$msg" > /dev/console
             lc=1
         fi
-        sleep 1
+	        sleep 1
     done
 }
 
 function echolog() {
-    local msg="\$1"
-    echo "\$msg" >/dev/console
-    logger "\$msg"
+    local msg="$1"
+    echo "$msg" >/dev/console
+    logger "$msg"
 }
 
 echolog "sdm-cryptfs-cleanup: Starting; System will restart automatically when completed"
 echolog "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-hooks.old
-# Leave bash in initramfs rather than special case remove if no --sshbash PLUS required by sdmluksunlock
+# Leave bash in initramfs as required by sdmluksunlock
 grep -v -E "sdmcryptfs|mapper|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
-[ $xsshbash -eq 0 ] && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
+grep -q -s xsshbash:0 /etc/sdmscdefault && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
 echolog "sdm-cryptfs-cleanup: Rebuild initramfs"
 update-initramfs -u
 
-if [ $xsdm -eq 1 ]
+if grep -q -s xsdm:1 /etc/sdmscdefault
 then
-    [ -f /etc/sdm/sdm-readparams ] && source /etc/sdm/sdm-readparams || logger "% sdm-cryptfs-cleanup: Unable to find expected /etc/sdm/sdm-readparams"
-    [ -f /etc/sdm/assets/cryptbbh ] && cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot | logger "% sdm-cryptfs-cleanup: /etc/sdm/assets/cryptbbh not found; Boot behavior setting may not be correct"
+    [ -f /etc/sdm/sdm-readparams ] && source /etc/sdm/sdm-readparams || echolog "% sdm-cryptfs-cleanup: Unable to find expected /etc/sdm/sdm-readparams"
+    [ -f /etc/sdm/assets/cryptbbh ] && { cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot ; } || echolog "% sdm-cryptfs-cleanup: /etc/sdm/assets/cryptbbh not found; Boot behavior setting may not be correct"
 else
-    if grep -q -s graphical /etc/sdmscdefault
+    if grep -q -s graphical.target /etc/sdmscdefault
     then
         echolog "sdm-cryptfs-cleanup: Reset systemctl default target to graphical.target"
         systemctl set-default graphical.target
 # Don't enable these services since no 'splash' in cmdline.txt (see below)
-#        if grep -q -s splash /etc/sdmscdefault
+#        if grep -q -s clsplash /etc/sdmscdefault
 #        then
 #            for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
 #            do
-#                echolog "sdm-cryptfs-cleanup: Unmask service '\$svc'"
-#                systemctl unmask \$svc >/dev/null 2>&1
+#                echolog "sdm-cryptfs-cleanup: Unmask service '$svc'"
+#                systemctl unmask $svc >/dev/null 2>&1
 #            done
 #        fi
     fi
-    if [ $xquiet -eq 0 ]
+    if grep -s -q xquiet:0 /etc/sdmscdefault
     then
-        if grep -q -s quiet  /etc/sdmscdefault
+        if grep -q -s clquiet  /etc/sdmscdefault
         then
             echolog "sdm-cryptfs-cleanup: Reset 'quiet' in cmdline.txt"
             sed -i "s/rootwait/rootwait quiet/g"  /boot/firmware/cmdline.txt
         fi
 # 'splash' in cmdline.txt  prevents booting after sdm-cryptfs-cleanup reboots (? because prompt to unlock disk is lost/hidden?)
-#        if grep -q -s splash /etc/sdmscdefault
+#        if grep -q -s clsplash /etc/sdmscdefault
 #        then
 #            echolog "sdm-cryptfs-cleanup: Reset 'splash' in cmdline.txt"
 #            sed -i "s/rootwait/rootwait splash/g" /boot/firmware/cmdline.txt
@@ -278,13 +532,13 @@ systemctl daemon-reload
 
 wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
 
-if [ $xnolastrb -eq 0 ]
+if grep -q -s xnolastrb:0 /etc/sdmscdefault
 then
     secs=5
-    echolog "sdm-cryptfs-cleanup: The system will restart in \$secs seconds"
-    sleep \$secs
+    echolog "sdm-cryptfs-cleanup: The system will restart in $secs seconds"
+    sleep $secs
     echolog "sdm-cryptfs-cleanup: System restarting now"
-    rm -f /usr/local/bin/sdm-cryptfs-cleanup
+    #rm -f /usr/local/bin/sdm-cryptfs-cleanup
     sleep 2
     reboot
 else
@@ -293,15 +547,15 @@ else
 fi
 EOF
     chmod 755 /usr/local/bin/sdm-cryptfs-cleanup
-    pgrep systemd >/dev/null 2>&1 && echo "> Ignore RequiresMountsFor errors in the system journal" && systemctl daemon-reload
+    pgrep systemd >/dev/null 2>&1 && echo "> (Ignore any RequiresMountsFor errors in the system journal)" && systemctl daemon-reload
     systemctl enable sdm-cryptfs-cleanup > /dev/null 2>&1
 }
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
 
-    OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
+    OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
     eval set -- "$OARGS"
     while true
@@ -328,6 +582,9 @@ function parsecmd() {
 	    --sdm)             xsdm=1       ; shift 1 ;;
 	    --tries)           xtries=$2    ; shift 2 ;;
 	    --unique-ssh)      xunique=1    ; shift 1 ;;
+	    --wifi-ssid)       xwifissid="$2" ; shift 2 ;;
+	    --wifi-password)   xwifipwd="$2" ; shift 2 ;;
+	    --wifi-use-psk)    xwifipsk=1   ; shift 1 ;;
 	    --)                shift ; break ;;
 	    -h|--help)         printhelp ; shift ; exit ;;
 	    *) errexit "? $0: Internal error" ;;
@@ -353,7 +610,7 @@ function doconfiginitramfs() {
 #*  sed -i "s/^update_initramfs=yes/update_initramfs=all/" /etc/initramfs-tools/update-initramfs.conf
 
     echo "> Create /usr/bin/sdmluksunlock; runs in initramfs to unlock rootfs"
-    cat > /usr/bin/sdmluksunlock <<EOF
+    cat > /usr/bin/sdmluksunlock <<'EOF'
 #!/bin/bash
 #
 # called when it's time to read the LUKS unlock key, which is echoed to stdout/read by caller
@@ -361,33 +618,33 @@ function doconfiginitramfs() {
 trydisks()
 {
     echo "" >/dev/console
-    echo "> sdmluksunlock: Looking for USB disk with luks Key file '\${kfn}'" >/dev/console
+    echo "> sdmluksunlock: Looking for USB disk with luks Key file '${kfn}'" >/dev/console
     echo "" >/dev/console
     while :; do
 	sleep 1
 	while read usbpartition
 	do
-	    usbdevice=\$(readlink -f \$usbpartition)
-	    if mount -t vfat \$usbdevice /mnt 2>/dev/null
+	    usbdevice=$(readlink -f $usbpartition)
+	    if mount -t vfat $usbdevice /mnt 2>/dev/null
 	    then
-		echo "> Mounted disk \$usbdevice" >/dev/console
-		if [ -e /mnt/\$kfn ]
+		echo "> Mounted disk $usbdevice" >/dev/console
+		if [ -e /mnt/$kfn ]
 		then
-		    echo "> Found Key file '\$kfn'" >/dev/console
+		    echo "> Found Key file '$kfn'" >/dev/console
 		    echo "> Unlocking rootfs" >/dev/console
-		    cat /mnt/\$kfn   #cat to sdmluksunlock caller for unlock
-		    umount \$usbdevice >/dev/null 2>&1 || continue
+		    cat /mnt/$kfn   #cat to sdmluksunlock caller for unlock
+		    umount $usbdevice >/dev/null 2>&1 || continue
 		    echo "> sdmluksunlock: Kill askpass; Ignore 'Killed' message" >/dev/console
-		    aps=\$(ps e | grep askpass | grep -v grep | awk '{print \$1}')
-		    [ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+		    aps=$(ps e | grep askpass | grep -v grep | awk '{print $1}')
+		    [ "$aps" != "" ] && kill -KILL $aps >/dev/null 2>/dev/null
 		    exit
 		else
-		    echo "% sdmluksunlock: Key '\${kfn%.lek}' not found on this disk" >/dev/console
-		    umount \$usbdevice >/dev/null 2>&1 || continue
+		    echo "% sdmluksunlock: Key '${kfn%.lek}' not found on this disk" >/dev/console
+		    umount $usbdevice >/dev/null 2>&1 || continue
 		fi
 	    else
                 echo "% sdmluksunlock: This disk does not have a vfat partition" >/dev/console
-		umount \$usbdevice >/dev/null 2>&1 || continue
+		umount $usbdevice >/dev/null 2>&1 || continue
 	    fi
 	done < <(compgen -G "/dev/disk/by-id/usb-*-part1")
     done
@@ -397,39 +654,39 @@ trydisks()
 set -e
 mkdir -p /mnt
 
-if [ "\$CRYPTTAB_KEY" != "" ]
+if [ "$CRYPTTAB_KEY" != "" ]
 then
-    kfn=\$(basename \$CRYPTTAB_KEY)
-    kfn=\${kfn%.lek}.lek
+    kfn=$(basename $CRYPTTAB_KEY)
+    kfn=${kfn%.lek}.lek
 fi
 
-if [[ "\$kfn" != "" ]]
+if [[ "$kfn" != "" ]]
 then
-    if [[ "\$2" == "trydisks" ]]
+    if [[ "$2" == "trydisks" ]]
     then
         touch /tmp/ftrydisk
         trydisks
         exit
     else
-        [ ! -f /tmp/ftrydisk ] && ( sdmluksunlock \$CRYPTTAB_KEY trydisks </dev/null & )
+        [ ! -f /tmp/ftrydisk ] && ( sdmluksunlock $CRYPTTAB_KEY trydisks </dev/null & )
     fi
 fi
 
 echo "" >/dev/console
 /lib/cryptsetup/askpass "Insert USB Keyfile Disk or type passphrase then press ENTER:"
-aps=\$(ps e | grep trydisks | grep -v grep | awk '{print \$1}')
-[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+aps=$(ps e | grep trydisks | grep -v grep | awk '{print $1}')
+[ "$aps" != "" ] && kill -KILL $aps >/dev/null 2>/dev/null
 exit
 EOF
     chmod 755 /usr/bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks-hooks"
     [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
     [ $xnopwd -eq 1 ] && knopwd="copy_file text /usr/local/bin/sdmnull /etc/sdmnopwd"
-    cat > /etc/initramfs-tools/hooks/luks-hooks <<EOF
+    cat > /etc/initramfs-tools/hooks/luks-hooks <<'EOF'
 #!/bin/sh -e
 PREREQS=""
-case "\$1" in
-        prereqs) echo "\${PREREQS}"; exit 0;;
+case "$1" in
+        prereqs) echo "${PREREQS}"; exit 0;;
 esac
 
 . /usr/share/initramfs-tools/hook-functions
@@ -518,8 +775,8 @@ EOF
 }
 
 function domkinitramfs() {
-    echo "> Update initramfs with the rootfs encryption settings in place"
-    logifsdm "Update initramfs with the rootfs encryption settings in place"
+    echo "> Update initramfs with all the rootfs encryption settings in place"
+    logifsdm "Update initramfs with all the rootfs encryption settings in place"
     touch /usr/local/bin/sdmnull  # Used for nopwd
     update-initramfs -u
     rm -f /usr/local/bin/sdmnull
@@ -534,6 +791,7 @@ function doupdateconfig() {
     echo "> Add cryptdevice '$xmapper' to cmdline.txt"
     # 'rw' needed so crypt device is mounted read/write
     # luks.crypttab prevents systemd-cryptsetup-generator for reading crypttab
+    sed -i "s# rw cryptdevice=$rootfs:$xmapper luks.crypttab=no##g" /boot/firmware/cmdline.txt # Delete in case
     sed -i "s#\$# rw cryptdevice=$rootfs:$xmapper luks.crypttab=no#" /boot/firmware/cmdline.txt
 
     echo "> Updated cmdline:"
@@ -580,11 +838,25 @@ xsshport="22"
 xsshtimeout="3600"
 xtries="0"
 xunique=0
+xwifi=0
+xwifissid=""
+xwifipwd=""
+xwifipsk=0
 src=$(dirname "$(realpath "$0")")
-parsecmd $0 "$*"
+parsecmd $0 "$@"
 
 [ "$xmapper" == "" ] && xmapper="cryptroot"
 [ "$xcrypto" == "" ] && xcrypto="aes"
+
+if [ "$xwifissid" != "" ]
+then
+    iswifienabled || errexit "? WiFi must be enabled on this system to support WiFi initramfs configuration"
+    [ $xssh -eq 0 ] && errexit "? --wifi-ssid requires --ssh and --authorized-keys"
+    [ "$xwifipwd" == "" ] && xwifipwd="$(getphrase "WiFi password for '$xwifissid'")"
+    #askyn "Use this WiFi password: '$xwifipwd'" || errexit "? Exit per user request"
+    xwifi=1
+fi
+
 [[ "aes|xchacha" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
 if [ "$xkeyfile" != "" ]
 then
@@ -620,7 +892,7 @@ do
 	doapt)
 	    [ $xssh -eq 1 ] && db="dropbear-initramfs dropbear-bin" || db=""
 	    apps="cryptsetup cryptsetup-initramfs cryptsetup-bin $db"
-	    echo "Install $apps"
+	    echo "> Install $apps"
 	    if [ $xssh -eq 1 ]
 	    then
 		echo ""
@@ -632,7 +904,25 @@ do
 	    apt install --no-install-recommends --yes $apps
 	    ;;
 	config)
+	    # Save key values so they can be checked in sdm-cryptfs-cleanup
+	    printf "# Runtime configuration for sdm-cryptconfig work\n# This file can be deleted once the rootfs encryption completes\n" >/etc/sdmscdefault
+	    printf "xsdm:$xsdm\nxquiet:$xquiet\nxnolastrb:$xnolastrb\nxsshbash:$xsshbash\n" >>/etc/sdmscdefault
+	    echo "$(systemctl get-default)" >>/etc/sdmscdefault
 	    doconfiginitramfs
+	    if [ $xwifi -eq 1 ]
+	    then
+		if [ $xwifipsk -eq 1 ]
+		then
+		    echo "> Make WiFi PSK"
+		    pwd=$((IFS='=' read junk psk ; echo "$psk") < <((wpa_passphrase "$xwifissid" "$xwifipwd" | grep $'\tpsk=')))
+		    hashed=hashed
+		else
+		    pwd="$xwifipwd"
+		    hashed=""
+		fi
+		wifimakewpa "$pwd" "$hashed"
+		wificonfiginitramfs
+	    fi
 	    ;;
 	mkinitramfs)
 	    domkinitramfs
@@ -646,7 +936,7 @@ done
 if [ $xsdm -eq 1 ]
 then
     #
-    # if started via sdm, clean up
+    # if started via sdm, clean up. No need to futz with graphical console since cryptroot plugin handled
     #
     systemctl disable sdm-auto-encrypt > /dev/null 2>&1
     rm -f /etc/systemd/system/sdm-auto-encrypt.service
@@ -656,33 +946,34 @@ else
 	#
 	# Desktop. Enable console boot and modify quietness unless --quiet
 	#
-	cmode="$(systemctl get-default)"
-	echo $cmode >/etc/sdmscdefault
-	if [ "$cmode" == "graphical.target" ]
+	if [ "$(systemctl get-default)" == "graphical.target" ]
 	then
 	    echo "> Disable graphical console for encryption process; will be reset to $(systemctl get-default) later"
 	    systemctl -q set-default multi-user.target
 	fi
-	if systemctl --quiet is-enabled getty@tty1
-	then
-	    echo "> Disable getty@tty1; will be re-enabled later"
-	    systemctl -q disable getty@tty1
-	    echo "re-enable-tty1" >>/etc/sdmscdefault
-	fi
-	if [ $xquiet -eq 0 ]
-	then
-	    echo "> Enable verbose system restart"
-	    grep -q -s quiet /boot/firmware/cmdline.txt && echo "quiet" >>/etc/sdmscdefault
-	    # NB restoring splash currently disabled bc passphrase prompt gets hidden
-	    grep -q -s splash /boot/firmware/cmdline.txt && echo "splash" >>/etc/sdmscdefault
-	    sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
-	    sed -i "s/ splash//g" /boot/firmware/cmdline.txt
-            for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
-            do
-                systemctl mask $svc >/dev/null 2>&1
-            done
-	fi
     fi
+
+    if systemctl --quiet is-enabled getty@tty1
+    then
+	echo "> Disable getty@tty1; will be re-enabled later"
+	systemctl -q disable getty@tty1
+	echo "re-enable-tty1" >>/etc/sdmscdefault
+    fi
+
+    if [ $xquiet -eq 0 ]
+    then
+	echo "> Enable verbose system restart"
+	grep -q -s quiet /boot/firmware/cmdline.txt && echo "clquiet" >>/etc/sdmscdefault
+	# NB restoring splash currently disabled bc passphrase prompt gets hidden
+	grep -q -s splash /boot/firmware/cmdline.txt && echo "clsplash" >>/etc/sdmscdefault
+	sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
+	sed -i "s/ splash//g" /boot/firmware/cmdline.txt
+        for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
+        do
+            systemctl mask $svc >/dev/null 2>&1
+        done
+    fi
+
     printinfo
 fi
 
