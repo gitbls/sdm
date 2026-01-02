@@ -148,6 +148,23 @@ Quite annoying, but even so, I think `apt-cacher-ng` is still much better than w
 
 When `apt-cacher-ng` craps out, login on the caching server and issue the following command: `sudo reset-apt-cacher`, and then try the client operation again. The `apt-cacher-ng` plugin installs `reset-apt-cacher` during customization.
 
+### apt-config
+
+apt-config provides some control over apt in the customized IMG
+
+#### Arguments
+
+* `no-install-recommends` &mdash; Disable installing recommended software
+* `confold` &mdash; &mdash; always keep old unmodified copy of a config file without prompting
+* `confdef` &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
+* `nopager` &mdash; Disable use of pager in `apt` listing commands
+* `nocolor` &mdash; Disable use of color in `apt` listing commands
+
+#### Examples
+
+* `--plugin apt-config:"no-install-recommends|nopager|nocolor"` &mdash; Disable installing recommended software and paged and colored apt listing output
+
+
 ### apt-file
 
 apt-file installs the *apt-file* command and builds the database. This is very handy for looking up apt-related information.
@@ -430,6 +447,7 @@ Configures a Pi to be in gadget mode so it can connect via USB to a gadget mode 
 * `dhcp-timeout` &mdash; Configures the DHCP timeout for each attempt to get a DHCP address via the USB connection [D:60]
 * `gadget-mode` &mdash; Configures the gadget mode. Default is unshared `simple` mode. `gadget-mode=shared` enables the gadget device to be shared using libcomposite
 * `mac-vendor` &mdash; Specifies the first 3 segments of the MAC address. [D:dc:a6:32]
+* `static-ip` &mdash; Specifies a static IP address to be used for the gadget. This also forces a static MAC address
 * `static-mac` &mdash; Configures the provided static MAC address for the USB gadget device. Useful so the Pi gets the same IP address every time, but only with `gadget-mode=simple` If `static-mode` is specified without a value, the plugin will generate a MAC address and make it static.
 * `noipv6` &mdash; Do not configure ipv6 on the gadget USB connection
 
@@ -1225,6 +1243,21 @@ The `sshkey` plugin creates an SSH key or imports an SSH key for a user. In eith
 * `--plugin sshkey:"sshuser=bls|keyname=mykey|keytype=ed25519|passphrase=itsasecret|putty-keyname=myputtykey"` &mdash; Create a new SSH key for user `bls`, with the parameters as specified. Additionally, the Putty key `myputtykey.ppk` is created using the same passphrase
 * `--plugin sshkey:"sshuser=bls|import-key=/home/bls/.ssh/myotherkey|putty-keyname=otherputty|passphrase=anothersecret"` &mdash; Import the specified private key from the host system. Use the provided passphrase to access the imported key and create a Putty key using the same passphrase.
 
+### swap
+
+The `swap` plugin configures `rpi-swap`.
+
+#### Arguments
+
+* `config` &mdash; Provides a configured swap.conf. Start with /rpi/etc/swap.conf and edit as desired. The provided file is placed in /etc/rpi/swap.conf.d
+* `filesize` &mdash; Specifies the size for the swap file. Modifications are stored in /etc/rpi/swap.conf.d
+* `zramsize` &mdash; Specifies the size for the zram device. Modifications are stored in /etc/rpi/swap.conf.d
+
+#### Examples
+
+* `--plugin swap:"config=/path/to/myswap.conf"` &mdash; Copies the configured swap config file to /etc/rpi/swap.conf.d
+* `--plugin swap:"filesize=2048|zramsize=1024"` &mdash; Configure a 2GB swapfile and a 1GB zram device
+
 ### syncthing
 
 The `syncthing` plugin installs <a href="">syncthing </a> and configures it for the user specified by `runasuser`.
@@ -1306,10 +1339,10 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 
 #### Notes
 
-If you're having issues with settings in your `systemd-config` files, here are two handy infobits:
+If you're having issues with settings in your `systemd-config` files, here are some handy infobits:
 * The command `sudo systemd-analyze cat-config systemd/service.conf` (where *service* is one of journald, logind, networkd, pstore, sleep, system, timesyncd, or user) will display the settings in precedence order. This is very handy in sorting out what config file is providing which setting.
 * The files in /lib/systemd/*service*.conf.d and /etc/systemd/*service*.conf.d appear to have their files unified and processed in ascending alphabetical order. For instance,with /lib/systemd/journal.conf.d/70-xx.conf and /etc/systemd/journal.conf.d/030-xx.conf, 030-xx.conf is processed *first*, so any settings in 70-xx.conf will override settings in 030-xx.conf. 
-* The `swap` argument controls whichever of `rpi-swap` or `dphys-swapfile` is installed. `swap=0` disables swap.
+* The `swap` argument controls whichever of `rpi-swap` or `dphys-swapfile` is installed. `swap=0` disables swap. Also see the `swap` plugin for fine-grained configuration of `rpi-swap`.
 
 ### trim-enable
 
