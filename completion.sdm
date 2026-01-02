@@ -39,7 +39,7 @@ _sdm() {
 		comps='update upgrade autoremove'
 		;;
 	    --apt-options|--poptions)
-		comps='noupdate noupgrade noautoremove nologdates no-install-recommends none'
+		comps='noupdate noupgrade noautoremove nologdates none'
 		;;
 	    --b0script|--b1script|--cscript|--csrc|--extract-log|--extract-script|--keyfile)
 		_filedir
