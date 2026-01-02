@@ -1,5 +1,17 @@
 # Changelog
 
+## V14.14
+
+* New Features
+  * New plugin `apt-config` enables customizing apt in the IMG
+    * Command-line switch `--apt-options`/`--poptions` arguments `no-install-recommends`, `confold`, and `confdel` removed in favor of `apt-config` plugin
+    * `apt-config` arguments `nopager` and `nocolor` provide some control over the `apt` command output
+  * New plugin `swap` enables configuring `rpi-swap`. `system` plugin argument `swap` remains as is
+* Improvements
+  * Add `static-ip` argument to `gadgetmode` plugin, which also forces static MAC
+* Bug Fixes
+  * `cloudinit` plugin ensures /boot/firmware gets mounted before cloud-init-main runs
+
 ## V14.13
 
 * New Features

@@ -81,7 +81,7 @@ function poptcheck() {
 	IFS="," read -a xopt <<< "$popt"
 	for os in "${xopt[@]}"
 	do
-	    if ! [[ "$vopt" =~ |$os| ]]
+	    if ! [[ "$vopt" =~ "|$os|" ]]
 	    then
 		[ "$badopt" != "" ] && badopt="$badopt, '$os'" || badopt="'$os'"
 	    else
@@ -267,7 +267,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V14.13"
+version="V14.14"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -351,7 +351,7 @@ vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
 vdebug="|all|apt|"          #Valid --debug settings
-vpoptions="|noupdate|noupgrade|noautoremove|nologdates|no-install-recommends|none|confold|confdef|" #Valid --poptions
+vpoptions="|noupdate|noupgrade|noautoremove|nologdates|none|" #Valid --poptions
 #vloadopts="|usb|wifi|flashled|internet|"  #Valid options for --loadlocal
 vloadopts="|wifi|"          #Valid options for --loadlocal
 vosopts="|raspios|raspbian|ubuntu|"
@@ -584,7 +584,7 @@ debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
 exitiferr "$debugs"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--apt-options|--poptions")
 exitiferr "$poptions"
-[[ "$poptions" =~ "none" ]] && poptions="${poptions/none/noupdate|noupgrade|noautoremove|no-install-recommends}"
+[[ "$poptions" =~ none ]] && poptions="${poptions/none/noupdate|noupgrade|noautoremove}"
 loadlocal=$(poptcheck "$loadlocal" "$vloadopts" "--loadlocal")
 exitiferr "$loadlocal"
 aptmaint=$(poptcheck "$aptmaint" "$vaptmaintops" "--aptmaint")
