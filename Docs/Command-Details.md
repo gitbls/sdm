@@ -56,14 +56,12 @@ All files that you provide to sdm, whether on the command line or in arguments t
 * `--aptcache` *IPaddr* &mdash; Use APT caching. The argument is the IP address of the apt-cacher-ng server
 * `--apt-dist-upgrade` &mdash; Some RasPiOS Bullseye images have a strange software configuration, which causes `apt-get upgrade` to fail. This switch forces sdm to use `apt-get --dist-upgrade` which updates correctly. [In the 2021-10-30 set of images, the "with Desktop" versions have a set of problematic VLC modules installed.]
 * `--apt-options` *value* &mdash; Controls which functions will be performed by sdm-phase1. `--apt-options` and `--poptions` are synonyms. Possible values include:
-    * **no-install-recommends** &mdash; Enable --no-install-recommends on the resulting system. sdm always uses this during customization.
     * **noautoremove** &mdash; do not do an `apt autoremove`
     * **nologdates** &mdash; do not include date/times in apt.log
     * **noupdate** &mdash; do not do an `apt update`
     * **noupgrade** &mdash; do not do an `apt upgrade`
-    * **none** &mdash; set noupdate,noupgrade,noautoremove,no-install-recommends
-    * **confold** &mdash;always keep old unmodified copy of a config file without prompting
-    * **confdef** &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
+    * **none** &mdash; set noupdate,noupgrade,noautoremove
+ specified
 
     Enter multiple values as a single string separated by commas. For example `--poptions noupdate,noupgrade`
 
