@@ -35,6 +35,42 @@ function makehostmac() {
     return
 }
 
+function makenmconnstatic() {
+    local usbno=$1 staticip="$2" usbname cfile1 iponly gw dns
+
+    usbname="usb${usbno}"
+    iponly=${staticip%%/*}
+    gw=${iponly%.*}.1
+    [ "$iponly" == "$staticip" ] && staticip="${staticip}/24" # Use /24 if no mask provided
+    [ -v noipv6 ] && ipv6=disabled || ipv6=auto
+    cfile1=/etc/NetworkManager/system-connections/$usbname-static.nmconnection
+    logtoboth "> Plugin $pfx: Create NetworkManager connection '$usbname-static' with static IP '$staticip'"
+    cat <<- EOF >$cfile1
+[connection]
+id=$usbname-static
+uuid=$(uuid -v4)
+type=ethernet
+interface-name=$usbname
+autoconnect-priority=100
+autoconnect-retries=$autoconnect__retries
+
+[ethernet]
+
+[ipv4]
+address1=$staticip
+gateway=$gw
+dns=$gw
+method=manual
+
+[ipv6]
+addr-gen-mode=default
+method=$ipv6
+
+[proxy]
+EOF
+    chmod 600 $cfile1
+}
+
 function makenmconn() {
     local usbno=$1 usbname cfile1 cfile2
 
@@ -219,7 +255,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|autoconnect-retries|dhcp-timeout|eem|gadget-mode|gadget-name|mac-vendor|static-mac|noipv6|"
+vldargs="|autoconnect-retries|dhcp-timeout|eem|gadget-mode|gadget-name|mac-vendor|static-ip|static-mac|noipv6|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -263,6 +299,11 @@ then
 
     [ "$gadget__mode" == "" ] && gadget__mode="simple"
     [ "$mac__vendor" == "" ] && mac__vendor="dc:a6:32"
+    if [ -v static__ip ]
+    then
+	logtoboth "> Plugin $pfx: Force static MAC address with static IP"
+	static__mac=""
+    fi
     [ -v static__mac ] && [ "$static__mac" == "" ] && static__mac=$(makerandmac "$mac__vendor")
 
     if [[ "shared|simple" =~ $gadget__mode ]]
@@ -272,8 +313,13 @@ then
 	updatecmdline "$static__mac"
 	[ "$gadget__mode" == "shared" ] && makeservice "$gadget__name" "$static__mac"
 	setmanaged
-	makenmconn 0
-	#makenmconn 1
+	if [ "$static__ip" == "" ]
+	then
+	    makenmconn 0
+	    #makenmconn 1
+	else
+	    makenmconnstatic 0 "$static__ip"
+	fi
     fi
 
     #logfreespace "at end of $pfx Phase 1"
