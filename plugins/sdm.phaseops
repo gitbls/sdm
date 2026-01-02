@@ -68,7 +68,7 @@ then
     args="$2"
     loadparams
     vldargs="|ops|op|"
-    vops="|update-apt-cacher|apt-conf|apt-update|apt-upgrade|apt-autoremove|finish-customization|config-firstboot|graphics|pre-phase1|post-customization|shell|ssh|writeL10n|"
+    vops="|update-apt-cacher|apt-update|apt-upgrade|apt-autoremove|finish-customization|config-firstboot|graphics|pre-phase1|post-customization|shell|ssh|writeL10n|"
     rqdargs=""
     assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -83,27 +83,6 @@ then
 	if [[ "$ops" =~ $op ]]
 	then
 	    case "$op" in
-		apt-conf)
-		    #
-		    # Configure no-install-recommends, confold and confdef if requested
-		    #
-		    if [[ "$poptions" =~ no-install-recommends ]]
-		    then
-			echo "APT::Install-Recommends \"false\";" >> /etc/apt/apt.conf.d/03-sdm-norecommends
-		    fi
-		    rm -f /etc/apt/apt.conf.d/10-sdm-force
-		    if [[ "$poptions" =~ confold ]]
-		    then
-			logtoboth "> Enable apt force-confold per --apt-options confold"
-			echo 'Dpkg::Options "--force-confold";' >> /etc/apt/apt.conf.d/10-sdm-force
-		    fi
-
-		    if [[ "$poptions" =~ confdef ]]
-		    then
-			logtoboth "> Enable apt force-confdef per --apt-options confdef"
-			echo 'Dpkg::Options "--force-confdef";' >> /etc/apt/apt.conf.d/10-sdm-force
-		    fi
-		    ;;
 		apt-update)
 		    if ! [[ "$poptions" =~ "noupdate" ]]
 		    then
@@ -200,7 +179,7 @@ EOF
 		    ;;
 		pre-phase1)
 		    logtoboth "> Run pre-Phase1 steps"
-		    runoneplugin sdm.phaseops 1 "ops=update-apt-cacher,apt-conf,apt-update"
+		    runoneplugin sdm.phaseops 1 "ops=update-apt-cacher,apt-update"
 		    ;;
 		post-customization)
 		    logtoboth "> Run post-Customization steps"
