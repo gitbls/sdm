@@ -170,7 +170,7 @@ EOF
     #
     if ! grep /boot/firmrware /lib/systemd/system/cloud-init-main.service
     then
-	logtoboth "> Plugin $pfx: Patch cloud-init-main.service so /boot/firmware gets mounted"
+	logtoboth "> Plugin $pfx: Patch cloud-init-main.service so /boot/firmware mounts first"
 	sed "s#RequiresMountsFor=/var/lib/cloud#RequiresMountsFor=/var/lib/cloud /boot/firmware#" /lib/systemd/system/cloud-init-main.service  > /etc/systemd/system/cloud-init-main.service
     fi
     if [ -f /etc/cloud/cloud-init.disabled ]
