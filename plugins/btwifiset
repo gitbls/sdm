@@ -316,7 +316,7 @@ EOF
     cat >> /etc/systemd/system/btwifiset.service <<EOF
 [Unit]
 Description=btwifi Configure Wi-Fi over Bluetooth
-After=hciuart.service bluetooth.target
+After=bluetooth.target network.target
 
 [Service]
 Type=simple
