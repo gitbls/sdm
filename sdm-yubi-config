@@ -87,65 +87,65 @@ function yubikey_luks_enroll() {
 function updykluks_script() {
     echo "> Improve /usr/share/yubikey-luks/ykluks-keyscript"
     [ -f /usr/share/yubikey-luks/ykluks-keyscript ] && mv /usr/share/yubikey-luks/ykluks-keyscript /usr/share/yubikey-luks/.sdm.orig-ykluks-keyscript
-    cat > /usr/share/yubikey-luks/ykluks-keyscript <<EOF
+    cat > /usr/share/yubikey-luks/ykluks-keyscript <<'EOF'
 #!/bin/bash
 #
 # Called when time to unlock the encrypted rootfs either with a Yubikey or a Luks passphrase
 #
 function askyn() {
     local ans
-    read -u 2 -p "\$1 [Y/n]? " ans
-    [[ -z "\$ans" ]] && ans=y
-    case "\$ans" in
+    read -u 2 -p "$1 [Y/n]? " ans
+    [[ -z "$ans" ]] && ans=y
+    case "$ans" in
         y*|Y*) return 0 ;;
         *) return 1 ;;
     esac
 }
 
 function pmsg() {
-    local msg="\$1" pfx="\${2:-n}" fpfx=""
+    local msg="$1" pfx="${2:-n}" fpfx=""
 
-    [[ "\$pfx" == "n" ]] || fpfx="\${pfx} "
-    echo "\${fpfx}\$msg" >/dev/console
+    [[ "$pfx" == "n" ]] || fpfx="${pfx} "
+    echo "${fpfx}$msg" >/dev/console
     return 0
 }
 
 function isyubi() {
-    local yks slot="\${1:-2}"
-    yks="\$(ykinfo -q -\${slot} 2>&1)"
-    echo "\$yks"
+    local yks slot="${1:-2}"
+    yks="$(ykinfo -q -${slot} 2>&1)"
+    echo "$yks"
     return 0
 }
 
 function tryyubi()
 {
-    local pwd="\$1"
+    local pwd="$1"
 
     YUBIKEY_LUKS_SLOT=2 #Set in case missing in /etc/ykluks.cfg
     . /etc/ykluks.cfg
     pmsg "Look for Yubikey to unlock rootfs"
     while :; do
-	if [[  "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]]
+	if [[  "$(isyubi $YUBIKEY_LUKS_SLOT)" == "1" ]]
 	then
 	    pmsg "Found Yubikey"
-	    PW="\$pwd"
-	    if [ "\$HASH" == "1" ]; then
-		PW=\$(printf %s "\$PW" | sha256sum | awk '{print \$1}')
+	    PW="$pwd"
+	    if [ "$HASH" == "1" ]; then
+		PW=$(printf '%s' "$PW" | sha256sum | awk '{print $1}')
 	    fi
-	    R="\$(printf %s "\$PW" | ykchalresp -"\$YUBIKEY_LUKS_SLOT" -i- 2>/dev/null || true)"
-	    if [ "\$R" != "" ]; then
+	    R="$(printf '%s' "$PW" | ykchalresp -"$YUBIKEY_LUKS_SLOT" -i- 2>/dev/null || true)"
+	    if [ "$R" != "" ]; then
 		pmsg "Yubikey provided response"
-		if [ "\$CONCATENATE" == "1" ]; then
-		    printf '%s' "\$PW\$R"
+		if [ "$CONCATENATE" == "1" ]; then
+		    printf '%s' "$PW$R"
 		else
-		    printf '%s' "\$R"
+		    printf '%s' "$R"
                     pmsg "Yubikey unlock provided to cryptsetup"
                     exit 0  # Keep next code for a bit
                     #pmsg "Ignore 'process killed' messages"
-                    #aps=\$(ps e | grep askpass | grep -v grep | awk '{print \$1}')
-                    #[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
-                    #aps=\$(ps e | grep sleep | grep -v grep | awk '{print \$1}')
-                    #[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+                    #aps=$(ps e | grep askpass | grep -v grep | awk '{print $1}')
+                    #[ "$aps" != "" ] && kill -KILL $aps >/dev/null 2>/dev/null
+                    #aps=$(ps e | grep sleep | grep -v grep | awk '{print $1}')
+                    #[ "$aps" != "" ] && kill -KILL $aps >/dev/null 2>/dev/null
                     #exit 0
 		fi
 	    else
@@ -163,24 +163,24 @@ YUBIKEY_LUKS_SLOT=2 #Set in case missing in /etc/ykluks.cfg
 . /etc/ykluks.cfg
 # For Testing of noautounlock:
 #YUBIKEY_CHALLENGE=""
-if [[ "\$1" == "tryyubi" ]]
+if [[ "$1" == "tryyubi" ]]
 then
     touch /tmp/ftryyubi
-    tryyubi "\$2"
+    tryyubi "$2"
     exit
 else
-    if [[ ! -f /tmp/ftryyubi ]] && [[ "\$YUBIKEY_CHALLENGE" != "" ]] && [[ "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]]
+    if [[ ! -f /tmp/ftryyubi ]] && [[ "$YUBIKEY_CHALLENGE" != "" ]] && [[ "$(isyubi $YUBIKEY_LUKS_SLOT)" == "1" ]]
     then
-	( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "\$YUBIKEY_CHALLENGE" </dev/null & )
+	( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "$YUBIKEY_CHALLENGE" </dev/null & )
 	#sleep infinity
 	#pmsg "Continuing..."
     else
-	if [[ "\$(isyubi \$YUBIKEY_LUKS_SLOT)" == "1" ]] || askyn "Use Yubikey to unlock"
+	if [[ "$(isyubi $YUBIKEY_LUKS_SLOT)" == "1" ]] || askyn "Use Yubikey to unlock"
 	then
-	    read -rs -u 2 -p "Enter Yubikey passphrase and press ENTER: " passphrase
+	    [[ "$YUBIKEY_CHALLENGE" == "" ]] && read -rs -u 2 -p "Enter Yubikey passphrase and press ENTER: " YUBIKEY_CHALLENGE
 	    pmsg ""
 	    pmsg "Ensure the Yubikey is connected; I'll wait forever"
-	    ( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "\$passphrase" </dev/null & )
+	    ( /usr/share/yubikey-luks/ykluks-keyscript tryyubi "$YUBIKEY_CHALLENGE" </dev/null & )
 	    #sleep infinity
 	    #pmsg "Continuing..."
 	else
@@ -189,8 +189,8 @@ else
     fi
 fi
 # Clean up 
-#aps=\$(ps e | grep tryyubi | grep -v grep | awk '{print \$1}')
-#[ "\$aps" != "" ] && kill -KILL \$aps >/dev/null 2>/dev/null
+#aps=$(ps e | grep tryyubi | grep -v grep | awk '{print $1}')
+#[ "$aps" != "" ] && kill -KILL $aps >/dev/null 2>/dev/null
 exit 0
 EOF
     chmod 755 /usr/share/yubikey-luks/ykluks-keyscript
