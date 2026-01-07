@@ -169,7 +169,7 @@ do
 	sudo="yes"
 	piwiz="no"
 	autologin="no"
-	reboot="10"
+	reboot="0"
 	mouse="right"
 	nmconn=""
 	pluglist=""
