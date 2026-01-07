@@ -252,7 +252,7 @@ do
 		    trap "doctrlc" SIGINT
 		    [ "$keepi" != "yes" ] && pins="--plugin user:deluser=pi"
 		    [ -f $plugfile ] && pins="$pins --plugin @$plugfile"
-		    [ "$pluglist" != "" ] && pins="$pins --plugin @pluglist"
+		    [ "$pluglist" != "" ] && pins="$pins --plugin @$pluglist"
 		    echo "sdm --burn $burndev --hostname $hostname --expand-root  --regen-ssh-host-keys $rb $al $pins $img"
 		    sdm --burn $burndev --hostname $hostname --expand-root --regen-ssh-host-keys $rb $al $pins $img
 		    trap SIGINT
