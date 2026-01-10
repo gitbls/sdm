@@ -682,11 +682,11 @@ EOF
     echo "> Create /etc/initramfs-tools/hooks/luks-hooks"
     [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
     [ $xnopwd -eq 1 ] && knopwd="copy_file text /usr/local/bin/sdmnull /etc/sdmnopwd"
-    cat > /etc/initramfs-tools/hooks/luks-hooks <<'EOF'
+    cat > /etc/initramfs-tools/hooks/luks-hooks <<EOF  # Can't use quoted EOF here
 #!/bin/sh -e
 PREREQS=""
-case "$1" in
-        prereqs) echo "${PREREQS}"; exit 0;;
+case "\$1" in
+        prereqs) echo "\${PREREQS}"; exit 0;;
 esac
 
 . /usr/share/initramfs-tools/hook-functions
