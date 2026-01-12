@@ -435,7 +435,7 @@ function logfreespace() {
     free1k=$(getfsdf $dev avail) 
     freeby=$(($free1k*1024))
     logtoboth "> $dimgdevname '$dimg' has $free1k 1K-blocks $(getgbstr $freeby) free $extramsg" nosplit
-    dused=$(getfsdf / pcent)
+    dused=$(getfsdf $dev pcent)
     if [ $dused -ge 98 ]
     then
 	logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!"
