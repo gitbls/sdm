@@ -1630,23 +1630,19 @@ function doinstalls() {
 }
 
 function getdisktype() {
-    local dev=$1 line dtype
-    while read line
-    do
-        if [[ "$line" =~ "Disklabel type:" ]]
-        then
-            dtype=${line##*:}
-            dtype=${dtype/ /}
-            echo "$dtype"
-            break
-        fi
-    done < <(sfdisk -l $dev)
+
+    local dev=$1 junk disktype
+
+    IFS=":" read junk disktype <<< "$(sfdisk -l $dev | grep Disklabel)"
+    echo "${disktype/ /}"
 }
 
 function getdiskbytes() {
-    local dev=$1 line d1 dm dgb1 dgb2 gbs junk
-    IFS=" " read d1 dm dgb1 dgb2 gbs junk < <(sfdisk -l $dev | head -n 1)
-    echo $gbs
+
+    local dn="$1"
+    local dns=${dn##/dev/}
+
+    echo "$(cat /sys/block/$dns/size)"
 }
 
 function isgpt() {
@@ -1812,22 +1808,11 @@ function expandpartitionx() {
 
 function zero1stlast() {
     # $1: device name
-    local dn="$1" eblock line blks=5
+    local dn="$1" eblock line blks=5 nb
     local dns=${dn##/dev/}
 
-
-    # number of bytes on disk in parted output line 'Disk $dn: xxxxxxxxxB'
-    while read line
-    do
-	if [[ "$line" =~ "Disk $dn: " ]]
-	then
-            nb=${line##*:}
-            nb=${nb%B}
-            eblock=$(((nb/512)-blks))
-	fi
-    done < <(parted $dn unit B print 2>/dev/null)
-    # Zero first block
     eblock=$(($(cat /sys/block/$dns/size)-blks))
+    # Zero first block
     dd if=/dev/zero bs=512 count=$blks of=$dn status=none
     # Zero last block
     dd if=/dev/zero bs=512 count=$blks of=$dn seek=$eblock status=none
@@ -2405,6 +2390,13 @@ function iponline() {
     else
 	return 1
     fi
+}
+function isipaddr() {
+    #
+    # Returns true if $1 is an IP address
+    #
+    [[ "$1" =~ ^([0-9]{1,3}[\.]){3}[0-9]{1,3} ]] && return 0 || return 1
+    return
 }
 
 function ckkeymap() {
