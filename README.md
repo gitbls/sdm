@@ -49,7 +49,7 @@ chmod 755 /path/to/install-sdm
 ```
 ## Grab an IMG to customize
 
-* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unzip** or **unxz** it.
+* **If needed, download** the desired RasPiOS zipped IMG from the raspberrypi.org website and **unxz** it. (IMGs from older releases were zipped)
 * Direct link to the downloads: [Raspberry Pi Downloads](https://downloads.raspberrypi.org//?C=M;O=D)
 * Pick the latest (Trixie) image in the *images* subfolder of **raspios_armhf** (32-bit), **raspios_lite_armhf** (32-bit), **raspios_arm64** (64-bit), or **raspios_lite_arm64** (64-bit), as appropriate. Bookworm images are in the **raspios_oldstable** folders.
 
@@ -64,13 +64,15 @@ If you use the default `ezsdm` without modifying it, sdm will make the following
 * Do an `apt update` and `apt upgrade`
 * Installs a few example apps
 * Configures WiFi for SSID `myssid` and password `mywifipassword`
-* Prevents piwiz from running (not needed) and regenerates SSH host keys after the system time has been synchronized during the first system boot
+* Prevents piwiz and cloudinit from running (neither are needed when using sdm and could cause unexpected behaviors)
 
 ## Burn the image onto the SD Card
 ```sh
-sudo sdm --burn /dev/sdX --hostname mypi1 --expand-root 2025-10-01-raspios-trixie-arm64.img
+sudo sdm --burn /dev/sdX --hostname mypi1 --expand-root 2025-10-01-raspios-trixie-arm64.img --plugin sshhostkey:generate-keys
 ```
 Modify `/dev/sdX` to refer to the disk you want to burn.
+
+Using the `sshhostkey` plugin regenerates the SSH host keys as part of burning the disk and ensures that the system has higher entropy than during a system boot.
 
 ## Boot and Go
 
@@ -94,7 +96,7 @@ You can review the output of the sdm first boot script on the newly-booted syste
 journalctl -b -1 | grep FirstBoot
 ```
 
-NOTE: Sometime late in Bookworm the default retention of the system journal changed from keeping them all to removing them on shutdown. If you want to retain all system journals, add `system:journal=persistent` to your personal `ezsdm` script.
+NOTE: Sometime late in Bookworm the default retention of the system journal changed from keeping them all to removing them on shutdown. If you want to retain all system journals, uncomment or add `system:journal=persistent` to your personal `ezsdm` script.
 
 ## Next steps
 
@@ -110,7 +112,11 @@ Here are a few examples:
 
 * **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">the VNC plugin</a>.
 
-* **Install and configure an Access Point (hotspot)** &mdash; Install a customizable, fully operational hotspot in any of three modes: *local*, *routed*, or *bridged*.
+* **Install and configure a WiFi Access Point (hotspot)** &mdash; Install a customizable, fully operational WiFi hotspot in any of three modes: *local*, *routed*, or *bridged*.
+
+* **Install and configure a USB hotspot** &mdash; Enable the Pi to provide USB-tethered network connections via USB to another computer
+
+* **Install and configure USB gadget mode** &mdash; Enable the Pi to access networking via USB tethering from a host computer
 
 * **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation. See <a href="Docs/Plugins.md#raspiconfig">raspiconfig plugin </a>.
 
