@@ -131,6 +131,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --keyfile keyfile -- Key file for USB-based key unlock
 * --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --mask netmask -- Set network mask for initramfs
+* --no-expand-root -- Don't expand rootfs after rootfs encryption has completed
 * --no-last-reboot -- Don't do final reboot after sdm-cryptfs-cleanup
 * --nopwd -- No password on encrypted rootfs; keyfile (required) is only unlock
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
@@ -481,22 +482,22 @@ mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-ho
 # Leave bash in initramfs as required by sdmluksunlock
 grep -v -E "sdmcryptfs|mapper|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
-grep -q -s xsshbash:0 /etc/sdmscdefault && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
+grep -q -s xsshbash:0 /etc/sdmcryptctl && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
 echolog "sdm-cryptfs-cleanup: Rebuild initramfs"
 update-initramfs -u
 
-if grep -q -s xsdm:1 /etc/sdmscdefault
+if grep -q -s xsdm:1 /etc/sdmcryptctl
 then
     [ -f /etc/sdm/sdm-readparams ] && source /etc/sdm/sdm-readparams || echolog "% sdm-cryptfs-cleanup: Unable to find expected /etc/sdm/sdm-readparams"
     [ -f /etc/sdm/assets/cryptbbh ] && { cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot ; } || echolog "% sdm-cryptfs-cleanup: /etc/sdm/assets/cryptbbh not found; Boot behavior setting may not be correct"
 else
-    if grep -q -s graphical.target /etc/sdmscdefault
+    if grep -q -s graphical.target /etc/sdmcryptctl
     then
         echolog "sdm-cryptfs-cleanup: Reset systemctl default target to graphical.target"
         systemctl set-default graphical.target
 # Don't enable these services since no 'splash' in cmdline.txt (see below)
-#        if grep -q -s clsplash /etc/sdmscdefault
+#        if grep -q -s clsplash /etc/sdmcryptctl
 #        then
 #            for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
 #            do
@@ -505,22 +506,22 @@ else
 #            done
 #        fi
     fi
-    if grep -s -q xquiet:0 /etc/sdmscdefault
+    if grep -s -q xquiet:0 /etc/sdmcryptctl
     then
-        if grep -q -s clquiet  /etc/sdmscdefault
+        if grep -q -s clquiet  /etc/sdmcryptctl
         then
             echolog "sdm-cryptfs-cleanup: Reset 'quiet' in cmdline.txt"
             sed -i "s/rootwait/rootwait quiet/g"  /boot/firmware/cmdline.txt
         fi
 # 'splash' in cmdline.txt  prevents booting after sdm-cryptfs-cleanup reboots (? because prompt to unlock disk is lost/hidden?)
-#        if grep -q -s clsplash /etc/sdmscdefault
+#        if grep -q -s clsplash /etc/sdmcryptctl
 #        then
 #            echolog "sdm-cryptfs-cleanup: Reset 'splash' in cmdline.txt"
 #            sed -i "s/rootwait/rootwait splash/g" /boot/firmware/cmdline.txt
 #        fi
     fi
 fi
-if grep -q -s re-enable-tty1 /etc/sdmscdefault
+if grep -q -s re-enable-tty1 /etc/sdmcryptctl
 then
     echolog "sdm-cryptfs-cleanup: Re-enable getty@tty1"
     systemctl -q enable getty@tty1
@@ -532,7 +533,7 @@ systemctl daemon-reload
 
 wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
 
-if grep -q -s xnolastrb:0 /etc/sdmscdefault
+if grep -q -s xnolastrb:0 /etc/sdmcryptctl
 then
     secs=5
     echolog "sdm-cryptfs-cleanup: The system will restart in $secs seconds"
@@ -553,7 +554,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
+    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-expand-root,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -571,6 +572,7 @@ function parsecmd() {
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
 	    --mapper)          xmapper=$2 ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	    --no-expand-root)  xnoexpand=1 ; shift 1 ;;
 	    --no-last-reboot)  xnolastrb=1  ; shift 1 ;;
 	    --nopwd)           xnopwd=1     ; shift 1 ;;
 	    --quiet)           xquiet=1     ; shift 1 ;;
@@ -705,6 +707,7 @@ copy_file text /usr/bin/sdmluksunlock || true
 copy_file text /etc/mappername
 copy_file text /etc/sdmcrypto
 copy_file text /etc/sdmkeyfile
+copy_file text /etc/sdmcryptctl
 $kcmd
 $knopwd
 exit 0
@@ -827,6 +830,7 @@ xipaddr=""
 xkeyfile=""
 xmapper=""
 xnetmask=""
+xnoexpand=0
 xnolastrb=0
 xnopwd=0
 xquiet=0
@@ -905,9 +909,9 @@ do
 	    ;;
 	config)
 	    # Save key values so they can be checked in sdm-cryptfs-cleanup
-	    printf "# Runtime configuration for sdm-cryptconfig work\n# This file can be deleted once the rootfs encryption completes\n" >/etc/sdmscdefault
-	    printf "xsdm:$xsdm\nxquiet:$xquiet\nxnolastrb:$xnolastrb\nxsshbash:$xsshbash\n" >>/etc/sdmscdefault
-	    echo "$(systemctl get-default)" >>/etc/sdmscdefault
+	    printf "# Runtime configuration for sdm-cryptconfig\n" >/etc/sdmcryptctl
+	    printf "xsdm:$xsdm\nxquiet:$xquiet\nxnoexpand:$xnoexpand\nxnolastrb:$xnolastrb\nxsshbash:$xsshbash\n" >>/etc/sdmcryptctl
+	    echo "$(systemctl get-default)" >>/etc/sdmcryptctl
 	    doconfiginitramfs
 	    if [ $xwifi -eq 1 ]
 	    then
@@ -957,15 +961,15 @@ else
     then
 	echo "> Disable getty@tty1; will be re-enabled later"
 	systemctl -q disable getty@tty1
-	echo "re-enable-tty1" >>/etc/sdmscdefault
+	echo "re-enable-tty1" >>/etc/sdmcryptctl
     fi
 
     if [ $xquiet -eq 0 ]
     then
 	echo "> Enable verbose system restart"
-	grep -q -s quiet /boot/firmware/cmdline.txt && echo "clquiet" >>/etc/sdmscdefault
+	grep -q -s quiet /boot/firmware/cmdline.txt && echo "clquiet" >>/etc/sdmcryptctl
 	# NB restoring splash currently disabled bc passphrase prompt gets hidden
-	grep -q -s splash /boot/firmware/cmdline.txt && echo "clsplash" >>/etc/sdmscdefault
+	grep -q -s splash /boot/firmware/cmdline.txt && echo "clsplash" >>/etc/sdmcryptctl
 	sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
 	sed -i "s/ splash//g" /boot/firmware/cmdline.txt
         for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
