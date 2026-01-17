@@ -105,9 +105,9 @@ function copybypart() {
     #
     # Copy the partitions one at a time and change rootfs format
     #
-    local srcdev="$1" dstdev="$2" dsttype="${3:-dos}" fstype="${4:-ext4}"
+    local srcdev="$1" dstdev="$2" dsttype="${3:-dos}" fstype="${4:-ext4}" fsext="$5"
     local fatnum fatstart fatend fatsize
-    local extnum extstart extend extsize
+    local extnum extstart extend extsize extext
     local misc p1 p2 rootfs
 
     p1=$(getpartname $dstdev 1)
@@ -126,6 +126,22 @@ function copybypart() {
     if [[ "$fatnum" == "" ]] || [[ "$extnum" == "" ]]
     then
 	errexit "? Expected partitions not found on $srcdev"
+    fi
+    #
+    # Derive new rootfs size if specified with --convert-root fstype,size
+    #
+    if [[ "$fsext" != "" ]]
+    then
+	extext=${fsext#+}
+	extextsectors=$((extext*2048)) #1024*1024/512 to get sectors
+	if [[ "$fsext" =~ "+" ]]
+	then
+	    extend="$((${extend%s}+extextsectors))s"
+	    write_burnmsg "> Increase rootfs size by ${extext}MB per '--convert-root $fstype,$fsext'"
+	else
+	    write_burnmsg "> Burn rootfs to ${extext}MB per '--convert-root $fstype,$fsext'"
+	    extend=$((${extstart%s}+extextsectors))s
+	fi
     fi
     #
     # Delete old partitions on destination and set disk label type
@@ -365,7 +381,7 @@ EOF
 	    [ "$hname" == "" ] && vgname="vg1" || vgname=$hname
 	    mapper="/dev/mapper/$vgname-rootfs"
 	    fpartcopy=1
-	    copybypart $dimg $burndev $pt $cvtrootfs
+	    copybypart $dimg $burndev $pt $cvtrootfs $cvtrootext
 	    fpartcopy=0
 	    docleanup
 	    sync ; sleep 1 ; sync
@@ -470,11 +486,17 @@ EOF
 	    regensshkeys=1
 	elif [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
-	    docleanup keep
-	    expandpartition $burndev 0 logtoboth $cvtrootfs
+	    if [ "$cvtrootfs" == "ext4" ] || [ "$cvtrootfs" == "" ] || ! ispluginselected cryptroot "${plugins}~${allplugins}"
+	    then
+		docleanup keep
+		expandpartition $burndev 0 logtoboth $cvtrootfs
+	    elif [[ $expandroot -eq 1 ]]
+	    then
+		write_burnmsg "> rootfs expansion will be done after rootfs encryption completes"
+	    fi
 	fi
 	writediskids
-	ispluginselected sshhostkey "${allplugins}~${burnplugins}" && sshhostkey=1 || sshhostkey=0
+	ispluginselected sshhostkey "${plugins}~${allplugins}" && sshhostkey=1 || sshhostkey=0
 	[ $sshhostkey -eq 1 ] && regensshkeys=1   # For this test VV
 	if  [ $fexpandatboot -eq 1 ]
 	then
@@ -641,7 +663,7 @@ EOF
 		sdm_runspawncmd Burn1 run-command "apt install --yes --no-install-recommends btrfs-progs"
 	    else
 		write_burnmsg "> Enable btrfs in initramfs"
-		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
+		sdm_runspawncmd Burn1 run-update-initramfs
 	    fi
 	    ;;
 	lvm)
@@ -651,7 +673,7 @@ EOF
 		sdm_runspawncmd Burn1 run-command "apt install --yes  --no-install-recommends lvm2"
 	    else
 		write_burnmsg "> Enable lvm in initramfs"
-		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
+		sdm_runspawncmd Burn1 run-update-initramfs
 	    fi
 	    ;;
 	zfs)
@@ -662,7 +684,7 @@ EOF
 		#sdm_runspawncmd Burn1 run-command "apt install --yes  --no-install-recommends zfsutils-linux zfs-dkms zfs-zed zfs-initramfs"
 	    else
 		write_burnmsg "> Enable zfs in initramfs"
-		sdm_runspawncmd Burn1 run-command "update-initramfs -u"
+		sdm_runspawncmd Burn1 run-update-initramfs
 	    fi
     esac
     write_burnmsg "* Burn Completed"
