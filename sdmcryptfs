@@ -18,13 +18,17 @@ function errexit() {
     exit 1
 }
 
+function errifrc() {
+    [ $1 -ne 0 ] && errexit "$2"
+}
+
 function thisdate() {
     echo  "$(date +"$datefmt")"
 }
 
 function pmsg() {
     local msg="$1"
-    echo "> $(thisdate) $msg"
+    echo "> $(thisdate) $msg" >/dev/console
 }
 
 function askyn() {
@@ -34,6 +38,10 @@ function askyn() {
         y*|Y*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+function dbgprint() {
+    [ $fdebug -eq 1 ] && pmsg "D! $1"
 }
 
 function getcbbdate() {
@@ -75,9 +83,19 @@ function getgbstr() {
     return
 }
 
+function getdisktype() {
+    local dev=$1
+    echo "$(lsblk -o PTTYPE --noheadings ${dev}1)"
+}
+
 function ispdevp() {
     local dev="$1"
     [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
+}
+
+function isgpt() {
+    local dev=$1
+    [ "$(getdisktype $dev)" == "gpt" ] && return 0 || return 1
 }
 
 function getpartname() {
@@ -85,18 +103,74 @@ function getpartname() {
     local p1=1 p2=2
 
     ispdevp $dev && p1="p1" && p2="p2"
-    echo "${dev}${p2}"
+    echo "${p2}"
+}
+
+function getfullpartname() {
+    local dev=$1
+    local p1=1 p2=2
+
+    ispdevp $dev && p1="p1" && p2="p2"
+    echo "${dev}$(getpartname $dev)"
+}
+
+function expandpartition() {
+    # $1: devicename (/dev/sdX)
+    # $2: 0 (fill available space) or nnnn (expand by MB)
+    # $3: message output (write_burnmsg/logtoboth/or similar)
+    # $4: fs type (ext4, btrfs, or lvm)
+    local fulldevname="$1" sexp=${2:-0} msgrtn=${3:-logtoboth} rootfstype=${4:-ext4}
+    local pdev=${fulldevname##/dev/}
+    local part pname fsize partstart partend devsize partsize newend pbytes nbytes pend
+
+    part="${pdev}$(getpartname $fulldevname)"
+
+    devsize=$(cat /sys/block/$pdev/size)         # 512byte blocks
+    partsize=$(cat /sys/block/$pdev/$part/size)  # 512byte blocks
+    pbytes=$((partsize*512))
+    if [ $sexp -eq 0 ]
+    then
+	devsize=$((devsize-(33*2)))  # Eliminate sgdisk -p 33 'block' complaint
+	nbytes=$(((devsize*512)-partend+pbytes))
+	newend=$((devsize-1))                  # 512byte blocks
+    else
+	nbytes=$(((pbytes+(sexp*1048576)))) #1024*1024
+	newend=$(((nbytes+partstart)/512))
+    fi
+    [ "$plugindebug" == "" ] && plugindebug=1
+    if [ $plugindebug -eq 1 ]
+    then
+	$msgrtn "> Plugin ${pfx}ExpandPartition: devsize: $devsize"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: nbytes: $nbytes"
+    fi
+    $msgrtn "> Expand Root: Expand root partition '$part' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
+    if isgpt ${fulldevname}
+    then
+	parted -m /dev/$pdev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
+    else
+	parted -m /dev/$pdev u s resizepart 2 $newend
+	errifrc $? "? parted resizepart failed"
+    fi
 }
 
 function getpartsize() {
     local rootpart=$1
     local pat r2fs partsize
-    pat='([[:space:]][[:digit:]]+)'
-    r2fs=$(resize2fs -fM -p $rootpart 2>&1)
-    r2fs=${r2fs##* is}
-    [[ $r2fs =~ $pat ]]
-    partsize=${BASH_REMATCH[1]}
-    echo $partsize
+
+    if [ "$(lsblk --noheadings --output fstype $rootpart)" == "ext4" ]
+    then
+	pat='([[:space:]][[:digit:]]+)'
+	r2fs=$(resize2fs -fM -p $rootpart 2>&1)
+	r2fs=${r2fs##* is}
+	[[ $r2fs =~ $pat ]]
+	partsize=${BASH_REMATCH[1]}
+	echo $partsize
+    else
+	# Get partition size 4k blocks
+	partsize=$(($(blockdev --getsize64 $rootpart)/4096))
+	echo "$partsize"
+    fi
 }
 
 function diskindrive() {
@@ -134,7 +208,7 @@ function wipescratch() {
 
 function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
-    local rootfs=$(getpartname $dev)
+    local rootfs=$(getfullpartname $dev)
     local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
     pmsg "Save rootfs '$rootfs' to '$sdisk'"
@@ -146,11 +220,6 @@ function save_rootfs() {
     pmsg "rootfs Save elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     return 0
 }
-
-if [ ! -e /mnt ]; then
-    mkdir -p /mnt
-    sleep 1
-fi
 
 function find_keyfile() {
     local kfl=""
@@ -214,7 +283,7 @@ function cryptpart() {
 
 function cryptopen() {
     local dev=$1
-    local rootfs=$(getpartname $dev)
+    local rootfs=$(getfullpartname $dev)
     pmsg "Unlock encrypted partition '$rootfs'"
     pmsg "Unlock will take several seconds"
     if [ $xnopwd -eq 1 ]
@@ -231,8 +300,8 @@ function cryptopen() {
 }
 
 function restore_rootfs() {
-    local dev=$1 sdisk=$2 partsize=$3
-    local rootfs=$(getpartname $dev)
+    local dev=$1 sdisk=$2 partsize=$3 fstype=$4
+    local rootfs=$(getfullpartname $dev)
     local cpartnum cpartstart cpartend cpartsize etc
     local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
@@ -243,18 +312,28 @@ function restore_rootfs() {
     starttime="$(getcbbdate)"
     dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
     pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
-    pmsg "Restore complete; Expand rootfs..."
-    resize2fs -f /dev/mapper/$cryptdevice
-    while read line
-    do
-        if [[ "$line" =~ "ext4" ]]
-        then
-            IFS=":;" read cpartnum cpartstart cpartend cpartsize fstype etc <<< $line
-            cpartsize=${cpartsize%B}
-	    break
-        fi
-    done < <(parted -ms /dev/mapper/$cryptdevice unit B print)
-    pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
+    pmsg "Restore complete"
+    if grep -q -s xnoexpand:0 /etc/sdmcryptctl
+    then
+	case  "$fstype"
+	in
+	    ext4)
+		pmsg "Expand ext4 rootfs file system..."
+		resize2fs -f /dev/mapper/$cryptdevice
+		cpartsize=$(blockdev --getsize64 /dev/mapper/$cryptdevice)
+		pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
+		;;
+	    btrfs)
+		pmsg "Expand btrfs rootfs file system..."
+		mkdir -p /mnt
+		mount /dev/mapper/$cryptdevice /mnt
+		btrfs filesystem resize max /mnt
+		umount /mnt
+		;;
+	esac
+    else
+	pmsg "> Skip rootfs expand per --no-expand-root"
+    fi
     pmsg "cryptsetup status for /dev/mapper/$cryptdevice:"
     cryptsetup status /dev/mapper/$cryptdevice
     return 0
@@ -262,19 +341,38 @@ function restore_rootfs() {
 
 function runall() {
     local dev=$1 sdisk=$2 pbytes pgb
-    local rootfs=$(getpartname $dev)
+    local zpartnum zpartstart zpartend zpartsize etc
+    local rootfs=$(getfullpartname $dev)
+    fstype=$(lsblk --noheadings --output fstype $rootfs)
     checkdev $dev || return 1
     checkdev $sdisk || return 1
-    pmsg "Shrink partition '$rootfs' and get its size"
+    [ "$fstype" == "ext4" ] && pmsg "Shrink partition '$rootfs' and get its size"
     partsize=$(getpartsize $rootfs)
     pbytes=$((partsize*4096))
     pmsg "Device '$dev' rootfs size: $partsize 4K blocks $(getgbstr $pbytes)"
     save_rootfs $dev $sdisk $partsize || return 1
+    # For btrfs need to expand partition before restoring into it
+    if [ "$fstype" == "btrfs" ]
+    then
+	if grep -q -s xnoexpand:1 /etc/sdmcryptctl
+	then
+	    # Expand partition by 16MB to accomodate LUKS2 header
+	    pmsg "Expand btrfs rootfs partition a teensy bit for LUKS header"
+	    IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit b print | grep ^2:)
+	    newend=$(((${zpartend%B}+16777216)/512))
+	    parted -m $dev u s resizepart 2 $newend
+	else
+	    pmsg "Expand btrfs rootfs partition"
+	    expandpartition $dev 0 pmsg $fstype
+	fi
+    fi
+    ! grep -q -s xnoexpand:1 /etc/sdmcryptctl && [ "$fstype" == "btrfs" ] && expandpartition $dev 0 pmsg $fstype
     cryptpart $dev || return 1
     cryptopen $dev || return 1
-    restore_rootfs $dev $sdisk $partsize || return 1
+    restore_rootfs $dev $sdisk $partsize $fstype || return 1
 }
 
+fdebug=1
 dev="$1"
 sdisk="$2"
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
