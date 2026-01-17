@@ -100,13 +100,24 @@ case "$cmd" in
 	exit
         ;;
     run-command)  # Run a single command in phase 1 or post-install
+	adjust_initramfs_all
 	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
 	$runcmd || exit
+	unadjust_initramfs_all
 	exit
         ;;
     run-command-quietly)  # Run a single command in phase 1 or post-install
+	adjust_initramfs_all
 	runcmd="$cmdoptions $3 $4 $5 $6 $7 $8"
 	$runcmd > /dev/null 2>&1 || exit
+	unadjust_initramfs_all
+	exit
+        ;;
+    run-update-initramfs)  # Run initramfs update in phase1 or post-install
+	adjust_initramfs_all
+	runcmd="update-initramfs -u $3 $4 $5 $6 $7 $8"
+	$runcmd || exit
+	unadjust_initramfs_all
 	exit
         ;;
     *) # None of the above
