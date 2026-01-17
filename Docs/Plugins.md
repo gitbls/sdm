@@ -350,6 +350,7 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 * **keyfile** &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * **mapper** &mdash; Mapper name for the rootfs encryption (shows up, for instance, in the `df` listing)
 * **netmask** &mdash; Network mask for the intramfs network client to use
+* **no-expand-root** &mdash; Do not expand the encrypted rootfs to fill available space
 * **nopwd** &mdash; Configure only a keyfile to unlock the rootfs. No passphrase will be configured. The `keyfile` argument is required
 * **ssh** &mdash; Enable SSH in the initramfs
 * **sshbash** &mdash; Leave bash enabled in the SSH session rather than switching to the captive cryptroot-unlock (DEBUG only!)
@@ -982,7 +983,7 @@ The quietness plugin controls the quiet and splash settings in /boot/firmware/cm
 * `--plugin quietness:"consoleblank|noquiet=keep|nosplash=keep"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt and do not re-enable them. Console blanking timeout set to 300 seconds (5 minutes)
 * `--plugin quietness:"consoleblank=600|noquiet|nosplash|noplymouth"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt, and disable plymouth. All will be re-enabled after the First Boot. Console blanking timeout set to 600 seconds (10 minutes).
 
-### `raspiconfig` 
+### raspiconfig
 
 the `raspiconfig` plugin is used to modify settings supported by `raspi-config`. This is not necessarily the complete list (done quickly), and one or two of these may not be supportable. There's more work to do on this one!
 
