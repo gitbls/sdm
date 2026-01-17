@@ -11,6 +11,7 @@ function loadparams() {
 
 function converty() {
     [ -v noauto ] && noauto=y
+    [ -v no__expand__root ] && no__expand__root=y
     [ -v nopwd ] && nopwd=y
     [ -v ssh ] && ssh=y
     [ -v sshbash ] && sshbash=y
@@ -26,7 +27,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|sshbash|sshport|sshtimeout|uniquesshkey|noauto|nopwd|"
+vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|sshbash|sshport|sshtimeout|uniquesshkey|noauto|nopwd|no-expand-root|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -97,6 +98,7 @@ then
     [ "$keyfile" != "" ] && osw="${osw} --keyfile $keyfile"
     [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
     [ "$nopwd" == "y" ] && osw="${osw} --nopwd"
+    [ "$no__expand__root" == "y" ] && osw="${osw} --no-expand-root"
     [ "$ssh" != "" ] && osw="${osw} --ssh"
     [ "$sshbash" != "" ] && osw="${osw} --sshbash"
     [ "$sshport" != "" ] && osw="${osw} --sshport $sshport"
