@@ -2,7 +2,9 @@
 #
 # Simple script to use sdm with plugins
 # Edit the text inside the EOF/EOF as appropriate for your configuration
-# ** Suggestion: Copy this file to somewhere in your path and edit your copy
+#   You must modify these: user, network
+#   Review and change others as desired, especially these: apps, L10n
+# >> Suggestion: Copy this file to somewhere in your path and edit your copy
 #    (~/bin is a good location)
 
 
@@ -11,17 +13,14 @@ function errexit() {
     exit 1
 }
 
-[ $EUID -eq 0 ] && sudo="" || sudo="sudo"
-
 img="$1"
 [ "$img" == "" ] && errexit "? No IMG specified"
 
-[ "$(type -t sdm)" == "" ] && errexit "? sdm is not installed"
+[ "$(type -p sdm)" == "" ] && errexit "? sdm is not installed"
 
-#[ "$sudo" != "" ] && assets="." || assets="/etc/sdm/local-assets"
 assets="."
 rm -f $assets/my.plugins.1
-[ -f $assets/my.plugins ] &&  mv $assets/my.plugins $assets/my.plugins.1
+[ -f $assets/my.plugins ] && mv $assets/my.plugins $assets/my.plugins.1
 
 (cat <<EOF
 # Plugin List generated $(date +"%Y-%m-%d %H:%M:%S")
@@ -30,32 +29,57 @@ EOF
 
 (cat <<'EOF'
 
+# **** Complete Plugin Documentation: https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md
+
 # Delete user pi if it exists
 user:deluser=pi
 
-# Add a new user ** change 'myuser' and 'mypassword' **
+# ** Add a new user
+# **** change 'myuser' and 'mypassword' ****
 user:adduser=myuser|password=mypassword
 
-# Install apps
+# **** Install apps ****
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#apps
-apps:name=mybrowsers|apps=firefox,chromium-browser
+apps:name=mybrowsers|apps=firefox,chromium
 apps:name=mytools|apps=keychain,lsof,iperf3,dnsutils
 
-# Configure network ** change 'myssid' and 'mywifipassword' **
+# **** Configure network ** change 'myssid' and 'mywifipassword' ****
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#network
 network:ifname=wlan0|wifissid=myssid|wifipassword=mywifipassword|wificountry=US
+network:ifname=eth0
 
+# **** Configure localization settings to the same as this system ****
+# **** Use L10n:host if host is Debian/RasPiOS/Ubuntu
+# **** Use specific settings when running on other hosts
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
+#L10n:keymap=us|locale=en_US.UTF-8|timezone=America/Los_Angeles|wificountry=us
+L10n:host
+
+# **** Uncomment to enable persistent journaling ***
+# *** The Trixie default is to keep no previous boot logs ***
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#system
+#system:journal=persistent
+
+# **** Configure the text mode console to blank after 5 minutes ****
+# **** Comment this out if desired ****
+quietness:consoleblank=300
+
+#
 # This configuration eliminates the need for piwiz so disable it
-disables:piwiz
+# Cloudinit is not necessary so disable it as well
+# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#disables
+disables:piwiz|cloudinit
 
-# Uncomment to enable trim on all disks
+# **** Uncomment to enable trim on all disks ****
 # https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#trim-enable
 #trim-enable
 
-# Configure localization settings to the same as this system
-# https://github.com/gitbls/sdm/blob/master/Docs/Plugins.md#l10n
-L10n:host
 EOF
     ) | bash -c "cat >>$assets/my.plugins"
 
-$sudo sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --regen-ssh-host-keys $img
+sdm --customize --plugin @$assets/my.plugins --extend --xmb 2048 --restart --logwidth 256 $img
+
+echo $"
+Use sdm to burn the disk and create SSH Host Keys:
+sdm --burn /dev/sdX --hostname myhost $img --expand-root --plugin sshhostkey:generate-keys
+"
