@@ -72,8 +72,10 @@ sdmlist=(install-sdm \
 pluglist=(apps \
 	      apt-addrepo \
 	      apt-cacher-ng \
+	      apt-config \
 	      apt-file \
 	      bootconfig \
+	      btrfs-config \
 	      btwifiset \
 	      cmdline \
 	      chrony \
@@ -119,6 +121,7 @@ pluglist=(apps \
 	      sshkey \
 	      sdm.phaseops \
 	      sdm-plugin-template \
+	      swap \
 	      syncthing \
 	      system \
 	      trim-enable \
