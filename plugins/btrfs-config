@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: btrfs-config
+#
+# The plugin is a burn plugin and must be invoked during a burn operation with --burn-plugin
+#
+# Invoke it on the burn command: --convert-root btrfs --burn-plugin btrfs-config
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|burndev|burnfilefile|imgtype|"
+rqdargs="|imgtype|"
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+# Redefine logtoboth so it just does an echo as the log is inaccessible from now on
+
+#function logtoboth() {
+#    echo "$1"
+#}
+
+#function logtobothex() {
+#    echo "$1"
+#    exit 1
+#}
+
+if [ "$phase" == "burn-complete" ]
+then
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    echo ""
+    echo ">"
+    echo "> This plugin provides a burn plugin framework but does not yet have a working btrfs configuration"
+    echo "> so is not yet functional"
+    echo ">"
+    echo "> Please feel free to work on it and contribute your updates to the sdm github"
+    echo ">"
+    echo "> Thanks!"
+    echo ""
+    exit 0
+
+    declare -x SDMPT=$(makemtpt)
+    mount -v ${burndev}2 $SDMPT
+
+    echo "> Create btrfs subvolumes"
+    btrfs subvolume create $SDMPT/@
+    btrfs subvolume create $SDMPT/@home
+    btrfs subvolume create $SDMPT/@var_log
+
+    echo "> Move system directories into subvolumes"
+    rsync -aHAX $SDMPT/home/ $SDMPT/@home/
+    rm -rf $SDMPT/home
+    rsync -aHAX $SDMPT/var/log/ $SDMPT/@var_log/
+    rm -rf $SDMPT/var/log
+
+    echo "> Update /etc/fstab"
+    root_uuid=$(sudo blkid -s UUID -o value "${burndev}2")
+    boot_uuid=$(sudo blkid -s UUID -o value "${burndev}1")
+    echo "root_uuid:|$root_uuid| boot_uuid:|$boot_uuid|"
+    
+    sed -i '/ \/ /d' $SDMPT/etc/fstab        #Remove rootfs line
+    cat >> $SDMPT/etc/fstab <<EOF
+
+# mount btrfs subvolumes
+
+UUID=$root_uuid  /home     btrfs  subvol=@home,compress=zstd,noatime     0  0
+UUID=$root_uuid  /var/log  btrfs  subvol=@var_log,compress=zstd,noatime  0  0
+#UUID=$boot_uuid  /boot     vfat   defaults                               0  2
+EOF
+    umount -v $SDMPT
+fi
+exit
