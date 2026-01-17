@@ -1,5 +1,19 @@
 # Changelog
 
+## V15.0
+
+* New Features
+  * `--convert-root` takes a value formatted as `fstype[,size]` to increase rootfs by size (using +size) or to specify the rootfs size
+* Improvements
+  * Enable btrfs rootfs encryption. See <a href="Docs/Disk-Encryption.md#btrfs-rootfs-notes">Disk Encryption</a>. lvm rootfs encryption remains unsupported.
+  * Plugin `cryptroot` has new `no-expand-root` argument that is passed to sdm-cryptconfig
+  * sdm-cryptconfig has new `--no-expand-root` switch
+  * sdmcryptfs honors the above `no-expand-root` setting
+  * Minor improvements to `ezsdm`
+* Bug Fixes
+  * Don't use parted to divine disk size due to fail on certain blank disks
+  * Correct sdm-gburn: restart default and pluglist errors. Thanks @jdeitmerg
+
 ## V14.14
 
 * New Features
