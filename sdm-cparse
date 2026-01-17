@@ -963,7 +963,8 @@ function plugin_logorder() {
 }
 
 function plugin_dbgprint() {
-    [ $plugindebug -eq 1 ] && logtoboth "D!Plugin $pfx: $1"
+    local modnam=${pfx:-sdm}
+    [ $plugindebug -eq 1 ] && logtoboth "D!Plugin $modnam: $1"
 }
 
 function plugin_addnote() {
@@ -1755,19 +1756,18 @@ function expandpartition() {
     [ "$plugindebug" == "" ] && plugindebug=0
     if [ $plugindebug -eq 1 ]
     then
-	logtoboth "> Plugin ${pfx}ExpandPartition: partstart: $partstart"
-	logtoboth "> Plugin ${pfx}ExpandPartition: partend: $partend"
-	logtoboth "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
-	logtoboth "> Plugin ${pfx}ExpandPartition: devsize: $devsize"
-	logtoboth "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
-	logtoboth "> Plugin ${pfx}ExpandPartition: pbytes: $pbytes"
-	logtoboth "> Plugin ${pfx}ExpandPartition: nbytes: $nbytes"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: partstart: $partstart"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: partend: $partend"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: devsize: $devsize"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: pbytes: $pbytes"
+	$msgrtn "> Plugin ${pfx}ExpandPartition: nbytes: $nbytes"
     fi
     $msgrtn "> Expand Root: Expand root partition '$part' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     # root partition is always partition 2
     if isgpt $fulldevname
     then
-	[ "$sexp" == "0" ] && pend="" || pend="+$newend"
 	parted -m /dev/$dev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
     else
 	parted -m /dev/$dev u s resizepart 2 $newend
