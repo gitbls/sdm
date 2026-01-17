@@ -121,6 +121,8 @@ Switches to sdm-cryptconfig include:
 * `--keyfile /path/to/keyfile` &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * `--mapper cryptmapname` &mdash; Set cryptroot mapper name [Default: cryptroot]
 * `--mask netmask` &mdash; Set network mask for initramfs
+* `--no-expand-root` &mdash; Do not expand the rootfs at the end of sdmcryptfs
+* `--no-last-reboot` &mdash; Don't do final reboot after sdm-cryptfs-cleanup
 * `--nopwd` &mdash; Do not configure passphrase unlock; a keyfile is required
 * `--quiet` &mdash; Keep graphical desktop startup quiet (see 'known issues' below)
 * `--reboot` &mdash; Reboot the system (into initramfs) when sdm-cryptconfig is complete
@@ -243,7 +245,7 @@ Note that once you've enabled SSH in the initramfs, sdm does not provide an easy
 `sdm-cryptconfig` switches relevant for SSH are:
 
 * `--authorized-keys keyfile` &mdash; Specifies an SSH authorized_keys file to use in the initramfs. This is required with SSH, since there is no password authentication in initramfs
-* `--sshbash` &mdash; Leave bash enabled in the SSH session rather than switching to the captive `cryptroot-unlock`
+* `--sshbash` &mdash; Leave bash enabled in the SSH session rather than switching to the captive `cryptroot-unlock`. This is a security hole, so use for DEBUG ONLY.
 * `--sshport portnum` &mdash; Use the specified port rather than the Default 22
 * `--sshtimeout secs` &mdash; Use the specified timeout rather than the Default 300 seconds
 * `--unique-ssh` &mdash; Use a different SSH host key in the initramfs. The default is to use the host OS SSH key
@@ -251,7 +253,7 @@ Note that once you've enabled SSH in the initramfs, sdm does not provide an easy
 
 Note that if SSH is enabled in initramfs, you can also SSH into the initramfs to perform the initial configuration (sdmcryptfs). As part of the post-encryption cleanup, this capability is removed in favor of only being able to enter the decryption passphrase.
 
-### Add SSH to an Already-Encrypted system
+### Add SSH to an already-encrypted system
 
 If you encrypted your rootfs but didn't add SSH and now wish you did, you can! On your running, rootfs encrypted system:
 ```
@@ -262,7 +264,7 @@ sdm-ssh-initramfs will install and configure dropbear, and then rerun `update-in
 sdm-ssh-initramfs has a few other configuration switches. They are documented above at <a href="#sdm-cryptconfig-switches">sdm-cryptconfig switches</a>. sdm-ssh-initramfs supports the `--authorized-keys`, `--dns`, `--gateway`, `--hostname`, `--ipaddr`, `--mask`, and `--unique-ssh` switches.
 
 
-### SSH and initramfs Notes
+### SSH and initramfs notes
 
 Things to know when using SSH as documented here:
 
@@ -366,6 +368,8 @@ Encrypted disks can be explored or mounted with the `--encrypted` switch.
 
 If a keyfile has been added to the encrypted disk you can use `--keyfile /path/to/keyfile.lek` to unlock the rootfs with a keyfile. `--keyfile` implies `--encrypted`.
 
+sdm does not support using Yubikey to unlock an encrypted disk with the explore (`--explore`) or mount (`--mount`) commands.
+
 ## Encryption Performance
 
 As mentioned above, it's best to use `aes` encryption on the Pi5, which has built-in crypto instructions. All other Pis lack these instructions, so `xchacha` is recommended for them.
@@ -407,6 +411,21 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
 # Algorithm |       Key |      Encryption |      Decryption
     aes-cbc        256b        68.8 MiB/s        81.3 MiB/s
 ```
+
+## btrfs rootfs notes
+
+sdm can be used to create an encrypted rootfs with the btrfs file system.
+
+* Use the `--convert-root btrfs` when burning the disk.
+* If you want the rootfs to fill the remainder of the disk, add `--expand-root` to the burn command.
+* If you prefer more precise control on the size of the rootfs:
+  * Use `--convert-root btrfs,8192` to request an 8GB btrfs rootfs
+  * Use `--convert-root btrfs,+8192` to request an additional 8GB be added to the btrfs rootfs
+  * With either of the above, if you want to utilize the space beyond the rootfs, be sure to add `--no-expand-root` to the burn command
+  * In cases where the encrypted rootfs is not expanded to fill the disk sdmcryptfs will increase the rootfs partition size to accomodate the LUKS overhead
+* When used in conjunction with `--plugin cryptroot` on the burn command, rootfs expansion is deferred until after the rootfs has been encrypted.
+
+  This is useful so all those empty blocks in the btrfs expanded rootfs don't need to be copied. This is not an issue for ext4 filesystems since the file system data can be shrunk before copying.
 
 ## Known Issues
 
