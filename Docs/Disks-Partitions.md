@@ -14,7 +14,7 @@ There are a few switches that change the burn function with respect to disks and
 
 * `--gpt` &mdash; Convert the burned disk to GPT partition format
 * `--burn-plugin parted` &mdash; Use the `parted` burn plugin to do disk partitioning functions after the burn has completed. See <a href="Plugins.md">Plugins</a>
-* `--convert-root` fmt &mdash; Convert the rootfs to a different file system, rather than ext4. See the next section
+* `--convert-root` fmt[,[+]size] &mdash; Convert the rootfs to a different file system, rather than ext4. See the next section
 * `--expand-root` &mdash; sdm will expand the rootfs to the whole disk after burning
 * `--no-expand-root` &mdash; sdm will not expand rootfs and will disable automatic RasPiOS rootfs expansion
 
@@ -27,11 +27,19 @@ The `--convert-root` switch is used to specify a different rootfs file system fo
 
 rootfs conversion requires that the files are copied via the file system (using rsync) rather than a block mode copy, which is inherently faster.
 
+However, GPT partition tables are more extensible and are the partition type for the future. Using `--gpt` without `--convert-root` is equivalent to adding `--convert-root ext4`.
+
 Using `--convert-root lvm` causes `--gpt` to be set.
+
+Perhaps someday the RasPiOS team will switch to using GPT partition format for their IMGs.
+
+The `--convert-root` switch takes an optional argument `size`, which specifies the new size for the rootfs (if used with only the size) or the size by which to increase the rootfs size (if used with `+`).
 
 ## Example commands
 
 * `sdm --burn /dev/sdc --convert-root btrfs --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn the IMG to /dev/sdc with a `btrfs` file system for rootfs
+* `sdm --burn /dev/sdc --convert-root btrfs,8192 --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; As above, but make rootfs 8192MB (8GB)
+* `sdm --burn /dev/sdc --convert-root btrfs,+8192 --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; As above, but increase the size of rootfs by 8192MB
 * `sdm --burn /dev/sdc --gpt --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn the IMG to /dev/sdc with a GPT partition table
 
 ## Device names
