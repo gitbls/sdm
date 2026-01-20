@@ -308,6 +308,7 @@ function sdm_burndevfile() {
     declare -a burnmsg
     fpartcopy=0
     write_burnmsg "* Start Burn"
+    write_burnmsg "* Command: $cmdline"
     burnstart="$(getcdate)"
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
     if [ $burn -eq 1 ]
@@ -327,7 +328,7 @@ function sdm_burndevfile() {
 	notmounted $burndev || errexit "? Device '$burndev' is mounted"   # one last check
 	! sfdisk -l $burndev >/dev/null 2>&1 && errexit "? Cannot access '$burndev'; is there a disk in the drive?"
 	bsize=$(stat --printf %s $dimg)
-	write_burnmsg "> Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
+	write_burnmsg "* Burn '$dimg' $(getgbstr $bsize) to '$burndev'..."
 	diskbytes=$(getdiskbytes $burndev)
 	if [[ $fgpt -eq 0 ]] && [[ $diskbytes -ge 2000000000000 ]]  # Force most 2TB disks to GPT
 	then
@@ -338,12 +339,10 @@ function sdm_burndevfile() {
 	olddiskid="$((blkid -o value $dimg) | (read id ; echo $id))"
 	if [ "$cvtrootfs" == "" ]
 	then
-	    write_burnmsg "> Burn command line: $cmdline"
 	    ddcmd="dd if=$dimg of=$burndev status=progress $ddsw"
 	    write_burnmsg "> dd command: $ddcmd"
 	    # Burn the IMG to the device but zero first and last blocks first
 	    zero1stlast $burndev
-	    #echo "$ddcmd"
 	    trap "ddctrlc" SIGINT
 	    $ddcmd &
 	    ddpid=$!
@@ -660,6 +659,9 @@ EOF
 	    if [ ! -x $SDMPT/bin/btrfs ]
 	    then
 		write_burnmsg "> Install btrfs-progs onto burned disk"
+		write_burnmsg ""
+		write_burnmsg "  NOTE: cryptsetup errors (Couldn't resolve/Couldn't determine) during update-initramfs can be safely ignored"
+		write_burnmsg ""
 		sdm_runspawncmd Burn1 run-command "apt install --yes --no-install-recommends btrfs-progs"
 	    else
 		write_burnmsg "> Enable btrfs in initramfs"
