@@ -610,7 +610,7 @@ sudo sdm --info timezone   # Displays list of valid timezones
 
 #### Examples
 
-* `--plugin L10n:"keymap=us|locale=en_US.UTF-8|timezone=Americas/Los_Angeles"`
+* `--plugin L10n:"keymap=us|locale=en_US.UTF-8|timezone=America/Los_Angeles"`
 * `--plugin L10n:"host"`
 
 ### labwc
