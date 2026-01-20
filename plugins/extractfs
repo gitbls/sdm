@@ -24,6 +24,8 @@ vldargs="|bootfs|rootfs|burndev|burnfilefile|imgtype|" #"|list|of|valid|args|"
 rqdargs="|imgtype|"                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
+[[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
+
 if [[ "$phase" == "burn-complete" ]]
 then
     logtoboth "* Plugin $pfx: Start Phase $phase"
