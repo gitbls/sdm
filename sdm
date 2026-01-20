@@ -180,21 +180,21 @@ function sdmrunplugins () {
 function printhelp() {
     echo $"sdm $version
 Usage:
- sudo /usr/local/sdm/sdm --customize [switches] sd-image-file
+ /usr/local/sdm/sdm --customize [switches] sd-image-file
    Customize an SD Card image or SSD/SD Card
- sudo $0 --explore sd-image-file
+ $0 --explore sd-image-file
    Explore an SD Card image or SSD/SD Card
- sudo $0 --extend sd-image-file
+ $0 --extend sd-image-file
    Extend an SD Card image without any customization
- sudo $0 --burn /dev/sdx --host target-hostname sd-image-file
+ $0 --burn /dev/sdx --host target-hostname sd-image-file
    Burn the SD Card image to the burn device
- sudo $0 --shrink sd-image-file
+ $0 --shrink sd-image-file
    Shrink sd-image-file to the smallest possible size
- sudo $0 --mount sd-image-file
+ $0 --mount sd-image-file
    Mount an SD Card image or an SSD/SD Card
- sudo $0 --aptmaint aptfunction sd-image-file
+ $0 --aptmaint aptfunction sd-image-file
    Do APT maintenance (update, upgrade) on an SD Card image or SSD/SD Card
- sudo $0 --ppart sd-image-file
+ $0 --ppart sd-image-file
    Print partition tables in sd-image-file
 
 Commands
@@ -267,7 +267,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V14.14"
+version="V15.1"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -285,6 +285,7 @@ burnplugins=""              #Burn-time plugin list
 extractscript=""            #Extract log additional script to run 
 csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
+cvtrootext=""               #With --convert-root set rootfs to this size or increase by this amount (with '+')
 cvtrootfs=""                #--convert-root
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddpid=""                    #Holds pid of dd during IMG Extend
@@ -577,9 +578,22 @@ pi1bootconf="$(fndotfullpath $pi1bootconf)"
 [ "$imgext" != "" ] && checknumeric "$imgext" "--xmb"
 #! ckwificountry $wificountry && errexit "? Unknown WiFi Country '$wificountry'"
 
-cvtrootfs=$(poptcheck "$cvtrootfs" "$vcvtrootfs" "--convert-root")
-exitiferr "$cvtrootfs"
-cvtrootfs="${cvtrootfs//|/}"  # Remove vbars: single value switch
+if [ "$cvtrootfs" != "" ]
+then
+    if [[ "$cvtrootfs" =~ , ]]
+    then
+	cvtrootext=${cvtrootfs##*,} #Size or extension amount
+	if [ "$cvtrootext" != "" ]
+	then
+	    tmp=${cvtrootext#+}
+	    [[ "$tmp" = *[^0-9]* ]] && errexit "? Value '$tmp' for command switch '--convert-rootfs' is not numeric"
+	    cvtrootfs=${cvtrootfs%%,*}
+	fi
+    fi
+    cvtrootfs=$(poptcheck "$cvtrootfs" "$vcvtrootfs" "--convert-root")
+    exitiferr "$cvtrootfs"
+    cvtrootfs="${cvtrootfs//|/}"  # Remove vbars: single value switch
+fi
 debugs=$(poptcheck "$debugs" "$vdebug" "--debug")
 exitiferr "$debugs"
 poptions=$(poptcheck "$poptions" "$vpoptions" "--apt-options|--poptions")
@@ -905,7 +919,7 @@ else
     fi
     is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
     raspiosver="$(getosinfo VERSION_ID $SDMPT)"
-    logtoboth "> Command Line: $cmdline"
+    logtoboth "* Command: $cmdline"
     logtoboth "* Host Information"
     logtoboth "   Hostname:  $(hostname)"
     logtoboth "   Pagesize:  $(getconf PAGESIZE)"
