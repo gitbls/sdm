@@ -11,6 +11,10 @@ function errexit() {
     exit 1
 }
 
+function thisdate() {
+    echo  "$(date +"$datefmt")"
+}
+
 function wait_startup_complete {
     # $1 is the message to write
     local lc=0 msg=$1
@@ -65,8 +69,9 @@ function getpartname() {
 }
 
 function logifsdm() {
-    local msg="$1"
-    [ $xsdm -eq 1 ] && echo "sdm-cryptconfig: $msg" > /dev/console
+    local msg="$1" opts="$2" datefmt="%Y-%m-%d %H:%M:%S"
+    [ $xsdm -eq 1 ] && [ "$opts" != "noconsole" ] && echo "sdm-cryptconfig: $msg" > /dev/console
+    [ -f /etc/sdm/history ] && echo "$(thisdate) $msg" >> /etc/sdm/history
 }
 
 function checknumeric() {
@@ -480,7 +485,7 @@ echolog "sdm-cryptfs-cleanup: Starting; System will restart automatically when c
 echolog "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-hooks.old
 # Leave bash in initramfs as required by sdmluksunlock
-grep -v -E "sdmcryptfs|mapper|sdmcrypto|sdmnopwd|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
+grep -v -E "sdmcryptfs|mapper|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
 grep -q -s xsshbash:0 /etc/sdmcryptctl && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
@@ -554,7 +559,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-expand-root,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
+    local longopts="authorized-keys:,crypto:,debug,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-expand-root,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -565,6 +570,7 @@ function parsecmd() {
 	    # 'shift 2' if switch has argument, else just 'shift'
 	    --authorized-keys) xauthkeys=$2 ; shift 2 ;;
 	    --crypto)          xcrypto=$2   ; shift 2 ;;
+	    --debug)           xdebug=1     ; shift 1 ;;
 	    --dns)             xdns=$2      ; shift 2 ;;
 	    --gateway)         xgateway=$2  ; shift 2 ;;
 	    --hostname)        xhostname=$2 ; shift 2 ;;
@@ -572,7 +578,7 @@ function parsecmd() {
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
 	    --mapper)          xmapper=$2 ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
-	    --no-expand-root)  xnoexpand=1 ; shift 1 ;;
+	    --no-expand-root)  xnoexpand=1  ; shift 1 ;;
 	    --no-last-reboot)  xnolastrb=1  ; shift 1 ;;
 	    --nopwd)           xnopwd=1     ; shift 1 ;;
 	    --quiet)           xquiet=1     ; shift 1 ;;
@@ -683,7 +689,6 @@ EOF
     chmod 755 /usr/bin/sdmluksunlock
     echo "> Create /etc/initramfs-tools/hooks/luks-hooks"
     [ "$xkeyfile" != "" ] && kcmd="copy_file text /etc/sdm/assets/cryptroot/$xkeyfile /etc/$xkeyfile"
-    [ $xnopwd -eq 1 ] && knopwd="copy_file text /usr/local/bin/sdmnull /etc/sdmnopwd"
     cat > /etc/initramfs-tools/hooks/luks-hooks <<EOF  # Can't use quoted EOF here
 #!/bin/sh -e
 PREREQS=""
@@ -704,9 +709,6 @@ copy_exec /usr/bin/lsusb /usr/bin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
 # OK if this fails; means it was copied due to keyscript in crypttab and copied in /usr/share/initramfs-tools/hooks/cryptroot
 copy_file text /usr/bin/sdmluksunlock || true
-copy_file text /etc/mappername
-copy_file text /etc/sdmcrypto
-copy_file text /etc/sdmkeyfile
 copy_file text /etc/sdmcryptctl
 $kcmd
 $knopwd
@@ -780,9 +782,7 @@ EOF
 function domkinitramfs() {
     echo "> Update initramfs with all the rootfs encryption settings in place"
     logifsdm "Update initramfs with all the rootfs encryption settings in place"
-    touch /usr/local/bin/sdmnull  # Used for nopwd
     update-initramfs -u
-    rm -f /usr/local/bin/sdmnull
 }
 
 function doupdateconfig() {
@@ -823,6 +823,7 @@ function doupdateconfig() {
 
 xauthkeys=""
 xcrypto=""
+xdebug=0
 xdns=""
 xgateway=""
 xhostname=""
@@ -849,6 +850,8 @@ xwifipsk=0
 src=$(dirname "$(realpath "$0")")
 parsecmd $0 "$@"
 
+logifsdm "* sdm-cryptconfig command: $0 $*" noconsole
+
 [ "$xmapper" == "" ] && xmapper="cryptroot"
 [ "$xcrypto" == "" ] && xcrypto="aes"
 
@@ -869,9 +872,9 @@ then
     xkeyfile="$(basename $xkeyfile)"
 fi
 
-echo "$xmapper" > /etc/mappername
-echo "$xcrypto" > /etc/sdmcrypto
-echo "$xkeyfile" > /etc/sdmkeyfile
+rm -f /etc/sdmcryptctl
+printf "# Runtime configuration for sdm-cryptconfig\n" >/etc/sdmcryptctl
+printf "mappername:$xmapper\nxcrypto:$xcrypto\nkeyfile:$xkeyfile\n" > /etc/sdmcryptctl
 
 if [ $xsdm -eq 0 ]
 then
@@ -909,9 +912,9 @@ do
 	    ;;
 	config)
 	    # Save key values so they can be checked in sdm-cryptfs-cleanup
-	    printf "# Runtime configuration for sdm-cryptconfig\n" >/etc/sdmcryptctl
-	    printf "xsdm:$xsdm\nxquiet:$xquiet\nxnoexpand:$xnoexpand\nxnolastrb:$xnolastrb\nxsshbash:$xsshbash\n" >>/etc/sdmcryptctl
-	    echo "$(systemctl get-default)" >>/etc/sdmcryptctl
+	    printf "xsdm:$xsdm\nxquiet:$xquiet\nxnoexpand:$xnoexpand\nxnolastrb:$xnolastrb\nxsshbash:$xsshbash\nxdebug:$xdebug\n" >>/etc/sdmcryptctl
+	    printf "fstype:$(lsblk -o fstype --noheadings $(findmnt -n -o source /))\n" >>/etc/sdmcryptctl  #Debug aid
+	    printf "$(systemctl get-default)\n" >>/etc/sdmcryptctl
 	    doconfiginitramfs
 	    if [ $xwifi -eq 1 ]
 	    then
@@ -940,46 +943,50 @@ done
 if [ $xsdm -eq 1 ]
 then
     #
-    # if started via sdm, clean up. No need to futz with graphical console since cryptroot plugin handled
+    # if started via sdm, clean up
     #
     systemctl disable sdm-auto-encrypt > /dev/null 2>&1
     rm -f /etc/systemd/system/sdm-auto-encrypt.service
-else
+fi
+#
+# Configure the system so that encryption works
+# For an as-yet not determined reason quiet in cmdline.txt and plymouth
+# cause the system to be unbootable bc the cryptroot unlock prompt is hidden
+#
+if [ "$(systemctl get-default)" == "graphical.target" ]
+then
+    #
+    # Desktop. Enable console boot and modify quietness unless --quiet
+    #
     if [ "$(systemctl get-default)" == "graphical.target" ]
     then
-	#
-	# Desktop. Enable console boot and modify quietness unless --quiet
-	#
-	if [ "$(systemctl get-default)" == "graphical.target" ]
-	then
-	    echo "> Disable graphical console for encryption process; will be reset to $(systemctl get-default) later"
-	    systemctl -q set-default multi-user.target
-	fi
+	echo "> Disable graphical console for encryption process; will be reset to $(systemctl get-default) later"
+	systemctl -q set-default multi-user.target
     fi
-
-    if systemctl --quiet is-enabled getty@tty1
-    then
-	echo "> Disable getty@tty1; will be re-enabled later"
-	systemctl -q disable getty@tty1
-	echo "re-enable-tty1" >>/etc/sdmcryptctl
-    fi
-
-    if [ $xquiet -eq 0 ]
-    then
-	echo "> Enable verbose system restart"
-	grep -q -s quiet /boot/firmware/cmdline.txt && echo "clquiet" >>/etc/sdmcryptctl
-	# NB restoring splash currently disabled bc passphrase prompt gets hidden
-	grep -q -s splash /boot/firmware/cmdline.txt && echo "clsplash" >>/etc/sdmcryptctl
-	sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
-	sed -i "s/ splash//g" /boot/firmware/cmdline.txt
-        for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
-        do
-            systemctl mask $svc >/dev/null 2>&1
-        done
-    fi
-
-    printinfo
 fi
+
+if systemctl --quiet is-enabled getty@tty1
+then
+    echo "> Disable getty@tty1; will be re-enabled later"
+    systemctl -q disable getty@tty1
+    echo "re-enable-tty1" >>/etc/sdmcryptctl
+fi
+
+if [ $xquiet -eq 0 ]
+then
+    echo "> Enable verbose system restart"
+    grep -q -s quiet /boot/firmware/cmdline.txt && echo "clquiet" >>/etc/sdmcryptctl
+    # NB restoring splash currently disabled bc passphrase prompt gets hidden
+    grep -q -s splash /boot/firmware/cmdline.txt && echo "clsplash" >>/etc/sdmcryptctl
+    sed -i "s/ quiet//g" /boot/firmware/cmdline.txt
+    sed -i "s/ splash//g" /boot/firmware/cmdline.txt
+    for svc in plymouth-start plymouth-read-write plymouth-quit-wait # plymouth-reboot plymouth-quit
+    do
+        systemctl mask $svc >/dev/null 2>&1
+    done
+fi
+
+printinfo
 
 if [ $xreboot -eq 1 ]
 then
