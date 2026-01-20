@@ -1,5 +1,14 @@
 # Changelog
 
+## V15.1
+
+* New Features
+* Improvements
+  * Burn plugins now detect and fail if they were run with `--plugin` instead of `--burn-plugin` (`btrfs-config`, `explore`, `extractfs`, `parted`, and `postburn`)
+* Bug Fixes
+  * `parted` plugin adding a new partition with size 0 (expand to rest of disk) was taking a bit too much space, causing some partition table indigestion
+  * Various bug fixes and minor improvements to `sdm-cryptconfig` and `sdmcryptfs` around btrfs rootfs encryption and RasPiOS with Desktop support
+
 ## V15.0
 
 * New Features
