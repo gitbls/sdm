@@ -24,15 +24,18 @@ rqdargs="|imgtype|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
 # Redefine logtoboth so it just does an echo as the log is inaccessible from now on
+# This needs more work to buffer messages ala parted plugin
 
-#function logtoboth() {
-#    echo "$1"
-#}
+function logtoboth() {
+    echo "$1"
+}
 
-#function logtobothex() {
-#    echo "$1"
-#    exit 1
-#}
+function logtobothex() {
+    echo "$1"
+    exit 1
+}
+
+[[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
 
 if [ "$phase" == "burn-complete" ]
 then
@@ -43,7 +46,8 @@ then
     echo "> This plugin provides a burn plugin framework but does not yet have a working btrfs configuration"
     echo "> so is not yet functional"
     echo ">"
-    echo "> Please feel free to work on it and contribute your updates to the sdm github"
+    echo "> Please feel free to work on it and contribute your updates to the sdm github by opening an issue"
+    echo "> (NOT a pull request, please).
     echo ">"
     echo "> Thanks!"
     echo ""
