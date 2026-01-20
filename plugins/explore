@@ -33,6 +33,8 @@ function logtoboth() {
     echo "$1"
 }
 
+[[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
+
 if [ "$phase" == "burn-complete" ]
 then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
