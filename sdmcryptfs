@@ -64,7 +64,6 @@ function datediff() {
     hours=$(((eseconds - $((days*86400)))/3600))
     minutes=$(((eseconds - $((days*86400)) - $((hours*3600)))/60))
     seconds=$((eseconds - $((days*86400)) - $((hours*3600)) - $((minutes*60))))
-    #echo "$days:$hours:$minutes:$seconds"
     [ $days -ne 0 ] && printf "%02d:%02d:%02d:%02d\n" "$days" "$hours" "$minutes" "$seconds" || printf "%02d:%02d:%02d\n" "$hours" "$minutes" "$seconds"
 }
 
@@ -83,11 +82,6 @@ function getgbstr() {
     return
 }
 
-function getdisktype() {
-    local dev=$1
-    echo "$(lsblk -o PTTYPE --noheadings ${dev}1)"
-}
-
 function ispdevp() {
     local dev="$1"
     [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme0n1" ]] && return 0 || return 1
@@ -99,19 +93,17 @@ function isgpt() {
 }
 
 function getpartname() {
-    local dev=$1
+    local dev=$1 partnum=${2:-2}
     local p1=1 p2=2
 
     ispdevp $dev && p1="p1" && p2="p2"
-    echo "${p2}"
+    [ $partnum -eq 1 ] && echo "${dev}$p1"
+    [ $partnum -eq 2 ] && echo "${dev}$p2"
 }
 
-function getfullpartname() {
+function getdisktype() {
     local dev=$1
-    local p1=1 p2=2
-
-    ispdevp $dev && p1="p1" && p2="p2"
-    echo "${dev}$(getpartname $dev)"
+    echo "$(lsblk -o PTTYPE --noheadings $(getpartname $dev 1))"
 }
 
 function expandpartition() {
@@ -120,13 +112,12 @@ function expandpartition() {
     # $3: message output (write_burnmsg/logtoboth/or similar)
     # $4: fs type (ext4, btrfs, or lvm)
     local fulldevname="$1" sexp=${2:-0} msgrtn=${3:-logtoboth} rootfstype=${4:-ext4}
-    local pdev=${fulldevname##/dev/}
-    local part pname fsize partstart partend devsize partsize newend pbytes nbytes pend
+    local phydev=${fulldevname##/dev/}
+    local partname fsize partstart partend devsize partsize newend pbytes nbytes pend
 
-    part="${pdev}$(getpartname $fulldevname)"
-
-    devsize=$(cat /sys/block/$pdev/size)         # 512byte blocks
-    partsize=$(cat /sys/block/$pdev/$part/size)  # 512byte blocks
+    partname=$(getpartname $phydev 2)
+    devsize=$(blockdev --getsz $fulldevname)
+    partsize=$(blockdev --getsz /dev/$partname)
     pbytes=$((partsize*512))
     if [ $sexp -eq 0 ]
     then
@@ -137,19 +128,20 @@ function expandpartition() {
 	nbytes=$(((pbytes+(sexp*1048576)))) #1024*1024
 	newend=$(((nbytes+partstart)/512))
     fi
-    [ "$plugindebug" == "" ] && plugindebug=1
+    [ "$plugindebug" == "" ] && plugindebug=0
     if [ $plugindebug -eq 1 ]
     then
 	$msgrtn "> Plugin ${pfx}ExpandPartition: devsize: $devsize"
 	$msgrtn "> Plugin ${pfx}ExpandPartition: partsize: $partsize"
 	$msgrtn "> Plugin ${pfx}ExpandPartition: nbytes: $nbytes"
     fi
-    $msgrtn "> Expand Root: Expand root partition '$part' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
+    $msgrtn "Expand root partition '$partname' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     if isgpt ${fulldevname}
     then
-	parted -m /dev/$pdev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
+	parted -m /dev/$phydev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
+	errifrc $? "? parted resizepart failed"
     else
-	parted -m /dev/$pdev u s resizepart 2 $newend
+	parted -m /dev/$phydev u s resizepart 2 $newend
 	errifrc $? "? parted resizepart failed"
     fi
 }
@@ -208,12 +200,11 @@ function wipescratch() {
 
 function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
-    local rootfs=$(getfullpartname $dev)
+    local rootfs=$(getpartname $dev 2)
     local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
     pmsg "Save rootfs '$rootfs' to '$sdisk'"
-    pbytes=$((partsize*4096))
-    pgb=$(((pbytes / 1073741824)+1))
+    pgb=$((partsize/262144))
     pmsg "rootfs save should take less than $pgb minutes"
     starttime="$(getcbbdate)"
     dd bs=4k count=$partsize if=$rootfs of=$sdisk
@@ -224,33 +215,46 @@ function save_rootfs() {
 function find_keyfile() {
     local kfl=""
 
-    if [ -f /etc/sdmkeyfile ]
-    then
-	read kfl < /etc/sdmkeyfile
-	[[ "$kfl" != "" ]] && [[ -f /etc/$kfl ]] && kfl="/etc/$(basename $kfl)"
-    fi
-    echo "$kfl"
+    IFS=":" read lval kfl < <(grep keyfile: /etc/sdmcryptctl)
+    echo "/etc/$kfl"
 }
 
 function config_keyfile() {
-    local kfl="" kfn=""
+    local kfl="" kfn="" sts
 
-    [ -f /etc/sdmkeyfile ] || return
     kfl=$(find_keyfile)
-    [ "$kfl" == "" ] || kfn=$(basename $kfl)
+    [ "$kfl" == "" ] && return || kfn=$(basename $kfl)
     if [ "$kfn" != "" ]
     then
 	pmsg "Add LUKS key '${kfn%.lek}' from file $kfl"
 	pmsg "When prompted for an existing passphrase enter the one you just created"
 	cryptsetup luksAddKey $rootfs $kfl
-	[ $? -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $?"
+	sts=$?
+	[ $sts -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $sts"
 	rm -f $kfl
     fi
 }
 
+function cpoptions() {
+    local sts=$1
+
+    pmsg "% cryptsetup returned an error ($sts)"
+    pmsg "% If you mis-typed 'YES' or want to try again enter Y or y"
+    pmsg "% Power off the system if you do not want to retry"
+    pmsg "%  (Disks will be OK since none are mounted)"
+    pmsg "% The only way to 'reset' this disk is to reburn it"
+    pmsg "% and start over"
+    if ! askyn "Retry"
+    then
+	pmsg "OK. Exit sdmcryptfs"
+	exit 1
+    fi
+    return 0
+}
+
 function cryptpart() {
     local dev=$1
-    local cipher
+    local cipher sts
     case "$xcrypto" in
 	xchacha)
 	    cipher="xchacha20,aes-adiantum-plain64"
@@ -266,15 +270,24 @@ function cryptpart() {
     pmsg "Enable LUKS2 encryption on '$rootfs' with cipher '$cipher'"
     pmsg "Enabling encryption could take a while"
     pmsg "OK to ignore superblock signature warning"
+    pmsg ""
 
     if [ $xnopwd -eq 1 ]
     then
-	cryptsetup luksFormat --type luks2 $rootfs $(find_keyfile)
+	while [ 0 ]
+	do
+	    cryptsetup luksFormat --type luks2 $rootfs $(find_keyfile)
+	    sts=$?
+	    [ $sts -eq 0 ] && break
+	    cpoptions $sts || { pmsg "Exit sdmcryptfs" ; exit 1 ; }
+	done
     else
 	while [ 0 ]
 	do
 	    cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $rootfs
-	    [ $? -eq 0 ] && break
+	    sts=$?
+	    [ $sts -eq 0 ] && break
+	    cpoptions $sts || { pmsg "Exit sdmcryptfs" ; exit 1 ; }
 	done
 	config_keyfile $dev
     fi
@@ -283,12 +296,16 @@ function cryptpart() {
 
 function cryptopen() {
     local dev=$1
-    local rootfs=$(getfullpartname $dev)
+    local rootfs=$(getpartname $dev 2)
     pmsg "Unlock encrypted partition '$rootfs'"
     pmsg "Unlock will take several seconds"
     if [ $xnopwd -eq 1 ]
     then
-	cryptsetup luksOpen $rootfs $cryptdevice --key-file $(find_keyfile)
+	while [ 0 ]
+	do
+	    cryptsetup luksOpen $rootfs $cryptdevice --key-file $(find_keyfile)
+	    [ $? -eq 0 ] && break
+	done
     else
 	while [ 0 ]
 	do
@@ -301,13 +318,12 @@ function cryptopen() {
 
 function restore_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3 fstype=$4
-    local rootfs=$(getfullpartname $dev)
+    local rootfs=$(getpartname $dev 2)
     local cpartnum cpartstart cpartend cpartsize etc
     local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
     pmsg "Restore '$rootfs' from '$sdisk'"
-    pbytes=$((partsize*4096))
-    pgb=$(((pbytes / 1073741824)+1))
+    pgb=$((partsize/262144))
     pmsg "rootfs restore should take less than $pgb minutes"
     starttime="$(getcbbdate)"
     dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
@@ -342,7 +358,7 @@ function restore_rootfs() {
 function runall() {
     local dev=$1 sdisk=$2 pbytes pgb
     local zpartnum zpartstart zpartend zpartsize etc
-    local rootfs=$(getfullpartname $dev)
+    local rootfs=$(getpartname $dev 2)
     fstype=$(lsblk --noheadings --output fstype $rootfs)
     checkdev $dev || return 1
     checkdev $sdisk || return 1
@@ -362,11 +378,10 @@ function runall() {
 	    newend=$(((${zpartend%B}+16777216)/512))
 	    parted -m $dev u s resizepart 2 $newend
 	else
-	    pmsg "Expand btrfs rootfs partition"
+	    pmsg "Expand btrfs rootfs partition with expandpartition"
 	    expandpartition $dev 0 pmsg $fstype
 	fi
     fi
-    ! grep -q -s xnoexpand:1 /etc/sdmcryptctl && [ "$fstype" == "btrfs" ] && expandpartition $dev 0 pmsg $fstype
     cryptpart $dev || return 1
     cryptopen $dev || return 1
     restore_rootfs $dev $sdisk $partsize $fstype || return 1
@@ -378,16 +393,17 @@ sdisk="$2"
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
 
 xcrypto=""
-[ -f /etc/sdmcrypto ] && read xcrypto < /etc/sdmcrypto
+IFS=":" read lval xcrypto < <(grep xcrypto: /etc/sdmcryptctl)
 [ "$xcrypto" == "" ] && xcrypto="aes"
 [[ "aes|xchacha" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Supported cryptos: 'aes' and 'xchacha'"
 
-[ -f /etc/sdmnopwd ] && xnopwd=1 || xnopwd=0
+IFS=":" read lval xnopwd < <(grep xnopwd: /etc/sdmcryptctl)
+[ "$xnopwd" == "" ] && xnopwd=0
 
 partsize=""
-cryptdevice="nomappername"
 datefmt="%Y-%m-%d %H:%M:%S"
-[ -f /etc/mappername ] && read cryptdevice < /etc/mappername || echo "% Where is /etc/mappername?; Using cryptdevice 'nomappername'"
+IFS=":" read lval cryptdevice < <(grep mappername: /etc/sdmcryptctl)
+[ "$cryptdevice" == "" ] && cryptdevice="nomappername"
 runall $dev $sdisk 
 wipescratch $partsize
 
