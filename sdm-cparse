@@ -1707,6 +1707,7 @@ function extendimage() {
     partsize=$((imgend-partstart))
     echo "* Resize partition 2 of '$ldimg' to ${partsize}MB"
     parted $ldimg -s resizepart 2 ${imgend}MB
+    errifrc $? "? parted resizepart failed"
 }
 
 function expandpartition() {
@@ -1769,6 +1770,7 @@ function expandpartition() {
     if isgpt $fulldevname
     then
 	parted -m /dev/$dev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
+	errifrc $? "? parted resizepart failed"
     else
 	parted -m /dev/$dev u s resizepart 2 $newend
 	errifrc $? "? parted resizepart failed"
@@ -1781,19 +1783,24 @@ function expandpartition() {
     case "$rootfstype" in
 	ext4)
 	    resize2fs ${fulldevname}${pname}
+	    errifrc $? "? expandpartition resize2fs failed"
 	    ;;
 	btrfs)
 	    btrfs filesystem resize max $SDMPT/
+	    errifrc $? "? expandpartition btrfs filesystem resize failed"
 	    ;;
 	lvm)
 	    pvresize ${fulldevname}${pname}
 	    lvresize --extents 100%VG $(lvmfind $fulldevname vg)/$(lvmfind $fulldevname lv)
+	    errifrc $? "? expandpartition lvresize failed"
 	    resize2fs $(lvmgetmapper $fulldevname)
+	    errifrc $? "? expandpartition resize2fs failed"
 	    ;;
 	zfs)
 	    zpool online -e rpool sdb2
 	    ;;
     esac
+    return 0
     #echo ",+" | sfdisk -N 2 $fulldevname
     #errifrc $? "? sfdisk expand last partition failed with status"
 }
