@@ -517,7 +517,7 @@ then
     then
 	if [ "$burndev" != "" ]
 	then
-	    expandpartitionx "$burndev" "$rootexpand" echo || exit
+	    expandpartitionx "$burndev" "$rootexpand" echo $(lsblk --noheadings --output fstype ${burndev}$(getpartname $burndev 2)) || exit
 	    #
 	    # Fix up partuuid's if this is a gpt disk
 	    #
