@@ -427,6 +427,18 @@ sdm can be used to create an encrypted rootfs with the btrfs file system.
 
   This is useful so all those empty blocks in the btrfs expanded rootfs don't need to be copied. This is not an issue for ext4 filesystems since the file system data can be shrunk before copying.
 
+### btrfs rootfs and rootfs expansion
+
+By default the rootfs (btrfs or ext4) will be expanded to fill all available space.
+
+If you use the `parted` plugin to add additional partitions after the rootfs partition in conjunction with the `cryptroot` plugin (on the IMG customize or burn), the `parted` plugin will leave space between the rootfs partition and the next partition. If `--plugin parted:"rootexpand=nnnn"` is used, the space left will be as specified by `rootexpand`.
+
+If `rootexpand` is not specified, the `parted` plugin will leave a small amount of free space between a btrfs rootfs and the next partition to accomodate the LUKS header along with the btrfs partition. This is not required for an ext4 rootfs.
+
+In either case, the rootfs expansion is done in `sdmcryptfs`. If you don't want the rootfs expansion to occur, use `--plugin cryptroot:no-expand-root`, but be aware that even in this case a btrfs rootfs will be expanded by the "small amount of free space" mentioned above in order to ensure that the partition is large enough to accomodate the LUKS header in addition to the filesystem data.
+
+Deferring the rootfs expansion to `sdmcryptfs` minimizes the size of the rootfs that is copied.
+
 ## Known Issues
 
 * To use disk encryption on disks other than rootfs that you have manually encrypted, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt

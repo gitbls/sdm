@@ -660,7 +660,7 @@ EOF
 	    then
 		write_burnmsg "> Install btrfs-progs onto burned disk"
 		write_burnmsg ""
-		write_burnmsg "  NOTE: cryptsetup errors (Couldn't resolve/Couldn't determine) during update-initramfs can be safely ignored"
+		write_burnmsg "  NOTE: 'Couldn't identify/resolve/etc' errors during update-initramfs can be ignored"
 		write_burnmsg ""
 		sdm_runspawncmd Burn1 run-command "apt install --yes --no-install-recommends btrfs-progs"
 	    else

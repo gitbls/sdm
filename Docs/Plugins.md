@@ -350,7 +350,7 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 * **keyfile** &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * **mapper** &mdash; Mapper name for the rootfs encryption (shows up, for instance, in the `df` listing)
 * **netmask** &mdash; Network mask for the intramfs network client to use
-* **no-expand-root** &mdash; Do not expand the encrypted rootfs to fill available space
+* **no-expand-root** &mdash; Do not expand the encrypted rootfs. See <a href="Disk-Encryption.md#btrfs-rootfs-and-rootfs-expansion">btrfs and rootfs expansion</a> for details.
 * **nopwd** &mdash; Configure only a keyfile to unlock the rootfs. No passphrase will be configured. The `keyfile` argument is required
 * **ssh** &mdash; Enable SSH in the initramfs
 * **sshbash** &mdash; Leave bash enabled in the SSH session rather than switching to the captive cryptroot-unlock (DEBUG only!)

@@ -216,7 +216,7 @@ function find_keyfile() {
     local kfl=""
 
     IFS=":" read lval kfl < <(grep keyfile: /etc/sdmcryptctl)
-    echo "/etc/$kfl"
+    [ "$kfl" == "" ] && echo "" || echo "/etc/$kfl"
 }
 
 function config_keyfile() {
@@ -329,27 +329,22 @@ function restore_rootfs() {
     dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
     pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     pmsg "Restore complete"
-    if grep -q -s xnoexpand:0 /etc/sdmcryptctl
-    then
-	case  "$fstype"
-	in
-	    ext4)
-		pmsg "Expand ext4 rootfs file system..."
-		resize2fs -f /dev/mapper/$cryptdevice
-		cpartsize=$(blockdev --getsize64 /dev/mapper/$cryptdevice)
-		pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
-		;;
-	    btrfs)
-		pmsg "Expand btrfs rootfs file system..."
-		mkdir -p /mnt
-		mount /dev/mapper/$cryptdevice /mnt
-		btrfs filesystem resize max /mnt
-		umount /mnt
-		;;
-	esac
-    else
-	pmsg "> Skip rootfs expand per --no-expand-root"
-    fi
+    case  "$fstype"
+    in
+	ext4)
+	    pmsg "Expand ext4 rootfs file system..."
+	    resize2fs -f /dev/mapper/$cryptdevice
+	    cpartsize=$(blockdev --getsize64 /dev/mapper/$cryptdevice)
+	    pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
+	    ;;
+	btrfs)
+	    pmsg "Expand btrfs rootfs file system..."
+	    mkdir -p /mnt
+	    mount /dev/mapper/$cryptdevice /mnt
+	    btrfs filesystem resize max /mnt
+	    umount /mnt
+	    ;;
+    esac
     pmsg "cryptsetup status for /dev/mapper/$cryptdevice:"
     cryptsetup status /dev/mapper/$cryptdevice
     return 0
@@ -367,19 +362,27 @@ function runall() {
     pbytes=$((partsize*4096))
     pmsg "Device '$dev' rootfs size: $partsize 4K blocks $(getgbstr $pbytes)"
     save_rootfs $dev $sdisk $partsize || return 1
-    # For btrfs need to expand partition before restoring into it
-    if [ "$fstype" == "btrfs" ]
+    if grep -q -s xnoexpand:0 /etc/sdmcryptctl
     then
-	if grep -q -s xnoexpand:1 /etc/sdmcryptctl
+	IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit s print | tail -n 1)
+	if [ "$zpartnum" == "2" ]
 	then
-	    # Expand partition by 16MB to accomodate LUKS2 header
-	    pmsg "Expand btrfs rootfs partition a teensy bit for LUKS header"
-	    IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit b print | grep ^2:)
-	    newend=$(((${zpartend%B}+16777216)/512))
-	    parted -m $dev u s resizepart 2 $newend
-	else
-	    pmsg "Expand btrfs rootfs partition with expandpartition"
+	    pmsg "Expand rootfs partition with expandpartition"
 	    expandpartition $dev 0 pmsg $fstype
+	else
+	    IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit s print | grep ^3:)
+	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
+	    newend=$((${zpartstart%s}-1))
+	    parted -m $dev u s resizepart 2 $newend
+	fi
+    else
+	if [ "$fstype" == "btrfs" ]
+	then
+	    # Do minimal expansion (so there's room for btrfs + LUKS header) using space allocated in parted or bc it's the rest of the disk
+	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
+	    newend=$((${rpartend%s}+65535))
+	    pmsg "Do minimal rootfs expansion so btrfs and LUKS header both fit"
+	    parted -m $dev u s resizepart 2 $newend
 	fi
     fi
     cryptpart $dev || return 1

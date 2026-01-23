@@ -874,7 +874,7 @@ fi
 
 rm -f /etc/sdmcryptctl
 printf "# Runtime configuration for sdm-cryptconfig\n" >/etc/sdmcryptctl
-printf "mappername:$xmapper\nxcrypto:$xcrypto\nkeyfile:$xkeyfile\n" > /etc/sdmcryptctl
+printf "mappername:$xmapper\nxcrypto:$xcrypto\nkeyfile:$xkeyfile\nxnopwd:$xnopwd\n" > /etc/sdmcryptctl
 
 if [ $xsdm -eq 0 ]
 then

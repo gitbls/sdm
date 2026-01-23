@@ -181,7 +181,7 @@ function imgmakepartition() {
     partend=$((partstart+psize-1))
     write_burnmsg "> Plugin $pfx: Extend IMG '$dimg' by ${psize}MB"
     pdocmd "truncate --size +$((psize+1))MiB $dimg"
-    write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}MB end: ${partend}MB"
+    write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum (start: ${partstart}MB end: ${partend}MB)"
     write_burnmsg "> Plugin $pfx: parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB"
     if [ "$fstype" == "vfat" ]
     then
@@ -262,9 +262,11 @@ function makepartition() {
     # $3: fs type
     # $4: fstab mount point.
     # $5: fs label
+    # $6: rootfs fstype (ext4, btrfs). For special btrfs handling
     #
-    local pdev="$1" psize="$2" fstype="${3:-ext4}" mntpt="$4" fslabel="$5" ptype="primary" pstart pend pdname pname="" mkfslabel=""
+    local pdev="$1" psize="$2" fstype="${3:-ext4}" mntpt="$4" fslabel="$5" rootfstype="${6:-ext4}" ptype="primary" pstart pend pdname pname="" mkfslabel=""
     local pdevnm=${pdev#/dev/}
+    local rexpand=$rootexpand
     local partnum partstart partend partsize pfstype etc etc2 etc3
     local spartnum spartstart spartend spartsize etc etc2 etc3
     local partlabel altfstype doslimit=4294967295
@@ -308,6 +310,19 @@ function makepartition() {
        fi
     done < <(parted -ms $pdev unit s print free)
     partnum=$((partnum+1))
+    #
+    # If rootfs is encrypted leave some free space after the rootfs for later expansion
+    #
+    if [[ $partnum -eq 3 ]] && [ -v rootfsencrypted ]
+    then
+	if [ "$rexpand" != "" ]
+	then
+	    write_burnmsg "> Plugin $pfx: Leave $rexpand 4K blocks for deferred rootfs expansion"
+	else
+	    [[ "$rootfstype" == "btrfs" ]] && rexpand=65536 && write_burnmsg "> Plugin $pfx: Leave minimal $rexpand 4K blocks for deferred rootfs expansion"
+	fi
+	free_space_start=$((free_space_start+rexpand))
+    fi
     optimal_io_size=$(cat /sys/block/$pdevnm/queue/optimal_io_size)
     [ $optimal_io_size -le 0 ] && optimal_io_size=1048576  #1024*1024
     physical_block_size=$(cat /sys/block/$pdevnm/queue/physical_block_size)
@@ -353,7 +368,7 @@ function makepartition() {
             # after this, so, if we create a primary partition, the user will be locked out of accessing any free space.
             write_burnmsg "> Plugin $pfx: Partition $partnum - creating extended partition to fill remaining available space."
             extpartend=${spartend%s}
-            write_burnmsg "> Plugin $pfx: Make extended partition $partnum start: ${partstart}s end: ${extpartend}s"
+            write_burnmsg "> Plugin $pfx: Make extended partition $partnum (start: ${partstart}s end: ${extpartend}s)"
 	    write_burnmsg "  Consider using burn switch --gpt"
             pdocmd "parted $pdev mkpart extended ${partstart}s ${extpartend}s"
             errifrc $? "? parted mkpart error"
@@ -363,7 +378,7 @@ function makepartition() {
             partstart=$((partstart+2048))
         fi
     fi
-    write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum start: ${partstart}s end: ${partend}s"
+    write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum (start: ${partstart}s end: ${partend}s)"
     if [ "$fstype" == "vfat" ]
     then
         pdocmd "parted $pdev mkpart $ptype $pname fat32 ${partstart}s ${partend}s"
@@ -439,8 +454,9 @@ function dopartition() {
     # $1: value: size[,fstype][,mntpt][,fslabel]
     # $2: burndev
     # $3: burnfilefile
+    # $4: rootfstype
     #
-    local pinfo="$1" bdev="$2" bfile="$3"
+    local pinfo="$1" bdev="$2" bfile="$3" rootfstype="$4"
     local psize fstype mntpt fslabel
     local altfstype="" hostpn="" apmsg=""
     
@@ -486,7 +502,8 @@ function dopartition() {
 
     if [ "$bdev" != "" ]
     then
-	makepartition $bdev "$psize" "$fstype" "$mntpt" "$fslabel"
+	#rootfstype=$(lsblk --noheadings --output fstype $(getspname $bdev 2))
+	makepartition $bdev "$psize" "$fstype" "$mntpt" "$fslabel" $rootfstype
     else
 	imgmakepartition $bfile "$psize" "$fstype" "$mntpt" "$fslabel"
     fi
@@ -501,7 +518,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|burndev|burnfilefile|imgtype|rootexpand|addpartition|"
+vldargs="|burndev|burnfilefile|rootfsencrypted|imgtype|rootexpand|addpartition|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -513,20 +530,34 @@ then
     write_burnmsg "* Plugin $pfx: Start Phase burn-complete"
     declare -a burnmsg
     plugin_printkeys "" write_burnmsg
+    if [ "$burndev" != "" ] && [ ! -v rootfsencrypted ]
+    then
+	# Get the list of plugins from the burn disk and see if cryptroot was included
+	declare -x SDMPT=$(makemtpt)
+        domount "$burndev" Device
+        echo "* $imgtype '$burndev' mounted on $SDMPT"
+	iplugins=$(get1config ^plugins $SDMPT/etc/sdm/cparams)
+	iallplugins=$(get1config ^allplugins $SDMPT/etc/sdm/cparams)
+	docleanup
+	if ispluginselected cryptroot "${iplugins}~${iallplugins}"
+	then
+	    write_burnmsg "> Plugin $pfx: Enable 'rootfsencrypted' per --plugin cryptroot"
+	    rootfsencrypted=1
+	else
+	    write_burnmsg "> Plugin $pfx: Cryptroot plugin not selected"
+	fi
+    fi
+    rootfstype=$(lsblk --noheadings --output fstype ${burndev}$(getpartname $burndev 2))
     if [ -v rootexpand ]
     then
+	checknumeric $rootexpand
 	if [ "$burndev" != "" ]
 	then
-	    expandpartitionx "$burndev" "$rootexpand" echo $(lsblk --noheadings --output fstype ${burndev}$(getpartname $burndev 2)) || exit
-	    #
-	    # Fix up partuuid's if this is a gpt disk
-	    #
-	    #?? updategptrootfs $burndev
+	    [ -v rootfsencrypted ] || { expandpartitionx "$burndev" "$rootexpand" echo $rootfstype || exit ; }
 	else
 	    [[ "$rootexpand" == "0" ]] || [[ "$rootexpand" == "" ]]  && flush_burnmsgsex "? Plugin $pfx: Invalid rootexpand value '$rootexpand'"
 	    if [ $rootexpand -ne 0 ]
 	    then
-		checknumeric $rootexpand
 		expandpartitionfile "$burnfilefile" "$rootexpand" || exit
 	    else
 		flush_burnmsgsex "? Plugin $pfx: rootexpand=0 is not supported on a --burnfile"
@@ -547,7 +578,7 @@ then
 		do
 		    line="${line%%\#*}"    # Del EOL comments
 		    line="${line%"${line##*[^[:blank:]]}"}"  # Del trailing spaces/tabs
-		    [ "$line" != "" ] && dopartition "$line" "$burndev" "$burnfilefile"
+		    [ "$line" != "" ] && dopartition "$line" "$burndev" "$burnfilefile" "$rootfstype"
 		done < $fn
 	    else
 		flush_burnmsgsex "? Plugin $pfx: Unable to read addpartition file '$fn'"
@@ -556,7 +587,7 @@ then
 	    IFS="+" read -a items <<< "$addpartition"
 	    for pinfo in "${items[@]}"
 	    do
-		dopartition "$pinfo" "$burndev" "$burnfilefile"
+		dopartition "$pinfo" "$burndev" "$burnfilefile" "$rootfstype"
 	    done
 	fi
     fi
