@@ -224,6 +224,9 @@ function imgmakepartition() {
                 mkfslabel="-l $fslabel"
                 partlabel="Microsoft basic data"
                 ;;
+	    none)
+		return 0
+		;;
             *)
                 mkfslabel="-q -L $fslabel"
                 partlabel="Linux filesystem"
@@ -383,7 +386,8 @@ function makepartition() {
     then
         pdocmd "parted $pdev mkpart $ptype $pname fat32 ${partstart}s ${partend}s"
     else
-        pdocmd "parted $pdev mkpart $ptype $pname $fstype ${partstart}s ${partend}s"
+	[ "$fstype" == "none" ] && tfstype=ext2 || tfstype=$fstype
+	pdocmd "parted $pdev mkpart $ptype $pname $tfstype ${partstart}s ${partend}s"
     fi
     errifrc $? "? parted mkpart error"
     sync ; sleep 1 ; partprobe
@@ -425,6 +429,9 @@ function makepartition() {
         esac
     fi
     case "$fstype" in
+	none)
+	    return 0
+	    ;;
         linux-swap)
             pdocmd "sgdisk -c $partnum:'$partlabel' $pdev"
             pdocmd "mkswap -L '$fslabel' $pdname"
@@ -498,11 +505,10 @@ function dopartition() {
     esac
 
     [ "$hostpn" != "" ] && apmsg="; sudo apt install '$hostpn' on host system and and try again" 
-    [[ "$(type -p mkfs.${altfstype:-$fstype})" != "" ]] || [[ "$fstype" == "linux-swap" ]] || flush_burnmsgsex "? Plugin $pfx: Unrecognized file system type '$fstype' $apmsg"
+    [[ "$(type -p mkfs.${altfstype:-$fstype})" != "" ]] || [[ "|linux-swap|none|" =~ "|$fstype|" ]] || flush_burnmsgsex "? Plugin $pfx: Unrecognized file system type '$fstype' $apmsg"
 
     if [ "$bdev" != "" ]
     then
-	#rootfstype=$(lsblk --noheadings --output fstype $(getspname $bdev 2))
 	makepartition $bdev "$psize" "$fstype" "$mntpt" "$fslabel" $rootfstype
     else
 	imgmakepartition $bfile "$psize" "$fstype" "$mntpt" "$fslabel"
