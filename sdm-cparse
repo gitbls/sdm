@@ -48,21 +48,21 @@ function logtoboth() {
     # Writes the message to the terminal and also to /etc/sdm/history
     #
     # $1="message string" which will be split up across multiple lines if needed
-    # $2="nosplit" if lines should not be split up
+    # $2="nosplit" if lines should not be split up, add "[,]notty" to not output to console as well
     # $3=/path/to/logfile for alternate log
     #
-    local msg="$1" mods=$2 logf=${3:-/etc/sdm/history}
+    local msg="$1" mods="$2" logf=${3:-/etc/sdm/history}
     local str=() i spc=""
-    if [[ ${#msg} -le $logwidth ]] || [[ "$mods" == "nosplit" ]]
+    if [[ ${#msg} -le $logwidth ]] || [[ "$mods" =~ "nosplit" ]]
     then
 	logit "$msg" $logf
-	echo "$msg"
+	[[ "$mods" =~ "notty" ]] || echo "$msg"
     else
 	readarray -t str <<< $(fold -s -w$logwidth <<< $(echo "$msg"))
 	for (( i=0 ; i < ${#str[@]} ; i++))
 	do
 	    logit "${spc}${str[$i]}" $logf
-	    echo "${spc}${str[$i]}"
+	    [[ "$mods" =~ "notty" ]] || echo "${spc}${str[$i]}"
 	    spc="  "
 	done
     fi
@@ -450,6 +450,56 @@ function logfreespace() {
 	logtoboth "!!! ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** !!!"
 	exit 1
     fi
+}
+
+function loginfo() {
+    #
+    # $1: command for logging (logtoboth or write_burnmsg, for instance)
+    # $2: cmdline
+    # $3: dimg
+    # $4: mods [notty]
+
+    local logsub="$1" cmdline="$2" dimg="$3" mods="$4"
+    local pimodel memline memsize os_name os_version os_codename os_like hostarch raspiosver
+
+    echo "logsub|$logsub| dimg:|$dimg| mods:|$mods| cmdline:|$cmdline|" >> x.out
+    [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
+    if [ -e /proc/meminfo ]
+    then
+	memline=$(grep -i MemTotal /proc/meminfo)
+	memsize="${memline##*:}"
+	memsize="${memsize#"${memsize%%[![:space:]]*}"}"
+    else
+	memsize=""
+    fi
+    is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
+    raspiosver="$(getosinfo VERSION_ID $SDMPT)"
+    $logsub "* Command: $cmdline" "" "$mods"
+    $logsub "* Host Information" "" "$mods"
+    $logsub "   Hostname:  $(hostname)" "" "$mods"
+    $logsub "   Pagesize:  $(getconf PAGESIZE)" "" "$mods"
+    [ "$memsize" != "" ] && $logsub "   Memory:    $memsize" "" "$mods"
+    $logsub "   uname:     $(uname -a)" "" "nosplit${mods}"
+    [ "$pimodel" != "" ] && $logsub "   Raspberry Pi Model: $pimodel" "" "$mods"
+    os_name="$(getosinfo PRETTY_NAME)"
+    [ "$os_name" == "" ] && os_name="$(getosinfo NAME)"
+    $logsub "   os-release Name: $os_name" "" "$mods"
+    os_version="$(getosinfo VERSION)"
+    os_codename="$(getosinfo VERSION_CODENAME)"
+    if [ "$os_codename" != "" ]
+    then
+	[[ "$os_version" =~ $os_codename ]] || os_version="$os_version ($os_codename)"
+    fi
+    $logsub "   Version: $os_version" "" "$mods"
+    os_like="$(getosinfo ID_LIKE)"
+    [ "$os_like" != "" ] && $logsub "   Like OS: $os_like" "" "$mods"
+    $logsub "   sdm Version: $version" "" "$mods"
+    $logsub "* IMG Information" "" "$mods"
+    [ "$dimg" == "" ] || $logsub "   Name: $dimg" "" "$mods"
+    $logsub "   Date: $(getosdate)" "" "$mods"
+    $logsub "   RasPiOS Version: $raspiosver" "" "$mods"
+    $logsub "   RasPiOS Architecture: $hostarch" "" "$mods"
+    $logsub "   os-release Version: $(getosinfo VERSION $SDMPT)" "" "$mods"
 }
 
 function do_raspiconfig() {
@@ -1433,26 +1483,6 @@ function sdm_spawn() {
     fi
 }
 
-function deferqemu() {
-    #
-    # Set deferred install
-    #
-    logtoboth "% chroot/qemu-user-static; Defer install of qemu-user-static to system FirstBoot"
-    fnqemu="/etc/sdm/0piboot/010-install-qemu.sh"
-    if [ ! -f $fnqemu ]
-    then
-	cat > $fnqemu <<EOF
-#!/bin/bash
-#
-# Install qemu-user-static. Install deferred because it can't be installed in a chroot
-#
-source /etc/sdm/sdm-readparams
-bootlog "Perform deferred install of qemu-user-static"
-installpkgsif qemu-user-static
-EOF
-    fi
-}
-
 function copyifnewer() {
     # Copy $1 to $2 if $1 is newer
     # Target must have same basename as src (no rename as part of copy)
@@ -1602,6 +1632,9 @@ function getapplist() {
     lapps="${lapps//,/ }"    # Turn commas into spaces
     echo "$lapps"
 }
+
+# grep -E '(^| )gv($| )' *defers
+
 
 function doinstalls() {
     #
