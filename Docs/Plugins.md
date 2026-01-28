@@ -93,6 +93,7 @@ Use the apps plugin to install applications. The apps plugin can be called multi
 #### Arguments
 
 * **apps** &mdash; Specifies the list of apps to install or @filename to provide a list of apps (one per line) to install. Comments are indicated by a pound sign (#) and are ignored, so you can document your app list if desired. If the specified @filename is not found, sdm will look in the sdm directory (/usr/local/sdm). 
+* **defer** &mdash; Specifies the list of apps for which to defer install until after sdm FirstBoot has completed (and rebooted), speeding up the customization process.
 * **name** &mdash; Specifies the name of the apps list. The default name is *default*. The `name` argument is a convenience and is not required.
 * **remove** &mdash; Specifies the list of apps to remove ofr @filename to provide a list of apps (one per line) to remove. The `remove` argument is processed before the `apps` argument. If you try to remove an apt packge that doesn't exist it will log in /etc/sdm/apt.log and sdm will notify you at the end of the customize: '? apt reported errors; review /etc/sdm/apt.log'
 
@@ -101,6 +102,7 @@ Use the apps plugin to install applications. The apps plugin can be called multi
 * `--plugin apps:"remove=wolfram-engine|apps=emacs"` &mdash; Remove wolfram-engine, and install emacs
 * `--plugin apps:"apps=@my-apps" --plugin apps:"apps=@my-xapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
 * `--plugin apps:"apps=@my-apps|name=myapps" --plugin apps:"apps=@my-xapps|name=myxapps"` &mdash; Install the list of apps in the file @my-apps, and the list of apps in @my-xapps
+* `--plugin apps:"apps=zile|defer=emacs"` &mdash; Install zile immediately, but defer the install of emacs until the system is fully operational.
 * `--plugin apps:"apps=@mycoreapps|name=core-apps"` `--plugin apps:"apps=@myaddtlapps|name=extra-apps"` &mdash; Install the list of apps from @mycoreapps and @myaddtlapps
 
 ### apt-addrepo
@@ -334,6 +336,28 @@ copyfile copies the files into the IMG in /etc/sdm/assets/copyfile during Phase 
 
 * `--plugin copyfile:"from=/usr/local/bin/myconf.conf|to=/usr/local/etc"` The config file will be copied from /usr/local/bin/myconf.conf on the host system to /usr/local/etc/myconf.conf in the IMG during Phase1. The file will be owned by the same user:group as on the host, the file protection will be the same as well.
 * `--plugin copyfile:"filelist=/usr/local/bin/myfileslist"`. The list of files in the provided `filelist` will be processed per above.
+
+### cryptpart
+
+Encrypts an already-created partition. The partition must not be the rootfs, and must already be created on the disk. See the `parted` plugin for details on creating disk partitions.
+
+#### Arguments
+
+* **cryptname** &mdash; The encrypted mapped device name (must be unique for each encrypted partition)
+* **fslabel** &mdash; File system label for the created file system
+* **fstype** &mdash; File system type. `ext4` [Default] and `btrfs` are valid
+* **keydisk-partuuid** &mdash; The PARTUUID for the USB keydisk. Required if `keyfile-location` is `usb`
+* **keyfile** &mdash; /path/to/keyfile
+* **keyfile-location** &mdash; Valid locations are `usb` (on a USB disk) or `root` (in /root)
+* **mountpoint** &mdash; /path/to/directory for the partition mount point. If not specified, it will not be configured
+* **nonint** &mdash; Perform the encryption non-interactive. Requires `keyfile` or `passphrase`
+* **nopwd** &mdash; Do not add an unlock passphrase. Requires `keyfile`
+* **partname** &mdash; Partition to encrypt [/dev/sdXn, e.g., /dev/sda3]. Required
+* **passphrase** &mdash; Unlock passphrase. Must be specified if `nonint` and no keyfile provided.
+
+`cryptname`, `fstype`, and `partname` arguments are required. if `nonint` is specified, one of `keyfile` or `passphrase` is required.
+
+#### Examples
 
 ### cryptroot
 
@@ -829,7 +853,7 @@ Using the `parted` burn plugin implicitly sets `--no-expand-root` when used on a
 * **rootexpand** &mdash; Expand the root partition by the number of MiB specified as the value for this argument. A value of 0 expands the partition to fill the disk. A value of 0 is not allowed when used with `--burnfile`. If specified, `rootexpand` must be used before any `addpartition` arguments.
 * **addpartition** &mdash; Adds another partition at the end of the IMG. Arguments: size[fstype][,mountpoint,] where:
     * `size` is the number of MiB for the partition
-    * `fstype` is the type of file system. Supported file systems are: `btrfs`, `ext2`, `ext3`, `ext4` [default], `fat16`, `fat32`, `hfs`, `linux-swap`, `ntfs`, `udf`, `vfs`, and `xfs`. Some file systems may require you to install additional apt packages on the host before running this plugin
+    * `fstype` is the type of file system. Supported file systems are: `btrfs`, `ext2`, `ext3`, `ext4` [default], `fat16`, `fat32`, `hfs`, `linux-swap`, `none`, `ntfs`, `udf`, `vfs`, and `xfs`. Some file systems may require you to install additional apt packages on the host before running this plugin
     * `mountpoint` is the location in the filesystem where you expect to mount your new partition. This will be added to fstab, and is optional.
     * NOTE: Multiple partitions can be named on the command line by separating them with `+`. See example below.
 
