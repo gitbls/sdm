@@ -208,7 +208,9 @@ then
     rm -f /etc/ssh/ssh_host_*_key*    #Remove any existing keys
     /usr/bin/ssh-keygen -A || bootlog "? ssh-keygen returned an error (?$)"
 fi
+
 rm -f /etc/ssh/sshd_not_to_be_run
+rm -f /etc/sdm/control/sdm-startup
 
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
