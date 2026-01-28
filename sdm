@@ -99,7 +99,7 @@ function loadsdm() {
     # Load sdm into the disk/IMG mounted on $SDMPT
     #
     [ -d $SDMPT/etc/sdm ] && echo "% sdm already in $dimg; recopy not done" && return
-    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,zzpiboot,local-assets}
+    [ ! -d $SDMPT/etc/sdm ] && mkdir -p $SDMPT/etc/sdm/{assets,locale,0piboot,xpiboot,zzpiboot,local-assets,control}
     [ -f $SDMPT/etc/sdm/history ] || touch $SDMPT/etc/sdm/history
     chmod 700 $SDMPT/etc/sdm
     echo "# sdm added these settings from the command line (see /etc/sdm/history)" > $SDMPT/etc/sdm/auto-1piboot.conf
@@ -908,47 +908,10 @@ else
 	cp -a -f $src/1piboot/*.sh $SDMPT/$sdmdir/1piboot
 	setfileownmode "$SDMPT/$sdmdir/1piboot/*.sh" 755
     fi
-    [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
-    if [ -e /proc/meminfo ]
-    then
-	memline=$(grep -i MemTotal /proc/meminfo)
-	memsize="${memline##*:}"
-	memsize="${memsize#"${memsize%%[![:space:]]*}"}"
-    else
-	memsize=""
-    fi
-    is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
+
+    # Log info
     raspiosver="$(getosinfo VERSION_ID $SDMPT)"
-    logtoboth "* Command: $cmdline"
-    logtoboth "* Host Information"
-    logtoboth "   Hostname:  $(hostname)"
-    logtoboth "   Pagesize:  $(getconf PAGESIZE)"
-    [ "$memsize" != "" ] && logtoboth "   Memory:    $memsize"
-    logtoboth "   uname:     $(uname -a)" nosplit
-    [ "$pimodel" != "" ] && logtoboth "   Raspberry Pi Model: $pimodel"
-    os_name="$(getosinfo PRETTY_NAME)"
-    [ "$os_name" == "" ] && os_name="$(getosinfo NAME)"
-    logtoboth "   os-release Name: $os_name"
-    os_version="$(getosinfo VERSION)"
-    os_codename="$(getosinfo VERSION_CODENAME)"
-    if [ "$os_codename" != "" ]
-    then
-	[[ "$os_version" =~ $os_codename ]] || os_version="$os_version ($os_codename)"
-    fi
-    logtoboth "   Version: $os_version"
-    os_like="$(getosinfo ID_LIKE)"
-    if [ "$os_like" != "" ]
-    then
-	#[ "$os_like" != "debian" ] && logtoboth "   Like OS: $os_like"
-	logtoboth "   Like OS: $os_like"
-    fi
-    logtoboth "   sdm Version: $version"
-    logtoboth "* IMG Information"
-    logtoboth "   Name: $dimg"
-    logtoboth "   Date: $(getosdate)"
-    logtoboth "   RasPiOS Version: $raspiosver"
-    logtoboth "   RasPiOS Architecture: $hostarch"
-    logtoboth "   os-release Version: $(getosinfo VERSION $SDMPT)"
+    loginfo logtoboth "$cmdline" "$dimg"
 
     # Flush accumulated messages
     if [ ${#cmsgs[@]} -gt 0 ]
