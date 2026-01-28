@@ -8,9 +8,12 @@
 function write_burnmsg() {
     #
     # $1 has the message to write
+    # $2 unused
+    # $3 has mods [notty]
+    # this so it can be called the same as logtoboth
     # It's written to the terminal and added to burnmsg
     #
-    local msg="$1"
+    local msg="$1" mods="$3"
     if [[ "$SDMPT" != "" ]] && [[ $fpartcopy -eq 0 ]]
     then
 	if ismounted $SDMPT && [[ -f $SDMPT/etc/sdm/history ]]
@@ -18,11 +21,11 @@ function write_burnmsg() {
 	    logtoboth "$msg"
 	else
 	    burnmsg+=("$(thisdate) $msg")
-	    echo "$msg"
+	    [[ "$mods" =~ notty ]] || echo "$msg"
 	fi
     else
 	burnmsg+=("$(thisdate) $msg")
-	echo "$msg"
+	[[ "$mods" =~ notty ]] ||echo "$msg"
     fi
     return 0
 }    
@@ -308,7 +311,7 @@ function sdm_burndevfile() {
     declare -a burnmsg
     fpartcopy=0
     write_burnmsg "* Start Burn"
-    write_burnmsg "* Command: $cmdline"
+    loginfo write_burnmsg "$cmdline" "" notty
     burnstart="$(getcdate)"
     newdiskid="$(printf  "%08x" "$(((RANDOM*RANDOM*RANDOM*RANDOM+RANDOM)&0xFFFFFFFF))")"
     if [ $burn -eq 1 ]
