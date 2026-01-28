@@ -5,6 +5,61 @@
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
 
+function writedefersvc() {
+
+    if [ ! -f /etc/systemd/system/sdm-do-apps-defers.service ]
+    then
+	logtoboth "> Plugin $pfx: Create apps defer service"
+	cat > /etc/systemd/system/sdm-do-apps-defers.service <<EOF
+[Unit]
+ConditionPathExists=!/etc/sdm/control/sdm-startup
+ConditionPathExists=!/etc/sdm/control/rootfs-encryption
+ConditionPathExists=!/etc/sdm/control/no-defer-apps
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/sdm-do-apps-defers
+TimeoutStopSec=300
+ExecStop=/bin/rm /etc/systemd/system/sdm-do-apps-defers.service /usr/local/bin/sdm-do-apps-defers
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	systemctl -q enable sdm-do-apps-defers
+	cat > /usr/local/bin/sdm-do-apps-defers <<'EOF'
+#!/bin/bash
+#
+# Process apps plugin deferred app installs
+#
+source /etc/sdm/sdm-readparams
+
+assetdir=/etc/sdm/assets/apps
+sdatefmt="%Y-%m-%d-%H:%M:%S.%N"
+
+if compgen -G "$assetdir/*-defers" >/dev/null
+then
+    for fn in $assetdir/*-defers
+    do
+        name=$(basename $fn)
+        name=${name%-*}
+        read svapps < $fn
+        doinstalls "$svapps" "[$name] Application Installs"
+        fd=$(date -d "$(stat --printf "%y" $assetdir/$name-defers)" +$sdatefmt)
+        logtoboth "> Plugin apps: Save completed 'defers' list '$name-defers' as '$name-defers-$fd'"
+        mv $assetdir/$name-defers $assetdir/$name-defers-$fd
+    done
+fi
+EOF
+    chmod 755 /usr/local/bin/sdm-do-apps-defers
+    fi
+}
+
+function deferqemu() {
+    [ -f $assetdir/qemu.user.static-defers ] || echo "qemu-user-static" > $assetdir/qemu.user.static-defers
+}
+
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
@@ -18,7 +73,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|apps|name|remove|"
+vldargs="|apps|name|remove|defer|"
 rqdargs=""
 assetdir="$SDMPT/etc/sdm/assets/apps"
 sdatefmt="%Y-%m-%d-%H:%M:%S.%N"
@@ -29,17 +84,17 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 0"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    mkdir -p $assetdir
     #
     # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
     #
     plugin_printkeys
 
-    if [[ "$apps" == "" ]] && [[ "$remove" == "" ]]
+    if [[ "$apps" == "" ]] && [[ "$remove" == "" ]] && [[ "$defer" == "" ]]
     then
-	logtobothex "? Plugin $pfx: Neither 'apps' nor 'remove' specified; Nothing to do"
+	logtobothex "? Plugin $pfx: One of 'apps', 'defer', or 'remove' must be specified"
     fi
     [ "$name" == "" ] && name="default"
-    mkdir -p $assetdir
     if [ "$apps" != "" ]
     then
         appfile=$(findappfile "$apps")
@@ -71,6 +126,22 @@ then
 	fi
 	echo "$removes" >| $assetdir/$name-removes
         logtoboth "> Plugin $pfx [$name]: Saved 'remove' list: $removes"
+    fi
+    if [ "$defer" != "" ]
+    then
+        deferfile=$(findappfile "$defer")
+        exitiferr "$deferfile"
+	defers=$(getapplist "$deferfile")
+	if [ -f $assetdir/$name-defers ]
+	then
+	    read oapps < $assetdir/$name-defers
+	    defers="$oapps $defers"
+	    fd=$(date -d "$(stat --printf "%y" $assetdir/$name-defers)" +$sdatefmt)
+	    logtoboth "> Plugin $pfx: Save prior 'defer' list '$name-defers' as '$name-defers-$fd'"
+	    mv $assetdir/$name-defers $assetdir/$name-defers-$fd
+	fi
+	echo "$defers" >| $assetdir/$name-defers
+        logtoboth "> Plugin $pfx [$name]: Saved 'defer' list: $defers"
     fi
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
@@ -110,6 +181,7 @@ then
 	if [[ "$virtmode" == "chroot" ]] && [[ "$svapps" =~ "qemu-user-static" ]]
 	then
             svapps=${svapps/qemu-user-static}
+	    logtoboth "> Plugin $pfx: Defer install of qemu-user-static to sdm FirstBoot per --chroot"
             deferqemu
 	fi
 	doinstalls "$svapps" "[$name] Application Installs" || exit $?
@@ -117,6 +189,7 @@ then
 	logtoboth "> Plugin $pfx: Save completed 'apps' list '$name' as '$name-$fd'"
 	mv $assetdir/$name $assetdir/$name-$fd
     fi
+    [ "$(compgen -G "$assetdir/*-defers" 2>/dev/null)" != "" ] && writedefersvc
 
     logfreespace "at end of $pfx [$name] Phase 1"
     logtoboth "* Plugin $pfx: Complete Phase 1"
