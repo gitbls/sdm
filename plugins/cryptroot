@@ -76,7 +76,7 @@ then
     converty
     [ "$mapper" == "" ] && mapper="cryptroot"
     [ "$crypto" == "" ] && xcrypto="aes" || xcrypto=$crypto
-    logtoboth "> Plugin $pfx: Copy sdm-cryptconfig and sdmcryptfs to /usr/local/bin"
+    logtoboth "> Plugin $pfx: Copy sdm-cryptconfig and sdmcryptfs to /usr/local/bin from '$src'"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
     # These are only for tracking, not used by sdm-cryptconfig
@@ -117,6 +117,7 @@ After=multi-user.target
 
 [Service]
 Type=simple
+ExecStartPre=/bin/touch /etc/sdm/control/rootfs-encryption
 ExecStart=/usr/local/bin/sdm-cryptconfig --sdm $osw --reboot
 #ExecStart=/usr/local/bin/sdm-cryptconfig --sdm $osw
 
