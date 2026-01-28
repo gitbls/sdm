@@ -538,6 +538,8 @@ systemctl daemon-reload
 
 wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
 
+rm -f /etc/sdm/control/rootfs-encryption
+
 if grep -q -s xnolastrb:0 /etc/sdmcryptctl
 then
     secs=5
@@ -635,23 +637,23 @@ trydisks()
 	    usbdevice=$(readlink -f $usbpartition)
 	    if mount -t vfat $usbdevice /mnt 2>/dev/null
 	    then
-		echo "> Mounted disk $usbdevice" >/dev/console
+		#echo "> Mounted disk $usbdevice" >/dev/console
 		if [ -e /mnt/$kfn ]
 		then
-		    echo "> Found Key file '$kfn'" >/dev/console
+		    #echo "> Found Key file '$kfn'" >/dev/console
 		    echo "> Unlocking rootfs" >/dev/console
 		    cat /mnt/$kfn   #cat to sdmluksunlock caller for unlock
 		    umount $usbdevice >/dev/null 2>&1 || continue
-		    echo "> sdmluksunlock: Kill askpass; Ignore 'Killed' message" >/dev/console
+		    #echo "> sdmluksunlock: Kill askpass; Ignore 'Killed' message" >/dev/console
 		    aps=$(ps e | grep askpass | grep -v grep | awk '{print $1}')
 		    [ "$aps" != "" ] && kill -KILL $aps >/dev/null 2>/dev/null
 		    exit
 		else
-		    echo "% sdmluksunlock: Key '${kfn%.lek}' not found on this disk" >/dev/console
+		    #echo "% sdmluksunlock: Key '${kfn%.lek}' not found on this disk" >/dev/console
 		    umount $usbdevice >/dev/null 2>&1 || continue
 		fi
 	    else
-                echo "% sdmluksunlock: This disk does not have a vfat partition" >/dev/console
+                #echo "% sdmluksunlock: This disk does not have a vfat partition" >/dev/console
 		umount $usbdevice >/dev/null 2>&1 || continue
 	    fi
 	done < <(compgen -G "/dev/disk/by-id/usb-*-part1")
@@ -680,6 +682,7 @@ then
     fi
 fi
 
+echo "" >/dev/console
 echo "" >/dev/console
 /lib/cryptsetup/askpass "Insert USB Keyfile Disk or type passphrase then press ENTER:"
 aps=$(ps e | grep trydisks | grep -v grep | awk '{print $1}')
@@ -812,7 +815,8 @@ function doupdateconfig() {
 	kfu=",keyscript=/usr/bin/sdmluksunlock"
 	ktries=",tries=$xtries"
     fi
-    echo "$xmapper	$rootfs $kfuuid luks,discard${ktries}${kfu}" >> /etc/crypttab
+    # noauto prevents systemd-cryptsetup from touching it. Only needed for rootfs
+    echo "$xmapper	$rootfs $kfuuid luks,noauto,discard${ktries}${kfu}" >> /etc/crypttab
 }
 
 #
@@ -1001,4 +1005,5 @@ then
     sleep 2
     reboot
 fi
+[ $xsdm -eq 1 ] && echo "sdm-cryptconfig: Complete. Use tty[2-8] if needed" > /dev/console
 exit 0
