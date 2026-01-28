@@ -73,6 +73,11 @@ runoneplugin sdm.phaseops 1 "ops=apt-autoremove,config-firstboot,graphics,ssh,wr
 #
 customizeend="$(getcdate)"
 logtoboth "> Customize elapsed time: $(datediff $customizestart $customizeend)"
+#
+# Set sdm startup-in-progress flag
+#
+touch /etc/sdm/control/sdm-startup
+
 if grep -q ' % ' /etc/sdm/history
 then
     logtoboth ""
