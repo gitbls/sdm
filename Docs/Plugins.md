@@ -346,7 +346,7 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 * **cryptname** &mdash; The encrypted mapped device name (must be unique for each encrypted partition)
 * **fslabel** &mdash; File system label for the created file system
 * **fstype** &mdash; File system type. `ext4` [Default] and `btrfs` are valid
-* **keydisk-partuuid** &mdash; The PARTUUID for the USB keydisk. Required if `keyfile-location` is `usb`
+* **keydisk-id** &mdash; The identifier for the USB keydisk. Can be LABEL=thelabel or PARTUUID=thepartuuid for the USB keydisk. Required if `keyfile-location` is `usb`. `sdm-make-luks-key can be used to create a key disk with a specified label.
 * **keyfile** &mdash; /path/to/keyfile
 * **keyfile-location** &mdash; Valid locations are `usb` (on a USB disk) or `root` (in /root)
 * **mountpoint** &mdash; /path/to/directory for the partition mount point. If not specified, it will not be configured
@@ -358,6 +358,8 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 `cryptname`, `fstype`, and `partname` arguments are required. if `nonint` is specified, one of `keyfile` or `passphrase` is required.
 
 #### Examples
+
+* ` --plugin cryptpart:"nopwd|cryptname=datapart|fstype=ext4|keyfile=/root/521f4471-8fa2-4ac3-ab96-6e5f00f67291.lek|mountpoint=/foo|partname=/dev/sda3|keyfile-location=usb|keydisk-id=LABEL=MYLABEL|nonint"` &mdash; Encrypt partition /dev/sda3 using the specified keyfile. The partition will be mounted on `/foo`. During boot the system will look for the keyfile on a USB disk with the label MYLABEL.
 
 ### cryptroot
 
