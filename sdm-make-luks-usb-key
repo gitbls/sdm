@@ -25,25 +25,139 @@ function pmsg() {
     echo "$1"
 }
 
+function initdisk() {
+    #
+    # Delete all partitions on $dev and create new
+    #
+    local dev=$1
+    local fatstart=2048s fatend=73728s extstart=73728s extend=200706s
+
+    pmsg "> Initialize disk $dev for use as USB key disk"
+    sgdisk --zap-all $dev >/dev/null 2>&1
+    errifrc $? "? Error zapping all partitions on $dev"
+
+    if [ $xmbr -eq 1 ]
+    then
+	pmsg "> Format disk $dev as MBR"
+	pmsg "label:dos" | sfdisk --force $dev >/dev/null 2>&1
+	errifrc $? "? Error creating label on $dev"
+
+	if [ $xfat -eq 0 ]
+	then
+	    pmsg "> Create ext4 partition on $dev"
+	    parted -s $dev mkpart primary ext4 ${fatstart} ${fatend}
+	    errifrc $? "? Error creating ext4 partition on $dev"
+	else
+	    pmsg "> Create FAT32 partition on $dev"
+	    parted -s $dev mkpart primary fat32 ${fatstart} ${fatend}
+	    errifrc $? "? Error creating FAT32 partition on $dev"
+	fi
+        if [ $xpart2 -eq 1 ]
+        then
+            pmsg "> Create second partition on $dev"
+            parted -s $dev mkpart primary ext4 $extstart $extend
+            errifrc $? "? Error creating ext4 partition on $dev"
+        fi
+    else
+        pmsg "> Format disk $dev as GPT"
+        parted -s $dev mklabel gpt
+        errifrc $? "? Error creating label on $dev"
+
+	if [ $xfat -eq 0 ]
+	then
+	    pmsg "> Create ext4 partition on $dev"
+            sgdisk --new 1:$fatstart:$fatend $dev >/dev/null
+            errifrc $? "? Error creating ext4 partition on $dev"
+            sgdisk --typecode 1:8300 $dev >/dev/null              #8300: Linux filesystem
+            errifrc $? "? Error modifying partition 1 type on $dev"
+	else
+	    pmsg "> Create FAT32 partition on $dev"
+            sgdisk --new 1:$fatstart:$fatend $dev >/dev/null
+            errifrc $? "? Error creating FAT32 partition on $dev"
+	    [ $xhidden -eq 1 ] && tc=ef00 || tc=0700              #ef00: EFI, not visible on Windows
+            sgdisk --typecode 1:$tc $dev >/dev/null
+            errifrc $? "? Error modifying partition 1 type on $dev"
+	fi
+	if [ $xpart2 -eq 1 ]
+	then
+            pmsg "> Create second partition on $dev"
+            sgdisk --new 2:$extstart:$extend $dev >/dev/null
+            errifrc $? "? Error creating root partition on $dev"
+            sgdisk --typecode 2:8300 $dev >/dev/null
+            errifrc $? "? Error modifying partition 2 type on $dev"
+	fi
+    fi
+    partprobe
+    if [ $xfat -eq 0 ]
+    then
+	pmsg "> Format ext4 file system on the first partition"
+	mkfs.ext4 -F $(getspname $dev 1) >/dev/null 2>&1
+	errifrc $? "? Error formatting FAT32 file system on $dev"
+    else
+	pmsg "> Format FAT32 file system on the first partition"
+	mkfs.vfat -F 32 $(getspname $dev 1) >/dev/null 2>&1
+	errifrc $? "? Error formatting FAT32 file system on $dev"
+    fi
+
+    if [ $xpart2 -eq 1 ]
+    then
+	# add 2nd partition with an ext4 filesystem
+	pmsg "> Add part2 partition"
+	pmsg "> Format ext4 file system on the second partition"
+	mkfs.ext4 -F $(getspname $dev 2) >/dev/null 2>&1
+	errifrc $? "? Error formatting part2 file system on $dev"
+    fi
+}
+
+function genkeyfile() {
+    local lukskey=$(uuid -v4)
+
+    xkeyfile="/root/$lukskey.lek"
+    pmsg "> Create LUKS encryption key file '$xkeyfile'"
+    dd if=/dev/urandom bs=1 count=256 of=$xkeyfile >/dev/null 2>&1
+    chmod 600 $xkeyfile
+}
+
+function writekf2disk() {
+    #
+    # copy the .lek file to the USB disk
+    #
+    local dev=$1
+    pmsg "> Copy LUKS key '$xkeyfile' to the keyfile disk"
+    mount -v $(getspname $dev 1) /mnt
+    cp $xkeyfile /mnt
+    if [ "$xhostname" != "" ]
+    then
+	[ -f /mnt/hostkeys.txt ] || printf "%-24s %s\n" "Hostname" "LUKS Key UUID" >> /mnt/hostkeys.txt
+	printf "%-24s %s\n" "$xhostname" "$lukskey" >> /mnt/hostkeys.txt
+    fi
+    umount -v /mnt
+}
+
 function printhelp() {
     echo $"
 Usage: sudo sdm-make-luks-usb-key /dev/sdX [--switches]
 
 Switches (all are optional)
-* --ext4 -- If specified, also create a small second partition formatted as ext4
-* --hidden -- If specified, create a GPT formatted disk and tag the partition as EFI
-  It will not be readable on Windows. Requires --init
-* --hostname <hostname> -- If specified, the file hostname.txt is updated with hostname and LUKS key UUID
-* --init or --initialize -- Format the USB device
-  If not specified, the specified or newly-created LUKS key will be added to the USB device
-* --keyfile /path/to/keyfile -- If specified, add the keyfile to the LUKS keydisk
-  If not specified a new keyfile will be generated
+* --fat                       If specified use a FAT32 partition; default is ext4
+* --hidden                    If specified, create a GPT formatted disk and tag the partition as EFI
+                                Disk will not be readable on Windows. Requires --init
+* --hostname <hostname>       If specified, the file hostname.txt is updated with hostname and LUKS key UUID
+* --init or --initialize      Format the USB device
+                                If not specified, the keyfile will be added to the USB device
+* --keyfile /path/to/keyfile  If specified, add the keyfile to the LUKS keydisk
+                                A new keyfile will be generated if not specified
+* --label                     Value will be used for the partition label
+* --mbr                       Create an MBR partition table rather than default GPT
+* --nodisk                    Create a new keyfile but don't write to disk
+* --part2                     Add a second ext4 partition
+* --noretain                  Do not retain the keyfile in /root
 "
 }
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="ext4,h,help,hidden,hostname:,init,initialize,keyfile:"
+    local longopts="fat,h,help,hidden,hostname:,init,initialize,keyfile:,label:,nodisk,noretain"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -52,33 +166,22 @@ function parsecmd() {
     do
 	case "${1,,}" in
 	    # 'shift 2' if switch has argument, else just 'shift'
-	    --ext4) xext4=1                  ; shift 1 ;;
-	    --hidden) xhidden=1              ; shift 1 ;;
-	    --hostname) xhostname="$2"       ; shift 2 ;;
-	    --keyfile) xkeyfile="$2"         ; shift 2 ;;
-	    --init|--initialize) xinit=1     ; shift 1 ;;
-	    --)                                shift ; break ;;
-	    -h|--help) printhelp             ; shift ; exit ;;
+	    --fat)               xfat=1         ; shift 1 ;;
+	    --hidden)            xhidden=1      ; shift 1 ;;
+	    --hostname)          xhostname="$2" ; shift 2 ;;
+	    --keyfile)           xkeyfile="$2"  ; shift 2 ;;
+	    --init|--initialize) xinit=1        ; shift 1 ;;
+	    --)                                   shift ; break ;;
+	    -h|--help)           printhelp      ; shift ; exit ;;
+	    --label)             xlabel="$2"    ; shift 2 ;;
+	    --mbr)               xmbr=1         ; shift 1 ;;
+	    --nodisk)            xnodisk=1      ; shift 1 ;;
+	    --part2)             xpart2=1       ; shift 1 ;;
+	    --noretain)          xnoretain=1    ; shift 1 ;;
 	    *) errexit "? $0: Internal error" ;;
 	esac
     done
     [[ $xhidden -eq 1 ]] && [[ $xinit -eq 0 ]] && errexit "? --hidden requires --init"
-}
-
-function checkusbkey() {
-    #
-    # Ensure that the USB disk has a FAT32 partition 1
-    #
-    local pn pstart pend psize pfs rest
-    while read line
-    do
-	IFS=":" read pn pstart pend psize pfs rest <<< "$line"
-	if [ "$pn" == "1" ]
-	then
-	    [[ "${pfs,,}" == "fat32" ]] || [[ "$pfs" == "EFI" ]] && return 0
-	fi
-    done < <(parted -ms $dev unit s print)
-    return 1
 }
 
 #
@@ -88,107 +191,52 @@ function checkusbkey() {
 [[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 
 dev=$1
-xext4=0
+xfat=0
 xhidden=0
 xhostname=""
-xkeyfile=""
 xinit=0
+xkeyfile=""
+xmbr=0
+xnodisk=0
+xpart2=0
+xnoretain=0
 
 parsecmd $0 "$*"
+if [ $xnodisk -eq 0 ]
+then
+    [ "$dev" == "" ] && errexit "Usage: sudo sdm-make-luks-usb-key /dev/sdX [switches]"
+    [ -b $dev ] || errexit "? $dev is not a block device"
+    sfdisk -l $dev >/dev/null 2>/dev/null || errexit "? No disk in $dev"
+fi
 
-[ "$dev" == "" ] && errexit "Usage: sudo sdm-make-luks-usb-key /dev/sdX"
-[ -b $dev ] || errexit "? $dev is not a block device"
-sfdisk -l $dev >/dev/null 2>/dev/null || errexit "? No disk in $dev"
 if [ "$xkeyfile" != "" ]
 then
     [ -f $xkeyfile ] || errexit "? Keyfile '$xkeyfile' not found"
 fi
 
-if [ $xinit -eq 1 ]
+[ "$xkeyfile" == "" ] && genkeyfile
+
+if [ $xnodisk -eq 0 ]
 then
-    #
-    # Delete all partitions on $dev and create a single fat32
-    #
-    fatstart=2048s
-    fatend=67584s
-    extstart=69632s
-    extend=200706s
-
-    pmsg "> Initialize disk $dev for use as USB key disk"
-    sgdisk --zap-all $dev >/dev/null 2>&1
-    errifrc $? "? Error zapping all partitions on $dev"
-
-    if [ $xhidden -eq 0 ]
+    [ $xinit -eq 1 ] && initdisk $dev
+    writekf2disk $dev  # copy the .lek file to the USB disk
+    if [ $xnoretain -eq 1 ]
     then
-	pmsg "> Write DOS label on $dev"
-	pmsg "label:dos" | sfdisk --force $dev >/dev/null 2>&1
-	errifrc $? "? Error creating label on $dev"
-
-	pmsg "> Create FAT32 partition on $dev"
-	parted -s $dev mkpart primary fat32 ${fatstart} ${fatend}
-	errifrc $? "? Error creating FAT32 partition on $dev"
-
-	if [ $xext4 -eq 1 ]
-	then
-	    pmsg "> Create ext4 partition on $dev"
-	    parted -s $dev mkpart primary ext4 $extstart $extend
-	    errifrc $? "? Error creating ext4 partition on $dev"
-	fi
+	pmsg "> Remove keyfile '$xkeyfile' from /root"
+	rm -f $xkeyfile
     else
-        pmsg "> Create GPT partitions on $dev"
-        parted -s $dev mklabel gpt
-        errifrc $? "? Error creating label on $dev"
-
-	pmsg "> Create FAT32 partition on $dev"
-        sgdisk --new 1:$fatstart:$fatend $dev >/dev/null
-        errifrc $? "? Error creating FAT32 partition on $dev"
-        sgdisk --typecode 1:ef00 $dev >/dev/null
-        errifrc $? "? Error modifying partition 1 type on $dev"
-
-	if [ $xext4 -eq 1 ]
-	then
-	    pmsg "> Create ext4 partition on $dev"
-            sgdisk --new 2:$extstart:$extend $dev >/dev/null
-            errifrc $? "? Error creating root partition on $dev"
-            sgdisk --typecode 2:8300 $dev >/dev/null
-            errifrc $? "? Error modifying partition 2 type on $dev"
-	fi
+	pmsg "> Retain '$xkeyfile' per --retain"
     fi
-    partprobe
-    pmsg "> Format FAT32 file system on the first partition"
-    mkfs.vfat -F 32 $(getspname $dev 1) >/dev/null 2>&1
-    errifrc $? "? Error formatting FAT32 file system on $dev"
-    if [ $xext4 -eq 1 ]
-    then
-	pmsg "> Format ext4 file system on the second partition"
-	mkfs.ext4 -F $(getspname $dev 2) >/dev/null 2>&1
-	errifrc $? "? Error formatting ext4 file system on $dev"
-    fi
-else
-    checkusbkey $dev || errexit "? Device '$dev' not configured for USB disk; Consider using --init"
+
 fi
-if [ "$xkeyfile" == "" ]
+
+if [ $xnodisk -eq 0 ]
 then
-    lukskey=$(uuid -v4)
-    xkeyfile="/root/$lukskey.lek"
-    pmsg "> Create LUKS encryption key file '$xkeyfile'"
-    dd if=/dev/urandom bs=1 count=256 of=$xkeyfile >/dev/null 2>&1
-fi
-#
-# copy the .lek file to the USB disk
-#
-pmsg "> Copy LUKS key '$xkeyfile' to the FAT32 partition"
-mount -v $(getspname $dev 1) /mnt
-cp $xkeyfile /mnt
-if [ "$xhostname" != "" ]
-then
-    [ -f /mnt/hostkeys.txt ] || printf "%-24s %s\n" "Hostname" "LUKS Key UUID" >> /mnt/hostkeys.txt
-    printf "%-24s %s\n" "$xhostname" "$lukskey" >> /mnt/hostkeys.txt
-fi
-umount -v /mnt
-echo $"
+    slabel="|label=$xlabel"
+    echo $"
 > LUKS USB key disk is ready
   For sdm-cryptconfig use:  --keyfile $xkeyfile
+  For cryptpart plugin use: keyfile=${xkeyfile}$slabel
   For cryptroot plugin use: keyfile=$xkeyfile
   For sdm-add-luks-key use: /usr/local/sdm/sdm-add-luks-key $xkeyfile
 
@@ -198,4 +246,5 @@ echo $"
   You need to have the key accessible when you customize or configure a disk using the key
   for an encrypted rootfs using sdm-cryptconfig, the cryptroot plugin, or sdm-add-luks-key
 "
+fi
 exit 0
