@@ -462,7 +462,6 @@ function loginfo() {
     local logsub="$1" cmdline="$2" dimg="$3" mods="$4"
     local pimodel memline memsize os_name os_version os_codename os_like hostarch raspiosver
 
-    echo "logsub|$logsub| dimg:|$dimg| mods:|$mods| cmdline:|$cmdline|" >> x.out
     [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
     if [ -e /proc/meminfo ]
     then
