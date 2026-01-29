@@ -201,13 +201,31 @@ function wipescratch() {
 function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev 2)
+    local scpart=$(getpartname $sdisk 1)
+    local partend fullblocks remainder
+
     local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
+    pmsg "Create file system on '$sdisk'"
+    parted -s $sdisk mklabel gpt
+    partend=$(((partsize*8)+2048))
+    sgdisk --new 1:2048:$partend $sdisk >/dev/null
+    sgdisk --typecode 1:8300 $sdisk
+    mke2fs -F $scpart >/dev/null || exit 1
+    mkdir -p /mnt
+    mount $scpart /mnt
     pmsg "Save rootfs '$rootfs' to '$sdisk'"
     pgb=$((partsize/262144))
     pmsg "rootfs save should take less than $pgb minutes"
     starttime="$(getcbbdate)"
-    dd bs=4k count=$partsize if=$rootfs of=$sdisk
+    #dd bs=4k count=$partsize if=$rootfs of=$sdisk
+    fullblocks=$((partsize/4096))   #1M blocks
+    remainder=$((partsize % 4096))  #   remainder bits
+    dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /mnt/encrypted-rootfs.lz4
+    if [ $remainder -ne 0 ]
+    then
+	dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /mnt/encrypted-rootfs.lz4
+    fi
     pmsg "rootfs Save elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     return 0
 }
@@ -276,7 +294,7 @@ function cryptpart() {
     then
 	while [ 0 ]
 	do
-	    cryptsetup luksFormat --type luks2 $rootfs $(find_keyfile)
+	    printf "YES\n" | cryptsetup luksFormat --type luks2 $rootfs $(find_keyfile)
 	    sts=$?
 	    [ $sts -eq 0 ] && break
 	    cpoptions $sts || { pmsg "Exit sdmcryptfs" ; exit 1 ; }
@@ -326,9 +344,11 @@ function restore_rootfs() {
     pgb=$((partsize/262144))
     pmsg "rootfs restore should take less than $pgb minutes"
     starttime="$(getcbbdate)"
-    dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
+    #dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
+    dd bs=16M if=/mnt/encrypted-rootfs.lz4 | lz4 -d --fast=5 | dd of=/dev/mapper/$cryptdevice bs=16M
     pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     pmsg "Restore complete"
+    umount /mnt >/dev/null 2>&1
     case  "$fstype"
     in
 	ext4)
@@ -364,16 +384,20 @@ function runall() {
     save_rootfs $dev $sdisk $partsize || return 1
     if grep -q -s xnoexpand:0 /etc/sdmcryptctl
     then
+	# Want to expand the partition
 	IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit s print | tail -n 1)
 	if [ "$zpartnum" == "2" ]
 	then
+	    # Last partition on the disk so take it all
 	    pmsg "Expand rootfs partition with expandpartition"
 	    expandpartition $dev 0 pmsg $fstype
 	else
+	    # Partition following rootfs so can expand up to it's start -1
 	    IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit s print | grep ^3:)
 	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
 	    newend=$((${zpartstart%s}-1))
-	    parted -m $dev u s resizepart 2 $newend
+	    pmsg "Expand rootfs partition from ${rpartend%s} to $((${zpartstart%s}-1)) (increase by $((${zpartstart%s}-${rpartend%s}-1)))"
+	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed"
 	fi
     else
 	if [ "$fstype" == "btrfs" ]
@@ -382,7 +406,7 @@ function runall() {
 	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
 	    newend=$((${rpartend%s}+65535))
 	    pmsg "Do minimal rootfs expansion so btrfs and LUKS header both fit"
-	    parted -m $dev u s resizepart 2 $newend
+	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed"
 	fi
     fi
     cryptpart $dev || return 1

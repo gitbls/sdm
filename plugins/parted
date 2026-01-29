@@ -320,9 +320,10 @@ function makepartition() {
     then
 	if [ "$rexpand" != "" ]
 	then
-	    write_burnmsg "> Plugin $pfx: Leave $rexpand 4K blocks for deferred rootfs expansion"
+	    rexpand=$((rexpand*2048)) #MB to sectors
+	    write_burnmsg "> Plugin $pfx: Leave ${rexpand}s for deferred rootfs expansion"
 	else
-	    [[ "$rootfstype" == "btrfs" ]] && rexpand=65536 && write_burnmsg "> Plugin $pfx: Leave minimal $rexpand 4K blocks for deferred rootfs expansion"
+	    [[ "$rootfstype" == "btrfs" ]] && rexpand=65536 && write_burnmsg "> Plugin $pfx: Leave minimal ${rexpand}s for deferred rootfs expansion"
 	fi
 	free_space_start=$((free_space_start+rexpand))
     fi

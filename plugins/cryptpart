@@ -35,7 +35,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|burndev|burnfilefile|cryptname|fslabel|fstype|keydisk-partuuid|keyfile|keyfile-location|mountpoint|nonint|nopwd|partname|passphrase|"
+vldargs="|burndev|burnfilefile|cryptname|fslabel|fstype|keydisk-id|keyfile|keyfile-location|mountpoint|nonint|nopwd|partname|passphrase|"
 rqdargs="|cryptname|fstype|partname|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -57,7 +57,7 @@ then
     [ -v nonint ] && [ "$keyfile" == "" ] && [ "$passphrase" == "" ] && logtobothex "? Plugin $pfx: 'nonint' requires 'keyfile' or 'passphrase'"
     if [ "${keyfile__location,,}" == "usb" ]
     then
-	[ "$keydisk__partuuid" == "" ] && logtobothex "keyfile-location=usb requires keydisk-partuuid (the PARTUUID of the vfat partition on the USB disk)"
+	[ "$keydisk__id" == "" ] && logtobothex "keyfile-location=usb requires keydisk-id"
     fi
     if [ -v keyfile ]
     then
@@ -210,7 +210,7 @@ DefaultDependencies=no
 Before=cryptsetup.target
 
 [Mount]
-What=PARTUUID=$keydisk__partuuid
+What=$keydisk__id
 Where=/mnt/$dirname
 Options=ro
 

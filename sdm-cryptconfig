@@ -485,7 +485,7 @@ echolog "sdm-cryptfs-cleanup: Starting; System will restart automatically when c
 echolog "sdm-cryptfs-cleanup: Clean up initramfs content"
 mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-hooks.old
 # Leave bash in initramfs as required by sdmluksunlock
-grep -v -E "sdmcryptfs|mapper|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
+grep -v -E "sdmcryptfs|mapper|lz4|sgdisk|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
 grep -q -s xsshbash:0 /etc/sdmcryptctl && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
 rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
@@ -635,7 +635,7 @@ trydisks()
 	while read usbpartition
 	do
 	    usbdevice=$(readlink -f $usbpartition)
-	    if mount -t vfat $usbdevice /mnt 2>/dev/null
+	    if mount $usbdevice /mnt 2>/dev/null
 	    then
 		#echo "> Mounted disk $usbdevice" >/dev/console
 		if [ -e /mnt/$kfn ]
@@ -709,6 +709,8 @@ copy_exec /usr/sbin/cryptsetup /usr/sbin
 copy_exec /usr/bin/bash /usr/bin
 copy_exec /usr/bin/dd /usr/bin
 copy_exec /usr/bin/lsusb /usr/bin
+copy_exec /usr/bin/lz4 /usr/bin
+copy_exec /usr/sbin/sgdisk /usr/sbin
 copy_file text /usr/local/bin/sdmcryptfs /usr/bin
 # OK if this fails; means it was copied due to keyscript in crypttab and copied in /usr/share/initramfs-tools/hooks/cryptroot
 copy_file text /usr/bin/sdmluksunlock || true
@@ -799,6 +801,8 @@ function doupdateconfig() {
     # luks.crypttab prevents systemd-cryptsetup-generator for reading crypttab
     sed -i "s# rw cryptdevice=$rootfs:$xmapper luks.crypttab=no##g" /boot/firmware/cmdline.txt # Delete in case
     sed -i "s#\$# rw cryptdevice=$rootfs:$xmapper luks.crypttab=no#" /boot/firmware/cmdline.txt
+    # mask the service in case other partitions encrypted; this will prevent systemd-cryptsetup errors in journal wrt already-mounted rootfs
+    systemctl -q mask systemd-cryptsetup@$xmapper.service 2>/dev/null
 
     echo "> Updated cmdline:"
     cat /boot/firmware/cmdline.txt
@@ -902,7 +906,7 @@ do
     case "$o" in
 	doapt)
 	    [ $xssh -eq 1 ] && db="dropbear-initramfs dropbear-bin" || db=""
-	    apps="cryptsetup cryptsetup-initramfs cryptsetup-bin $db"
+	    apps="cryptsetup cryptsetup-initramfs cryptsetup-bin lz4 gdisk e2fsprogs $db"
 	    echo "> Install $apps"
 	    if [ $xssh -eq 1 ]
 	    then
