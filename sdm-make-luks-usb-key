@@ -90,12 +90,14 @@ function initdisk() {
     partprobe
     if [ $xfat -eq 0 ]
     then
+	[ "$xlabel" != "" ] && mlabel="-q -L $xlabel"
 	pmsg "> Format ext4 file system on the first partition"
-	mkfs.ext4 -F $(getspname $dev 1) >/dev/null 2>&1
-	errifrc $? "? Error formatting FAT32 file system on $dev"
+	mkfs.ext4 -F $mlabel $(getspname $dev 1) >/dev/null 2>&1
+	errifrc $? "? Error formatting ext4 file system on $dev"
     else
+	[ "$xlabel" != "" ] && mlabel="-n ${xlabel^^}"
 	pmsg "> Format FAT32 file system on the first partition"
-	mkfs.vfat -F 32 $(getspname $dev 1) >/dev/null 2>&1
+	mkfs.vfat -F 32 $mlabel $(getspname $dev 1) >/dev/null 2>&1
 	errifrc $? "? Error formatting FAT32 file system on $dev"
     fi
 
@@ -157,7 +159,7 @@ Switches (all are optional)
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="fat,h,help,hidden,hostname:,init,initialize,keyfile:,label:,nodisk,noretain"
+    local longopts="fat,h,help,hidden,hostname:,init,initialize,keyfile:,label:,mbr,nodisk,noretain"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
