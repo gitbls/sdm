@@ -11,6 +11,16 @@ function errexit() {
 function errifrc() {
     [ $1 -ne 0 ] && errexit "$2 $1"
 }
+
+function askyn() {
+    local ans
+    echo -n "$1" '[y/n]? ' ; read $2 ans
+    case "$ans" in
+        y*|Y*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 function ispdevp() {
     local dev="$1"
     [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme" ]] && return 0 || return 1
@@ -23,6 +33,10 @@ function getspname() {
 
 function pmsg() {
     echo "$1"
+}
+
+function doumount() {
+    grep -q -s /tmp/sdm /proc/mounts && umount /tmp/sdm
 }
 
 function initdisk() {
@@ -38,7 +52,7 @@ function initdisk() {
 
     if [ $xmbr -eq 1 ]
     then
-	pmsg "> Format disk $dev as MBR"
+	pmsg "> Create MBR partition table on $dev"
 	pmsg "label:dos" | sfdisk --force $dev >/dev/null 2>&1
 	errifrc $? "? Error creating label on $dev"
 
@@ -59,7 +73,7 @@ function initdisk() {
             errifrc $? "? Error creating ext4 partition on $dev"
         fi
     else
-        pmsg "> Format disk $dev as GPT"
+	pmsg "> Create GPT partition table on $dev"
         parted -s $dev mklabel gpt
         errifrc $? "? Error creating label on $dev"
 
@@ -115,7 +129,7 @@ function genkeyfile() {
     local lukskey=$(uuid -v4)
 
     xkeyfile="/root/$lukskey.lek"
-    pmsg "> Create LUKS encryption key file '$xkeyfile'"
+    pmsg "> Create LUKS encryption keyfile '$xkeyfile'"
     dd if=/dev/urandom bs=1 count=256 of=$xkeyfile >/dev/null 2>&1
     chmod 600 $xkeyfile
 }
@@ -125,15 +139,15 @@ function writekf2disk() {
     # copy the .lek file to the USB disk
     #
     local dev=$1
-    pmsg "> Copy LUKS key '$xkeyfile' to the keyfile disk"
-    mount -v $(getspname $dev 1) /mnt
-    cp $xkeyfile /mnt
+    pmsg "> Copy LUKS keyfile '$xkeyfile' to the keyfile disk"
+    mount $(getspname $dev 1) /tmp/sdm
+    cp $xkeyfile /tmp/sdm
     if [ "$xhostname" != "" ]
     then
-	[ -f /mnt/hostkeys.txt ] || printf "%-24s %s\n" "Hostname" "LUKS Key UUID" >> /mnt/hostkeys.txt
-	printf "%-24s %s\n" "$xhostname" "$lukskey" >> /mnt/hostkeys.txt
+	[ -f /tmp/sdm/hostkeys.txt ] || printf "%-24s %s\n" "Hostname" "LUKS Key UUID" >> /tmp/sdm/hostkeys.txt
+	printf "%-24s %s\n" "$xhostname" "$lukskey" >> /tmp/sdm/hostkeys.txt
     fi
-    umount -v /mnt
+    doumount
 }
 
 function printhelp() {
@@ -159,7 +173,7 @@ Switches (all are optional)
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="fat,h,help,hidden,hostname:,init,initialize,keyfile:,label:,mbr,nodisk,noretain"
+    local longopts="fat,force,h,help,hidden,hostname:,init,initialize,keyfile:,label:,mbr,nodisk,noretain"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- $args)
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -169,17 +183,18 @@ function parsecmd() {
 	case "${1,,}" in
 	    # 'shift 2' if switch has argument, else just 'shift'
 	    --fat)               xfat=1         ; shift 1 ;;
+	    --force)             xforce=1       ; shift 1 ;;
 	    --hidden)            xhidden=1      ; shift 1 ;;
 	    --hostname)          xhostname="$2" ; shift 2 ;;
-	    --keyfile)           xkeyfile="$2"  ; shift 2 ;;
 	    --init|--initialize) xinit=1        ; shift 1 ;;
-	    --)                                   shift ; break ;;
-	    -h|--help)           printhelp      ; shift ; exit ;;
+	    --keyfile)           xkeyfile="$2"  ; shift 2 ;;
 	    --label)             xlabel="$2"    ; shift 2 ;;
 	    --mbr)               xmbr=1         ; shift 1 ;;
 	    --nodisk)            xnodisk=1      ; shift 1 ;;
-	    --part2)             xpart2=1       ; shift 1 ;;
 	    --noretain)          xnoretain=1    ; shift 1 ;;
+	    --part2)             xpart2=1       ; shift 1 ;;
+	    --)                                   shift ; break ;;
+	    -h|--help)           printhelp      ; shift ; exit ;;
 	    *) errexit "? $0: Internal error" ;;
 	esac
     done
@@ -194,6 +209,7 @@ function parsecmd() {
 
 dev=$1
 xfat=0
+xforce=0
 xhidden=0
 xhostname=""
 xinit=0
@@ -216,36 +232,61 @@ then
     [ -f $xkeyfile ] || errexit "? Keyfile '$xkeyfile' not found"
 fi
 
+mkdir -p /tmp/sdm
+
 [ "$xkeyfile" == "" ] && genkeyfile
 
 if [ $xnodisk -eq 0 ]
 then
-    [ $xinit -eq 1 ] && initdisk $dev
-    writekf2disk $dev  # copy the .lek file to the USB disk
-    if [ $xnoretain -eq 1 ]
+    if [ $xinit -eq 1 ]
     then
-	pmsg "> Remove keyfile '$xkeyfile' from /root"
-	rm -f $xkeyfile
+	# Check for any files on the first partition
+	if [ $xforce -eq 0 ]
+	then
+	    if mount $(getspname $dev 1) /tmp/sdm
+	    then
+		if compgen -G "/tmp/sdm/*.lek" >/dev/null
+		then
+		    doumount
+		    askyn "There are keyfiles on '$(getspname $dev 1)'. Continue" || errexit "? Exit per user request"
+		fi
+		doumount
+	    fi
+	fi
+	initdisk $dev
+    fi
+    writekf2disk $dev  # copy the .lek file to the USB disk
+    if [ $xnoretain -eq 0 ]
+    then
+	pmsg "> Keyfile '$xkeyfile' retained"
     else
-	pmsg "> Retain '$xkeyfile' per --retain"
+	pmsg "> Remove keyfile '$xkeyfile' per --noretain"
+	rm -f $xkeyfile
     fi
 
 fi
 
+[ $xnoretain -eq 0 ] && keyfilefn=$xkeyfile || keyfilefn=$(basename $xkeyfile)
 if [ $xnodisk -eq 0 ]
 then
-    slabel="|label=$xlabel"
+    slabel="|keydisk-id=LABEL=$xlabel"
     echo $"
 > LUKS USB key disk is ready
-  For sdm-cryptconfig use:  --keyfile $xkeyfile
-  For cryptpart plugin use: keyfile=${xkeyfile}$slabel
-  For cryptroot plugin use: keyfile=$xkeyfile
-  For sdm-add-luks-key use: /usr/local/sdm/sdm-add-luks-key $xkeyfile
+  For sdm-cryptconfig use:  --keyfile $keyfilefn
+  For cryptpart plugin use: keyfile=${keyfilefn}$slabel
+  For cryptroot plugin use: keyfile=$keyfilefn
+  For sdm-add-luks-key use: /usr/local/sdm/sdm-add-luks-key $keyfilefn
+"
+    if [ $xnoretain -eq 1 ]
+    then
+	echo $"
+  You specified --noretain so you must provide the path to the keyfile in the above
+"
+    fi
+    echo $"
+  Save a copy of '$keyfilefn' in a secure backup location
 
-  Save a copy of '$xkeyfile' in a secure backup location
-  Then you can delete '$xkeyfile' if desired
-
-  You need to have the key accessible when you customize or configure a disk using the key
+  You must have the keydisk accessible when you customize or configure a disk using the key
   for an encrypted rootfs using sdm-cryptconfig, the cryptroot plugin, or sdm-add-luks-key
 "
 fi

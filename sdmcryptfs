@@ -202,29 +202,57 @@ function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev 2)
     local scpart=$(getpartname $sdisk 1)
-    local partend fullblocks remainder
+    local partend fullblocks remainder rootfsize mb fram=0
 
     local starttime endtime pbytes pgb
-    checkdev $sdisk || return 1
-    pmsg "Create file system on '$sdisk'"
-    parted -s $sdisk mklabel gpt
-    partend=$(((partsize*8)+2048))
-    sgdisk --new 1:2048:$partend $sdisk >/dev/null
-    sgdisk --typecode 1:8300 $sdisk
-    mke2fs -F $scpart >/dev/null || exit 1
-    mkdir -p /mnt
-    mount $scpart /mnt
-    pmsg "Save rootfs '$rootfs' to '$sdisk'"
+
+    mkdir -p /scratch
+    if [ -f /sys/firmware/devicetree/base/compatible ]
+    then
+	if [[ "$(tr -d '\0' < /sys/firmware/devicetree/base/compatible)" =~ raspberrypi ]]
+	then
+            read junk mb junk < <(grep -i MemTotal /proc/meminfo)
+            rootfsize=$((((partsize/256)*3)/2))    # convert to MB and scale to 1.5X
+            mb=$(((mb/1024)-2))            # Memory size in MB minus a bit
+            if [ $mb -gt $rootfsize ] ##&& [ "$(lsblk --noheadings -o RM $scpart)" == "" ]
+            then
+		#pmsg "Use tmpfs |$rootfsize| |$mb| |$partsize|"
+		mount -t tmpfs -o size=${rootfsize}M tmpfs /scratch
+		pmsg "Save rootfs '$rootfs' to RAM disk"
+		xcompress=0
+	    fi
+	fi
+    fi
+    if ! grep -q -s /scratch /proc/mounts
+    then
+	checkdev $sdisk || return 1
+	pmsg "Create file system on '$sdisk'"
+	parted -s $sdisk mklabel gpt
+	partend=$(((partsize*8)+2048))
+	sgdisk --new 1:2048:$partend $sdisk >/dev/null
+	sgdisk --typecode 1:8300 $sdisk
+	mke2fs -F $scpart >/dev/null || exit 1
+	mount $scpart /scratch
+	pmsg "Save rootfs '$rootfs' to '$sdisk'"
+    fi
     pgb=$((partsize/262144))
     pmsg "rootfs save should take less than $pgb minutes"
     starttime="$(getcbbdate)"
     #dd bs=4k count=$partsize if=$rootfs of=$sdisk
-    fullblocks=$((partsize/4096))   #1M blocks
-    remainder=$((partsize % 4096))  #   remainder bits
-    dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /mnt/encrypted-rootfs.lz4
-    if [ $remainder -ne 0 ]
+    if [ $xcompress -eq 0 ]
     then
-	dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /mnt/encrypted-rootfs.lz4
+	# no compression
+	dd bs=16M count=$partsize if=$rootfs of=/scratch/uncompressed-rootfs.img
+    else
+	# use compression
+	fullblocks=$((partsize/4096))   #1M blocks
+	remainder=$((partsize % 4096))  #   remainder bits
+	#pmsg "D fullblocks:|$fullblocks| remainder:|$remainder|"
+	dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /scratch/compressed-rootfs.lz4
+	if [ $remainder -ne 0 ]
+	then
+	    dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /scratch/compressed-rootfs.lz4
+	fi
     fi
     pmsg "rootfs Save elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     return 0
@@ -345,10 +373,17 @@ function restore_rootfs() {
     pmsg "rootfs restore should take less than $pgb minutes"
     starttime="$(getcbbdate)"
     #dd bs=4k count=$partsize if=$sdisk of=/dev/mapper/$cryptdevice
-    dd bs=16M if=/mnt/encrypted-rootfs.lz4 | lz4 -d --fast=5 | dd of=/dev/mapper/$cryptdevice bs=16M
+    if [ $xcompress -eq 0 ]
+    then
+	echo "dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice"
+	dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice
+    else
+	echo "dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | bs=16M dd of=/dev/mapper/$cryptdevice"
+	dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | dd bs=16M of=/dev/mapper/$cryptdevice
+    fi
     pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     pmsg "Restore complete"
-    umount /mnt >/dev/null 2>&1
+    umount /scratch >/dev/null 2>&1
     case  "$fstype"
     in
 	ext4)
@@ -426,6 +461,9 @@ IFS=":" read lval xcrypto < <(grep xcrypto: /etc/sdmcryptctl)
 
 IFS=":" read lval xnopwd < <(grep xnopwd: /etc/sdmcryptctl)
 [ "$xnopwd" == "" ] && xnopwd=0
+
+IFS=":" read lval xcompress < <(grep xcompress: /etc/sdmcryptctl)
+[ "$xcompress" == "" ] && xcompress=1
 
 partsize=""
 datefmt="%Y-%m-%d %H:%M:%S"

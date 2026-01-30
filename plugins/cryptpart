@@ -238,6 +238,7 @@ EOF
     logtoboth "> Plugin $pfx: Update /etc/crypttab"
     # Use UUID rather than partname in crypttab
     partuuid=$(lsblk -o partuuid --noheadings $partname)
+    [ "$mountpoint" != "" ] && echo "# This V device mounted in /etc/fstab" >> $SDMPT/etc/crypttab
     echo "$cryptname PARTUUID=$partuuid $kfloc luks,discard${opts}" >> $SDMPT/etc/crypttab
     
     # add to fstab
@@ -246,12 +247,14 @@ EOF
 	logtoboth "> Plugin $pfx: Create mountpoint '$mountpoint'"
 	mkdir -p $mountpoint
 	logtoboth "> Plugin $pfx: Update fstab"
+	echo "# Device '/dev/mapper/$cryptname' defined in /etc/crypttab" >> $SDMPT/etc/fstab
 	echo "/dev/mapper/$cryptname  $mountpoint  $fstype  defaults  0  2" >> $SDMPT/etc/fstab
     else
 	logtoboth "> Plugin $pfx: Skip fstab update; no mountpoint specified"
     fi
     if [ "${keyfile__location,,}" == "usb" ]
     then
+	logtoboth "> Plugin $pfx: Ignore non-existent unit 'systemd-cryptsetup@$cryptname.service' message"
 	systemctl daemon-reload
 	systemctl enable $mountsvc.mount $dirname-unmount.service
     fi
