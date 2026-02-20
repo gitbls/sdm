@@ -866,3 +866,159 @@ sdm_shrink() {
     echo "  IMG '$dimg' was $(getgbstr $bsize) now $(getgbstr $asize)"
     return 0
 }
+
+function doextexit() {
+    trap "doextexit" SIGINT
+    docleanup
+    exit
+}
+
+function sdm_do_ext_command() {
+    #
+    # Perform one of the following commands: df|cat|less|ls|rm|journalctl|jc|rmdir
+    #
+    local command="${1,,}" restofline="$2"
+    local extoptions="directory,encrypted"
+
+    IFS=" " read dimg restofline <<< "$restofline"
+    #echo "In sdm_do_ext_command; command:|$command| dimg:|$dimg| restofline:|$restofline|"
+    IFS=" " read arg1 arg2 restofline <<< "$restofline"
+    #echo  "before getopt arg1:|$arg1| arg2:|$arg2| restofline:|$restofline|"
+    # Move this to be done via an envar
+    # Parse the command and switches (--directory, --encrypted)
+
+    OARGS=$(getopt -o h --longoptions $extoptions -n 'sdm' -- "$restofline")
+    [ $? -ne 0 ] && errexit "? Unable to parse command"
+    # Shift away the command and device/IMG
+    eval set -- "$OARGS"
+    while true
+    do
+	case "${1,,}" in
+	    --directory)
+		fdirtree=1
+		;;
+	    --encrypted)
+		fencrypted=1
+		;;
+	    --)
+		shift ; break ;;
+	    -h|--help)   errexit "? Help NYI" ; shift ; exit ;;
+	    *) errexit "? $0: Internal error" ;;
+	esac
+    done
+    #echo "post loop: 1:|$1| 2:|$2| 3:|$3| 4:|$4|"
+    #echo "2:sdm_do_ext_command; command:|$command| dimg:|$dimg| restofline:|$restofline|"
+    #
+    # Figure out the disk/directory/device
+    #
+
+    dimgdevname="IMG"
+    [ "$dimg" == "" ] && errexit "? No disk image specified"
+    dimgdev=0
+    if [ $fdirtree -eq 1 ]
+    then
+	[ ! -d $dimg ] && errexit "? Cannot find directory '$dimg'"
+	dimgdevname="Directory"
+    elif [ ! -f "$dimg" ]
+    then
+	p1=$(getpartname $dimg 1)
+	[ ! -b ${dimg}${p1} ] && errexit "? Disk image file or device '$dimg' does not exist"
+	dimgdev=1
+	dimgdevname="Device"
+    fi
+    if [[ $dimgdev -eq 0 ]] && [[ -f "$dimg" ]]
+    then
+	for fext in xz XZ zip ZIP
+	do
+	    if [ "${dimg%%.$fext}" != "$dimg" ]
+	    then
+		errexit "? File '$dimg' appears to be a ${fext^^} file\n  un${fext,,} it to operate on the IMG contained within it"
+	    fi
+	done
+    fi
+
+    if [ $fencrypted -eq 1 ]
+    then
+	[ "$dimgdevname" != "Device" ] && errexit "? --encrypted only valid on disk devices"
+	[ "$(type -p cryptsetup)" == "" ] && errexit "? Cannot find cryptsetup for --encrypted; Do 'sudo apt install cryptsetup' and rerun sdm"
+    fi
+    #
+    # Process the command
+    #
+    if [ "$arg1" == "" ]
+    then
+	[[ "cleanup|df|get|jc|jca|jcall|journalctl|list-boots|put" =~ $command ]] || errexit "? Missing argument"
+    fi
+    if [ "$arg2" == "" ]
+    then
+	[[ "get|put" =~ $command ]] && errexit "? Missing argument"
+    fi
+    trap "doexit" EXIT
+    echo "> Mount $dimgdevname $dimg"
+    declare -x SDMPT=$(makemtpt)
+    domount "$dimg" $dimgdevname
+    case "$command" in
+	cat)
+	    cat $SDMPT/$arg1
+	    ;;
+	cleanup)
+	    echo "> Will clean up sdm loops and mounts"
+	    ;;
+	df)
+	    df -H | grep -E 'Filesystem|/tmp/sdm'
+	    ;;
+	get)
+	    [ -f $SDMPT/$arg1 ] || errexit "? File '$SDMPT/$arg1' not found"
+	    [ -d $arg2 ] || errexit "? Target directory '$arg2' not found"
+	    echo "> Copy '$SDMPT/$arg1' to '$arg2'"
+	    cp $SDMPT/$arg1 $arg2
+	    sts=$?
+	    [ $? -ne 0 ] && errexit "? Copy failed ($?)"
+	    ;;
+	get-sdm-logs)
+	    ;;
+	journlactl|jc)
+	    journalctl -b --directory $SDMPT/var/log/journal
+	    ;;
+	jcall|jca)
+	    journalctl --directory $SDMPT/var/log/journal
+	    ;;
+	less)
+	    less $SDMPT/$arg1
+	    ;;
+	list-boots)
+	    journalctl --list-boots --directory $SDMPT/var/log/journal
+	    ;;
+	ls)
+	    ls -al $SDMPT/$arg1
+	    ;;
+	put)
+	    [ -f $arg1 ] || errexit "? File '$arg1' not found"
+	    [ -d $SDMPT/$arg2 ] || errexit "? Target directory '$SDMPT/$arg2' not found"
+	    echo "> Copy '$arg1' to '$SDMPT/${arg2#/}'"
+	    cp $arg1 $SDMPT/$arg2
+	    sts=$?
+	    [ $? -ne 0 ] && errexit "? Copy failed ($?)"
+	    ;;
+	rm)
+	    if [ -f $SDMPT/$arg1]
+	    then
+		rm -f $SDMPT/$arg1
+		[ $? -ne 0 ] && errexit "? Remove failed (?$)"
+	    else
+		errexit "? File '$arg1' not found"
+	    fi
+	    ;;
+	rmdir)
+	    if [ -d $SDMPT/$arg1]
+	    then
+		rm -rf $SDMPT/$arg1
+		[ $? -ne 0 ] && errexit "? Remove failed (?$)"
+	    else
+		[ -f $SDMPT/$arg1 ] && errexit "? Directory '$arg1' is a file" || errexit "? Directory '$arg1' not found"
+	    fi
+	    [ -d $SDMPT/$arg1 ] && echo "rm -rf $SDMPT/$arg1" || errexit "% Directory '$arg1' not found"
+	    ;;
+    esac
+    exit
+}
