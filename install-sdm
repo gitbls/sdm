@@ -197,12 +197,12 @@ $sudo apt-get install --yes --no-install-recommends $pkgs
 echo ""
 if [ "$dir" == "/usr/local/sdm" -a "$(type -p sdm)" != "" ]
 then
-    echo "* Invoke sdm with 'sudo sdm'"
+    echo "* Invoke sdm with 'sdm'"
 else
-    echo "* Invoke sdm with 'sudo $dir/sdm'"
+    echo "* Invoke sdm with '$dir/sdm'"
     echo "* You can make an ease-of-use link with: sudo ln -s $dir/sdm /usr/local/bin/sdm"
     echo "    (or anywhere else in your PATH)"
-    echo "  so you can invoke sdm with 'sudo sdm'"
+    echo "  so you can invoke sdm with 'sdm'"
 fi
 
 echo $"
