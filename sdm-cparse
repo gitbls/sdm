@@ -846,8 +846,8 @@ function runplugins_exit() {
 function add_defer_plugin() {
     local plugin="$1"
 
-    mkdir -p $SDMPT/etc/sdm/assets/defer-pluglist
-    echo "$plugin" >> $SDMPT/etc/sdm/assets/defer-pluglist/defer-pluglist
+    mkdir -p $SDMPT/etc/sdm/assets/defer-plugin
+    echo "$plugin" >> $SDMPT/etc/sdm/assets/defer-plugin/defer-pluglist
 }
 
 function live0scripts() {
