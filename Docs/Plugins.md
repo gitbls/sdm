@@ -346,10 +346,11 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 * **cryptname** &mdash; The encrypted mapped device name (must be unique for each encrypted partition)
 * **fslabel** &mdash; File system label for the created file system
 * **fstype** &mdash; File system type. `ext4` [Default] and `btrfs` are valid
-* **keydisk-id** &mdash; The identifier for the USB keydisk. Can be LABEL=thelabel or PARTUUID=thepartuuid for the USB keydisk. Required if `keyfile-location` is `usb`. `sdm-make-luks-key can be used to create a key disk with a specified label.
+* **keydisk-id** &mdash; The identifier for the USB keydisk. Can be LABEL=thelabel or PARTUUID=thepartuuid for the USB keydisk. Required if `keyfile-location` is `usb`. `sdm-make-luks-key` can be used to create a key disk with a specified label.
 * **keyfile** &mdash; /path/to/keyfile
-* **keyfile-location** &mdash; Valid locations are `usb` (on a USB disk) or `root` (in /root)
+* **keyfile-location** &mdash; Valid locations are `usb` (on a USB disk) or `root` (in /root). Default is `root`
 * **mountpoint** &mdash; /path/to/directory for the partition mount point. If not specified, it will not be configured
+* **nocreate** &mdash; Do not encrypt the partition nor make a file system on it. See Notes below.
 * **nonint** &mdash; Perform the encryption non-interactive. Requires `keyfile` or `passphrase`
 * **nopwd** &mdash; Do not add an unlock passphrase. Requires `keyfile`
 * **partname** &mdash; Partition to encrypt [/dev/sdXn, e.g., /dev/sda3]. Required. See <a href="Disk-Encryption.md#encrypting-other-partitions">Encrypting Other Partitions</a> for details.
@@ -360,16 +361,21 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 #### Examples
 
 * ` --plugin cryptpart:"nopwd|cryptname=datapart|fstype=ext4|keyfile=/root/521f4471-8fa2-4ac3-ab96-6e5f00f67291.lek|mountpoint=/foo|partname=/dev/sda3|keyfile-location=usb|keydisk-id=LABEL=MYLABEL|nonint"` &mdash; Encrypt partition /dev/sda3 using the specified keyfile. The partition will be mounted on `/foo`. During boot the system will look for the keyfile on a USB disk with the label MYLABEL.
+* ` --plugin defer-plugin:"cryptpart:nopwd|cryptname=datapart|fstype=ext4|keyfile=/root/521f4471-8fa2-4ac3-ab96-6e5f00f67291.lek|mountpoint=/foo|partname=/dev/sda3|keyfile-location=usb|keydisk-id=LABEL=MYLABEL|nonint"` &mdash; This is an example of using the above `cryptpart` example with the `defer-plugin` in a burn command so that the partition is encrypted *after* the FirstBoot process has completed.
 
 #### Notes
 
+* The `cryptpart` plugin can *only* be run on a live system using `sdm --runonly plugins`. To include it in the burn process use the <a href="Plugins.md#defer-plugin">`defer-plugin` plugin</a>
 * The `cryptpart` plugin can be used such that the entire encryption process is nearly automatic. See <a href="Disk-Encryption#encrypting-other-partitions.md">Disk Encryption</a> for details. When using the `cryptpart` plugin with `defer-plugin` to encrypt a data partition, it will be done in a totally non-interactive manner. This means:
 
 * You MUST always specify `nonint` and provide either `nopwd` AND `keyfile` (`nonint|nopwd|keyfile=file.lek`), or alternatively, do not include `nopwd` but do include `passphrase` (`nonint|passphase=yourpassphrase`). **sdm does NOT check this!**
 
-* If you're using a keyfile, you must ensure that the keyfile is in the IMG. One way to do this: `--plugin copyfile:"from=/root/3449424f-1348-489d-9cdc-d4a2e1b6beef.lek|to=/root"`, which will copy the file from /root on the host system to /root in the IMG.
+* If you're using a keyfile without `keyfile-location=usb`, you must ensure that the keyfile is in the IMG. One way to do this: `--plugin copyfile:"from=/root/3449424f-1348-489d-9cdc-d4a2e1b6beef.lek|to=/root"`, which will copy the file from /root on the host system to /root in the IMG.
 
-* Only one of `keyfile` and `passphrase` may be used. This will be addressed in a future release.
+* The `nocreate` argument can be used to wire up an already-encrypted partition into the system. The partition must be encrypted with a keyfile and/or a passphrase. If using a keyfile, the keydisk must be available during the system boot. The system will prompt for the unlock passphrase if only a passphrase is configured (that is, no keyfile).
+  * You must specify the unlock options (passphrase and/or keyfile) correctly. These are NOT fully verified by the plugin.
+
+* If both `passphrase` and `keyfile` are provided, the `keyfile` will be used by systemd-cryptsetup during system boot. The `passphrase` can be used for manually unlocking the partition outside of the normal boot flow, if needed.
 
 ### cryptroot
 
@@ -410,24 +416,35 @@ This plugin is useful to accomplish tasks you want to complete on the newly-boot
 
 For instance, the `apt-file` plugin installs apt-file and does an update. This is typically not needed initially when you first boot the system, and the update takes a bit of time. Use the `defer-plugin` to run the `apt-file` plugin later (see example), speeding up the customization process.
 
-The list of plugins that *have been tested* with `defer-plugin`: `apps`, `apt-file`, `cryptpart`, and `vnc`.
+The list of plugins that *have been tested* with `defer-plugin`: `apps`, `apt-file`, `cryptpart`, `runatboot`, and `vnc`.
 
 `apps:apps=list` and `defer-plugin:apps=list` are equivalent.
 
 #### Arguments
 
-This plugin has no defined argument names. See the examples.
+Generally, this plugin has no defined argument names. However, there are two special arguments:
+
+* `defer-reboot` &mdash; Takes an optional argument which is the number of seconds until the system reboots [Default:5]
+* `defer-command` &mdash; takes a string which is the command to run
+
+The above arguments are run *after* all deferred plugins are run.
 
 #### Examples
 
 * `--plugin defer-plugin:"apt-file"` &mdash; Run the `apt-file` plugin to install and update apt-file
-* `--plugin defer-plugin:"defer-plugin:vnc:tigervnc=2540x1350,1880x960,1700x1200,1880x1100"` &mdash; Install and configure tigervnc virtual desktops
+* `--plugin defer-plugin:"vnc:tigervnc=2540x1350,1880x960,1700x1200,1880x1100"` &mdash; Install and configure tigervnc virtual desktops
 
 When used in a pluglist, the above two would be:
 ```
 defer-plugin:apt-file
-defer-plugin:defer-plugin:vnc:tigervnc=2540x1350,1880x960,1700x1200,1880x1100
+defer-plugin:vnc:tigervnc=2540x1350,1880x960,1700x1200,1880x1100
 ```
+Here are a couple of examples of the `defer-command` and `defer-reboot`
+
+* `--plugin defer-plugin:"defer-command:ls -l /"` &mdash; Perform an `ls -l /` command. The output of any `defer-command` will be found in the system journal (journalctl)
+* `--plugin defer-plugin:"defer-command:sleep 30"` &mdash; Pause the defer processing for 30 seconds. This may be useful ahead of a `defer-reboot` to give you time to check the system journal output
+* `--plugin defer-plugin:defer-reboot` &mdash; Reboot the system in 5 seconds
+* `--plugin defer-plugin:defer-reboot:20`&mdash; Reboot the system in 20 seconds
 
 ### disables
 
@@ -708,6 +725,24 @@ The best way to use this plugin is:
 * `--plugin labwc:"app-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
 * `--plugin labwc:"lhmouse|user=someuser"`
 * `--plugin labwc:"labwc-config=autostart:/path/to/autostart,environment=/path/to/environment"`
+
+### ln
+
+The `ln` plugin creates a link, either hard or symbolic.
+
+#### Arguments
+
+linkname &mdash; The linkname that will be created
+symbolic &mdash; Make a symbolic link. If not specified, a hard link will be created
+target &mdash; The target of the link. If creating a hard link, the target file must exist
+
+#### Examples
+
+* `--plugin ln:"target=/usr/bin/less|linkname=/usr/bin/lessismore"` &mdash; Create a hard link to target /usr/bin/less with name /usr/bin/lessismore
+* `--plugin ln:"symbolic|target=/nfs/server1/data/org1|linkname=/org1"` &mdash; Create a symbolic link /org1 that links to an nfs-mounted disk
+
+Notes
+* Although the link will always be created by root, a non-privileged user can remove a link from a directory with write access to the directory.
 
 ### logwatch
 
