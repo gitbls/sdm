@@ -99,6 +99,7 @@ pluglist=(apps \
 	      knockd \
 	      L10n \
 	      labwc \
+	      ln \
 	      logwatch \
 	      lxde \
 	      mkdir \
