@@ -125,7 +125,7 @@ function loadsdm() {
     cp -a $src/sdm-readparams $SDMPT/etc/sdm
     if [ -f $src/completion.sdm ]
     then
-	mkdir -p /etc/bash_completion.d
+	mkdir -p $SDMPT/etc/bash_completion.d
 	cp $src/completion.sdm $SDMPT/etc/bash_completion.d/sdm
     fi
     setfileownmode $SDMPT/etc/sdm/sdm-readparams 755
@@ -221,9 +221,6 @@ Command Switches for --customize and --burn or as noted
  --burn-plugin pname:\"args\" Run burn plugin pname post-burn with the specified args (separate args with '|')
  --chroot            Use chroot rather than systemd-nspawn (for use on certain host OSes)
  --convert-root fmt  Use the specified rootfs format (btrfs, lvm) instead of ext4
- --encrypted         The rootfs is encrypted and must be decrypted by sdm
- --expand-at-boot    rootfs expansion done at boot (Trixie and later)
- --extract-log dir   Extract the sdm history and apt.log to the named directory
  --cscript script    Custom Phase Configuration script
  --csrc dir          Source directory passed for Custom Phase scripts
  --custom[1-4] str   Can be used in Custom cscripts
@@ -233,8 +230,11 @@ Command Switches for --customize and --burn or as noted
  --directory         sd-image-file is a directory tree rather than an IMG
  --domain name       Domain name (for use in Custom Phase Script; sdm does not use)
  --ecolors fg:bg:cur Set fg/bg/cursor colors when operating in the mounted IMG
+ --encrypted         The rootfs is encrypted and must be decrypted by sdm
+ --expand-at-boot    rootfs expansion done at boot
  --expand-root       Expand the root partition after burning it to a device
  --extend            Extend the image by --xmb N MB [Default: 2048/2GB]
+ --extract-log dir   Extract the sdm history and apt.log to the named directory
  --gpt               Create GPT partition table (instead of MBR). Use with --burn
  --groups list,of,groups Use this list of groups as the default for the user plugin
  --host hostname     Hostname to write onto the storage device with --burn
@@ -267,7 +267,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V15.2"
+version="V15.3"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -347,7 +347,7 @@ runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
 sdmdir="/usr/local/sdm"     #Where to put sdm when customizing. --sdmdir to change
-sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-spawn sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key sdm-collect-labwc-config"
+sdmflist="sdm sdm-phase0 sdm-phase1 sdm-cparse sdm-readparams sdm-cmdsubs sdm-rpcsubs sdm-spawn sdm-cryptconfig sdmcryptfs sdm-firstboot sdm-apt sdm-apt-cacher sdm-cportal sdm-logmsg sdm-gburn sdm-add-luks-key sdm-make-luks-usb-key sdm-collect-labwc-config ezsdm"
 vaptmaintops="|update|upgrade|autoremove|" #Options for --apt
 virtmode="nspawn"           #"nspawn" or "chroot"
 vcvtrootfs="|btrfs|ext4|lvm|" #Valid --convert-root settings
@@ -381,6 +381,17 @@ plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
 regen-ssh-host-keys,restart,runonly:,sdmdir:,sdmprep,showapt,shrink,\
 bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
+case "$1" in
+# TODO: mv|chown|chmod
+    cat|cleanup|df|get|journalctl|jc|jca|jcall|less|list-boots|ls|put|rm|rmdir)
+	extcmd=$1
+	shift 1
+	source $src/sdm-cmdsubs
+	sdm_do_ext_command "$extcmd" "$*"
+	exit
+	;;
+esac
+
 OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
 [ $? -ne 0 ] && errexit "? $0: Unable to parse command"
 eval set -- "$OARGS"
@@ -388,7 +399,7 @@ eval set -- "$OARGS"
 while true
 do
     case "${1,,}" in
-	# 'shift 2' if switch has argument, else just 'shift'
+	# 'shift 2' if switch has argument, else 'shift 1'
 	--1piboot)     pi1bootconf=$2; shift 2 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
@@ -564,7 +575,7 @@ then
 	then
 	    fextendonly=1
 	else
-	    errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, , --sdmprep, --version)"
+	    errexit "? No command specified (--aptmaint --burn, --customize, --explore, --help, --mount, --runonly, --sdmprep, --version)"
 	fi
     fi
 fi

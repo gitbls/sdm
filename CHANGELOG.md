@@ -1,5 +1,15 @@
 # Changelog
 
+## V15.3
+
+* New Features
+  * `cryptpart` plugin can wire up an already-encrypted partition with the `nocreate` argument
+  * `ln` plugin to create a hard link or symbolic link
+* Improvements
+  * `defer-plugin` plugin can run a command and/or reboot system at completion of deferred operations
+  * `system` plugin argument `swap` and `zram` can configure the FixedSize for these on the Trixie zram configuration
+* Bug Fixes
+
 ## V15.2
 
 * New Features
