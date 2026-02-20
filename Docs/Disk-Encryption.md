@@ -21,7 +21,7 @@ With those caveats, if encryption is useful for you, sdm makes it quite simple t
 
 * This tool only supports sdm-integrated encryption configuration using the `cryptroot` plugin on RasPiOS Bookworm and later. `sdm-cryptconfig` can be used on already-running RasPiOS systems as well as on Debian Bookworm (arm and X86_64) and derivatives.
 
-* There is currently no standalone way to use the cryptpart plugin
+* There is currently no standalone way to use the `cryptpart` plugin. It must be run via sdm (contrast with `sdm-cryptconfig` that does not require sdm installed). That said, sdm is quite easy to install and has a very small footprint.
 
 * Yubikey unlock is only supported for the rootfs. Data partitions can be unlocked using a keydisk or a passphrase
 
@@ -283,7 +283,6 @@ Things to know when using SSH as documented here:
 * You can use `ssh root@hostname` if DNS (not MDNS) on your network is set up correctly for resolving local host names.
 * You will not be able to SSH using ".local" names when initramfs SSH is running; avahi is not running in the initramfs so the system is unknown to MDNS (that's the protocol that is used for ".local")
 * If your local network does not have a properly-configured DNS server (<a href="https://github.com/gitbls/ndm">example</a>), you'll need to use `ssh root@ip.ad.dd.rs`
-* WiFi is not supported for the SSH initramfs connection
 
 ## Unlocking rootfs with a Yubikey
 
@@ -393,7 +392,7 @@ This example demonstrates:
 * Using the `cryptroot` plugin to automatically encrypt the rootfs after the disk has burned and booted
 * Using the `parted` plugin to expand rootfs on the burned disk and add a data partition
 * Copying the already-generated keyfile from the host into the disk as part of the burn process
-* Running the `cryptpart` plugin very late in the multi-step boot process to encrypt and create the file system on the partition created with the `parted` plugin
+* Running the `cryptpart` plugin very late in the multi-step FirstBoot process to encrypt and create the file system on the partition created with the `parted` plugin
 
 ### cryptpart partname NOTE
 
@@ -438,9 +437,9 @@ sdm --burn $dev --hostname $host $img \
     --plugin defer-plugin:"cryptpart:nonint|nopwd|cryptname=datapart|fstype=btrfs|keyfile=/root/3449424f-1348-489d-9cdc-d4a2e1b6beef.lek|mountpoint=/data|partname=$part3|keyfile-location=usb|keydisk-id=LABEL=MYLABEL"
 ```
 
-The `cryptroot` plugin indicates that the rootfs partition will be encrypted with no password but will instead use only a keyfile. *Pro Tip: A password is an excellent idea when trying this for the first time*
+The `cryptroot` plugin indicates that the rootfs partition will be encrypted with no passphrase but will instead use only a keyfile. *Pro Tip: A passphrase is an excellent idea when trying this for the first time*
 
-The `parted` plugin is a *burn plugin*. Burn plugins are run after the disk has been burned. The parted plugin will expand rootfs by 8GB and add a partition with no filesystem following it that is expanded to consume the rest of the disk.
+The `parted` plugin is a *burn plugin*. Burn plugins are run after the disk has been burned. The parted plugin will expand rootfs by 8GB and add a partition following the rootfs with no filesystem that is expanded to consume the rest of the disk.
 
 The `copyfile` plugin copies the keyfile for the data partition from the host system into the burned disk for use by `cryptpart`
 
@@ -451,7 +450,7 @@ That's the high level summary. Here are the detailed steps, including the use of
 * **Customize the IMG file** &mdash; This is not discussed here, but if you've made it this far, you know what this step is! Use sdm to configure the system just like you want it to be. Then, when you want to create a disk with an encrypted rootfs, follow on here.
 * **Make an sdm LUKS keydisk** &mdash; See <a href="Disk-Encryption.md#creating-a-usb-keyfile-disk"> here</a> for details. Use that keyname in your version of the above script.
   * **How many keyfiles?** Each partition can have its own keyfile on the same disk, or they can use the same keyfile. There is no default.
-  * *Pro tip: sdm-make-luks-usb-key leaves a copy of the generated keyfile in /root.* You can, of course, move it. sdm doesn't care. But keyfiles are the keys to your system, and must be protected. If you have no valid copies of the keyfile and you did not add a password unlock during the rootfs encryption process, you will have no way to access any of the data on that disk. This applies to the data partition as well.
+  * *Pro tip: sdm-make-luks-usb-key leaves a copy of the generated keyfile in /root.* You can, of course, move it. sdm doesn't care. But keyfiles are the keys to your system, and must be protected. If you have no valid copies of the keyfile and you did not add a passphrase unlock during the rootfs encryption process, you will have no way to access any of the data on that disk. This applies to the data partition as well.
 * **Burn disk** &mdash; sdm burns the IMG to a disk. Once the disk is created sdm performs additional steps before the burn is complete:
   * The `cryptroot` plugin runs after the disk has been burned, in the context of the freshly-burned disk. `cryptroot` prepares the system for the encryption process.
     * Install required packages
@@ -462,7 +461,7 @@ That's the high level summary. Here are the detailed steps, including the use of
   * `parted` expands the root partition by 8192MB (8GB).
     * In practice, the space is left reserved, but unused. The root partition expansion is done during the encryption process in initramfs. This avoids the need to copy empty blocks during the encryption conversion.
   * `parted` creates the data partition, expanding it to fill the rest of the disk. The partition is create with no filesystem.
-* **Configure the `cryptpart` plugin** to run once the system has achieved boot process complete via `defer-plugin`.
+* **Configure the `cryptpart` plugin** to run once the system has achieved FirstBoot process complete via `defer-plugin`.
 * **sdm-firstboot reboots** the system at the completion of the first system boot
   * Still part of a normal, unencrypted boot process
 * **sdm-cryptconfig runs** at the completion of the system startup, as configured by the `cryptroot` plugin
@@ -490,7 +489,7 @@ That's the high level summary. Here are the detailed steps, including the use of
   * Clear encryption-in-progress flag
 * **System reboots automatically** for a normal system boot
 * Boot process in initramfs unlocks the rootfs
-  * There is a prompt if password is enabled
+  * There is a prompt if passphrase is enabled
   * The system will look for the keyfile (if enabled) on an attached USB disk device. It can be plugged in at any time
 * After startup completes deferred plugins will run because the encryption-in-progress flag is clear
 * One of the deferred plugins is `cryptpart`, which
@@ -500,9 +499,11 @@ That's the high level summary. Here are the detailed steps, including the use of
   * Create the file system (ext4 or btrfs)
   * Keyfile can be provided from a USB stick or /root
   * Configure a systemd mount if the keyfile will be on a USB stick
-* There is **no notification** that the deferred pluglists have completed nor is there an automatic reboot option. The system is fully functional except a reboot is required to verify that automatic unlock and mount (if enabled) are correctly configured.
-* When this is complete, you will need to **manually reboot**
-  * Check `journalctl -b | grep 'Complete Run Defer Pluglists'` to see if the deferred service has completed.
+* There is **no notification** that the deferred plugins have completed nor is there an automatic reboot option. The system is fully functional except a reboot is required to verify that automatic unlock and mount (if enabled) are correctly configured.
+  * Results from running the deferred plugins can be viewed in the system journal (`journalctl`)
+  * You can add your own notification using `defer-plugin:defer-command`.
+* When this is complete, you will need to **manually reboot** or use `defer-plugin:defer-reboot`.
+  * You can check `journalctl -b | grep 'Complete Run Defer Pluglists'` to see if the deferred service has completed.
   * **Don't reboot the system until this has completed, of course**
   * **Debug hint**
     * `journalctl | grep sdm-run-defer-pluglists` and look for errors
@@ -587,7 +588,7 @@ Deferring the rootfs expansion to `sdmcryptfs` minimizes the size of the rootfs 
 
 ## Known Issues
 
-* To use disk encryption on disks other than rootfs that you have manually encrypted, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt
+* To use disk encryption on disks other than rootfs that you have manually encrypted, remove `luks.crypttab=no` from /boot/firmware/cmdline.txt. The `cryptpart` plugin takes care of this.
 
 * When running RasPiOS with Desktop (both X11 and Wayland) sdm-cryptconfig will unconditionally make these adjustments to your system:
   * Remove 'quiet' and 'splash' from /boot/firmware/cmdline.txt, making the system boot far less quiet
@@ -610,25 +611,20 @@ done
 
 * If you use `--plugin cryptpart`:
   * If you're using a USB keydisk, remember to use `--label` when you create the keydisk or the disk will not automount to unlock an encrypted data partition.
-  * Similarly, Be sure to provide that label to the `cryptpart` plugin argument `keydisk-id` as `LABEL=<mylabel>`. `LABEL` must be capitalized.
+  * Similarly, Be sure to provide that label to the `cryptpart` plugin argument `keydisk-id` as `LABEL=<mylabel>`. `LABEL` must be capitalized exactly as shown.
   * Use `journalctl` to watch for log entries generated by cryptpart. If all goes well, there'll be a log entry saying you should reboot. When you do, you'll see the newly-created partition.
   * Be patient. It can take several minutes for cryptpart to complete. Don't reboot until it's done.
-  * cryptpart won't run unless a copy of your key is available immediately after you boot your newly-burned SD card. As shown in the example above, one way to make that happen is to use `--plugin copyfile:from=/root/some-big-uuid.lek|to=/delete-me|mkdirif` to put a copy of the key on the SD card, and specify `keyfile=/delete-me/some-big-uuid.lek` to cryptpart.
-  * Specify a filesystem type of `none` to parted, and specify the filesystem type you want to cryptpart.
-  * If you unlock a partition using a USB key, sdm doesn't automatically unmount that USB key. It's safe to just unplug it without unmounting it first.
-* You must have a network connection when you run `sdm --customize`, and you must also have a network connection during "Second Boot" because sdm-cryptconfig may need to install `lz4`.
+  * cryptpart won't run unless a copy of your key is available immediately after you boot your newly-burned SD card. As shown in the example above, one way to make that happen is to use `--plugin copyfile:from=/root/some-big-uuid.lek|to=/root|mkdirif` to put a copy of the key on the SD card, and specify `keyfile=/root/some-big-uuid.lek` to cryptpart.
+  * Specify a filesystem type of `none` to parted, and specify the filesystem type you want to use to `cryptpart`.
+  * If you unlock a partition using a USB key, sdm doesn't automatically unmount that USB key. It's mounted read-only so it's safe to just unplug it without unmounting it first.
+* You must have a network connection when you run `sdm --customize`, and you must also have a network connection during "Second Boot" because sdm-cryptconfig may need to install additional packages.
 * You will not see any error messages that sdm-cryptconfig might produce at second-boot time, although they are in the system journal, so this can be difficult to debug. This is not true, however, if sdm-cryptconfig is run interactively.
 
 * Be careful when you use the parted burn-plugin with `no-expand-root=y`. The latter will override any value you may have specified with `rootexpand=nnnn`.
 
-* If you need to erase an SD card, use `parted /dev/sda mklabel msdos`. Some versions of `rpi-imager` are known to create an invalid MBR partition block.
+* If you need to erase an SD card, use `parted /dev/sdX mklabel msdos`. Some versions of `rpi-imager` are known to create an invalid MBR partition block.
 
 * When you're running a customize or a burn, you'll gradually learn which error messages indicate a problem, and which ones can be ignored.
-
-* If you're using `--plugin apps:remove`
-  * List all your removes before you start adding packages.
-  * For more control over when the `apt autoremove` occurs, you can use `--plugin sdm.phaseops:ops=apt-autoremove` right after your last `apps` plugin `remove`
-    * This will ensure that as much free space as possible is available for subsequent steps.
 
 * If you're using Btrfs, consider adding `kernel=kernel8.img` to your config.txt file. Btrfs support for the -2712 kernel is marked as experimental.
 
@@ -642,7 +638,7 @@ done
     * "Magic mismatch"
     * "Can't find valid F2FS filesystem in superblock"
 
-## Acknowledgements
+ ## Acknowledgements
 
 Encryption configuration is based on https://rr-developer.github.io/LUKS-on-Raspberry-Pi. As of 2024-01-01 it predates Bookworm, but was very helpful in working out the initramfs configuration.
 
