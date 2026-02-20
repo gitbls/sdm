@@ -6,7 +6,7 @@
 #
 
 function cpcleanup() {
-    echo "> Closing LUKS partition '$cryptname'"
+    echo "> Close LUKS partition '$cryptname'"
     cryptsetup luksClose $cryptname
 }
 
@@ -58,7 +58,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
 vldargs="|burndev|burnfilefile|cryptname|fslabel|fstype|keydisk-id|keyfile|keyfile-location|mountpoint|nocreate|nonint|nopwd|partname|passphrase|"
-rqdargs="|cryptname|partname|"
+rqdargs="|cryptname|fstype|partname|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
 if [ "$phase" == "0" ]
@@ -74,21 +74,28 @@ then
     #
     plugin_printkeys
     mkdir -p $assetdir
-    [[ "|root|usb|" =~ ${keyfile__location,,} ]] || logtobothex "? Plugin $pfx: '$keyfile__location' invalid value for 'keyfile-location'"
+    [ "$keyfile__location" == "" ] || keyfile__location=${keyfile__location,,}
+    [[ "|root|usb|" =~ $keyfile__location ]] || logtobothex "? Plugin $pfx: '$keyfile__location' invalid value for 'keyfile-location'"
     [ "$fstype" != "" ] && [[ "btrfs,ext4" =~ $fstype ]] || logtobothex "? Plugin $pfx: Invalid fstype '$fstype'"
-    [ -v mountpoint ] && [ "$fstype" == "" ] && logtobothex "? Plugin $pfx: 'mountpoint' requires 'fstype'"
-    [ -v nopwd ] && [ ! -v keyfile ] && logtobothex "? Plugin $pfx: 'nopwd' requires 'keyfile'"
+    [ -v mountpoint ] && [ "$fstype" == "" ] && logtobothex "? Plugin $pfx: 'mountpoint' requires 'fstype' argument"
+    [ -v nopwd ] && [ "$keyfile" ==  "" ] && logtobothex "? Plugin $pfx: 'nopwd' requires 'keyfile' argument"
     [ -v nonint ] && [ "$keyfile" == "" ] && [ "$passphrase" == "" ] && logtobothex "? Plugin $pfx: 'nonint' requires 'keyfile' or 'passphrase'"
-    [ "$(getdevuuid $partname)" == "" ] && logtobothex "? Plugin $pfx: Unable to obtain PARTUUID or UUID for '$partname'; does the device exist?"
+    [ "$(getdevuuid $partname)" == "" ] && logtobothex "? Plugin $pfx: Unable to obtain PARTUUID or UUID for '$partname'; does the device/partition exist?"
+    [ "$keyfile__location" == "" ] && keyfile__location=root
     if [ "${keyfile__location,,}" == "usb" ]
     then
 	[ "$keydisk__id" == "" ] && logtobothex "keyfile-location=usb requires keydisk-id"
     fi
-    if [ -v keyfile ]
+
+    if [ "$keyfile" != "" ]
     then
-	[ -f $keyfile ] || logtobothex "? Plugin $pfx: Keyfile '$keyfile not found"
-	logtoboth "> Plugin $pfx: Copy '$keyfile' to $assetdir [deleted later]"
-	cp $keyfile $assetdir
+	[ -f $keyfile ] || logtobothex "? Plugin $pfx: Keyfile '$keyfile' not found"
+	if [ "$(dirname $keyfile)" != "/root" ] && [ "$keyfile__location" == "root" ]
+	then
+	    logtoboth "% Plugin $pfx: Copy keyfile '$keyfile' to /root"
+	    cp $keyfile /root
+	fi
+	chmod 400 /root/$(basename $keyfile)
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
@@ -99,7 +106,6 @@ then
     logtoboth "* Plugin $pfx: Start Phase 1"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     #logfreespace "at start of Plugin $pfx Phase 1"
-    [ "$keyfile" == "" ] && keyfile__location=""
 
     pkgs="systemd-cryptsetup"
     [ "$(type -p cryptsetup)" == "" ] && pkgs="cryptsetup cryptsetup-initramfs cryptsetup-bin $pkgs"
@@ -124,52 +130,53 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
 
     # Partition must be empty and not mounted
-    grep -q -s $partname /proc/mounts && errexit "? Partition '$partname' must not be mounted"
+    grep -q -s $partname /proc/mounts && logtobothex "? Partition '$partname' must not be mounted"
 
-    [ "$keyfile__location" == "" ] && keyfile__location=root
+    if [ "$keyfile" != "" ]
+    then
+	[ "$keyfile__location" == "" ] && keyfile__location=root || keyfile__location=${keyfile__location,,}
+    fi
 
     # encrypt the partition
     [ "$cipher" == "" ] && cipher="aes-xts-plain64"
     trap "cpcleanup" EXIT
-    if [ -v keyfile ]
+    if [ "$keyfile" != "" ]
     then
 	kfn=$(basename $keyfile)
-	kf=$assetdir/$kfn
+	kf=/root/$kfn
     fi
     if [ ! -v nocreate ]
     then
 	if [ -v nopwd ]
 	then
 	    logtoboth "> Plugin $pfx: Enable LUKS encryption on partition '$partname' using keyfile '$kfn'"
-	    while [ 0 ]
-	    do
-		if [ -v nonint ]
-		then
-		    printf "YES\n" | cryptsetup luksFormat --type luks2 $partname $kf
-		    sts=$?
-		else
+	    if [ -v nonint ]
+	    then
+		printf "YES\n" | cryptsetup luksFormat --type luks2 $partname $kf || logtobthex "? Plugin $pfx: cryptsetup luksFormat failed ($?)"
+	    else
+		while [ 0 ]
+		do
 		    cryptsetup luksFormat --type luks2 $partname $kf
 		    sts=$?
-		fi
 		[ $sts -eq 0 ] && break
 		cpoptions $sts || logtobothex "? Plugin $pfx: Exit per user request"
-	    done
+		done
+	    fi
 	else
 	    logtoboth "> Plugin $pfx: Enable LUKS encryption on partition '$partname' with a passphrase"
-	    while [ 0 ]
-	    do
-		if [ -v nonint ]
-		then
-		    printf "$passphrase\n$passphrase\nYES\n" | cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $partname
-		    sts=$?
-		else
+	    if [ -v nonint ]
+	    then
+		printf "$passphrase\n$passphrase\nYES\n" | cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $partname || logtobothex "? Plugin $pfx: cryptsetup luksFormat failed ($?)"
+	    else
+		while [ 0 ]
+		do
 		    cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $partname
 		    sts=$?
-		fi
-		[ $sts -eq 0 ] && break
-		cpoptions $sts || logtobothex "? Plugin $pfx: Exit per user request"
-	    done
-	    if [ -v keyfile ]
+		    [ $sts -eq 0 ] && break
+		    cpoptions $sts || logtobothex "? Plugin $pfx: Exit per user request"
+		done
+	    fi
+	    if [ "$keyfile" != "" ]
 	    then
 		logtoboth "> Plugin $pfx: Add keyfile '$kfn' to Luks partition '$partname'"
 		printf "$passphrase\n" | cryptsetup luksAddKey $partname $kf || logtobothex "? Plugin $pfx: cryptsetup luksAddKey failed ($?)"
@@ -179,20 +186,11 @@ then
     if [ -v nopwd ]
     then
 	logtoboth "> Plugin $pfx: Open encrypted partition '$partname' with keyfile '$kfn'"
-	while [ 0 ]
-	do
-	    cryptsetup luksOpen $partname $cryptname --key-file $kf
-	    [ $? -eq 0 ] && break
-	done
+	cryptsetup luksOpen $partname $cryptname --key-file $kf || logtobothex "? Plugin $pfx: Error opening encrypted partition '$partname' ($?)"
     else
 	logtoboth "> Plugin $pfx: Open encrypted partition '$partname' with passphrase"
-	while [ 0 ]
-	do
-	    printf "$passphrase\n" | cryptsetup luksOpen $partname $cryptname
-	    [ $? -eq 0 ] && break
-	done
+	printf "$passphrase\n" | cryptsetup luksOpen $partname $cryptname || logtobothex "? Plugin $pfx: Error opening encrypted partition '$partname' ($?)"
     fi
-
     if [ ! -v nocreate ]
     then
 	# make file system
@@ -200,6 +198,11 @@ then
 	[ "$fstype" == "" ] && fstype=ext4
 	case "$fstype" in
 	    btrfs|ext4)
+		if [ "$fstype" == "btrfs" ] && [ "$(type -p mkfs.btrfs)" == "" ]
+		then
+		    logtoboth "> Plugin $pfx: Install btrfs-progs"
+		    installpkgsif btrfs-progs
+		fi
 		logtoboth "> Plugin $pfx: Create '$fstype' file system on the encrypted partition"
 		mkfs.$fstype -q $mklabel /dev/mapper/$cryptname || logtobothex "? Plugin $pfx: mkfs.$fstype failed ($?)"
 		;;
@@ -211,23 +214,13 @@ then
     # add to /etc/crypttab and fstab
 
     logtoboth "> Plugin $pfx: Update config files..."
-    if [ -v keyfile ] && [ "${keyfile__location,,}" == "root" ]
-    then
-	logtoboth "> Plugin $pfx: Copy keyfile '$keyfile' to /root"
-	[ -f /root/$kfn ] || cp $kf /root
-	chmod 400 /root/$kfn
-	logtoboth "> Plugin $pfx: Remove keyfile from $assetdir/$kfn"
-	rm -f $assetdir/$kfn
-    else
-	[ -v keyfile ] && logtoboth "> Plugin $pfx: Ensure that you have a LUKS USB key prepared before restarting the system"
-    fi
 
     kfloc="none" ; opts=""
     if [ "$keyfile" != "" ]
     then
         opts=",tries=3"
-	[ "${keyfile__location,,}" == "root" ] && kfloc="/root/$kfn"
-        if [ "${keyfile__location,,}" == "usb" ]
+	[ "$keyfile__location" == "root" ] && kfloc="/root/$kfn"
+        if [ "$keyfile__location" == "usb" ]
 	then
 	    mountname=${partname#/dev/}
 	    dirname="${mountname}Key"
@@ -271,7 +264,7 @@ EOF
     logtoboth "> Plugin $pfx: Update /etc/crypttab"
     # Use UUID rather than partname in crypttab
     uuidstr=$(getdevuuid $partname)
-    [ "$uuidstr" == "" ] && logtobothex "? Plugin $pfx: Unable to obtain PARTUUID or UUID for '$partname'; does the device exist?"
+    [ "$uuidstr" == "" ] && logtobothex "? Plugin $pfx: Unable to obtain PARTUUID or UUID for '$partname'; does the device/partition exist?"
     [ "$mountpoint" != "" ] && echo "# This V device mounted in /etc/fstab" >> $SDMPT/etc/crypttab
     echo "$cryptname	$uuidstr $kfloc luks,discard${opts}" >> $SDMPT/etc/crypttab
     
@@ -282,13 +275,14 @@ EOF
 	mkdir -p $mountpoint
 	logtoboth "> Plugin $pfx: Update fstab"
 	echo "# Device '/dev/mapper/$cryptname' defined in /etc/crypttab" >> $SDMPT/etc/fstab
-	echo "/dev/mapper/$cryptname  $mountpoint  $fstype  defaults  0  2" >> $SDMPT/etc/fstab
+	echo "/dev/mapper/$cryptname  $mountpoint  $fstype  defaults,nofail  0  2" >> $SDMPT/etc/fstab
     else
 	logtoboth "> Plugin $pfx: Skip fstab update; no mountpoint specified"
     fi
-    if [ "${keyfile__location,,}" == "usb" ]
+    if [ "$keyfile__location" == "usb" ]
     then
-	logtoboth "> Plugin $pfx: any Ignore non-existent unit 'systemd-cryptsetup@$cryptname.service' message"
+	logtoboth "> Plugin $pfx: Ensure that you have a LUKS USB keydisk prepared before restarting the system"
+	logtoboth "> Plugin $pfx: Ignore any non-existent unit 'systemd-cryptsetup@$cryptname.service' message"
 	systemctl daemon-reload
 	systemctl enable $mountsvc.mount $dirname-unmount.service
     fi
