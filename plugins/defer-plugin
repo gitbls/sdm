@@ -5,6 +5,19 @@
 # The plugin is called three times: for Phase 0, Phase 1, and post-install.
 #
 
+function do_add_deferred_action() {
+    local dline="$1"
+
+    if [[ "$dline" =~ ^defer-reboot ]] || [[ "$dline" =~ ^defer-command ]]
+    then
+	logtoboth "> Plugin $pfx: Configure post-defer service '$dline'"
+	echo "$dline" >> $assetdir/defer-done-options
+    else
+	logtoboth "> Plugin $pfx: Add deferred pluglist item '$dline'"
+	add_defer_plugin "$dline"
+    fi
+}
+
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
@@ -34,11 +47,10 @@ then
 	[ -f $args ] || logtobothex "? Plugin $pfx: Pluglist file '$args' not found"
 	while read line
 	do
-	    logtoboth "> Plugin $pfx: Add deferred pluglist item '$line'"
-            add_defer_plugin "$line"
+	    do_add_deferred_action "$line"
 	done < $args
     else
-	add_defer_plugin "$args"
+	do_add_deferred_action "$args"
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]

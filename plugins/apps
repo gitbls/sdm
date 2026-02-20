@@ -147,7 +147,6 @@ then
             fname=$(basename $fn)
             name=${fname%-*}
             read svapps < $fn
-	    mkdir -p /etc/sdm/assets/defer-pluglist
 	    add_defer_plugin "apps:name=$name|apps=$svapps"
 	    mv $assetdir/$fname $assetdir/.$fname
 	done

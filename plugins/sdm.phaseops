@@ -198,9 +198,15 @@ EOF
 #
 # Process apps plugin deferred app installs
 #
-source /etc/sdm/sdm-readparams
 
-assetdir=/etc/sdm/assets/defer-pluglist
+function defer_cleanup() {
+    logtoboth "* Dot-hide /etc/systemd/system/sdm-defer-pluglist.service and /usr/local/bin/sdm-run-defer-pluglists"
+    mv /etc/systemd/system/sdm-defer-pluglist.service /etc/systemd/system/.sdm-defer-pluglist.service
+    mv /usr/local/bin/sdm-run-defer-pluglists /usr/local/bin/.sdm-run-defer-pluglists
+}
+
+source /etc/sdm/sdm-readparams
+assetdir=/etc/sdm/assets/defer-plugin
 
 if [ -f $assetdir/defer-pluglist ]
 then
@@ -208,9 +214,31 @@ then
     sdm --runonly plugins --oklive --logwidth 256 --plugin @$assetdir/defer-pluglist
     logtoboth "* Complete Run Defer Pluglists"
 fi
-logtoboth "* Dot-hide /etc/systemd/system/sdm-defer-pluglist.service and /usr/local/bin/sdm-run-defer-pluglists"
-mv /etc/systemd/system/sdm-defer-pluglist.service /etc/systemd/system/.sdm-defer-pluglist.service
-mv /usr/local/bin/sdm-run-defer-pluglists /usr/local/bin/.sdm-run-defer-pluglists
+if [ -f $assetdir/defer-done-options ]
+then
+    while read line
+    do
+        logtoboth "> Found Command '$line'"
+	IFS=":=" read command value <<< "$line"
+        case "$command" in
+            defer-command)
+                logtoboth "* Run Defer Command '$value'"
+                $value
+                [ $? -ne 0 ] && logtoboth "% Command '$value' returned error ($?)"
+                ;;
+            defer-reboot)
+                value=${value:-5}
+                logtoboth "* Reboot in $value seconds after Defer Pluglist completion"
+                logger "Rebooting system in $value seconds per 'defer-reboot'"
+                sleep $value
+		defer_cleanup
+                reboot
+                ;;
+        esac
+    done < $assetdir/defer-done-options
+    exit 0
+fi
+defer_cleanup
 exit 0
 EOF
 		    chmod 755 /usr/local/bin/sdm-run-defer-pluglists
