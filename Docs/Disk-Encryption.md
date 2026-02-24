@@ -626,8 +626,6 @@ done
 
 * If you need to erase an SD card, use `parted /dev/sdX mklabel msdos`. Some versions of `rpi-imager` are known to create an invalid MBR partition block.
 
-* When you're running a customize or a burn, you'll gradually learn which error messages indicate a problem, and which ones can be ignored.
-
 * If you're using Btrfs, consider adding `kernel=kernel8.img` to your config.txt file. Btrfs support for the -2712 kernel is marked as experimental.
 
 * When you're running a customize or a burn, you'll gradually learn which error messages indicate a problem, and which ones can be ignored. These can generally be ignored.
