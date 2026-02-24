@@ -386,6 +386,8 @@ sudo umount /mnt
 
 You may want to create a data partition on the system disk that is also encrypted. This section demonstrates how to accomplish this. The end result is a system disk with an encrypted rootfs and an encrypted data partition.
 
+A video of this entire process <a href="https://youtu.be/RLbxXzZo2Lk">can be viewed here.</a>
+
 **NOTE:** As this page explains, sdm-cryptconfig can be used to encrypt the rootfs without installing sdm. However, encrypting other partitions is highly dependent on a couple of sdm plugins. So, if you want to encrypt other (data) partitions, sdm is required to (at least minimally) customize the system as well as burning the system disk.
 
 This example demonstrates:
