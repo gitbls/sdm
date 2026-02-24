@@ -128,7 +128,7 @@ Here are a few examples:
 
 * **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>.
 
-* **Automatic rootfs encryption** &mdash; Make your system more secure with an encrypted root file system using only a few commands.
+* **Automatic disk encryption** &mdash; Make your system more secure with an encrypted root file system and/or additional data partitions and using only a few commands.
 
 * **Burn SD Card Image for network distribution** &mdash; You can also burn a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
 
@@ -144,6 +144,6 @@ Here are a few examples:
 
 Need more details? You'll find complete details about sdm in the <a href="Docs/Index.md">online documentation</a> and plugin-specific documentation <a href="Docs/Plugins.md">here.</a>
 
-You can watch sdm in action <a href="https://youtu.be/CpntmXK2wpA">here</a> It's an older video and doesn't use plugins, but will give you a good idea of how sdm works.
+You can watch sdm in action <a href="https://youtu.be/f8SXAnBAuJk">here</a> It will give you a good idea of how sdm works and what you can do with it.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gitbls/sdm)
