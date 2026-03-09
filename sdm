@@ -752,10 +752,6 @@ thishost="$(hostname)"
 #
 if [ $burning -eq 1 ]
 then
-    if iswsl
-    then
-	 [ $burnfile -eq 0 ] && errexit "? sdm burn not supported on Windows WSL"
-    fi
     case "$cvtrootfs" in
 	btrfs)
 	    [ "$(type -p btrfs)" == "" ] && errexit "? Cannot find btrfs; Do 'sudo apt install btrfs-progs' and then rerun sdm"
