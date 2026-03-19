@@ -1424,6 +1424,8 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 * Service control arguments
   * **service-disable** &mdash; Comma-separated list of services to disable
   * **service-enable** &mdash; Comma-separated list of services to enable
+  * **service-disable-at-boot** &mdash; Comma-separated list of services to disable at first boot
+  * **service-enable-at-boot** &mdash; Comma-separated list of services to enable at first boot
   * **service-mask** &mdash; Comma-separated list of services to mask
 * **swap** &mdash; **disable** or integer swapsize in MB to set
 * **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
