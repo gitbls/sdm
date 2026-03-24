@@ -189,7 +189,7 @@ fi
 [[ $EUID -ne 0 ]] && sudo="sudo"
 echo "* Update apt"
 $sudo apt update
-pkgs="binfmt-support coreutils gdisk keyboard-configuration parted qemu-user-static rsync systemd-container uuid"
+pkgs="binfmt-support coreutils file gdisk keyboard-configuration parted qemu-user-static rsync systemd-container usbutils uuid"
 echo "* Ensure required packages are installed: $pkgs"
 echo "> Install any needed packages"
 $sudo apt-get install --yes --no-install-recommends $pkgs
