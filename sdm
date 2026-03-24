@@ -267,7 +267,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V15.3"
+version="V15.4"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -382,8 +382,8 @@ regen-ssh-host-keys,restart,runonly:,sdmdir:,sdmprep,showapt,shrink,\
 bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
 case "$1" in
-# TODO: mv|chown|chmod
-    cat|cleanup|df|get|journalctl|jc|jca|jcall|less|list-boots|ls|put|rm|rmdir)
+# TODO: mv|chown|chmod (chown needs to be done in container)
+    cat|cleanup|df|get|journalctl|jc|jca|jcall|less|list-boots|ls|put|rm|run|rmdir)
 	extcmd=$1
 	shift 1
 	source $src/sdm-cmdsubs
@@ -752,10 +752,6 @@ thishost="$(hostname)"
 #
 if [ $burning -eq 1 ]
 then
-    if iswsl
-    then
-	 [ $burnfile -eq 0 ] && errexit "? sdm burn not supported on Windows WSL"
-    fi
     case "$cvtrootfs" in
 	btrfs)
 	    [ "$(type -p btrfs)" == "" ] && errexit "? Cannot find btrfs; Do 'sudo apt install btrfs-progs' and then rerun sdm"

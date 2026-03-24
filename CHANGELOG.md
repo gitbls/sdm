@@ -1,5 +1,19 @@
 # Changelog
 
+## V15.4
+
+* New Features
+  * sdm can write disks on Windows WSL2 instances if `usbipd` is installed. Details <a href="Docs/Using-sdm-on-Windows-WSL.md">here</a>. Thanks @Pooky-s.
+  * sdm simplifies creating and maintaining an updated golden RasPiOS IMG
+  * rootfs Disk Encryption
+    * Enable Network Bound Disk Encryption (NBDE) using tang/clevis <a href="Docs/Disk-Encryption.md">Details here</a>. Thanks @Handrail9 for the suggestion.
+    * Disk encryption process can be fully automated <a href="Docs/Disk-Encryption.md">Details here</a>.
+* Improvements
+  * Deferred plugins service changed to a forking service to not block startup complete
+  * Enhance documentation for `--plugin system:service-*able-at-boot` to explain how they can be used
+  * Bash completion, if enabled, can list available plugins for the `--plugin` switch
+* Bug Fixes
+
 ## V15.3
 
 * New Features
