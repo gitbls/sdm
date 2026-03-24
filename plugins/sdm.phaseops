@@ -180,11 +180,11 @@ EOF
 ConditionPathExists=!/etc/sdm/control/sdm-startup
 ConditionPathExists=!/etc/sdm/control/rootfs-encryption
 ConditionPathExists=!/etc/sdm/control/no-defer-pluglist
-After=multi-user.target network-online.target
+After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=oneshot
+Type=forking
 RemainAfterExit=yes
 ExecStart=/usr/local/bin/sdm-run-defer-pluglists
 TimeoutStopSec=300
@@ -204,6 +204,12 @@ function defer_cleanup() {
     mv /etc/systemd/system/sdm-defer-pluglist.service /etc/systemd/system/.sdm-defer-pluglist.service
     mv /usr/local/bin/sdm-run-defer-pluglists /usr/local/bin/.sdm-run-defer-pluglists
 }
+
+if [ "$1" == "" ]
+then
+    $0 "fork" &         # Fork and restart myself so forking service is started
+    exit
+fi
 
 source /etc/sdm/sdm-readparams
 assetdir=/etc/sdm/assets/defer-plugin
