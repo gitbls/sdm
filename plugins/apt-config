@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|no-install-recommends|confold|confdef|nopager|nocolor|"   #"|list|of|valid|args|"
+vldargs="|no-install-recommends|confnew|confold|confdef|nopager|nocolor|"   #"|list|of|valid|args|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -50,6 +50,11 @@ then
 	echo "APT::Install-Recommends \"false\";" >> /etc/apt/apt.conf.d/90-sdm-norecommends
     fi
     rm -f /etc/apt/apt.conf.d/10-sdm-force
+    if [ -v confnew ]
+    then
+	logtoboth "> Enable apt force-confnew in /etc/apt/apt.conf.d"
+	echo 'Dpkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90-sdm-force
+    fi
     if [ -v confold ]
     then
 	logtoboth "> Enable apt force-confold in /etc/apt/apt.conf.d"
