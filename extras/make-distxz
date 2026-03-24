@@ -104,6 +104,7 @@ pluglist=(apps \
 	      lxde \
 	      mkdir \
 	      modattr \
+	      nbde-server-install \
 	      ndm \
 	      network \
 	      parted \
