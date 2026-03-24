@@ -154,7 +154,7 @@ function copybypart() {
     wipefs --all ${dstdev}$p1 >/dev/null 2>&1
     wipefs --all ${dstdev}$p2 >/dev/null 2>&1
     sgdisk --zap-all $dstdev >/dev/null 2>&1
-    partprobe #>/dev/null 2>&1
+    partprobe $dstdev #>/dev/null 2>&1
     if [ "$dsttype" == "dos" ]
     then
 	write_burnmsg "* Create MBR partition table on $dstdev"
@@ -178,7 +178,7 @@ function copybypart() {
 	sgdisk --new 2:$extstart:$extend $dstdev --typecode 2:$tc >/dev/null
 	errifrc $? "? Error creating root partition on $dstdev"
     fi
-    partprobe
+    partprobe $dstdev
 
     #declare -x SDMPT=$(makemtpt)
     #declare -x SDMPX=$(makemtptX)
@@ -209,7 +209,7 @@ function copybypart() {
 	    lvremove $rootfs --yes >/dev/null 2>&1
 	    vgremove /dev/$vgname --yes >/dev/null 2>&1
 	    pvremove $rootdev --yes >/dev/null 2>&1
-	    partprobe
+	    partprobe $dstdev
 	    write_burnmsg "> Create LVM physical volume: pvcreate $rootdev"
 	    pvcreate $rootdev --force --force --yes
 	    errifrc $? "? Error initializing partition 2 lvm on $dstdev"
@@ -221,7 +221,7 @@ function copybypart() {
 	    errifrc $? "? Error creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
 	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null
 	    errifrc $? "? Error modifying partition 1 type on $dstdev"
-	    partprobe
+	    partprobe $dstdev
 	    write_burnmsg "> Create 'ext4' rootfs file system on $rootfs"
 	    mkfs.ext4 -F $rootfs >/dev/null 2>&1
 	    errifrc $? "? Error creating ext4 rootfs file system on $rootfs"
@@ -386,7 +386,7 @@ EOF
 	    docleanup
 	    sync ; sleep 1 ; sync
 	fi
-	partprobe
+	partprobe $burndev
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
 	domount "$burndev" "Device" $SDMPT $cvtrootfs
@@ -881,9 +881,7 @@ function sdm_do_ext_command() {
     local extoptions="directory,encrypted"
 
     IFS=" " read dimg restofline <<< "$restofline"
-    #echo "In sdm_do_ext_command; command:|$command| dimg:|$dimg| restofline:|$restofline|"
     IFS=" " read arg1 arg2 restofline <<< "$restofline"
-    #echo  "before getopt arg1:|$arg1| arg2:|$arg2| restofline:|$restofline|"
     # Move this to be done via an envar
     # Parse the command and switches (--directory, --encrypted)
 
@@ -906,8 +904,6 @@ function sdm_do_ext_command() {
 	    *) errexit "? $0: Internal error" ;;
 	esac
     done
-    #echo "post loop: 1:|$1| 2:|$2| 3:|$3| 4:|$4|"
-    #echo "2:sdm_do_ext_command; command:|$command| dimg:|$dimg| restofline:|$restofline|"
     #
     # Figure out the disk/directory/device
     #
@@ -947,7 +943,7 @@ function sdm_do_ext_command() {
     #
     if [ "$arg1" == "" ]
     then
-	[[ "cleanup|df|get|jc|jca|jcall|journalctl|list-boots|put" =~ $command ]] || errexit "? Missing argument"
+	[[ "cleanup|df|get|jc|jca|jcall|journalctl|list-boots|put|run" =~ $command ]] || errexit "? Missing argument"
     fi
     if [ "$arg2" == "" ]
     then
@@ -1018,6 +1014,14 @@ function sdm_do_ext_command() {
 		[ -f $SDMPT/$arg1 ] && errexit "? Directory '$arg1' is a file" || errexit "? Directory '$arg1' not found"
 	    fi
 	    [ -d $SDMPT/$arg1 ] && echo "rm -rf $SDMPT/$arg1" || errexit "% Directory '$arg1' not found"
+	    ;;
+	run)
+	    if [ -x $SDMPT/$arg1 ]
+	    then
+		sdm_runspawncmd Phase1 run-command $arg1
+	    else
+		errexit "? '$arg1' not found or not executable"
+	    fi
 	    ;;
     esac
     exit

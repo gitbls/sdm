@@ -101,7 +101,7 @@ function initdisk() {
             errifrc $? "? Error modifying partition 2 type on $dev"
 	fi
     fi
-    partprobe
+    partprobe $dev
     if [ $xfat -eq 0 ]
     then
 	[ "$xlabel" != "" ] && mlabel="-q -L $xlabel"
