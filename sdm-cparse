@@ -480,17 +480,17 @@ function loginfo() {
     [ "$memsize" != "" ] && $logsub "   Memory:    $memsize" "" "$mods"
     $logsub "   uname:     $(uname -a)" "" "nosplit${mods}"
     [ "$pimodel" != "" ] && $logsub "   Raspberry Pi Model: $pimodel" "" "$mods"
-    os_name="$(getosinfo PRETTY_NAME)"
-    [ "$os_name" == "" ] && os_name="$(getosinfo NAME)"
+    os_name="$(getosinfo PRETTY_NAME $SDMPT)"
+    [ "$os_name" == "" ] && os_name="$(getosinfo NAME $SDMPT)"
     $logsub "   os-release Name: $os_name" "" "$mods"
-    os_version="$(getosinfo VERSION)"
-    os_codename="$(getosinfo VERSION_CODENAME)"
+    os_version="$(getosinfo VERSION $SDMPT)"
+    os_codename="$(getosinfo VERSION_CODENAME $SDMPT)"
     if [ "$os_codename" != "" ]
     then
 	[[ "$os_version" =~ $os_codename ]] || os_version="$os_version ($os_codename)"
     fi
     $logsub "   Version: $os_version" "" "$mods"
-    os_like="$(getosinfo ID_LIKE)"
+    os_like="$(getosinfo ID_LIKE $SDMPT)"
     [ "$os_like" != "" ] && $logsub "   Like OS: $os_like" "" "$mods"
     $logsub "   sdm Version: $version" "" "$mods"
     $logsub "* IMG Information" "" "$mods"
