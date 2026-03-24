@@ -161,6 +161,7 @@ function printhelp() {
 sdm-cryptconfig has several command line switches, all of which are optional
 
 * --authorized-keys keyfile -- Provides SSH authorized_keys file for the initramfs. Required with --ssh
+* --auto-encrypt devname -- Perform initramfs encryption automatically (non-stop) and use devname as scratch disk
 * --crypto cryptalgo -- Specify crypto algorithm (aes [D]) or xchacha (use on Pi4 and earlier)
 * --dns dnsaddr -- Set IP Address of DNS server
 * --gateway gatewayaddr -- Set IP address of gateway
@@ -169,6 +170,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --keyfile keyfile -- Key file for USB-based key unlock
 * --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --mask netmask -- Set network mask for initramfs
+* --nbde-server http://<nbdeserver>:port -- Use Network Based Disk Encryption
 * --no-expand-root -- Don't expand rootfs after rootfs encryption has completed
 * --no-last-reboot -- Don't do final reboot after sdm-cryptfs-cleanup
 * --nopwd -- No password on encrypted rootfs; keyfile (required) is only unlock
@@ -484,6 +486,8 @@ After=multi-user.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/sdm-cryptfs-cleanup
+StandardInput=tty
+StandardOutput=journal+console
 
 [Install]
 WantedBy=multi-user.target
@@ -527,7 +531,8 @@ mv /etc/initramfs-tools/hooks/luks-hooks /etc/initramfs-tools/hooks/.sdm.luks-ho
 grep -v -E "sdmcryptfs|mapper|lz4|sgdisk|/etc/sdm/assets/cryptroot" /etc/initramfs-tools/hooks/.sdm.luks-hooks.old > /etc/initramfs-tools/hooks/luks-hooks
 chmod 755 /etc/initramfs-tools/hooks/luks-hooks
 grep -q -s xsshbash:0 /etc/sdmcryptctl && [ -f /etc/dropbear/initramfs/dropbear.conf ] && sed -i "s/bash/cryptroot-unlock/" /etc/dropbear/initramfs/dropbear.conf
-rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
+rm -f /etc/initramfs-tools/scripts/local-top/sdm-autocrypt # Do this before update-initramfs
+# Cleanup of lek files done later
 echolog "sdm-cryptfs-cleanup: Rebuild initramfs"
 update-initramfs -u
 
@@ -565,6 +570,35 @@ else
 #        fi
     fi
 fi
+
+wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
+
+#
+# Configure NBDE if requested
+#
+if grep -q -s nbdeserver: /etc/sdmcryptctl
+then
+    IFS=":" read zlabel zurl < <(grep nbdeserver: /etc/sdmcryptctl)
+    echolog "sdm-crytpfs-cleanup: Configure rootfs Network Bound Disk Encryption (NBDE) client"
+    IFS=":" read zlabel zmapper < <(grep mappername: /etc/sdmcryptctl)
+    IFS=$' \t' read junk partition therest < <(grep $zmapper /etc/crypttab)
+    zkeyfile=""
+    if grep -q -s keyfile: /etc/sdmcryptctl
+    then
+        IFS=":" read zlabel zkeyfile < <(grep keyfile: /etc/sdmcryptctl)
+        [ "$zkeyfile" == "" ] || zkeyfile=/etc/sdm/assets/cryptroot/$(basename $zkeyfile)
+    fi
+    if [ "$zkeyfile" == "" ]
+    then
+        luksupwd=$(systemd-ask-password "Enter LUKS unlock password for partition '$partition':")
+        printf "$luksupwd\n" | clevis luks bind -f -y -d $partition tang "{\"url\":\"$zurl\"}"
+    else
+        clevis luks bind -f -y -k $zkeyfile -d $partition tang "{\"url\":\"$zurl\"}"
+    fi
+fi
+#
+# Done!
+#
 if grep -q -s re-enable-tty1 /etc/sdmcryptctl
 then
     echolog "sdm-cryptfs-cleanup: Re-enable getty@tty1"
@@ -574,9 +608,7 @@ systemctl disable sdm-cryptfs-cleanup
 rm -f /etc/systemd/system/sdm-cryptfs-cleanup.service
 rm -f /etc/systemd/system/sdm-auto-encrypt.service
 systemctl daemon-reload
-
-wait_startup_complete "sdm-cryptfs-cleanup: Wait for system startup to complete"
-
+rm -f /etc/sdm/assets/cryptroot/*.lek /etc/*.lek
 rm -f /etc/sdm/control/rootfs-encryption
 
 if grep -q -s xnolastrb:0 /etc/sdmcryptctl
@@ -600,7 +632,7 @@ EOF
 
 function parsecmd() {
     local cmd="$1" args="$2"
-    local longopts="authorized-keys:,crypto:,debug,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,netmask:,no-expand-root,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
+    local longopts="authorized-keys:,auto-encrypt:,crypto:,debug,dns:,gateway:,help,hostname:,ipaddr:,keyfile:,mapper:,mask:,nbde-server:,netmask:,no-expand-root,no-last-reboot,nopwd,ssh,sshbash,sshport:,sshtimeout:,reboot,sdm,tries:,unique-ssh,wifi-ssid:,wifi-password:,wifi-use-psk"
 
     OARGS=$(getopt -o h --longoptions $longopts -n 'sdm' -- "$@")
     [ $? -ne 0 ] && errexit "? $cmd: Unable to parse command"
@@ -610,6 +642,7 @@ function parsecmd() {
 	case "${1,,}" in
 	    # 'shift 2' if switch has argument, else just 'shift'
 	    --authorized-keys) xauthkeys=$2 ; shift 2 ;;
+	    --auto-encrypt)    xautocrypt=$2 ; shift 2 ;;
 	    --crypto)          xcrypto=$2   ; shift 2 ;;
 	    --debug)           xdebug=1     ; shift 1 ;;
 	    --dns)             xdns=$2      ; shift 2 ;;
@@ -619,6 +652,7 @@ function parsecmd() {
 	    --keyfile)         xkeyfile=$2  ; shift 2 ;;
 	    --mapper)          xmapper=$2 ; shift 2 ;;
 	    --mask|--netmask)  xnetmask=$2  ; shift 2 ;;
+	    --nbde-server)     xnbdeserver=$2 ; shift 2 ;;
 	    --no-expand-root)  xnoexpand=1  ; shift 1 ;;
 	    --no-last-reboot)  xnolastrb=1  ; shift 1 ;;
 	    --nopwd)           xnopwd=1     ; shift 1 ;;
@@ -647,12 +681,46 @@ function parsecmd() {
 	[ $xssh -eq 1 ]  && errexit "? --ssh requires --authorized-keys"
     fi
     [[ $xnopwd -eq 1 ]] && [[ "$xkeyfile" == "" ]] && errexit "? --nopwd requires --keyfile"
+    if [ "$xautocrypt" != "" ]
+    then
+	[ $xnopwd -eq 0 ] && errexit "? --auto-encrypt requires --nopwd (and --keyfile)"
+	[ "$xkeyfile" == "" ] && errexit "? --autoencrypt requires --keyfile"
+    fi
     [[ "$xtries" != "" ]] && checknumeric $xtries "--tries"
 }
 
 function doconfiginitramfs() {
-    local kcmd="" knopwd=""
+    local kcmd="" knopwd="" bootdisk
 
+    if [ "$xautocrypt" != "" ]
+    then
+	cryptolog "Configure initramfs for automatic encryption"
+	# Get boot disk devname /dev/xxx
+	bootdisk=$(findmnt / --noheadings --output source)
+	ispdevp $bootdisk && bootdisk=${bootdisk%p*} || bootdisk=${bootdisk%[0-9]}
+	printf "autosysdisk:$bootdisk\nautoscratch:$xautocrypt\n" >> /etc/sdmcryptctl
+	cat > /etc/initramfs-tools/scripts/local-top/sdm-autocrypt <<EOF
+#!/bin/sh
+
+PREREQ=""
+
+prereqs() {
+    echo "\$PREREQ"
+}
+
+case "\$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+echo "Run SDM auto-encryption script"
+
+sdmcryptfs $bootdisk $xuatoencrypt
+EOF
+	chmod 755 /etc/initramfs-tools/scripts/local-top/sdm-autocrypt
+    fi
     # These both need to be set on initramfs-tools 0.142+rpt1 and earlier. This assumes OK. Remove uncommented line for earlier initramfs-tools
     cryptolog "Update initramfs configuration for 'MODULES=most' and 'update_initramfs=all'" noconsole
     sed -i "s/^MODULES=dep/MODULES=most/" /etc/initramfs-tools/initramfs.conf
@@ -871,6 +939,7 @@ function doupdateconfig() {
 [[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
 
 xauthkeys=""
+xautocrypt=""
 xcrypto=""
 xdebug=0
 xdns=""
@@ -879,6 +948,7 @@ xhostname=""
 xipaddr=""
 xkeyfile=""
 xmapper=""
+xnbdeserver=""
 xnetmask=""
 xnoexpand=0
 xnolastrb=0
@@ -925,20 +995,22 @@ fi
 
 rm -f /etc/sdmcryptctl
 printf "# Runtime configuration for sdm-cryptconfig\n" >/etc/sdmcryptctl
-printf "mappername:$xmapper\nxcrypto:$xcrypto\nkeyfile:$xkeyfile\nxnopwd:$xnopwd\n" > /etc/sdmcryptctl
+printf "mappername:$xmapper\nxcrypto:$xcrypto\nkeyfile:$xkeyfile\nxnopwd:$xnopwd\n" >> /etc/sdmcryptctl
+[ "$xnbdeserver" != "" ] && printf "nbdeserver:$xnbdeserver\n" >> /etc/sdmcryptctl
 
 if [ $xsdm -eq 0 ]
 then
-    if [ ! -f /usr/local/bin/sdmcryptfs ]
+    if [ ! -f /usr/bin/sdmcryptfs ]
     then
 	if [ -f $src/sdmcryptfs ]
 	then
 	    cryptolog "Copy sdmcryptfs from $src" noconsole
 	    cp $src/sdmcryptfs /usr/local/bin
+	    cp $src/sdmcryptfs /usr/bin
 	else
 	    cryptolog "Copy sdmcryptfs from GitHub" noconsole
-	    curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdmcryptfs -o /usr/local/bin/sdmcryptfs
-	    chmod 755 /usr/local/bin/sdmcryptfs
+	    curl --fail --silent --show-error -L https://github.com/gitbls/sdm/raw/master/sdmcryptfs -o /usr/bin/sdmcryptfs
+	    chmod 755 /usr/bin/sdmcryptfs
 	fi
     fi
 fi
@@ -949,6 +1021,7 @@ do
 	doapt-installs)
 	    [ $xssh -eq 1 ] && db="dropbear-initramfs dropbear-bin" || db=""
 	    apps="cryptsetup cryptsetup-initramfs cryptsetup-bin lz4 gdisk e2fsprogs $db"
+	    [ "$xnbdeserver" != "" ] && apps="$apps clevis clevis-initramfs"
 	    cryptolog "Install $apps" noconsole
 	    if [ $xssh -eq 1 ]
 	    then

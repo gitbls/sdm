@@ -1,6 +1,6 @@
 # At-rest Disk Encryption
 
-One tool that can be used to increase system security is encryption. This article discusses using sdm to configure encryption for a partition on a Raspberry Pi system disk. This makes the loss of a disk far less of a problem, since the content cannot be read without knowing how to decrypt the partition(s) either with a passphrase, Yubikey, or a USB Keyfile Disk.
+One tool that can be used to increase system security is encryption. This article discusses using sdm to configure encryption for a partition on a Raspberry Pi system disk. This makes the loss or theft of a disk far less of a problem, since the content cannot be read without knowing how to decrypt the partition(s) either with a passphrase, Yubikey, USB Keyfile Disk, or Network Bound Disk Encryption (NBDE).
 
 sdm supports any combination of an encrypted rootfs and/or encrypted data partitions.
 
@@ -8,7 +8,7 @@ sdm configures encrypted partitions using <a href="https://gitlab.com/cryptsetup
 
 Although encryption does increase security, there are some challenges, such as:
 
-* The rootfs passphrase must be typed **on the console** *every* time the Pi reboots. If you don't want to type a passphrase, you can use a Yubikey or a USB Keyfile Disk
+* The rootfs passphrase must be typed **on the console** *every* time the Pi reboots. If you don't want to type a passphrase, you can use a Yubikey, a USB Keyfile Disk, or Network Bound Disk Encryption (NBDE) unlock.
 * If you want to use a passphrase on a headless Pi, you can use SSH to enter the passphrase remotely. Details below
 * At-rest encryption does not make the running system any more secure
 * This tool does not provide any way to undo disk encryption if you decide you don't want it
@@ -24,6 +24,8 @@ With those caveats, if encryption is useful for you, sdm makes it quite simple t
 * There is currently no standalone way to use the `cryptpart` plugin. It must be run via sdm (contrast with `sdm-cryptconfig` that does not require sdm installed). That said, sdm is quite easy to install and has a very small footprint.
 
 * Yubikey unlock is only supported for the rootfs. Data partitions can be unlocked using a keydisk or a passphrase
+
+* Network Bound Disk Encryption (NBDE) unlock is only supported for the rootfs.
 
 * Your system MUST be fully updated with apt before starting the encryption process documented here (`sudo apt update ; sudo apt full-upgrade`)
 
@@ -48,10 +50,13 @@ This tool supports multiple methods of unlocking the encrypted rootfs. These inc
 * **Passphrase** &mdash; When the system boots the passphrase must be provided to the prompt on the console. The passphrase can also be provided if <a href="Disk-Encryption.md#ssh-and-initramfs">SSH was configured into the initramfs</a>
 * **Keyfile** &mdash; A <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">keyfile</a> on a USB disk can unlock the rootfs
 * **Yubikey** &mdash; A <a href="Disk-Encryption.md#unlocking-rootfs-with-a-yubikey"> Yubikey </a> can unlock the rootfs
+* **Network Bound Disk Encryption (NBDE)** &mdash; NBDE contacts a small NBDE server (tangd) to facilitate the unlock. See <a href="Disk-Encryption.md#nbde">Network Bound Disk Encryption</a>
 
-Passphrase on the console is the default unlock method. Keyfile and Yubikey are optional, but only one of Keyfile or Yubikey can be enabled. Specifically, enabling the Yubikey will render any configured keyfile ignored. If a keyfile or Yubikey is configured, the passphrase is not required.
+Passphrase on the console is the default unlock method. Keyfile, Yubikey, and NBDE are optional. Only one of Keyfile or Yubikey can be enabled. Specifically, enabling the Yubikey will render any configured keyfile ignored. If a keyfile or Yubikey is configured, the passphrase is not required. NBDE and Yubikey are mutually exclusive as well.
 
 SSH unlock can be used in any configuration.
+
+NBDE is discussed in detail <a href="Disk-Encryption.md#nbde">here.</a>
 
 ## sdm-Integrated rootfs Encryption Configuration
 
@@ -123,6 +128,7 @@ sdm-cryptconfig has several switches. When using sdm-integrated rootfs encryptio
 
 Switches to sdm-cryptconfig include:
 
+* `--auto-encrypt devname` &mdash; Perform the sdmcryptfs encryption process automatically. `devnam` is the device name (e.g., `/dev/sdc`) of the scratch disk on the system where the encryption will be done. Requires `--nopwd` and `--keyfile`
 * `--authorized-keys authkeyfile` &mdash; Specifies an SSH *authorized_keys* file to use in the initramfs. Required with `--ssh`
 * `--crypto crypt-type` &mdash; Specifies the encryption to use. `aes` used by default, which uses `aes-xts-plain64`. Use `xchacha` on Pi4 and earlier for best performance. See Encryption/Decryption performance comparison below.
 * `--dns dnsaddr` &mdash; Set IP Address of DNS server
@@ -132,6 +138,7 @@ Switches to sdm-cryptconfig include:
 * `--keyfile /path/to/keyfile` &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * `--mapper cryptmapname` &mdash; Set cryptroot mapper name [Default: cryptroot]
 * `--mask netmask` &mdash; Set network mask for initramfs
+* `--nbde-server` &mdash; Specify the NBDE server URL. See <a href=#nbde>here for details</a>
 * `--no-expand-root` &mdash; Do not expand the rootfs at the end of sdmcryptfs
 * `--no-last-reboot` &mdash; Don't do final reboot after sdm-cryptfs-cleanup
 * `--nopwd` &mdash; Do not configure passphrase unlock; a keyfile is required
@@ -153,7 +160,7 @@ The network configuration switches (`dns`, `gateway`, `hostname`, `ipaddr`, and 
 WiFi in initramfs only uses DHCP so the network configuration switches are ignored for an initramfs  WiFi connection.
 
 A fully-booted RasPiOS system uses a different mechanism to configure a static network, such as Network Manager, systemd-networkd, or other network configuration tools.
-  
+ 
 ## initramfs
 
 initramfs is one of the first programs run during a RasPiOS system boot. Since the system has been configured to use an encrypted rootfs, initramfs will try to boot using that configuration, and it will fail.
@@ -282,7 +289,7 @@ Things to know when using SSH as documented here:
 * You must specify the username `root`. This is ***important***, as that's how SSH is configured in the initramfs
 * You can use `ssh root@hostname` if DNS (not MDNS) on your network is set up correctly for resolving local host names.
 * You will not be able to SSH using ".local" names when initramfs SSH is running; avahi is not running in the initramfs so the system is unknown to MDNS (that's the protocol that is used for ".local")
-* If your local network does not have a properly-configured DNS server (<a href="https://github.com/gitbls/ndm">example</a>), you'll need to use `ssh root@ip.ad.dd.rs`
+* If your local network does not have a properly-configured DNS server to resolve local LAN DNS names(<a href="https://github.com/gitbls/ndm">example</a>), you'll need to use `ssh root@ip.ad.dd.rs`
 
 ## Unlocking rootfs with a Yubikey
 
@@ -382,9 +389,71 @@ sudo umount /mnt
 ```
 * Reboot
 
+## NBDE
+
+Network Bound Disk Encryption (NBDE) is an alternate unlock method for encrypted partitions (rootfs only at the current time).
+
+### NBDE Server Configuration
+
+NBDE requires an NBDE server, `tangd`, on the local network. If the server on which you choose to run `tangd` is customized with sdm you can use the sdm plugin `nbde-server-install` to install tangd. If not, it's a very simple install. The tangd server listens on port 80 by default, but this can be changed. `nbde-server-install` accomodates this as an option, or you can find configuration details <a href="#nbde-further-reading">here.</a>
+
+### How does NBDE work?
+
+Here's a brief overview of how tang works, from the `man tang` man page.
+
+The Tang project arose as a tool to help the automation of decryption.  Existing mechanisms predominantly use key escrow systems
+where a client encrypts some data with a symmetric key and stores the symmetric key in a remote server for later retrieval. The
+desired goal of this setup is that the client can automatically decrypt the data when it is able to contact the escrow server and
+fetch the key.
+
+However, escrow servers have many additional requirements, including authentication (so that clients can't get keys they aren't
+supposed to have) and transport encryption (so that attackers listening on the network can't eavesdrop on the keys in transit).
+
+Tang avoids this complexity. Instead of storing a symmetric key remotely, the client performs an asymmetric key exchange with the
+Tang server. Since the Tang server doesn't store or transport symmetric keys, neither authentication nor encryption are
+required. Thus, Tang is completely stateless and zero-configuration. Further, clients can be completely anonymous.
+
+### Using NBDE to unlock an encrypted rootfs
+
+When encrypting a rootfs, sdm-cryptconfig accepts the switch `--nbde-server`. Likewise, the `cryptroot` plugin accepts the argument `nbde-server`. In either case, you must provide the URL of the NBDE server in the form `http://fqdn.domain.xyz[:port]` (e.g., http://myserver.mydomain.com).
+
+If your network does not have a local DNS server with local hosts configured, you can use an IP address instead (e.g., `http://ip.ad.dr.es[:port]`, `http://192.168.1.62`), but be aware that the NBDE server must ALWAYS be at that IP address.
+
+On the other hand, if you use a full DNS domain, the server can easily be moved. In either case, the `[:port]` specifies the port number to use (e.g., `:7500`), and if not specified, both the NBDE server and client will use port `80`.
+
+Lastly, note that the URL is `http://` and ***NOT*** `https://`.
+
+### Configuring a LUKS unlock with NBDE
+
+There are two methods for configuring rootfs encryption, likewise there are two methods for configuring NBDE.
+
+* **cryptroot plugin** &mdash; Use the `cryptroot` plugin argument `nbde-server` to enable NBDE unlock
+
+    `--plugin cryptoot:"...|nbde-server=http://mysrv.mydom.com|nopwd|keyfile=/path/to/keyfile.lek|..."`
+
+* **sdm-cryptconfig** &mdash;  Use the command line argument `--nbde-server` to enable NBDE rootfs unlock
+
+    `sudo /usr/local/sdm/sdm-cryptconfig ... --nbde-server http://mysrv.mydom.com --nopwd --keyfile /path/to/keyfile.lek ...`
+
+#### sdm NBDE implementation behind-the-scenes
+
+The `cryptroot` plugin creates a systemd service to run sdm-cryptconfig at the end of the sdm FirstBoot, so this description focuses on sdm-cryptconfig.
+
+sdm-cryptconfig creates a systemd service (sdm-cryptfs-cleanup) to tidy up the system after a rootfs encryption. When NBDE is enabled this service also configures NBDE in the newly-encrypted rootfs.
+
+When the system reboots at the end of sdm-cryptfs-cleanup, the system boots normally with the exception that NBDE is active. In this case, the network is started (eth0 only) and the NBDE client program (`clevis`) attempts to contact the `tangd` server to obtain the public key matter which is used to create the encryption material.
+
+If tangd responds successfully and provides valid data, clevis unlocks the rootfs and the system boot continues. If there is no response or it is otherwise unsuccessful, the system will use the other mechanisms you configured: passphrase, keydisk, or Yubikey.
+
+#### NBDE Further Reading
+
+<a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/configuring-automated-unlocking-of-encrypted-volumes-using-policy-based-decryption_security-hardening"> This page describes NBDE</a> and the clevis/tang implementation. sdm automates the configuration described in this document.
+
+sdm does not provide any assistance for rotating tang server keys, which is described on the above linked page or `man tang` on the system where tang is installed.
+
 ## Encrypting other partitions
 
-You may want to create a data partition on the system disk that is also encrypted. This section demonstrates how to accomplish this. The end result is a system disk with an encrypted rootfs and an encrypted data partition.
+You may want to create a data partition on the system disk that is also encrypted (e.g., for an encrypted /home partition). This section demonstrates how to accomplish this. The end result is a system disk with an encrypted rootfs and an encrypted data partition.
 
 A video of this entire process <a href="https://youtu.be/RLbxXzZo2Lk">can be viewed here.</a>
 
@@ -563,7 +632,7 @@ p84~$ sudo cryptsetup benchmark -c aes-cbc-essiv:sha256
 
 ## btrfs rootfs notes
 
-sdm can be used to create an encrypted rootfs with the btrfs file system.
+sdm can be used to create an encrypted rootfs that uses the btrfs file system.
 
 * Use the `--convert-root btrfs` when burning the disk.
 * If you want the rootfs to fill the remainder of the disk, add `--expand-root` to the burn command.
@@ -647,6 +716,7 @@ Thanks to:
 * The RasPiOS and Debian teams for a great OS
 * Moses for the WiFi support
 * rakwala for the nudge to do encrypted data partitions and all the help
+* The `tang` and `clevis` projects for the very cool Network Bound Disk Encryption capability
 
 <br>
 <form>

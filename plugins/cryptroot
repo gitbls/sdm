@@ -27,7 +27,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|netmask|mapper|ssh|sshbash|sshport|sshtimeout|uniquesshkey|noauto|nopwd|no-expand-root|"
+vldargs="|auto-encrypt|authkeys|crypto|dns|gateway|ihostname|ipaddr|keyfile|nbde-server|netmask|mapper|ssh|sshbash|sshport|sshtimeout|uniquesshkey|noauto|nopwd|no-expand-root|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -65,6 +65,16 @@ then
     then
 	[[ "aes|xchacha" =~ "$crypto" ]] || [[ "$crypto" =~ "aes-" ]] || logtobothex "? Plugin $pfx: Supported cryptos: aes and xchacha"
     fi
+    if [ -v auto__encrypt ]
+    then
+	[ "$auto__encrypt" == "" ] && logtobothex "? Plugin $pfx: 'auto-encrypt' requires a value; See documentation"
+	[ "$nopwd" == "y" ] || logtobothex "? Plugin $pfx: 'auto-encrypt' requires 'nopwd' (and 'keyfile')"
+	[ "keyfile" == "" ] && logtobothex "? Plugin $pfx: 'auto-encrypt' requires 'keyfile'"
+    fi
+    if [ -v nbde__server ]
+    then
+	[ "$nbde__server" == "" ] && logtobothex "? Plugin $pfx: 'nbde-server' argument requires a complete URL value"
+    fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
@@ -79,6 +89,7 @@ then
     logtoboth "> Plugin $pfx: Copy sdm-cryptconfig and sdmcryptfs to /usr/local/bin from '$src'"
     cp -a $src/sdm-cryptconfig /usr/local/bin
     cp -a $src/sdmcryptfs /usr/local/bin
+    cp -a $src/sdmcryptfs /usr/bin
     # These are only for tracking, not used by sdm-cryptconfig
     [ "$keyfile" != "" ] && keyfile="$(basename $keyfile)"
     echo "$mapper" > $assetdir/mappername
@@ -89,6 +100,7 @@ then
     installpkgsif "cryptsetup cryptsetup-initramfs cryptsetup-bin lz4 gdisk e2fsprogs"
     logtoboth "> Plugin $pfx: Enable sdm automatic disk encryption configuration with crypto '$xcrypto'"
     osw="--mapper $mapper"
+    [ "$auto__encrypt" != "" ] && osw="${osw} --auto-encrypt $auto__encrypt"
     [ "$authkeys" != "" ] && osw="${osw} --authorized-keys $assetdir/$(basename $authkeys)"
     [ "$crypto" != "" ] && osw="${osw} --crypto $xcrypto"
     [ "$dns" != "" ] && osw="${osw} --dns $dns"
@@ -96,6 +108,7 @@ then
     [ "$ihostname" != "" ] && osw="${osw} --hostname $ihostname"
     [ "$ipaddr" != "" ] && osw="${osw} --ipaddr $ipaddr"
     [ "$keyfile" != "" ] && osw="${osw} --keyfile $keyfile"
+    [ "$nbde__server" != "" ] && osw="${osw} --nbde-server $nbde__server"
     [ "$netmask" != "" ] && osw="${osw} --netmask $netmask"
     [ "$nopwd" == "y" ] && osw="${osw} --nopwd"
     [ "$no__expand__root" == "y" ] && osw="${osw} --no-expand-root"

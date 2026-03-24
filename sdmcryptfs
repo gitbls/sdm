@@ -27,8 +27,9 @@ function thisdate() {
 }
 
 function pmsg() {
-    local msg="$1"
-    echo "> $(thisdate) $msg" >/dev/tty
+    local msg="$1" tty="/dev/console"
+    [ $fssh -eq 1 ] && tty="/dev/tty"
+    echo "> $(thisdate) $msg" >$tty
 }
 
 function askyn() {
@@ -214,7 +215,7 @@ function save_rootfs() {
     local dev=$1 sdisk=$2 partsize=$3
     local rootfs=$(getpartname $dev 2)
     local scpart=$(getpartname $sdisk 1)
-    local partend fullblocks remainder rootfsize mb fram=0
+    local partend fullblocks remainder rootfsize mb
 
     local starttime endtime pbytes pgb
 
@@ -230,6 +231,7 @@ function save_rootfs() {
             mb=$(((mb/1024)-2))            # Memory size in MB minus a bit
             if [ $mb -gt $rootfsize ]
             then
+		fram=1
 		mount -t tmpfs -o size=${rootfsize}M tmpfs /scratch
 		pmsg "Save rootfs '$rootfs' to RAM disk"
 		pmsg "rootfs save should take less than $(printdt $(((partsize/256)/43)))"
@@ -381,7 +383,7 @@ function restore_rootfs() {
     local cpartnum cpartstart cpartend cpartsize etc
     local starttime endtime pbytes pgb
     checkdev $sdisk || return 1
-    pmsg "Restore '$rootfs' from '$sdisk'"
+    [ $fram -eq 0 ] && pmsg "Restore '$rootfs' from '$sdisk'" || pmsg "Restore '$rootfs' from RAM disk"
     starttime="$(getcbbdate)"
     if [ $xcompress -eq 0 ]
     then
@@ -461,15 +463,37 @@ function runall() {
     restore_rootfs $dev $sdisk $partsize $fstype || return 1
 }
 
+fauto=0
+fram=0
 fdebug=1
 dev="$1"
 sdisk="$2"
 datefmt="%Y-%m-%d %H:%M:%S"
+[ "$SSH_CLIENT" == "" ] && fssh=0 || fssh=1
+if grep -q -s autosysdisk: /etc/sdmcryptctl
+then
+    fauto=1
+    IFS=":" read label dev < <(grep autosysdisk: /etc/sdmcryptctl)
+    IFS=":" read label sdisk < <(grep autoscratch: /etc/sdmcryptctl)
+    pmsg "Auto: |$dev| |$sdisk|"
+fi
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
 
 [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
 IFS=" " read ign pimem units <<< $(grep -i MemTotal /proc/meminfo)
 [ "$pimodel" != "" ] && [ "$pimem" != "" ] && pmsg "Start sdmcryptfs on a $pimem $units '$pimodel'"
+
+if [ $fauto -eq 1 ]
+then
+    pmsg ""
+    pmsg "************"
+    pmsg "Automatic sdmcryptfs conversion on '$dev' with scratch disk '$sdisk'"
+    pmsg "sdm Disk Encryption process will continue automatically when sdmcryptfs completes"
+    pmsg "Conversion will start in 10 seconds"
+    pmsg "************"
+    pmsg ""
+    sleep 10
+fi
 
 xcrypto=""
 IFS=":" read lval xcrypto < <(grep xcrypto: /etc/sdmcryptctl)
@@ -486,15 +510,22 @@ partsize=""
 IFS=":" read lval cryptdevice < <(grep mappername: /etc/sdmcryptctl)
 [ "$cryptdevice" == "" ] && cryptdevice="nomappername"
 runall $dev $sdisk || exit 1
-wipescratch $partsize
+if [ $fauto -eq 1 ]
+then
+    if [ $fram -eq 0 ]
+    then
+	wipescratch $partsize
+    fi
+fi
 
 sleepsecs=10
-if [ "$SSH_CLIENT" == "" ]
+if [ $fssh -eq 0 ]
 then
     echo $"
 Enter the 'exit' command to resume the system boot process
 "
 else
+    [ $fauto -eq 1 ] && sleep 5 && exit 0
     echo $"
 Encryption complete. System boot will continue in $sleepsecs seconds
 "
