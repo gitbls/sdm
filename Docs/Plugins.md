@@ -157,6 +157,7 @@ apt-config provides some control over apt in the customized IMG
 #### Arguments
 
 * `no-install-recommends` &mdash; Disable installing recommended software
+* `confnew` &mdash; &mdash; always replace a config file without prompting
 * `confold` &mdash; &mdash; always keep old unmodified copy of a config file without prompting
 * `confdef` &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
 * `nopager` &mdash; Disable use of pager in `apt` listing commands
@@ -383,6 +384,7 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 
 #### Arguments
 
+* **auto-encrypt** &mdash; Specifies that automatic rootfs encryption should be done. The required value specifies the name of the scratch disk (e.g., /dev/sdb). Requires `nopwd` and `keyfile`
 * **authkeys** &mdash; Provides an SSH authorized keys file for use in the initramfs
 * **crypto** &mdash; Specifies the encryption to use. `aes` used by default. Use `xchacha` on Pi4 and earlier for best performance.
 * **dns** &mdash; DNS server address for the intramfs network client to use
@@ -1423,7 +1425,9 @@ If the system plugin is invoked more than once in an IMG, either on customize or
 * **rclocal** &mdash; Comma-separated list of ordered commands to add to /etc/rc.local. An item starting with '@' is interpeted as a file whose contents will be included.
 * Service control arguments
   * **service-disable** &mdash; Comma-separated list of services to disable
+  * **service-disable-at-boot** &mdash; Comma-separated list of services to disable at first boot
   * **service-enable** &mdash; Comma-separated list of services to enable
+  * **service-enable-at-boot** &mdash; Comma-separated list of services to enable at first boot
   * **service-mask** &mdash; Comma-separated list of services to mask
 * **swap** &mdash; **disable** or integer swapsize in MB to set
 * **sysctl** &mdash; Comma-separated list of files to copy to /etc/sysctl.d
@@ -1442,6 +1446,12 @@ If you're having issues with settings in your `systemd-config` files, here are s
 * The command `sudo systemd-analyze cat-config systemd/service.conf` (where *service* is one of journald, logind, networkd, pstore, sleep, system, timesyncd, or user) will display the settings in precedence order. This is very handy in sorting out what config file is providing which setting.
 * The files in /lib/systemd/*service*.conf.d and /etc/systemd/*service*.conf.d appear to have their files unified and processed in ascending alphabetical order. For instance,with /lib/systemd/journal.conf.d/70-xx.conf and /etc/systemd/journal.conf.d/030-xx.conf, 030-xx.conf is processed *first*, so any settings in 70-xx.conf will override settings in 030-xx.conf. 
 * The `swap` argument controls whichever of `rpi-swap` or `dphys-swapfile` is installed. `swap=0` disables swap. Also see the `swap` plugin for fine-grained configuration of `rpi-swap`.
+* The `service-disable` and `service-enable` arguments operate immediately on the specified services, whereas the `service-disable-at-boot` and `service-enable-at-boot` arguments operation is delayed and performed during sdm FirstBoot.
+
+
+  For instance, if a service is dependent on other operations that must be completed at boot time, you can use `service-disable` during customization to disable the service, and use `service-enable-at-boot`. In this scenario the service will run for the first time on the reboot AFTER sdm FirstBoot has completed.
+
+  Similarly, if you only want a service to run on the very first system boot BEFORE sdm FirstBoot completes, use `service-enable` to enable it during customization, and `service-disable-at-boot` to disable it for all subsequent system boots.
 
 ### trim-enable
 
