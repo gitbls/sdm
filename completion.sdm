@@ -13,16 +13,16 @@ __contains_word() {
 _sdm() {
     local cur=${COMP_WORDS[COMP_CWORD]} prev=${COMP_WORDS[COMP_CWORD-1]} words cword
     local i verb comps cur_orig
-
+    # Don't include plugin-debug so --plugin works as desired
     local -A OPTS=(
 	[STANDALONE]='--help --apt-dist-upgrade --autologin --batch --bootscripts --chroot
 	--ddextend --directory --encrypted --expand-at-boot --expand-root
 	--gpt --no-expand-root --norestart --noreboot --nowait-timesync --oklive
-	--plugin-debug --redact --redo-customize --regen-ssh-host-keys --restart --showapt --version'
+	--redact --redo-customize --regen-ssh-host-keys --restart --showapt --version'
 	[ARG]='--1piboot --aptcache --aptmaint --apt-options --b0script --b1script
 	--burn --burnfile --burn-plugin --cscript --convert-root --csrc --customize --datefmt --ddsw
 	--debug --domain --ecolors --explore  --extend --extract-log --extract-script --groups --hostname --info --keyfile --logwidth
-	--mcolors --mount --nspawnsw --os --plugin --plugins --poptions --ppart --reboot --runonly --sdmdir --sdmprep --shrink
+	--mcolors --mount --nspawnsw --os --plugin --poptions --ppart --reboot --runonly --sdmdir --sdmprep --shrink
 	--bupdate --xmb' # Leave these out so --customize can be shortcutted --custom1 --custom2 --custom3 --custom4
     )
 
@@ -39,7 +39,7 @@ _sdm() {
 		comps='update upgrade autoremove'
 		;;
 	    --apt-options|--poptions)
-		comps='noupdate noupgrade noautoremove nologdates none'
+		comps='noupdate noupgrade noautoremove nologdates no-install-recommends none'
 		;;
 	    --b0script|--b1script|--cscript|--csrc|--extract-log|--extract-script|--keyfile)
 		_filedir
@@ -74,7 +74,16 @@ _sdm() {
 		COMPREPLY=( $(compgen -W "number" -- $cur) )
 		return 0
 		;;
-	    --burn-plugin|--custom[1234]|--csrc|--datefmt|--ddsw|--debug|--domain|--ecolors|--groups|--host|--hostname|--mcolors|--nspawnsw|--plugin|--plugins|--sdmdir)
+	    --plugin)
+		dir=/usr/local/sdm/plugins
+		pfiles=()
+		while IFS= read -r f; do
+		    pfiles+=("$f")
+		done < <(find "$dir" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null)
+		COMPREPLY=( $(compgen -W "${pfiles[*]}" -- "$cur") )
+		return 0
+		;;
+	    --burn-plugin|--custom[1234]|--csrc|--datefmt|--ddsw|--debug|--domain|--ecolors|--groups|--host|--hostname|--mcolors|--nspawnsw|--sdmdir)
 		COMPREPLY=( $(compgen -W "string" -- $cur) )
 		return 0
 		;;
