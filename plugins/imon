@@ -27,10 +27,10 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
 
     logtoboth "> Plugin $pfx: download imon from GitHub to /usr/local/bin/imon and set protection"
-    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon -o $SDMPT/usr/local/bin/imon
-    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon-configure -o $SDMPT/usr/local/bin/imon-configure
-    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon-action.sample -o $SDMPT/usr/local/bin/imon-action.sample
-    curl -L https://raw.githubusercontent.com/gitbls/imon/main/imon@.service -o $SDMPT/etc/systemd/system/imon@.service
+    curl --fail --silent --show-error https://raw.githubusercontent.com/gitbls/imon/main/imon -o $SDMPT/usr/local/bin/imon
+    curl --fail --silent --show-error https://raw.githubusercontent.com/gitbls/imon/main/imon-configure -o $SDMPT/usr/local/bin/imon-configure
+    curl --fail --silent --show-error https://raw.githubusercontent.com/gitbls/imon/main/imon-action.sample -o $SDMPT/usr/local/bin/imon-action.sample
+    curl --fail --silent --show-error https://raw.githubusercontent.com/gitbls/imon/main/imon@.service -o $SDMPT/etc/systemd/system/imon@.service
     chmod 755 $SDMPT/usr/local/bin/{imon,imon-configure,imon-action.sample}
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
