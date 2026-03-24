@@ -106,7 +106,7 @@ hostname="\$(hostname)"
 hostname="\${hostname%.*}"
 sed -i "s/myhostname = .*/myhostname = \${hostname}${dmn}/" /etc/postfix/main.cf
 #Rerun make-ssl-cert now that host name is known
-make-ssl-cert generate-default-snakeoil --force-overwrite
+#make-ssl-cert generate-default-snakeoil --force-overwrite
 newaliases
 [ "$enablesvc" != "" ] && systemctl enable --now postfix
 EOF
