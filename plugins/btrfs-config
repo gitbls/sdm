@@ -146,6 +146,11 @@ EOF
             btrfs_cleanup
             echo "> Plugin $pfx: btrfs subvolume configuration complete"
             ;;
+        next)
+            # This preset is a placeholder to demonstrate how to add a new preset.
+            # It is not yet implemented.
+            logtobothex "? Plugin $pfx: Preset 'next' is not yet implemented"
+            ;;
         *)
             logtobothex "? Plugin $pfx: Unknown preset '$preset'"
             ;;
