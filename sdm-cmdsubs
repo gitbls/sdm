@@ -179,6 +179,7 @@ function copybypart() {
 	errifrc $? "? Error creating root partition on $dstdev"
     fi
     partprobe $dstdev
+    sleep 3 # to workaround "No such file or directory" still happens
 
     #declare -x SDMPT=$(makemtpt)
     #declare -x SDMPX=$(makemtptX)
