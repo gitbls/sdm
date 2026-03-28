@@ -41,6 +41,7 @@ The `--convert-root` switch takes an optional argument `size`, which specifies t
 * `sdm --burn /dev/sdc --convert-root btrfs --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn the IMG to /dev/sdc with a `btrfs` file system for rootfs
 * `sdm --burn /dev/sdc --convert-root btrfs,8192 --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; As above, but make rootfs 8192MB (8GB)
 * `sdm --burn /dev/sdc --convert-root btrfs,+8192 --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; As above, but increase the size of rootfs by 8192MB
+* `sdm --burn /dev/sdc --convert-root btrfs --convert-root-mount-options compress=zstd --burn-plugin btrfs-config /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn with custom mount options, and move root filesystem to `@` subvolume via the `btrfs-config` burn plugin
 * `sdm --burn /dev/sdc --gpt --expand-root /path/to/2023-12-05-raspios-bookworm-arm64.img` &mdash; Burn the IMG to /dev/sdc with a GPT partition table
 
 ## Device names

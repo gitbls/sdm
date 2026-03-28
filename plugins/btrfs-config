@@ -4,7 +4,7 @@
 #
 # The plugin is a burn plugin and must be invoked during a burn operation with --burn-plugin
 #
-# Invoke it on the burn command: --convert-root btrfs --burn-plugin btrfs-config
+# Invoke it on the burn command: --convert-root btrfs --burn-plugin btrfs-config:"preset=default"
 
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
@@ -19,7 +19,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|burndev|burnfilefile|imgtype|"
+vldargs="|burndev|burnfilefile|imgtype|preset|"
 rqdargs="|imgtype|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -35,52 +35,119 @@ function logtobothex() {
     exit 1
 }
 
+function ispdevp() {
+    local dev="$1"
+    [[ "$dev" =~ "mmcblk" ]] || [[ "$dev" =~ "nvme" ]] && return 0 || return 1
+}
+
+function getspname() {
+    local dev="$1" pn="$2"
+    ispdevp $dev && echo "${dev}p${pn}" || echo "${dev}${pn}"
+}
+
+function btrfs_cleanup() {
+    grep -qs "$SDMPT" /proc/mounts && umount -v "$SDMPT"
+    [[ -d "$SDMPT" ]] && rmdir "$SDMPT" 2>/dev/null
+    [[ -n "$loopdev" ]] && losetup -d "$loopdev" 2>/dev/null
+}
+
+function btrfs_exit() {
+    echo "? Plugin $pfx: $1"
+    btrfs_cleanup
+    exit 1
+}
+
 [[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
 
 if [ "$phase" == "burn-complete" ]
 then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
-    echo ""
-    echo ">"
-    echo "> This plugin provides a burn plugin framework but does not yet have a working btrfs configuration"
-    echo "> so is not yet functional"
-    echo ">"
-    echo "> Please feel free to work on it and contribute your updates to the sdm github by opening an issue"
-    echo "> (NOT a pull request, please).
-    echo ">"
-    echo "> Thanks!"
-    echo ""
-    exit 0
 
-    declare -x SDMPT=$(makemtpt)
-    mount -v ${burndev}2 $SDMPT
+    [[ -z "$preset" ]] && preset="default"
 
-    echo "> Create btrfs subvolumes"
-    btrfs subvolume create $SDMPT/@
-    btrfs subvolume create $SDMPT/@home
-    btrfs subvolume create $SDMPT/@var_log
+    case "$preset" in
+        default)
+            #
+            # Subvolume layout: @ (rootfs)
+            #
+            loopdev=""
 
-    echo "> Move system directories into subvolumes"
-    rsync -aHAX $SDMPT/home/ $SDMPT/@home/
-    rm -rf $SDMPT/home
-    rsync -aHAX $SDMPT/var/log/ $SDMPT/@var_log/
-    rm -rf $SDMPT/var/log
+            # Resolve boot and root partition device names
+            if [[ -n "$burndev" ]]
+            then
+                echo "> Plugin $pfx: Configure btrfs subvolumes on device '$burndev'"
+                bootpart=$(getspname $burndev 1)
+                rootpart=$(getspname $burndev 2)
+            else
+                echo "> Plugin $pfx: Configure btrfs subvolumes on IMG '$burnfilefile'"
+                loopdev=$(losetup --show --partscan --find "$burnfilefile") || btrfs_exit "Failed to set up loop device for '$burnfilefile'"
+                [[ -n "$loopdev" ]] || btrfs_exit "Failed to set up loop device for '$burnfilefile'"
+                bootpart="${loopdev}p1"
+                rootpart="${loopdev}p2"
+            fi
 
-    echo "> Update /etc/fstab"
-    root_uuid=$(sudo blkid -s UUID -o value "${burndev}2")
-    boot_uuid=$(sudo blkid -s UUID -o value "${burndev}1")
-    echo "root_uuid:|$root_uuid| boot_uuid:|$boot_uuid|"
-    
-    sed -i '/ \/ /d' $SDMPT/etc/fstab        #Remove rootfs line
-    cat >> $SDMPT/etc/fstab <<EOF
+            # Mount top-level btrfs
+            declare -x SDMPT=$(makemtpt)
+            echo "> Plugin $pfx: Mount btrfs top-level (subvol=/) from $rootpart on $SDMPT"
+            mount -o subvol=/ "$rootpart" "$SDMPT" || btrfs_exit "Failed to mount $rootpart on $SDMPT"
 
-# mount btrfs subvolumes
+            # Create @ subvolume and move all top-level contents into it
+            echo "> Plugin $pfx: Create btrfs subvolume @"
+            btrfs subvolume create "$SDMPT/@" || btrfs_exit "Failed to create subvolume @"
 
-UUID=$root_uuid  /home     btrfs  subvol=@home,compress=zstd,noatime     0  0
-UUID=$root_uuid  /var/log  btrfs  subvol=@var_log,compress=zstd,noatime  0  0
-#UUID=$boot_uuid  /boot     vfat   defaults                               0  2
+            echo "> Plugin $pfx: Move top-level contents into @ subvolume"
+            for item in "$SDMPT"/*
+            do
+                bname=$(basename "$item")
+                [[ "$bname" = '@' ]] && continue
+                mv -v "$item" "$SDMPT/@/" || btrfs_exit "Failed to move '$bname' into @"
+            done
+
+            # Update /etc/fstab
+            echo "> Plugin $pfx: Update /etc/fstab"
+            root_uuid=$(blkid -s UUID -o value "$rootpart")
+            [[ -n "$root_uuid" ]] || btrfs_exit "Failed to get UUID for $rootpart"
+
+            sed -i '/ \/ /d' "$SDMPT/@/etc/fstab"
+            cat >> "$SDMPT/@/etc/fstab" <<EOF
+
+# btrfs subvolume mount
+UUID=$root_uuid  /  btrfs  defaults,subvol=@,compress=zstd,noatime,nodiratime  0  0
 EOF
-    umount -v $SDMPT
+            echo "> Plugin $pfx: fstab updated with UUID=$root_uuid subvol=@ and other options"
+
+            # Set default subvolume to @
+            # Allows booting even if subvol=@ is removed in cmdline.txt and fstab
+            echo "> Plugin $pfx: Set default subvolume to @"
+            btrfs subvolume set-default "$SDMPT/@" \
+                || echo "% Plugin $pfx: Warning: Failed to set default subvolume; cmdline.txt rootflags will be relied upon"
+
+            # Update cmdline.txt
+            umount -v "$SDMPT"
+            echo "> Plugin $pfx: Mount boot partition $bootpart to update cmdline.txt"
+            mount -v "$bootpart" "$SDMPT" || btrfs_exit "Failed to mount boot partition $bootpart"
+
+            if [[ -f "$SDMPT/cmdline.txt" ]]
+            then
+                if ! grep -q "rootflags=subvol=@" "$SDMPT/cmdline.txt"
+                then
+                    echo "> Plugin $pfx: Append rootflags=subvol=@ to cmdline.txt"
+                    sed -i 's/$/ rootflags=subvol=@/' "$SDMPT/cmdline.txt"
+                else
+                    echo "> Plugin $pfx: cmdline.txt already contains rootflags=subvol=@"
+                fi
+            else
+                echo "% Plugin $pfx: Warning: cmdline.txt not found on boot partition"
+            fi
+
+            # Cleanup
+            echo "> Plugin $pfx: Cleanup"
+            btrfs_cleanup
+            echo "> Plugin $pfx: btrfs subvolume configuration complete"
+            ;;
+        *)
+            logtobothex "? Plugin $pfx: Unknown preset '$preset'"
+            ;;
+    esac
 fi
-exit
