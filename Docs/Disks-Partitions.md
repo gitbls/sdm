@@ -15,6 +15,7 @@ There are a few switches that change the burn function with respect to disks and
 * `--gpt` &mdash; Convert the burned disk to GPT partition format
 * `--burn-plugin parted` &mdash; Use the `parted` burn plugin to do disk partitioning functions after the burn has completed. See <a href="Plugins.md">Plugins</a>
 * `--convert-root` fmt[,[+]size] &mdash; Convert the rootfs to a different file system, rather than ext4. See the next section
+* `--convert-root-mount-options "options"` &mdash; Specify mount options for the converted rootfs (e.g., `"compress=zstd"` for btrfs)
 * `--expand-root` &mdash; sdm will expand the rootfs to the whole disk after burning
 * `--no-expand-root` &mdash; sdm will not expand rootfs and will disable automatic RasPiOS rootfs expansion
 

@@ -106,7 +106,7 @@ function copybypart() {
     #
     # Copy the partitions one at a time and change rootfs format
     #
-    local srcdev="$1" dstdev="$2" dsttype="${3:-dos}" fstype="${4:-ext4}" fsext="$5"
+    local srcdev="$1" dstdev="$2" dsttype="${3:-dos}" fstype="${4:-ext4}" fsext="$5" mopts="$6"
     local fatnum fatstart fatend fatsize
     local extnum extstart extend extsize extext
     local misc p1 p2 rootfs
@@ -290,7 +290,7 @@ function copybypart() {
 	zfs unmount rpool/ROOT/debian
     fi
 
-    domount $dstdev "Device" $SDMPT $fstype
+    domount $dstdev "Device" $SDMPT $fstype "$mopts"
     write_burnmsg "> Copy bootfs to $dstdev"
     rsync -aH $msdir/ $mddir
     errifrc $? "? Error copying bootfs partition to $dstdev"
@@ -381,7 +381,7 @@ EOF
 	    [ "$hname" == "" ] && vgname="vg1" || vgname=$hname
 	    mapper="/dev/mapper/$vgname-rootfs"
 	    fpartcopy=1
-	    copybypart $dimg $burndev $pt $cvtrootfs $cvtrootext
+	    copybypart $dimg $burndev $pt $cvtrootfs "$cvtrootext" "$cvtrootmountoptions"
 	    fpartcopy=0
 	    docleanup
 	    sync ; sleep 1 ; sync
@@ -389,7 +389,7 @@ EOF
 	partprobe $burndev
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
-	domount "$burndev" "Device" $SDMPT $cvtrootfs
+	domount "$burndev" "Device" $SDMPT $cvtrootfs "$cvtrootmountoptions"
     else
 	#
 	# Burning to a file
@@ -425,7 +425,7 @@ EOF
 	losetup -d $loopdev
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
-	domount "$burnfilefile" "IMG" $SDMPT $cvtrootfs
+	domount "$burnfilefile" "IMG" $SDMPT $cvtrootfs "$cvtrootmountoptions"
 	expandroot=1           # Force Expand Root into the newly written IMG so it will happen when burned to something with sdm
     fi
     #

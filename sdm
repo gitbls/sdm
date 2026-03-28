@@ -287,6 +287,7 @@ csrc=""                     #Source directory for use by Custom Phase script
 cscript=""                  #Custom Phase script
 cvtrootext=""               #With --convert-root set rootfs to this size or increase by this amount (with '+')
 cvtrootfs=""                #--convert-root
+cvtrootmountoptions=""      #--convert-root-mount-options
 datefmt="%Y-%m-%d %H:%M:%S" #Default date format for history log
 ddpid=""                    #Holds pid of dd during IMG Extend
 ddextend=0                  #1=use dd for extend instead of qemu-img
@@ -373,7 +374,7 @@ source $src/sdm-cparse           # Get function defs
 #
 cmdline="$0 $*"
 longopts="help,1piboot:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
-autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,csrc:,\
+autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,convert-root-mount-options:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-at-boot,expand-root,extend,\
 extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
@@ -416,6 +417,7 @@ do
 	--burn-plugin) burnplugins=$(appendvalue "$burnplugins" "$2" "~") ; shift 2 ;;
 	--chroot)      fchroot=1     ; shift 1 ;;
 	--convert-root) cvtrootfs="${2,,}" ; shift 2 ;;
+	--convert-root-mount-options) cvtrootmountoptions="$2" ; shift 2 ;;
 	--cscript)     cscript=$2    ; shift 2 ;;
 	--csrc)        csrc=$2       ; shift 2 ;;
 	--customize)   fcustomize=1  ; shift 1 ;;
