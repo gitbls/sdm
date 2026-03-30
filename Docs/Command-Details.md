@@ -76,6 +76,7 @@ All files that you provide to sdm, whether on the command line or in arguments t
     * This is very handy when you're in the process of developing a new plugin or updating an existing plugin
 * `--chroot` &mdash; By default sdm uses `systemd-nspawn` to enter the container in Phase 1/post-install phases. Some (likely older) host OSes may have issues with that. If `systemd-nspawn` fails with an `execve` error, retry the command and add `--chroot`.
 * `--convert-root fstype[,[+]size]` &mdash; Use with `--burn` to create disks with either `btrfs` or `lvm` rootfs. See <a href="Disks-Partitions.md#rootfs-conversion">Disks and Partitions</a>
+* `--convert-root-mount-options "options"` &mdash; Specify mount options for the converted rootfs. The options are passed to `mount -o` when mounting the rootfs for the burn process. For example, `--convert-root-mount-options "compress=zstd"` to enable compression when burning to a btrfs.
 * `--cscript` *scriptname* &mdash; Specifies the path to your Custom Phase Script, which will be run as described in the Custom Phase Script section below.
 * `--csrc` */path/to/csrcdir* &mdash; A source directory string that can be used in your Custom Phase Script. One use for this is to have a directory tree where all your customizations are kept, and pass in the directory tree to sdm with `--csrc`. 
 * `--custom[1-4]` &mdash; 4 variables (custom1, custom2, custom3, and custom4) that can be used to further customize your Custom Phase Script.

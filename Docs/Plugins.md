@@ -212,6 +212,34 @@ Alternatively, you can use:
 ```
 RasPiOS has a line length limit of 98 for config.txt, and silently ignores characters beyond that length. The bootconfig plugin limits lines to 96 characters.
 
+### btrfs-config
+
+The `btrfs-config` plugin is a `--burn-plugin` to apply btrfs-specific optimizations. It should be used with `--convert-root btrfs`.
+
+The plugin works with both device burns (`--burn`) and file burns (`--burnfile`).
+
+**Note:** You may also want to use `--convert-root-mount-options "compress=zstd"` to save space and IO.
+
+#### Arguments
+
+* **imgtype** &mdash; (Required) The image type being burned
+* **preset** &mdash; Subvolume layout preset. Default: `default`
+
+#### Presets
+
+Currently the only preset is `default`, to:
+
+1. move root filesystem to a new `@` subvolume
+2. set `@` subvolume the default of filesystem (filesystem root can still be mounted with `subvol=/`)
+3. add `rootflags=subvol=@` to cmdline.txt
+3. set mount option `defaults,subvol=@,compress=zstd,noatime,nodiratime` to fstab
+
+Other settings can be defined as new preset. One can also mount again after `sdm --burn` completes and tune as needed.
+
+#### Examples
+
+* `sdm --burn /dev/sdc --convert-root btrfs --expand-root --burn-plugin btrfs-config /path/to/raspios.img` &mdash; Burn to a device with `default` preset
+
 ### btwifiset
 
 btwifiset is a service that enables WiFi SSID and password configuration over Bluetooth using a mobile app. Once the service is running, you can use the `BTBerryWifi` iOS app to connect to the service running on your Pi and configure the WiFi. See https://github.com/nksan/Rpi-SetWiFi-viaBluetooth for details on btwifiset itself.
