@@ -351,6 +351,7 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 * **keyfile** &mdash; /path/to/keyfile
 * **keyfile-location** &mdash; Valid locations are `usb` (on a USB disk) or `root` (in /root). Default is `root`
 * **mountpoint** &mdash; /path/to/directory for the partition mount point. If not specified, it will not be configured
+* **nbde-server** &mdash; URL of NBDE server. See <a href="Disk-Encryption.md#nbde">here for details</a>.
 * **nocreate** &mdash; Do not encrypt the partition nor make a file system on it. See Notes below.
 * **nonint** &mdash; Perform the encryption non-interactive. Requires `keyfile` or `passphrase`
 * **nopwd** &mdash; Do not add an unlock passphrase. Requires `keyfile`
@@ -367,6 +368,7 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 #### Notes
 
 * The `cryptpart` plugin can *only* be run on a live system using `sdm --runonly plugins`. To include it in the burn process use the <a href="Plugins.md#defer-plugin">`defer-plugin` plugin</a>
+
 * The `cryptpart` plugin can be used such that the entire encryption process is nearly automatic. See <a href="Disk-Encryption#encrypting-other-partitions.md">Disk Encryption</a> for details. When using the `cryptpart` plugin with `defer-plugin` to encrypt a data partition, it will be done in a totally non-interactive manner. This means:
 
 * You MUST always specify `nonint` and provide either `nopwd` AND `keyfile` (`nonint|nopwd|keyfile=file.lek`), or alternatively, do not include `nopwd` but do include `passphrase` (`nonint|passphase=yourpassphrase`). **sdm does NOT check this!**
@@ -374,13 +376,15 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 * If you're using a keyfile without `keyfile-location=usb`, you must ensure that the keyfile is in the IMG. One way to do this: `--plugin copyfile:"from=/root/3449424f-1348-489d-9cdc-d4a2e1b6beef.lek|to=/root"`, which will copy the file from /root on the host system to /root in the IMG.
 
 * The `nocreate` argument can be used to wire up an already-encrypted partition into the system. The partition must be encrypted with a keyfile and/or a passphrase. If using a keyfile, the keydisk must be available during the system boot. The system will prompt for the unlock passphrase if only a passphrase is configured (that is, no keyfile).
-  * You must specify the unlock options (passphrase and/or keyfile) correctly. These are NOT fully verified by the plugin.
+  * You must specify the unlock options (passphrase and/or keyfile) correctly. These are NOT verified by the plugin.
 
 * If both `passphrase` and `keyfile` are provided, the `keyfile` will be used by systemd-cryptsetup during system boot. The `passphrase` can be used for manually unlocking the partition outside of the normal boot flow, if needed.
 
+* The `nbde-server` argument is incompatible with `keydisk-location=usb` (systemd service orchestration problems)
+
 ### cryptroot
 
-Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encryption</a> for complete details
+Configures the rootfs for encryption. See <a href="Disk-Encryption.md#nbde-and-cryptpart">Disk Encryption</a> for complete details
 
 #### Arguments
 
@@ -393,6 +397,7 @@ Configures the rootfs for encryption. See <a href="Disk-Encryption.md">Disk Encr
 * **ipaddr** &mdash; IP address for the intramfs network client to use
 * **keyfile** &mdash; A keyfile used for passphrase-less booting. See <a href="Disk-Encryption.md#unlocking-rootfs-with-a-usb-keyfile-disk">Unlocking rootfs with a USB Keyfile Disk</a> for details
 * **mapper** &mdash; Mapper name for the rootfs encryption (shows up, for instance, in the `df` listing)
+* **nbde-server** &mdash; URL of NBDE server. See <a href="Disk-Encryption.md#nbde">here for details</a>.
 * **netmask** &mdash; Network mask for the intramfs network client to use
 * **no-expand-root** &mdash; Do not expand the encrypted rootfs. See <a href="Disk-Encryption.md#btrfs-rootfs-and-rootfs-expansion">btrfs and rootfs expansion</a> for details.
 * **nopwd** &mdash; Configure only a keyfile to unlock the rootfs. No passphrase will be configured. The `keyfile` argument is required
@@ -409,6 +414,10 @@ These are discussed further in the above-mentioned Disk Encryption page.
 #### Examples
 
 * `--plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|ssh` Configures the rootfs for encryption and enables SSH into the initramfs with keys authorized in the named authorized_keys file.
+
+#### Notes
+
+* Unlike the `cryptpart` plugin, `keyfile-location=usb` CAN be used in conjunction with `nbde-server` (different code paths) with the `cryptroot` plugin.
 
 ### defer-plugin
 
