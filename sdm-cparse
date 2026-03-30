@@ -1988,9 +1988,10 @@ function domount() {
     # $2: "Directory" "IMG" or "Device"
     # $3: mount point (D:$SDMPT)
     # $4: fstype
+    # $5: mount options (optional, e.g. "compress=zstd,noatime")
     # Tree will be mounted on the mountpoint, which must be set with makemtpt or makemtptX
     #
-    local dmimg=$1 imgtype=$2 mpoint=${3} fstype=$4
+    local dmimg=$1 imgtype=$2 mpoint=${3} fstype=$4 mopts=$5
     local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0 kf=""
 
     [ "$mpoint" == "" ] && mpoint=$SDMPT
@@ -2072,7 +2073,7 @@ function domount() {
 	    else
 		if [ "$fstype" != "zfs" ]
 		then
-		    mount -v ${dmimg}${p2} $mpoint
+		    mount -v ${mopts:+-o $mopts} ${dmimg}${p2} $mpoint
 		else
 		    zfs mount rpool/ROOT/debian
 		fi
