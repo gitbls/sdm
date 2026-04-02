@@ -391,7 +391,7 @@ function makepartition() {
 	pdocmd "parted $pdev mkpart $ptype $pname $tfstype ${partstart}s ${partend}s"
     fi
     errifrc $? "? parted mkpart error"
-    sync ; sleep 1 ; partprobe $pdev
+    sync ; partprobe_wait $pdev
     write_burnmsg "> Plugin $pfx: Wipe existing file system on $pdname"
     pdocmd "wipefs --all --force $pdname"
     write_burnmsg "> Plugin $pfx: Make '$fstype' file system on partition $pdname"

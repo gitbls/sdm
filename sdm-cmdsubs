@@ -154,7 +154,7 @@ function copybypart() {
     wipefs --all ${dstdev}$p1 >/dev/null 2>&1
     wipefs --all ${dstdev}$p2 >/dev/null 2>&1
     sgdisk --zap-all $dstdev >/dev/null 2>&1
-    partprobe $dstdev #>/dev/null 2>&1
+    partprobe_wait $dstdev
     if [ "$dsttype" == "dos" ]
     then
 	write_burnmsg "* Create MBR partition table on $dstdev"
@@ -178,8 +178,7 @@ function copybypart() {
 	sgdisk --new 2:$extstart:$extend $dstdev --typecode 2:$tc >/dev/null
 	errifrc $? "? Error creating root partition on $dstdev"
     fi
-    partprobe $dstdev
-    sleep 3 # to workaround "No such file or directory" still happens
+    partprobe_wait $dstdev
 
     #declare -x SDMPT=$(makemtpt)
     #declare -x SDMPX=$(makemtptX)
@@ -210,7 +209,7 @@ function copybypart() {
 	    lvremove $rootfs --yes >/dev/null 2>&1
 	    vgremove /dev/$vgname --yes >/dev/null 2>&1
 	    pvremove $rootdev --yes >/dev/null 2>&1
-	    partprobe $dstdev
+	    partprobe_wait $dstdev
 	    write_burnmsg "> Create LVM physical volume: pvcreate $rootdev"
 	    pvcreate $rootdev --force --force --yes
 	    errifrc $? "? Error initializing partition 2 lvm on $dstdev"
@@ -222,7 +221,7 @@ function copybypart() {
 	    errifrc $? "? Error creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
 	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null
 	    errifrc $? "? Error modifying partition 1 type on $dstdev"
-	    partprobe $dstdev
+	    partprobe_wait $dstdev
 	    write_burnmsg "> Create 'ext4' rootfs file system on $rootfs"
 	    mkfs.ext4 -F $rootfs >/dev/null 2>&1
 	    errifrc $? "? Error creating ext4 rootfs file system on $rootfs"
@@ -387,7 +386,7 @@ EOF
 	    docleanup
 	    sync ; sleep 1 ; sync
 	fi
-	partprobe $burndev
+	partprobe_wait $burndev
 	sync ; sleep 1 ; sync
 	declare -x SDMPT=$(makemtpt)
 	domount "$burndev" "Device" $SDMPT $cvtrootfs "$cvtrootmountoptions"

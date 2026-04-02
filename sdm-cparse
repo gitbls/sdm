@@ -99,8 +99,8 @@ function bootlogx() {
 function write_console() {
     #
     # $1 string to write
-    # Written to /dev/console as "\n$(thisdate) sdm FirstBoot: $1"
-    echo -e "\n$(thisdate) sdm FirstBoot: $1" > /dev/console
+    # Written to /dev/console as "$(thisdate) sdm FirstBoot: $1"
+    echo -e "$(thisdate) sdm FirstBoot: $1" > /dev/console
 }
 
 function write_console0() {
@@ -2129,6 +2129,18 @@ function docleanup() {
 	unset SDMPX
     fi
     sync
+}
+
+function partprobe_wait() {
+    local dev=$1 nwait=20
+ 
+    for (( il=1 ; il<$nwait ; il++ ))
+    do
+        partprobe $1 2>/dev/null
+        [ -b $dev ] && return 0
+        sleep 0.25
+    done
+    return 1
 }
 
 function lvmfind() {
