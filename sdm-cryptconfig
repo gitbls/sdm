@@ -823,7 +823,7 @@ copy_exec /usr/bin/dd /usr/bin
 copy_exec /usr/bin/lsusb /usr/bin
 copy_exec /usr/bin/lz4 /usr/bin
 copy_exec /usr/sbin/sgdisk /usr/sbin
-copy_file text /usr/local/bin/sdmcryptfs /usr/bin
+copy_file text /usr/bin/sdmcryptfs /usr/bin
 # OK if this fails; means it was copied due to keyscript in crypttab and copied in /usr/share/initramfs-tools/hooks/cryptroot
 copy_file text /usr/bin/sdmluksunlock || true
 copy_file text /etc/sdmcryptctl
@@ -1005,7 +1005,6 @@ then
 	if [ -f $src/sdmcryptfs ]
 	then
 	    cryptolog "Copy sdmcryptfs from $src" noconsole
-	    cp $src/sdmcryptfs /usr/local/bin
 	    cp $src/sdmcryptfs /usr/bin
 	else
 	    cryptolog "Copy sdmcryptfs from GitHub" noconsole
