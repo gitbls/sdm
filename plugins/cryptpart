@@ -57,7 +57,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|burndev|burnfilefile|cryptname|fslabel|fstype|keydisk-id|keyfile|keyfile-location|mountpoint|nocreate|nonint|nopwd|partname|passphrase|"
+vldargs="|burndev|burnfilefile|cryptname|fslabel|fstype|keydisk-id|keyfile|keyfile-location|mountpoint|nbde-server|nocreate|nonint|nopwd|partname|passphrase|"
 rqdargs="|cryptname|fstype|partname|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -97,6 +97,17 @@ then
 	fi
 	chmod 400 /root/$(basename $keyfile)
     fi
+
+    # Don't allow nbde and usb keydisk. Trying to sync 2 asynchronous systemd services is darn near impossible
+    [[ "$nbde__server" != "" ]] && [[ "${keyfile__location,,}" == "usb" ]] && logtobothex "? Plugin $pfx: NBDE server with USB keyfile not supported; use 'keyfile-location=root'"
+    # Partition must be empty and not mounted
+    if grep -q -s $partname /proc/mounts
+    then
+	logtoboth   "? Plugin $pfx: Partition '$partname' must not be mounted"
+	logtoboth   "? Plugin $pfx: If partition '$partname' contains data you wish to keep"
+	logtobothex "? Plugin $pfx: You must save it before running cryptpart and restore it afterwards"
+    fi
+
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
 then
@@ -108,6 +119,7 @@ then
     #logfreespace "at start of Plugin $pfx Phase 1"
 
     pkgs="systemd-cryptsetup"
+    [ "$nbde__server" != "" ] && pkgs="clevis clevis-initramfs $pkgs"
     [ "$(type -p cryptsetup)" == "" ] && pkgs="cryptsetup cryptsetup-initramfs cryptsetup-bin $pkgs"
     logtoboth "> Plugin $pfx: Install $pkgs"
     installpkgsif "$pkgs"
@@ -128,6 +140,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
 
     # Partition must be empty and not mounted
     grep -q -s $partname /proc/mounts && logtobothex "? Partition '$partname' must not be mounted"
@@ -135,6 +148,8 @@ then
     if [ "$keyfile" != "" ]
     then
 	[ "$keyfile__location" == "" ] && keyfile__location=root || keyfile__location=${keyfile__location,,}
+    else
+	keyfile__location=""
     fi
 
     # encrypt the partition
@@ -182,6 +197,95 @@ then
 		printf "$passphrase\n" | cryptsetup luksAddKey $partname $kf || logtobothex "? Plugin $pfx: cryptsetup luksAddKey failed ($?)"
 	    fi
 	fi
+	if [ "$nbde__server" != "" ]
+	then
+	    logtoboth "> Plugin $pfx: Configure Network Bound Disk Encryption (NBDE)"
+	    logtoboth "> Plugin $pfx: Create and enable NBDE unlock service clevis-unlock-$cryptname"
+            if [ "$keyfile" == "" ]
+            then
+                logtoboth "> Plugin $pfx: Enable NBDE using passphrase with server $nbde__server"
+                printf "$passphrase\n" | clevis luks bind -f -y -d $partname tang "{\"url\":\"$nbde__server\"}"
+            else
+                logtoboth "> Plugin $pfx: Enable NBDE using keyfile with server $nbde__server"
+                #logtoboth "DD kf:|$kf| partname:|$partname| nbde-server:|$nbde__server|"
+                clevis luks bind -f -y -k $kf -d $partname tang "{\"url\":\"$nbde__server\"}"
+            fi
+
+            uuidstr=$(getdevuuid $partname)
+            uuidstr=${uuidstr#*=}
+	    [ "$keyfile" == "" ] && dowall="wall"
+	    cat > /etc/systemd/system/clevis-unlock-$cryptname.service <<EOF
+[Unit]
+Description=sdm Unlock data volume $cryptname
+DefaultDependencies=no
+After=systemd-udevd.service systemd-udev-settle.service
+After=local-fs.target
+Before=getty.target multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+#sdm-clevis-unlock arguments: partuuid cryptname mountpoint retries [D:12] sleepsec [D:5] wall
+ExecStart=/usr/local/bin/sdm-clevis-unlock /dev/disk/by-partuuid/$uuidstr "$cryptname" "$mountpoint" 12 5 $dowall
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	    [ -f /usr/local/bin/sdm-clevis-unlock ] || cat > /usr/local/bin/sdm-clevis-unlock <<'EOF'
+#!/bin/bash
+
+if [ "$1" != "fork" ]
+then
+    $0 fork $* &
+    exit
+fi
+devpartuuid="$2"
+cryptname="$3"
+mountpoint="$4"
+retries="${5:-12}"
+sleepsec="${6:-5}"
+dowall="$7"
+
+mapper="/dev/mapper/$cryptname"
+#echo "Start: cryptname:|$cryptname| mountpoint:|$mountpoint| devpartuuid:|$devpartuuid|"
+
+[ -e $mapper ] && { echo "$mapper is already unlocked" ; exit 0 ; }
+
+echo "Trying Clevis unlock for $retries times sleeping $sleepsec seconds"
+retimes=1
+while [ $retimes -le $retries ]
+do
+    if clevis luks unlock -d $devpartuuid -n $cryptname || [ -e $mapper ]
+    then
+        echo "Clevis unlock successful"
+        break
+    fi
+    echo "Clevis unlock failed; Sleep $sleepsec seconds; retry ${retimes}/${retries}..."
+    sleep $sleepsec
+    retimes=$((retimes+1))
+done
+
+if [ ! -e $mapper ]
+then
+    echo "Clevis unlock failed; trying keyfile/passphrase via systemd-cryptsetup@$cryptname.service"
+    [ "$dowall" == "wall" ] && wall -t 10 "Use 'systemd-tty-ask-password-agent --query' to unlock '$cryptname'"
+    systemctl start systemd-cryptsetup@$cryptname.service
+fi
+
+[ -e $mapper ] || { echo "Unlock $cryptname failed" ; exit 1 ; }
+[ "$mountpoint" == "" ] && { echo "No mountpoint configured for $mapper. Done." ; exit 0 ; }
+
+echo "Mount $mountpoint"
+mount $mountpoint
+sts=$?
+[ $sts -eq 0 ] && { echo "Done" ; exit 0 ; } || { echo "Mount failed" ; exit $sts ; }
+EOF
+	    chmod 755 /usr/local/bin/sdm-clevis-unlock
+	    systemctl enable clevis-unlock-$cryptname.service
+	fi
     fi
     if [ -v nopwd ]
     then
@@ -216,9 +320,13 @@ then
     logtoboth "> Plugin $pfx: Update config files..."
 
     kfloc="none" ; opts=""
+    if [ "$nbde__server" != "" ]
+    then
+	opts=",noauto"
+    fi
     if [ "$keyfile" != "" ]
     then
-        opts=",tries=3"
+        opts="${opts},tries=3"
 	[ "$keyfile__location" == "root" ] && kfloc="/root/$kfn"
         if [ "$keyfile__location" == "usb" ]
 	then
@@ -260,7 +368,7 @@ EOF
 	    kfloc="/tmp/$dirname/$kfn"
 	    opts="${opts},nofail,x-systemd.device-timeout=0"
 	fi
-     fi
+    fi
     logtoboth "> Plugin $pfx: Update /etc/crypttab"
     # Use UUID rather than partname in crypttab
     uuidstr=$(getdevuuid $partname)
@@ -274,8 +382,10 @@ EOF
 	logtoboth "> Plugin $pfx: Create mountpoint '$mountpoint'"
 	mkdir -p $mountpoint
 	logtoboth "> Plugin $pfx: Update fstab"
+	opts="defaults,nofail"
+	[ "$nbde__server" != "" ] && opts="${opts},noauto"
 	echo "# Device '/dev/mapper/$cryptname' defined in /etc/crypttab" >> $SDMPT/etc/fstab
-	echo "/dev/mapper/$cryptname  $mountpoint  $fstype  defaults,nofail  0  2" >> $SDMPT/etc/fstab
+	echo "/dev/mapper/$cryptname  $mountpoint  $fstype $opts  0  2" >> $SDMPT/etc/fstab
     else
 	logtoboth "> Plugin $pfx: Skip fstab update; no mountpoint specified"
     fi
@@ -290,7 +400,5 @@ EOF
 fi
 
 exit
-
-NOTES
 
 

@@ -473,7 +473,7 @@ Typically, disk names for RasPiOS boot disks will be: `/dev/mmcblk0` (Integrated
 
 This example creates partition 3, so the partname would be either `/dev/mmcblk0p3`, `/dev/sda3`, or `/dev/nvme0n1p1` as appropriate for the system configuration it is booted on, and it is only used during encryption configuration.
 
-The parted command is useful for getting the partition numbers as well. 
+The `parted` command is useful for getting the partition numbers as well. 
 ```
 sudo parted -ms /dev/sda unit mb print
 BYT;
@@ -579,6 +579,16 @@ That's the high level summary. Here are the detailed steps, including the use of
   * **Debug hint**
     * `journalctl | grep sdm-run-defer-pluglists` and look for errors
 * After a reboot the system has a **fully encrypted rootfs and data partition**
+
+### NBDE and cryptpart
+
+NBDE can be used when encrypting partitions with `cryptpart`. A passphrase or keyfile must be used in conjunction with `nbde-server`. The `keyfile-location` can only be `root`; keyfile on a USB disk is not supported, which is unfortunate. The complexity of making a USB-located keyfile work correctly with NBDE appears to be insurmountable. That said, I'm still hoping for an obvious and reliable fix to magically appear to remove this restriction.
+
+Due to systemd dependency complexities, NBDE unlocking of data partitions is accomplished through a separate service, `sdm-cryptpart-<cryptname>`. The service tries to use NBDE to unlock the partition for a preset amount of time. If that fails, for whatever reason, the partition will be instead unlocked using:
+* A configured keyfile in /root
+* A password entered on the console
+
+For the password scenario the password will likely need to be entered using the `systemd-tty-ask-password-agent --query` command. This command will accept the encrypted partition passphrase and unlock and mount the partition.
 
 ## Exploring and Mounting Encrypted Disks
 
