@@ -154,7 +154,7 @@ function copybypart() {
     wipefs --all ${dstdev}$p1 >/dev/null 2>&1
     wipefs --all ${dstdev}$p2 >/dev/null 2>&1
     sgdisk --zap-all $dstdev >/dev/null 2>&1
-    partprobe_wait $dstdev
+    partprobe_wait ${dstdev}$p1
     if [ "$dsttype" == "dos" ]
     then
 	write_burnmsg "* Create MBR partition table on $dstdev"
@@ -178,7 +178,7 @@ function copybypart() {
 	sgdisk --new 2:$extstart:$extend $dstdev --typecode 2:$tc >/dev/null
 	errifrc $? "? Error creating root partition on $dstdev"
     fi
-    partprobe_wait $dstdev
+    partprobe_wait ${dstdev}$p1
 
     #declare -x SDMPT=$(makemtpt)
     #declare -x SDMPX=$(makemtptX)
@@ -209,7 +209,7 @@ function copybypart() {
 	    lvremove $rootfs --yes >/dev/null 2>&1
 	    vgremove /dev/$vgname --yes >/dev/null 2>&1
 	    pvremove $rootdev --yes >/dev/null 2>&1
-	    partprobe_wait $dstdev
+	    partprobe_wait ${dstdev}$p2
 	    write_burnmsg "> Create LVM physical volume: pvcreate $rootdev"
 	    pvcreate $rootdev --force --force --yes
 	    errifrc $? "? Error initializing partition 2 lvm on $dstdev"
@@ -221,7 +221,7 @@ function copybypart() {
 	    errifrc $? "? Error creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
 	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null
 	    errifrc $? "? Error modifying partition 1 type on $dstdev"
-	    partprobe_wait $dstdev
+	    partprobe_wait ${dstdev}$p1
 	    write_burnmsg "> Create 'ext4' rootfs file system on $rootfs"
 	    mkfs.ext4 -F $rootfs >/dev/null 2>&1
 	    errifrc $? "? Error creating ext4 rootfs file system on $rootfs"
@@ -971,8 +971,8 @@ function sdm_do_ext_command() {
 	    sts=$?
 	    [ $? -ne 0 ] && errexit "? Copy failed ($?)"
 	    ;;
-	get-sdm-logs)
-	    ;;
+	#get-sdm-logs)
+	#    ;;
 	journlactl|jc)
 	    journalctl -b --directory $SDMPT/var/log/journal
 	    ;;
@@ -997,7 +997,7 @@ function sdm_do_ext_command() {
 	    [ $? -ne 0 ] && errexit "? Copy failed ($?)"
 	    ;;
 	rm)
-	    if [ -f $SDMPT/$arg1]
+	    if [ -f $SDMPT/$arg1 ]
 	    then
 		rm -f $SDMPT/$arg1
 		[ $? -ne 0 ] && errexit "? Remove failed (?$)"
@@ -1006,14 +1006,14 @@ function sdm_do_ext_command() {
 	    fi
 	    ;;
 	rmdir)
-	    if [ -d $SDMPT/$arg1]
+	    if [ -d $SDMPT/$arg1 ]
 	    then
+		echo "found dir"
 		rm -rf $SDMPT/$arg1
 		[ $? -ne 0 ] && errexit "? Remove failed (?$)"
 	    else
-		[ -f $SDMPT/$arg1 ] && errexit "? Directory '$arg1' is a file" || errexit "? Directory '$arg1' not found"
+		[ -f $SDMPT/$arg1 ] && errexit "? Directory '$arg1' is a file" # || errexit "? Directory '$arg1' not found"
 	    fi
-	    [ -d $SDMPT/$arg1 ] && echo "rm -rf $SDMPT/$arg1" || errexit "% Directory '$arg1' not found"
 	    ;;
 	run)
 	    if [ -x $SDMPT/$arg1 ]

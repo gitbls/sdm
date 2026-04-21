@@ -166,6 +166,16 @@ function extractlogs() {
     fi
 }
 
+function beroot() {
+    cmdline="$1"
+    if [ $EUID -ne 0 ]
+    then
+	echo "% Re-running sdm with 'sudo $cmdline'"
+	exec sudo $cmdline
+	exit
+    fi
+}
+
 function setdpkgforce() {
     cat > /etc/apt/apt.conf.d/02sdm-myconf <<EOF
     Dpkg::Options {
