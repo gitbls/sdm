@@ -201,6 +201,7 @@ EOF
 
 function defer_cleanup() {
     logtoboth "* Dot-hide /etc/systemd/system/sdm-defer-pluglist.service and /usr/local/bin/sdm-run-defer-pluglists"
+    systemctl disable sdm-defer-pluglist
     mv /etc/systemd/system/sdm-defer-pluglist.service /etc/systemd/system/.sdm-defer-pluglist.service
     mv /usr/local/bin/sdm-run-defer-pluglists /usr/local/bin/.sdm-run-defer-pluglists
 }
