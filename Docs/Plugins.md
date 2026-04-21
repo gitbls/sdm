@@ -224,6 +224,7 @@ The plugin works with both device burns (`--burn`) and file burns (`--burnfile`)
 
 * **imgtype** &mdash; (Required) The image type being burned
 * **preset** &mdash; Subvolume layout preset. Default: `default`
+* **verbose** &mdash; Print the voluminous output from moving top-level contents into @ subvolume. Default: Don't print.
 
 #### Presets
 
@@ -409,6 +410,8 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 * If both `passphrase` and `keyfile` are provided, the `keyfile` will be used by systemd-cryptsetup during system boot. The `passphrase` can be used for manually unlocking the partition outside of the normal boot flow, if needed.
 
 * The `nbde-server` argument is incompatible with `keydisk-location=usb` (systemd service orchestration problems)
+
+* When `nbde-server` is used with a passphrase and the NBDE server is not reachable, the boot will continue, but the encrypted partition will not be mounted. In this case, unlock and mount the encrypted partition via the command `systemd-tty-ask-password-agent --query` from a logged-in session.
 
 ### cryptroot
 

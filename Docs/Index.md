@@ -5,6 +5,7 @@
 <br><a href="Burn-Scripts.md">Burn Scripts</a>
 <br><a href="Captive-Portal.md">Captive Portal</a>
 <br><a href="Command-Details.md">Detailed command and switches description</a>
+<br><a href="Image-Management-Commands.md">Image and Disk management convenience commands</a>
 <br><a href="Cool-Things-You-Can-Do-with-sdm.md">Cool and useful things you can do with sdm</a>
 <br><a href="Cool-Things-You-Can-Do-Hotspot.md">Cool and useful things: Hotspot</a>
 <br><a href="Cool-Things-You-Can-Do-SSHkey.md">Cool and useful things: User-specific unique SSH key</a>
