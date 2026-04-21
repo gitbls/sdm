@@ -1,5 +1,15 @@
 # Changelog
 
+## V15.5
+
+* New Features
+  * New sdm Disk and Image management convenience commands. See <a href="Docs/Image-Management-Commands.md">Image and Disk Management Commands</a>
+* Improvements
+  * `cryptpart` plugin now supports Network Bound Disk Encryption. See <a href="Docs/Disk-Encryption.md#nbde-and-cryptpart">NBDE and cryptpart</a>.
+  * Burn plugin `btrfs-config` appropriately configures btrfs subvolumes. Thanks @jokester
+  * Eliminate sdm firstboot extra blank lines on console output
+* Bug Fixes
+
 ## V15.4
 
 * New Features

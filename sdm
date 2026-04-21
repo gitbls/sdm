@@ -267,7 +267,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V15.4"
+version="V15.5"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -384,12 +384,34 @@ bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
 case "$1" in
 # TODO: mv|chown|chmod (chown needs to be done in container)
-    cat|cleanup|df|get|journalctl|jc|jca|jcall|less|list-boots|ls|put|rm|run|rmdir)
+    cat|cleanup|df|get|journalctl|jc|jca|jcall|less|list-boots|ls|put|rm|rmdir|run)
 	extcmd=$1
 	shift 1
 	source $src/sdm-cmdsubs
+	beroot "$cmdline"
 	sdm_do_ext_command "$extcmd" "$*"
 	exit
+	;;
+    burn)
+	burn=1 ; burndev=$2 ; shift 2
+	;;
+    customize)
+	fcustomize=1 ; shift 1
+	;;
+    explore)
+	fexplore=1 ; shift 1
+	;;
+    extend)
+	fextend=1 ; shift 1
+	;;
+    info)
+	infocmd=1 ; shift 1
+	;;
+    mount)
+	fdomount=1 ; shift 1
+	;;
+    shrink)
+	fshrink=1 ; shift 1
 	;;
 esac
 
@@ -527,12 +549,7 @@ Keys can be abbreviated to 'time', 'local', 'key', and 'wifi'"
 exit 0
 fi
 [ "${dimg,,}" == "help" ] && printhelp && exit
-if [ $EUID -ne 0 ]
-then
-    echo "% Re-running sdm with 'sudo $cmdline'"
-    sudo $cmdline
-    exit
-fi
+beroot "$cmdline"
 declare -a cmsgs                    # In case customization messages generated before we're ready to logtoboth them
 cscript="$(fndotfullpath $cscript)"
 [[ $burn -eq 1 ]] && [[ $burnfile -eq 1 ]] && errexit "? Switch conflict: --burn and --burnfile"
