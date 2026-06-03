@@ -69,7 +69,7 @@ function updateconfigtxt() {
 		if grep -q "^$sname.*" $cfgdir/config.txt
 		then
 		    # There and uncommented
-		    if grep -q "$^sname${dsep}" $cfgdir/config.txt
+		    if grep -q "^$sname${dsep}" $cfgdir/config.txt
 		        then
 		        logtoboth "> Add '${sname}${dsep}${sval}' below newly commented line it replaces ${sname}${dsep}"
 		        sed -i "s/^${sname}${dsep}/#sdm: $sname${dsep}/" $cfgdir/config.txt
