@@ -255,12 +255,10 @@ EOF
 		    # Complete graphics post-install if graphics plugin not selected
 		    # This is a hack. Proper fix needs more thought
 		    #
-		    if ! ispluginselected graphics "$plugins~$allplugins"
+		    if ! ispluginselected graphics "$plugins~$allplugins" && ! ispluginselected x11 "$plugins~$allplugins"
 		    then
-			logtoboth "> Run graphics post-install configuration"
-			gargs=$(getpluginargs graphics "$plugins")
-			[[ "$gargs" =~ "nodmconsole" ]] && nodmconsole=1 || nodmconsole=0
-			gfxcfgpostinstall yes
+			logtoboth "> Run delayed display manager configuration check"
+			gfxcfgpostinstall no
 		    fi
 		    ;;
 		pre-phase1)
