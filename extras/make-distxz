@@ -109,12 +109,14 @@ pluglist=(apps \
 	      network \
 	      parted \
 	      piapps \
+	      pihole \
 	      pistrong \
 	      postburn \
 	      postfix \
 	      quietness \
 	      raspiconfig \
 	      runatboot \
+	      runcommand \
 	      runscript \
 	      rxapp \
 	      samba \
@@ -137,6 +139,7 @@ pluglist=(apps \
 	      wificonfig \
 	      wireguard \
 	      wsdd \
+	      x11 \
 	      )
 
 sdmversion=${1:-unknown}
