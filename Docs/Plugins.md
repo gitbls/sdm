@@ -1031,6 +1031,18 @@ Installs pi-apps (https://github.com/Botspot/pi-apps). That's it!
 
 * `--plugin piapps:"user=bls"` &mdash; Install piapps for user bls. The user was already created with the `user` plugin
 
+### pihole
+
+Install Pi-hole. This plugin requires that you first install Pi-hole manually and save off the /etc/pihole/pihole.toml file. You then feed that toml file to this plugin. You can hand-edit the file to update it as appropriate for your configuration.
+
+#### Arguments
+
+* **toml** &mdash; /path/on/host/to/your-pihole.toml. This file is loaded into the IMG and Pi-hole uses it for configuration.
+
+#### Examples
+
+* `--plugin pihole:toml=/path/to/my-pihole.toml`
+
 ### pistrong
 
 <a href="https://github.com/gitbls/pistrong">pistrong</a> installs the strongSwan IPSEC VPN server and `pistrong`. pistrong provides
@@ -1184,15 +1196,33 @@ The `runatboot` plugin provides a way to run an arbitrary script during the Firs
 * **output** &mdash; Where to set stdout. Default is /dev/null. The directory must already exist, and the user (root or `user` if specified) must be able to write the output file in that directory
 * **error** &mdash; Where to set stderr. Default is the same as stdout (`2>&1`)
 
-#### Example
+#### Examples
 
 * `--plugin runatboot:"script=/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments
 * `--plugin runatboot:"user=me|sudoswitches=-H|script=/path/to/script|args=arg1 arg2 arg3"` &mdash; Run the specified script with the 3 provided arguments as the specified user and include `-H` on the sudo command
 * `--plugin runatboot:"script=/path/to/script2|args=arg1 arg2 arg3|output=/var/log/myscript.log"` &mdash; Run the specified script with the 3 provided arguments with output and error going to /var/log/myscript.log
 
+### runcommand
+
+The `runcommand` plugin runs a bash command during customization or burning.
+
+#### Arguments
+
+* **dir** &mdash; Optional directory in which to run the command (as the default directory). The directory will be created if it doesn't exist. Use a /full/path/to/dir
+* **runphase** &mdash; Specifies the phase (`1` or `post-install`) in which to run the script. Default is `1`
+* **command** &mdash; The command to run
+* **user** &mdash; The user under which to run the script. The user must exist by the time the script is run in Phase 1 or post-install. If not specified the script is run as `root`. If `user` is not `root`, then you must specify the `dir` argument or the plugin will be unable to write the output and error files.
+* **stdout** &mdash; Specifies stdout for the script output. /full/path/to/stdout must be specified (but not checked by sdm)
+* **stderr** &mdash; Specifies stderr for the script output. /full/path/to/stderr must be specified (but not checked by sdm)
+
+#### Examples
+
+* `--plugin runcommand:"command=ls -lR /bin|stdout=/root/ls.out|stderr=/root/ls.error"` &mdash; Run the provided command `ls -lR /bin` as root. The stdout and stderr files will be written to the specified files.
+* `--plugin runcommand:"command=/usr/local/bin/myscript|dir=/home/myuser|user=myuser"` &mdash; Run the specified command as the user `myuser`. stdout and stderr files will be written to /home/myuser.
+
 ### runscript
 
-The `runscript` plugin runs a script during customization.
+The `runscript` plugin runs a script during customization or burning
 
 #### Arguments
 
@@ -1805,6 +1835,28 @@ Note that wsdd is available in Bookworm via apt, so this plugin is not needed on
 
 * **wsddswitches=switchlist** &mdash; List of switches to write into /etc/default/wsdd
 * **localsrc=/path/to/files** &mdash; Local directory with cached copy of wsdd (files: wsdd.py wsdd.8 wsdd.defaults wsdd.service)
+
+### x11
+
+The `x11` plugin installs the core X11 packages, and optionally installs a Display Manager, and Window Manager.
+
+#### Arguments
+
+* **apps=*list,of,packages*** &mdash; List of additional packages to install
+* **dm=*displaymanager*** &mdash; Name of display manager package. Known display managers include `lightdm`, `wdm`, and `xdm`, but this is not checked
+* **fonts=*list,of,font,packages*** &mdash; List of X11 font packages to install in addition to the default font packages (`xfonts-base,xfonts-100dpi,xfonts-75dpi,xfonts-scalable`)
+* **nodmconsole** &mdash; Do not enable the display manager on the system console
+* **wm=*windowmanager*** &mdash; name of window manager package. There are many to choose from!
+
+#### Notes
+
+* If either `dm` or `wm` is not specified, `nodmconsole` will be set.
+* The x11 plugin ensures a non-graphical console mode for FirstBoot if a known display manager (`lightdm`, `wdm`, and `xdm`) is installed, and then enables graphical console (if requested), providing more visbility into the first boot process.
+* The x11 plugin does not do any special configuration for any display manager beyond delaying the graphical console to after Firstboot for `lightdm`, `wdm`, and `xdm`. Both wdm and xdm *just work*. It appears that furher `lightdm` configuration is required beyond the basic install, and is not provided by this plugin.
+
+#### Examples
+
+* `--plugin x11:"dm=xdm|wm=icewm" &mdash; Install X11 with the default set of fonts with the xdm display manager and icewm window manager.
 
 <br>
 <form>
