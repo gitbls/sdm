@@ -67,7 +67,7 @@ function writediskids() {
     then
 	if [ $fgpt -eq 0 ]
 	then
-	    write_burnmsg "> Set MBR rootfs partition ID '$newdiskid' in cmdline.txt (was $olddiskid)"
+	    write_burnmsg "> Set MBR rootfs partition ID '0x$newdiskid' in cmdline.txt (was '0x$olddiskid')"
 	    sed -i "s/${olddiskid}/${newdiskid}/" $SDMPT/boot/firmware/cmdline.txt
 	else
 	    gptuuid1=$(blkid $(getspname $burndev 1) | sed -n 's|^.*PARTUUID="\(\S\+\)".*|\1|p')
@@ -617,7 +617,10 @@ EOF
 	    sdm_runspawncmd Burn1 run-plugin-list 1 "$plugins" || exit
 	    sdm_runspawncmd Burn1 run-plugin-list post-install "$plugins" || exit
 	    # Set lightdm burn enable delay if it was installed as part of burning
-	    [ -d $SDMPT/etc/lightdm -a $xldm -eq 0 ] && sdm_runspawncmd Burn1 burn-enable-lightdm-delay
+	    if ! ispluginselected x11 "$plugins"
+	    then
+		[ -d $SDMPT/etc/lightdm -a $xldm -eq 0 ] && sdm_runspawncmd Burn1 burn-enable-lightdm-delay
+	    fi
 	    source $SDMPT/etc/sdm/sdm-readparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
 	    plugins="$bplugins"
 	fi
