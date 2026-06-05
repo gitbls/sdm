@@ -78,7 +78,8 @@ case "$cmd" in
 	exit
 	;;
     burn-enable-lightdm-delay)  # Delay lightdm enable until sdm-firstboot
-	runoneplugin graphics runfunction "runfunction=delaylightdmenable|runargs=burning" || exit
+	pfx=burning
+	delaylightdmenable
 	exit
 	;;
     run-all-plugins)  # Run Plugin phase 1 or post-install
