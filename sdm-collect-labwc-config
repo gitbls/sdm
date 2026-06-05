@@ -50,11 +50,15 @@ do
 	    fi
 	    ;;
 	desktop-items)
-	    if [ "$(compgen -G "$config/pcmanfm/LXDE-pi/desktop-items*.conf")" != "" ]
-	    then
-		echo "> Copy '$config/pcmanfm/LXDE-PI/desktop-items*.conf' to '$destdir'"
-		cp -a $config/pcmanfm/LXDE-pi/desktop-items*.conf $destdir
-	    fi
+	    for pcmandir in default LXDE-pi
+	    do
+		if [ "$(compgen -G "$config/pcmanfm/$pcmandir/desktop-items*.conf")" != "" ]
+		then
+		    echo "> Copy '$config/pcmanfm/LXDE-PI/desktop-items*.conf' to '$destdir'"
+		    cp -a $config/pcmanfm/$pcmandir/desktop-items*.conf $destdir
+		    break
+		fi
+	    done
 	    ;;
 	libfm|lxterminal)
 	    if [ -f $config/$f/$f.conf ]
@@ -64,7 +68,12 @@ do
 	    fi
 	    ;;
 	pcmanfm)
-	    if [ -f $config/pcmanfm/LXDE-pi/pcmanfm.conf ]
+	    if [ -f $config/pcmanfm/default/pcmanfm.conf ] # trixie
+	    then
+		echo "> Copy '$config/pcmanfm/default/pcmanfm.conf' to '$destdir'"
+		cp -a $config/pcmanfm/default/pcmanfm.conf $destdir
+	    fi
+	    if [ -f $config/pcmanfm/LXDE-pi/pcmanfm.conf ] # bookworm and earlier
 	    then
 		echo "> Copy '$config/pcmanfm/LXDE-pi/pcmanfm.conf' to '$destdir'"
 		cp -a $config/pcmanfm/LXDE-pi/pcmanfm.conf $destdir

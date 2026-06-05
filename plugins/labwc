@@ -33,17 +33,31 @@ function stuffconfig() {
             pcmanfm)
 		if [ -f $assetconfig/$f.conf ]
 		then
-		    logtoboth "> Plugin $pfx: Copy '$f.conf' from $assetconfig to $config/pcmanfm/LXDE-pi"
-		    mkdir -p $config/pcmanfm/LXDE-pi
-		    cp -a $assetconfig/$f.conf $config/$f/LXDE-pi
+		    if [ $raspiosver -ge 13 ]
+		    then
+			logtoboth "> Plugin $pfx: Copy '$f.conf' from $assetconfig to $config/pcmanfm/default"
+			mkdir -p $config/pcmanfm/default
+			cp -a $assetconfig/$f.conf $config/$f/default
+		    else
+			logtoboth "> Plugin $pfx: Copy '$f.conf' from $assetconfig to $config/pcmanfm/LXDE-pi"
+			mkdir -p $config/pcmanfm/LXDE-pi
+			cp -a $assetconfig/$f.conf $config/$f/LXDE-pi
+		    fi
 		fi
 		;;
             desktop-items)
 		if [ "$(compgen -G "$assetconfig/desktop-items*.conf")" != "" ]
 		then
-		    logtoboth "> Plugin $pfx: Copy 'desktop-items*' from $assetconfig to $config/pcmanfm/LXDE-pi"
-		    mkdir -p $config/pcmanfm/LXDE-pi
-		    cp -a $assetconfig/desktop-items*.conf $config/pcmanfm/LXDE-pi
+		    if [ $raspiosver -ge 13 ]
+		    then
+			logtoboth "> Plugin $pfx: Copy 'desktop-items*' from $assetconfig to $config/pcmanfm/default"
+			mkdir -p $config/pcmanfm/default
+			cp -a $assetconfig/desktop-items*.conf $config/pcmanfm/default
+		    else
+			logtoboth "> Plugin $pfx: Copy 'desktop-items*' from $assetconfig to $config/pcmanfm/LXDE-pi"
+			mkdir -p $config/pcmanfm/LXDE-pi
+			cp -a $assetconfig/desktop-items*.conf $config/pcmanfm/LXDE-pi
+		    fi
 		fi
 		;;
 	    kanshi)
@@ -309,10 +323,16 @@ else
 			;;
 		    pcmanfm|desktop-items)
 			dirp=$dirx/pcmanfm
-			logtoboth "> Plugin $pfx: Copy '$lcname' config to $dirp/LXDE-pi"
-			mkdir -p $dirp/LXDE-pi
-			[ "$lcname" == "pcmanfm" ] && cp -a $assetdir/$srcuser/$(basename $lcfname) $dirp/LXDE-pi
-			[ "$lcname" == "desktop-items" ] && cp -a $assetdir/$srcuser/desktop-items-* $dirp/LXDE-pi
+			logtoboth "> Plugin $pfx: Copy '$lcname' config to $dirp/default"
+			mkdir -p $dirp/default
+			if [ $raspiosver -ge 13 ]
+			then
+			    [ "$lcname" == "pcmanfm" ] && cp -a $assetdir/$srcuser/$(basename $lcfname) $dirp/default
+			    [ "$lcname" == "desktop-items" ] && cp -a $assetdir/$srcuser/desktop-items-* $dirp/default
+			else
+			    [ "$lcname" == "pcmanfm" ] && cp -a $assetdir/$srcuser/$(basename $lcfname) $dirp/LXDE-pi
+			    [ "$lcname" == "desktop-items" ] && cp -a $assetdir/$srcuser/desktop-items-* $dirp/LXDE-pi
+			fi
 			;;
 		    bookmarks)
 			logtoboth "> Plugin $pfx: Copy '$lcname' to /home/$dstuser/.gtk-bookmarks"
