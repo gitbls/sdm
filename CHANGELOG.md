@@ -1,5 +1,17 @@
 # Changelog
 
+## V15.6
+
+* New Features
+  * New `x11` plugin to install X11 on Lite (IMG type not checked!)
+  * `videomode` argument added to `system` plugin; `graphics` plugin is deprecated and will be removed in the future
+  * `pihole` plugin to install piHole
+* Improvements
+  * Ensure `fdisk` package is installed; for hosts where it's not installed by default
+* Bug Fixes
+  * Update `labwc` plugin and `sdm-collect-labwc-config` for Trixie
+  * Correct `bootconfig` plugin handling of `inline` to correctly replace an existing line
+
 ## V15.5
 
 * New Features
