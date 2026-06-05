@@ -52,7 +52,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 maxsys=32                #Max number times system plugin can be invoked
 loadparams
-vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|service-disable-at-boot|service-enable-at-boot|service-mask|swap|sysctl|systemd-config|udev|zram|"
+vldargs="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|cron-systemd|eeprom|exports|fstab|journal|ledheartbeat|modprobe|motd|name|rclocal|service-disable|service-enable|service-disable-at-boot|service-enable-at-boot|service-mask|swap|sysctl|systemd-config|udev|videomode|zram|"
 rqdargs=""
 argswithfiles="|cron-d|cron-daily|cron-hourly|cron-weekly|cron-monthly|exports|fstab|modprobe|motd|sysctl|udev|"
 eepromvals="|critical|stable|beta|"
@@ -112,6 +112,7 @@ then
 			logtoboth "> Plugin $pfx: Copy '$fl' to $assetdir/$chyp"
 			[ -f $fl ] || logtobothex "? Plugin $pfx: '$chyp' file '$fl' not found"
 			cp -a $fl $assetdir/$chyp
+			[ "$fl" == "/tmp/motd-null" ] && rm -f /tmp/motd-null
 		    else
 			logtobothex "? Plugin $pfx: Argument $chyp file '$fl' not found"
 		    fi
@@ -385,9 +386,9 @@ EOF
 		IFS="," read -a ssvc <<< "$cval"
 		for c in "${ssvc[@]}"
 		do
-		    logtoboth "> Plugin $pfx: Mask service '$c'"
+		    logtoboth "> Plugin $pfx: Disable and Mask service '$c'"
+		    systemctl disable -q $c >/dev/null 2&>1 #Silence this in case not installed
 		    systemctl mask -q $c
-		    warnifrc $? "% Plugin $pfx: Error masking service '$c'"
 		done
 		;;
 	    swap)
@@ -462,6 +463,29 @@ EOF
 		    cp -a $fl /etc/udev/rules.d
 		    setfileownmode /etc/udev/rules.d/$(basename $fl) 644
 		done
+		;;
+	    videomode)
+		if [ -f /boot/cmdline.txt ]
+		then
+		    if grep -q video= /boot/cmdline.txt
+		    then
+			logtoboth "> Plugin $pfx: Update cmdline video mode to 'video=$videomode' in cmdline.txt"
+			sed -i "1 s/video=.*/video=$videomode /" /boot/cmdline.txt
+		    else
+			logtoboth "> Plugin $pfx: Add cmdline video mode 'video=$videomode' to cmdline.txt"
+			sed -i "1 s/^/video=$videomode /" /boot/cmdline.txt
+		    fi
+		elif [ -f /boot/firmware/cmdline.txt ]
+		then
+		    if grep -q video= /boot/firmware/cmdline.txt
+		    then
+			logtoboth "> Plugin $pfx: Update cmdline video mode to 'video=$videomode' in cmdline.txt"
+			sed -i "1 s/video=.*/video=$videomode /" /boot/firmware/cmdline.txt
+		    else
+			logtoboth "> Plugin $pfx: Add cmdline video mode 'video=$videomode' to cmdline.txt"
+			sed -i "1 s/^/video=$videomode /" /boot/firmware/cmdline.txt
+		    fi
+		fi
 		;;
 	    zram)
 		if ispkginstalled rpi-swap
