@@ -1,5 +1,13 @@
 # Changelog
 
+## V15.7
+
+* New Features
+  * `kvm` plugin to virtualization See <a href="Docs/kvm-virtualization.md">Getting started with kvm virtualization RasPiOS</a> and <a href="Docs/Plugins.md#kvm">kvm plugin documentation</a>
+* Improvements
+* Bug Fixes
+  * Correct dyslexic redirections
+
 ## V15.6
 
 * New Features
