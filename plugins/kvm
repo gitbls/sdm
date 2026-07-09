@@ -1,0 +1,535 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: kvm
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+function writekvmscripts() {
+    mkdir -p $sdmdir/kvm
+    logtoboth "  $sdmdir/kvm/create-disk"
+    cat > $sdmdir/kvm/create-disk <<'EOF'
+#!/bin/bash
+
+qcf="$1"
+[ "$qcf" == "" ] && { echo "Usage: $0 file [size] [prealloc]" ; exit ; }
+size="${2:-20G}"
+prealloc="${3:-off}"
+[[ "off|full" =~ "$prealloc" ]] || { echo "? Unrecognized prealloc value '$prealloc'" ; exit 1 ; }
+qemu-img create -f qcow2 $qcf -o preallocation=$prealloc $size
+EOF
+    logtoboth "  $sdmdir/kvm/extract-iso"
+    cat > $sdmdir/kvm/extract-iso <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: sudo $0 <source-iso> <workdir>"
+  exit 1
+fi
+
+SRC_ISO="$1"
+WORKDIR="$2"
+
+if [ ! -f "$SRC_ISO" ]; then
+  echo "Source ISO not found: $SRC_ISO"
+  exit 2
+fi
+
+if [ ! -d "$WORKDIR" ]; then
+    echo "work directory '$WORKDIR' not found"
+    exit 5
+fi
+
+# Kernel commandline fragment to add. Adjust if you prefer different options.
+# Common options:
+#  - auto=true priority=critical  -> fully automatic installer
+#  - preseed/file=/cdrom/preseed.cfg -> installer reads preseed from CD
+#  - DEBCONF_DEBUG=5 -> debug (optional)
+PRESEED_KCMD="auto=true priority=critical preseed/file=/cdrom/preseed.cfg"
+
+# Create working dirs
+MNTDIR="$(mktemp -d /tmp/iso-mnt.XXXXXX)"
+echo "[+] workdir: $WORKDIR"
+echo "[+] mntdir:  $MNTDIR"
+
+cleanup() {
+  set +e
+  echo "[+] cleaning up..."
+  if mountpoint -q "$MNTDIR"; then
+    umount "$MNTDIR"
+  fi
+  rm -rf "$MNTDIR"
+  # keep WORKDIR for inspection on failure; remove on success
+}
+trap cleanup EXIT
+
+echo "[+] Mounting source ISO..."
+mount -o loop "$SRC_ISO" "$MNTDIR"
+
+echo "[+] Copying ISO contents to working directory (preserve permissions)..."
+rsync -aH --exclude=/TRANS.TBL "$MNTDIR/" "$WORKDIR/"
+
+echo "[+] Unmounting source ISO..."
+umount "$MNTDIR"
+
+exit
+EOF
+    logtoboth "  $sdmdir/kvm/update-iso-with-preseed"
+    cat > $sdmdir/kvm/update-iso-with-preseed <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: sudo ./update-iso-with-preseed <source-iso> <preseed.cfg> <output-iso>
+#
+# Adds a preseed file to a Debian netinst ISO and updates boot menu entries
+# (isolinux/syslinux and grub EFI) to use the preseed automatically.
+#
+# Requires: sudo, xorriso, rsync, sed, grep, md5sum, find, mktemp
+
+# Helper: append preseed options to kernel lines in a file
+update_for_install_default() {
+    GRUBCFG="$WORKDIR/boot/grub/grub.cfg"
+
+    [ -f "$GRUBCFG" ] || { echo "% Not updating install default; $GRUBCFG not found" ; return ; }
+    # 1. Insert set default + timeout before the first blank line
+    awk '
+    BEGIN { inserted=0 }
+    {
+        if (!inserted && $0 ~ /^$/) {
+            print "set default=install"
+            print "set timeout=0"
+            print ""
+            inserted=1
+        }
+        print
+    }
+' "$GRUBCFG" > "${GRUBCFG}.new"
+
+    mv "${GRUBCFG}.new" "$GRUBCFG"
+
+    # 2. Ensure the Install entry has an ID so GRUB can target it
+    #    Adds:  --id=install   to the menuentry line
+    sed -i -E "s/menuentry[[:space:]]+'Install'/menuentry 'Install' --id=install/" "$GRUBCFG"
+}
+
+append_preseed_to_kernel_lines() {
+  local file="$1"
+  local tmp="${file}.tmp.$$"
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+
+  # We look for lines that start with "kernel" (isolinux) or "linux" (grub)
+  # and append PRESEED_KCMD if not already present.
+  awk -v add="$PRESEED_KCMD" '
+  BEGIN { IGNORECASE=1 }
+  {
+    line=$0
+    if (match(line, /^[[:space:]]*(kernel|linux)[[:space:]]/)) {
+      if (index(line, "preseed/file=") == 0 && index(line, "auto=true") == 0) {
+        print line " " add
+      } else {
+        print line
+      }
+    } else {
+      print line
+    }
+  }' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
+cleanup() {
+  set +e
+  exit
+}
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: sudo $0 <workdir> <preseed.cfg>"
+  exit 1
+fi
+
+WORKDIR="$1"
+PRESEED_SRC="$2"
+
+if [ ! -f "$PRESEED_SRC" ]; then
+  echo "Preseed file not found: $PRESEED_SRC"
+  exit 3
+fi
+
+# Kernel commandline fragment to add. Adjust if you prefer different options.
+# Common options:
+#  - auto=true priority=critical  -> fully automatic installer
+#  - preseed/file=/cdrom/preseed.cfg -> installer reads preseed from CD
+#  - DEBCONF_DEBUG=5 -> debug (optional)
+PRESEED_KCMD="auto=true priority=critical preseed/file=/cdrom/preseed.cfg"
+
+# Create working dirs
+echo "[+] workdir: $WORKDIR"
+
+trap cleanup EXIT
+
+# Place preseed at the ISO root (cdrom path /preseed.cfg -> /cdrom/preseed.cfg)
+echo "[+] Installing preseed file to $WORKDIR/preseed.cfg"
+cp "$PRESEED_SRC" "$WORKDIR/preseed.cfg"
+chmod 644 "$WORKDIR/preseed.cfg"
+
+# 1) Update isolinux/syslinux (BIOS) menu entries
+# Common locations: isolinux/txt.cfg, isolinux/isolinux.cfg, syslinux.cfg
+echo "[+] Searching for isolinux/syslinux menu files..."
+ISOLINUX_FILES=()
+for f in "isolinux/txt.cfg" "isolinux/isolinux.cfg" "syslinux/txt.cfg" "syslinux.cfg" "isolinux.cfg"; do
+  if [ -f "$WORKDIR/$f" ]; then
+    ISOLINUX_FILES+=("$WORKDIR/$f")
+  fi
+done
+
+if [ "${#ISOLINUX_FILES[@]}" -gt 0 ]; then
+  echo "[+] Found isolinux/syslinux files:"
+  for f in "${ISOLINUX_FILES[@]}"; do
+    echo "    $f"
+    append_preseed_to_kernel_lines "$f"
+  done
+else
+  echo "[+] No isolinux/syslinux files found; skipping BIOS menu update."
+fi
+
+# 2) Update GRUB EFI menu entries
+# Common locations: boot/grub/grub.cfg, boot/grub/loopback.cfg, grub/grub.cfg
+echo "[+] Searching for GRUB menu files..."
+GRUB_FILES=()
+for g in "boot/grub/grub.cfg" "grub/grub.cfg" "boot/grub/loopback.cfg" "EFI/BOOT/grub.cfg"; do
+  if [ -f "$WORKDIR/$g" ]; then
+    GRUB_FILES+=("$WORKDIR/$g")
+  fi
+done
+
+if [ "${#GRUB_FILES[@]}" -gt 0 ]; then
+  echo "[+] Found GRUB files:"
+  for g in "${GRUB_FILES[@]}"; do
+    echo "    $g"
+    # For grub, we need to append to 'linux' lines and possibly 'initrd' lines remain unchanged.
+    append_preseed_to_kernel_lines "$g"
+  done
+else
+  echo "[+] No GRUB files found; skipping GRUB menu update."
+fi
+
+update_for_install_default "$g"
+
+# 3) If the ISO uses a txt.cfg inside /install or other subdirs, search and update all files
+echo "[+] Searching entire tree for kernel/linux lines to update (fallback)..."
+# Only run fallback if we didn't find any grub or isolinux files
+if [ "${#ISOLINUX_FILES[@]}" -eq 0 ] && [ "${#GRUB_FILES[@]}" -eq 0 ]; then
+  echo "[+] No explicit menu files found earlier; scanning all files for 'kernel ' or 'linux ' lines..."
+  # Find candidate files and update them
+  while IFS= read -r -d '' file; do
+    if grep -qiE '^[[:space:]]*(kernel|linux)[[:space:]]' "$file"; then
+      echo "    updating $file"
+      append_preseed_to_kernel_lines "$file"
+    fi
+  done < <(find "$WORKDIR" -type f -print0)
+fi
+EOF
+    logtoboth "  $sdmdir/kvm/remake-iso"
+    cat > $sdmdir/kvm/remake-iso <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: sudo ./remake-iso <workdir> <output-iso>
+#
+# Adds a preseed file to a Debian netinst ISO and updates boot menu entries
+# (isolinux/syslinux and grub EFI) to use the preseed automatically.
+#
+# Requires: sudo, xorriso, rsync, sed, grep, md5sum, find, mktemp
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: sudo $0 <workdir> <output-iso>"
+  exit 1
+fi
+
+WORKDIR="$1"
+OUT_ISO="$2"
+
+# Create working dirs
+echo "[+] workdir: $WORKDIR"
+
+cleanup() {
+  set +e
+  exit
+  echo "[+] cleaning up..."
+  if mountpoint -q "$MNTDIR"; then
+    umount "$MNTDIR"
+  fi
+  rm -rf "$MNTDIR"
+  # keep WORKDIR for inspection on failure; remove on success
+}
+trap cleanup EXIT
+
+# 4) Update MD5 sums (Debian netinst uses MD5SUMS or md5sum.txt)
+echo "[+] Regenerating MD5 sums..."
+pushd "$WORKDIR" >/dev/null
+# Remove old MD5 files if present
+rm -f MD5SUMS MD5SUMS.txt md5sum.txt md5sum || true
+
+# Generate md5s for all files (exclude TRANS.TBL and the manifest itself)
+# Debian uses md5sum.txt at the root with relative paths without leading './'
+find . -type f ! -path "./MD5SUMS" ! -path "./md5sum.txt" ! -path "./MD5SUMS.txt" ! -path "./md5sum" ! -name "TRANS.TBL" -print0 \
+  | xargs -0 md5sum \
+  | sed 's|^\./||' > md5sum.txt
+
+# Some Debian ISOs use MD5SUMS; create both to be safe
+cp md5sum.txt MD5SUMS || true
+popd >/dev/null
+
+# 5) Rebuild ISO with xorriso preserving both BIOS and UEFI boot
+# We try to detect the original ISO's boot layout and reuse the appropriate El Torito files.
+# --- Begin replacement: rebuild ISO safely ---
+echo "[+] Rebuilding ISO (this may take a minute)..."
+
+# Detect isolinux and efi image paths relative to WORKDIR
+ISOLINUX_BIN=""
+EFI_IMG=""
+
+if [ -f "$WORKDIR/isolinux/isolinux.bin" ]; then
+  ISOLINUX_BIN="isolinux/isolinux.bin"
+elif [ -f "$WORKDIR/isolinux/ldlinux.c32" ]; then
+  ISOLINUX_BIN="isolinux/ldlinux.c32"
+fi
+
+if [ -f "$WORKDIR/boot/grub/efi.img" ]; then
+  EFI_IMG="boot/grub/efi.img"
+fi
+
+echo "[+] isolinux bin: ${ISOLINUX_BIN:-<none>}"
+echo "[+] efi image:   ${EFI_IMG:-<none>}"
+
+# Build base xorriso command (array)
+XORRISO_CMD=(xorriso -as mkisofs -r -J -l -cache-inodes -V "Custom Debian Netinst" -o "$OUT_ISO")
+
+# Add isohybrid MBR stub if available on host
+if [ -f /usr/lib/ISOLINUX/isohdpfx.bin ]; then
+  XORRISO_CMD+=(-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin)
+else
+  echo "[!] /usr/lib/ISOLINUX/isohdpfx.bin not found; building without isohybrid MBR stub."
+fi
+
+# Add BIOS/isolinux El Torito options if isolinux present
+if [ -n "$ISOLINUX_BIN" ]; then
+  XORRISO_CMD+=(-b "$ISOLINUX_BIN" -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table)
+fi
+
+# Add EFI El Torito options if efi.img exists
+if [ -n "$EFI_IMG" ]; then
+  XORRISO_CMD+=(--eltorito-alt-boot -e "$EFI_IMG" -no-emul-boot)
+else
+  # If no efi.img but EFI binaries exist under EFI/, xorriso can still create a hybrid EFI image.
+  # We'll add a best-effort option that many Debian ISOs use (boot/grub/efi.img). If it doesn't exist,
+  # xorriso will error; we handle that by trying an alternate command below.
+  echo "[+] No efi.img found; attempting hybrid build using EFI tree (boot/grub/efi.img fallback)."
+  XORRISO_CMD+=(--eltorito-alt-boot -e "boot/grub/efi.img" -no-emul-boot)
+fi
+
+# Add isohybrid GPT metadata and source dir
+XORRISO_CMD+=(--isohybrid-gpt-basdat .)
+
+# Run xorriso from the workdir
+(
+  cd "$WORKDIR"
+  # Try the constructed command first
+  if "${XORRISO_CMD[@]}"; then
+    echo "[+] ISO built: $OUT_ISO"
+  else
+    echo "[!] First xorriso attempt failed; trying a simpler fallback command..."
+    # Fallback: if isolinux present, build with explicit isolinux options and efi fallback
+    if [ -n "$ISOLINUX_BIN" ]; then
+      xorriso -as mkisofs -r -J -l -cache-inodes -V "Custom Debian Netinst" -o "$OUT_ISO" \
+        -b "$ISOLINUX_BIN" -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table \
+        --eltorito-alt-boot -e "${EFI_IMG:-boot/grub/efi.img}" -no-emul-boot --isohybrid-gpt-basdat .
+    else
+      # Minimal rebuild without isolinux MBR stub
+      xorriso -as mkisofs -r -J -l -cache-inodes -V "Custom Debian Netinst" -o "$OUT_ISO" \
+        --eltorito-alt-boot -e "${EFI_IMG:-boot/grub/efi.img}" -no-emul-boot --isohybrid-gpt-basdat .
+    fi
+  fi
+)
+
+# Final message and cleanup
+echo
+echo "[✓] Done."
+echo "Verify the ISO before wide use:"
+echo "  - Mount or boot it in a VM and confirm the installer reads /preseed.cfg"
+echo "  - Inspect boot menu entries inside the ISO (workdir was: $WORKDIR) if you need to tweak kernel args"
+echo
+echo "If the installer does not pick up the preseed, try these kernel parameters instead:"
+echo "  preseed/file=/cdrom/preseed.cfg debian-installer/locale=en_US console-setup/ask_detect=false"
+EOF
+    logtoboth "  $sdmdir/kvm/create-vm-and-start"
+    cat > $sdmdir/kvm/create-vm-and-start <<'EOF'
+#!/bin/bash
+
+# Create a new VM and start it. The VM will start and a console window will pop up
+# Attach to it with: virsh console <vmname>
+#
+# $1: vm name
+# $2: ISO /path/to/iso
+# $3: network name (default is the internal network)
+
+vmname=${1:-vm1}
+iso=${2:-/nv/iso/debian-13.5.0-arm64-netinst.iso}
+network=${3-default}
+
+virt-install \
+  --name $vmname \
+  --memory 2048 \
+  --vcpus 4 \
+  --disk path=/nv/disks/$vmname.qcow2,format=qcow2 \
+  --network network=$network \
+  --cdrom $iso \
+  --os-variant debian13 \
+  --machine virt
+EOF
+    logtoboth "  $sdmdir/kvm/create-vm-no-start"
+    cat > $sdmdir/kvm/create-vm-no-start <<'EOF'
+#!/bin/bash
+
+# Create a new VM but don't start it
+# Attach to it with: virt-viewer <vmname>
+#
+# $1: vm name
+# $2: ISO /path/to/iso
+# $3: network name (default is the internal network)
+
+vmname=${1:-vm1}
+iso=${2:-/nv/iso/debian-13.5.0-arm64-netinst.iso}
+network=${3-default}
+
+virt-install \
+  --name $vmname \
+  --memory 2048 \
+  --vcpus 4 \
+  --disk path=/nv/disks/$vmname.qcow2,format=qcow2 \
+  --network network=$network \
+  --cdrom $iso \
+  --os-variant debian13 \
+  --machine virt \
+  --print-xml=1 | virsh define /dev/stdin
+exit
+#
+# NOTE: Add --graphics none to the above command for a console-only VM; connect with virsh console vmname
+#
+EOF
+    chmod 755 $sdmdir/kvm/*
+}
+
+function makenmconn() {
+    cname="$1" makeif="$2" nmcmd="$3" nmx="$4"
+
+    if [ -f /etc/NetworkManager/system-connections/$cname.nmconnection ]
+    then
+	logtoboth "% Plugin $pfx: NetworkManager connection $cname already exists; Deleting prior definition"
+	rm -f /etc/NetworkManager/system-connections/$cname.nmconnection
+    fi
+    logtoboth "> Plugin $pfx: Create connection '$cname' on interface '$makeif'"
+    if [ "$nminclude" == "" ]
+    then
+	bash -c "nmcli --offline $nmcmd | tee /etc/NetworkManager/system-connections/$cname.nmconnection >/dev/null"
+    else
+	bash -c "cat /etc/NetworkManager/system-connections/$nmx.nmconnection | nmcli --offline $nmcmd | tee /etc/NetworkManager/system-connections/$cname.nmconnection >/dev/null"
+    fi
+    sts=$?
+    [ $sts -ne 0 ] && logtobothex "? Plugin $pfx: nmcli returned error '$sts' on create connection '$cname' with '$nmcmd'"
+    chmod 600 /etc/NetworkManager/system-connections/$cname.nmconnection
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+
+#vldargs="|bridge-add-config|bridge-slave-add-config|ifname|user|"
+vldargs="|gui|ifname|user|"
+rqdargs=""
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    plugin_printkeys
+    mkdir -p $assetdir
+
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    logfreespace "at start of Plugin $pfx Phase 1"
+    pkgs="ipxe-qemu libvirt-clients libvirt-daemon-system qemu-efi-aarch64 qemu-system-arm qemu-utils virt-install virt-viewer xorriso"
+    [ -v gui ] && pkgs="$pkgs virt-manager"
+    logtoboth "> Plugin $pfx: Install required packages: $pkgs"
+    installpkgsif "$pkgs"
+    [ "$user" == "" ] && user=$myuser
+    if [ "$user" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Add user '$user' to groups libvirt and libvirt-qemu"
+	usermod -a -G libvirt $user
+	usermod -a -G libvirt-qemu $user
+    else
+	logtoboth "% Plugin $pfx: No user provided; Use 'usermod -a -G' to add designated user to libvirt and libvirt-qemu groups if desired" nosplit
+    fi
+    logfreespace "at end of Plugin $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    bname=br0
+    fwdev=${ifname:-eth0}
+    #
+    # Disable connection using $fwdev if present
+    #
+    if grep -qs interface-name=$fwdev /etc/NetworkManager/system-connections/*.nmconnection
+    then
+	excname=$(grep -l interface-name=$fwdev /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
+	if [ "$excname" != "" ]
+	then
+	    excnamefn="$(basename $excname)"
+	    IFS="=" read x id <<< $(grep id= $excname)
+	    [ "$id" == "" ] && id="${excnamefn%.nmconnection}"
+	    logtoboth "> Plugin $pfx: Disable connection '$id' in favor of bridged network"
+	    logtoboth "  by dot-renaming '$excname'"
+	    mv /etc/NetworkManager/system-connections/$excnamefn /etc/NetworkManager/system-connections/.sdm.$excnamefn
+	fi
+    fi
+    logtoboth "> Plugin $pfx: Create bridge '$bname' and bridge slave '$bname-slave-$fwdev'"
+    nmcmd="c add ifname $bname type bridge con-name $bname bridge.stp no ipv6.method disabled connection.autoconnect-slaves 1 autoconnect yes connection.autoconnect-priority 101"
+    makenmconn $bname $fwdev "$nmcmd"
+    chmod 600 /etc/NetworkManager/system-connections/$bname.nmconnection
+    nmcmd="c add type bridge-slave ifname $fwdev con-name $bname-slave-$fwdev master $bname autoconnect yes | grep -v 'any existing profile'"
+    # pass $bname (4th arg) into the nmcli --offline command to prevent this to stdout: "Warning: controller='br0' doesn't refer to any existing profile."
+    makenmconn $bname-slave-$fwdev $bname "$nmcmd" $bname
+
+    logtoboth "> Plugin $pfx: Add kvm scripts to $sdmdir/kvm"
+    writekvmscripts
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
+exit
