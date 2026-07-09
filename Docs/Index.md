@@ -31,6 +31,7 @@
 <br><a href="Hotspot.md">Hotspot</a>
 <br><a href="Detailed-Installation-Guide.md">Installing and Removing sdm</a>
 <br><a href="Known-Issues.md">Known Issues</a>
+<br><a href="kvm-virtualization.md">Run VMs with KVM virtualization</a>
 <br><a href="Operating-Details.md">Operating Details</a>
 <br><a href="Passwords.md">Passwords</a>
 <br><a href="Performance-How-Fast-is-sdm.md">Performance: How Fast is sdm</a>
