@@ -491,7 +491,7 @@ case "$phase" in
 		logtoboth "> Plugin $pfx: Process userlist '$userlist' for Phase 0"
 		do_userlist $userlist addp0user
 	    else
-		logtoboth "% Plugin $pfx: Cannot find userlist file '$userlist'; ignoring"
+		logtobothex "? Plugin $pfx: Cannot find userlist file '$userlist'"
 	    fi
 	else
 	    addp0user
