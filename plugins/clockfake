@@ -164,7 +164,7 @@ else
     if [[ "$SDMNSPAWN" =~ "Live" ]]
     then
 	systemctl daemon-reload
-	systemctl restart clockfake > /dev/null 2&>1
+	systemctl restart clockfake > /dev/null 2>&1
     fi
     logtoboth "* Plugin $pfx: Disable RasPiOS fake-hwclock hourly update"
     [ -f /etc/cron.hourly/fake-hwclock ] && mv /etc/cron.hourly/fake-hwclock /etc/cron.hourly/.fake-hwclock
