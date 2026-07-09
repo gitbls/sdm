@@ -387,7 +387,7 @@ EOF
 		for c in "${ssvc[@]}"
 		do
 		    logtoboth "> Plugin $pfx: Disable and Mask service '$c'"
-		    systemctl disable -q $c >/dev/null 2&>1 #Silence this in case not installed
+		    systemctl disable -q $c >/dev/null 2>&1 #Silence this in case not installed
 		    systemctl mask -q $c
 		done
 		;;
