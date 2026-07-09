@@ -711,6 +711,32 @@ knockd installs the knockd service and <a href="https://github.com/gitbls/pktabl
 * **config** &mdash; Full path to your knockd.conf. If **config** isn't provided, /etc/knockd.conf will be the standard knockd.conf
 * **localsrc** &mdash; Locally accessible directory where pktables, knockd-helper, and knockd.service can be found, instead of downloading them from GitHub. If there is a knockd.conf in this directory, it will be used, unless overridden with the **config** argument
 
+### kvm
+
+Enable virtualization on the host system. The kvm plugin:
+
+* Installs the necessary software packages (libvirt, qemu, etc)
+* Configures a network bridge for Network Manager enabling you to create VMs on a network that is:
+    * Routed to the LAN
+    * Bridged to the LAN so the VM appears directly on the LAN
+* Assigns the optional specified  user to the `libvirt` group. This can also be done later with
+```
+sudo usermod -a -G libvirt a_user
+sudo usermod -a -G libvirt-qemu a_user
+```
+
+* Creates a few scripts in /usr/local/sdm/kvm that you may find useful/handy. See <a href="kvm-virtualization.md">getting started with kvm virtualization</a> for details.
+
+#### Arguments
+
+* `gui` &mdash; Also install the virt-manager GUI
+* `ifname` &mdash; Network interface to use for the bridge [D:eth0]
+* `user` &mdash; Username to be added to the `libvirt` and `libvirt-qemu` groups
+
+#### Examples
+
+* `--plugin kvm:"gui|user=myuser"` &mdash; Install virtualization; add `myuser` to the `libvirt` and `libvirt-qemu` groups, Also install virt-manager GUI
+
 ### L10n
 
 Use the `L10n` plugin to set the localization parameters: `keymap`, `locale`, and `timezone`. You can find the valid values for these arguments with
