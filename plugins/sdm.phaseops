@@ -97,13 +97,11 @@ then
 		apt-upgrade)
 		    if ! [[ "$poptions" =~ "noupgrade" ]]
 		    then
-			adjust_initramfs_all
 			[ $aptdistupgrade -eq 0 ] && upg="upgrade" || upg="dist-upgrade"
 			logtoboth "> Start 'apt $upg'"
 			logfreespace "at start of 'apt $upg'"
 			upgkeepconf "-y" "$showapt" $aptdistupgrade
 			logfreespace "at end of 'apt $upg'"
-			unadjust_initramfs_all
 		    else
 			logtoboth "> Skip 'apt upgrade' per --apt-options noupgrade"
 		    fi    
