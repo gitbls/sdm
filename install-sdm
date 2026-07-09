@@ -102,6 +102,8 @@ else
     $sudo tar --extract --xz $v --file $tarball --overwrite -C $dir || errexit "? Error ($?) untarring sdm tarball '$tarball'"
 fi
 
+[ compgen "$dir/sdm.version-*" > /dev/null 2>&1 ] && rm -f $dir/sdm.version-*
+
 etc="/etc"
 
 if [ "$dir" == "/usr/local/sdm" ]
