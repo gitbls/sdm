@@ -67,7 +67,7 @@ sdm --runonly plugins --burn-plugin extractfs:"rootfs=/path/to/rootfs|bootfs=/pa
 
 There are a couple of plugin ordering issues to be aware of.
 * The `user` plugin(s) should be the first plugin. Several other plugins expect this.
-* The `cryptroot` plugin must be after the graphics plugin in order to properly manage boot behavior during the encryption process
+* The `cryptroot` plugin must be after the `graphics` plugin and the `raspiconfig` plugin setting `boot_behavior` in order to properly manage boot behavior during the encryption process
 * The `boot_behavior` final setting is order-sensitive. The last modification wins.
   * During the post-install phase, if `--plugin graphics` is used, the `graphics` plugin will set the boot behavior. If the `graphics` plugin is not used, this will run automatically at the end of the post-install phase.
     * If the display manager is lightdm, `boot_behavior` is set: B3 or B4 per the `--autologin` switch
@@ -1575,7 +1575,7 @@ Install and configure the ufw firewall
 
 #### Examples
 
-* `--plugin ufw:"/ufwscript=/path/to/script1,/path/to/script2"` &mdash; Install ufw and configure it with the two provided script files. Save the script files in the IMG in /usr/local/bin
+* `--plugin ufw:"ufwscript=/path/to/script1,/path/to/script2"` &mdash; Install ufw and configure it with the two provided script files. Save the script files in the IMG in /usr/local/bin
 * `--plugin ufw` &mdash; Install ufw, do not configure any rules. ufw documentation says that all inbound network accesses are denied by default
 
 ### update-alternatives
@@ -1872,6 +1872,7 @@ The `x11` plugin installs the core X11 packages, and optionally installs a Displ
 * **dm=*displaymanager*** &mdash; Name of display manager package. Known display managers include `lightdm`, `wdm`, and `xdm`, but this is not checked
 * **fonts=*list,of,font,packages*** &mdash; List of X11 font packages to install in addition to the default font packages (`xfonts-base,xfonts-100dpi,xfonts-75dpi,xfonts-scalable`)
 * **nodmconsole** &mdash; Do not enable the display manager on the system console
+* **noglamor** &mdash; Do not install `glamor-test`, needed on Pi5 for proper X11 operation; literally no impact on other Pis
 * **wm=*windowmanager*** &mdash; name of window manager package. There are many to choose from!
 
 #### Notes
