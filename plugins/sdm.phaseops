@@ -241,6 +241,7 @@ then
                 ;;
         esac
     done < $assetdir/defer-done-options
+    defer_cleanup
     exit 0
 fi
 defer_cleanup
