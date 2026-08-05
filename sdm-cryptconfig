@@ -79,7 +79,8 @@ function cryptolog() {
     else
 	[ "$msg" == "" ] && echo "$msg" > /dev/tty || echo "> $msg" > /dev/tty
     fi
-    [ -f /etc/sdm/history ] && echo "$(thisdate) sdm-cryptconfig: $msg" >> /etc/sdm/history
+    [[ "$opts" =~ "nojournal" ]] || logger "$msgc"
+    [ -f /etc/sdm/history ] && echo "$(thisdate) $msgc" >> /etc/sdm/history
 }
 
 function checknumeric() {
@@ -160,16 +161,28 @@ function printhelp() {
     echo $"
 sdm-cryptconfig has several command line switches, all of which are optional
 
+> Unlock via SSH configuration
 * --authorized-keys keyfile -- Provides SSH authorized_keys file for the initramfs. Required with --ssh
-* --auto-encrypt devname -- Perform initramfs encryption automatically (non-stop) and use devname as scratch disk
-* --crypto cryptalgo -- Specify crypto algorithm (aes [D]) or xchacha (use on Pi4 and earlier)
 * --dns dnsaddr -- Set IP Address of DNS server
 * --gateway gatewayaddr -- Set IP address of gateway
 * --hostname hostname -- Set hostname
 * --ipaddr ipaddr -- set IP address to use in initramfs
-* --keyfile keyfile -- Key file for USB-based key unlock
-* --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --mask netmask -- Set network mask for initramfs
+* --ssh -- Enable SSH in initramfs. Requires --authorized-keys
+* --sshbash -- Leave ssh session bash enabled [Default: use cryptroot-unlock]
+* --sshport port -- Specify initramfs SSH port [Default: 22]
+* --sshtimeout timeout -- Specify initramfs SSH timeout [Default: 3600]
+* --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
+* --wifi-password -- Specify WiFi password for the WiFi connection
+* --wifi-ssid -- Enable WiFi in initramfs and specify the WiFi SSID for connection
+    Requires --ssh, --authorized-keys, and --wifi-password
+* --wifi-use-psk -- Convert WiFi password to a WPA PSK in wpa_supplicant.conf
+
+> Encryption feature configuration
+* --auto-encrypt devname -- Perform initramfs encryption automatically (non-stop) and use devname as scratch disk
+* --crypto cryptalgo -- Specify crypto algorithm (aes [D]) or xchacha|xchacha12|xchacha20 (use on Pi4 and earlier)
+* --keyfile keyfile -- Key file for USB-based key unlock. Create keydisk with sdm-make-luks-key. Required with --nopwd
+* --mapper cryptmapname -- Set cryptroot mapper name [Default: cryptroot]
 * --nbde-server http://<nbdeserver>:port -- Use Network Based Disk Encryption
 * --no-expand-root -- Don't expand rootfs after rootfs encryption has completed
 * --no-last-reboot -- Don't do final reboot after sdm-cryptfs-cleanup
@@ -177,15 +190,7 @@ sdm-cryptconfig has several command line switches, all of which are optional
 * --quiet -- Do not disable quiet boot for RasPiOS with desktop
 * --reboot -- Reboot the system (into initramfs) when sdm-cryptconfig is complete
 * --sdm -- sdm cryptroot plugin sets this
-* --ssh -- Enable SSH in initramfs
-* --sshbash -- Leave ssh session bash enabled [Default: use cryptroot-unlock]
-* --sshport port -- Specify initramfs SSH port [Default: 22]
-* --sshtimeout timeout -- Specify initramfs SSH timeout [Default: 3600]
 * --tries n -- Specify number of unlock tries before giving up [Default: 0 (infinite)]
-* --unique-ssh -- Use a different SSH host key in initramfs than the host OS SSH key
-* --wifi-password -- Specify WiFi password for the WiFi connection
-* --wifi-ssid -- Enable WiFi in initramfs and specify the WiFi SSID for connection (Requires --ssh, --authorized-keys, and --wifi-password)
-* --wifi-use-psk -- Convert WiFi password to a WPA PSK in wpa_supplicant.conf
 
 The network configuration switches (dns, gateway, hostname, ipaddr, and mask) are only needed
 and should only be used if you know that the system is unable to get an IP address and network
@@ -539,7 +544,14 @@ update-initramfs -u
 if grep -q -s xsdm:1 /etc/sdmcryptctl
 then
     [ -f /etc/sdm/sdm-readparams ] && source /etc/sdm/sdm-readparams || echolog "% sdm-cryptfs-cleanup: Unable to find expected /etc/sdm/sdm-readparams"
-    [ -f /etc/sdm/assets/cryptbbh ] && { cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh && do_delayed_boot_behavior reboot ; } || echolog "% sdm-cryptfs-cleanup: /etc/sdm/assets/cryptbbh not found; Boot behavior setting may not be correct"
+    if [ -f /etc/sdm/assets/cryptbbh ]
+    then
+        echolog "sdm-cryptfs-cleanup: Enable delayed boot behavior '$(cat /etc/sdm/assets/cryptbbh)'"
+        cat /etc/sdm/assets/cryptbbh >| /etc/sdm/assets/gfxbbh
+        do_delayed_boot_behavior reboot
+    else
+        echolog "% sdm-cryptfs-cleanup: /etc/sdm/assets/cryptbbh not found; Boot behavior setting may not be correct"
+    fi
 else
     if grep -q -s graphical.target /etc/sdmcryptctl
     then
@@ -835,10 +847,11 @@ EOF
 
     cryptolog "Update /etc/initramfs-tools/modules to include crypto '$xcrypto' modules" noconsole
     case "$xcrypto" in
-	xchacha)
+	xchacha*)
+	    [ "$crypto" == "xchacha" ] && crypto=xchacha12
 	    cat >> /etc/initramfs-tools/modules <<EOF
 algif_skcipher
-xchacha20
+$crypto
 adiantum
 aes_arm
 sha256
@@ -985,7 +998,7 @@ then
     xwifi=1
 fi
 
-[[ "aes|xchacha" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos are 'aes' and 'xchacha'"
+[[ "aes|xchacha|xchacha12|xchacha20" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Unrecognized crypto '$xcrypto'; Supported --crypto cryptos: aes|xchacha|xchacha12|xchacha20"
 if [ "$xkeyfile" != "" ]
 then
     mkdir -p /etc/sdm/assets/cryptroot
@@ -1036,7 +1049,19 @@ do
 	    # Save key values so they can be checked in sdm-cryptfs-cleanup
 	    printf "xsdm:$xsdm\nxquiet:$xquiet\nxnoexpand:$xnoexpand\nxnolastrb:$xnolastrb\nxsshbash:$xsshbash\nxdebug:$xdebug\n" >>/etc/sdmcryptctl
 	    printf "fstype:$(lsblk -o fstype --noheadings $(findmnt -n -o source /))\n" >>/etc/sdmcryptctl  #Debug aid
-	    printf "$(systemctl get-default)\n" >>/etc/sdmcryptctl
+	    # Correctly determine final boot behavior
+	    gdf=$(systemctl get-default)
+	    if [ -f /etc/sdm/assets/cryptbbh ]
+	    then
+		grep -qiE "B2|B4" /etc/sdm/assets/cryptbbh 2>/dev/null && gdf=graphical.target
+	    else
+		if [ -f /etc/sdm/assets/gfxbbh ]
+		then
+		    grep -qiE "B2|B4" /etc/sdm/assets/gfxbbh 2>/dev/null && gdf=graphical.target
+		fi
+	    fi
+	    cryptolog "Set default target '$gdf' to be restored after encryption completes"
+	    printf "$gdf\n" >>/etc/sdmcryptctl
 	    doconfiginitramfs
 	    if [ $xwifi -eq 1 ]
 	    then
@@ -1114,10 +1139,8 @@ if [ $xreboot -eq 1 ]
 then
     wait_startup_complete "sdm-cryptoconfig: Wait for system startup to complete"
     secs=10
-    logger "sdm-cryptconfig: System will restart in $secs seconds"
     cryptolog "System will restart in $secs seconds"
     sleep $secs
-    logger "sdm-cryptconfig: System restarting now"
     cryptolog "System restarting now"
     sleep 2
     reboot
