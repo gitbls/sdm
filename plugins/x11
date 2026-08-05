@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|apps|dm|nodmconsole|wm|"
+vldargs="|apps|dm|nodmconsole|noglamor|wm|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -69,7 +69,8 @@ then
     [ -f $assetdir/x11-apps ] && read svapps < $assetdir/x11-apps
     if [ ! -x /bin/Xorg ]
     then
-	x11pkgs="xserver-xorg xserver-xorg-core xserver-common gldriver-test x11-apps x11-xserver-utils $basefonts $dm $wm $svapps"
+	[ -v noglamor ] && gldriver="" || gldriver="gldriver-test"
+	x11pkgs="xserver-xorg xserver-xorg-core xserver-common $gldriver x11-apps x11-xserver-utils $basefonts $dm $wm $svapps"
 	doinstalls "$x11pkgs" "X11 Install"
     fi
     
