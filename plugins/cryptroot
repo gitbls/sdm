@@ -63,7 +63,7 @@ then
     fi
     if [ "$crypto" != "" ]
     then
-	[[ "aes|xchacha" =~ "$crypto" ]] || [[ "$crypto" =~ "aes-" ]] || logtobothex "? Plugin $pfx: Supported cryptos: aes and xchacha"
+	[[ "aes|xchacha|xchacha12|xchacha20" =~ "$crypto" ]] || [[ "$crypto" =~ "aes-" ]] || logtobothex "? Plugin $pfx: Supported cryptos: aes|xchacha|xchacha12|xchacha20"
     fi
     if [ -v auto__encrypt ]
     then
@@ -142,6 +142,7 @@ EOF
     if [ -f /etc/sdm/assets/gfxbbh ]
     then
 	logtoboth "> Plugin $pfx: Configure boot behavior for disk encryption"
+	logtoboth "> Plugin $pfx: Save graphics boot behavior '$(cat /etc/sdm/assets/gfxbbh)' and set to 'B1' for encryption process"
 	mv /etc/sdm/assets/gfxbbh /etc/sdm/assets/cryptbbh
 	echo "B1" > /etc/sdm/assets/gfxbbh
     fi
