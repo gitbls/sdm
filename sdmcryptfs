@@ -148,11 +148,9 @@ function expandpartition() {
     $msgrtn "Expand root partition '$partname' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     if isgpt ${fulldevname}
     then
-	parted -m /dev/$phydev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
-	errifrc $? "? parted resizepart failed"
+	parted -m /dev/$phydev u s resizepart 2 $((newend-48))  || errexit "? parted resizepart failed ($?)" # ?? 32 not enough, 48 works
     else
-	parted -m /dev/$phydev u s resizepart 2 $newend
-	errifrc $? "? parted resizepart failed"
+	parted -m /dev/$phydev u s resizepart 2 $newend || errexit "? parted resizepart failed ($?)"
     fi
 }
 
@@ -199,11 +197,11 @@ function wipescratch() {
     then
 	pmsg "> Write random data on '$sdisk'"
 	starttime="$(getcbbdate)"
-	dd bs=4k count=$partsize if=/dev/random of=$sdisk
+	dd bs=4k count=$partsize if=/dev/random of=$sdisk || errexit "? dd write random data returned error ($?)"
 	pmsg "rootfs Wipe elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     else
 	pmsg "> Zap partitions on scratch disk '$sdisk'"
-	sgdisk --zap-all $sdisk >/dev/null 2>&1
+	sgdisk --zap-all $sdisk >/dev/null 2>&1 || errexit "? sgdisk zap all returned error ($?)"
 	pmsg "> The partition table on '$sdisk' has been zapped"
 	pmsg "> Scratch disk '$sdisk' still has unencrypted blocks of rootfs on the disk"
 	pmsg "  Clean it up after rootfs encryption completes if that concerns you"
@@ -228,11 +226,11 @@ function save_rootfs() {
 	then
             read junk mb junk < <(grep -i MemTotal /proc/meminfo)
             rootfsize=$((((partsize/256)*6)/5))    # convert to MB and scale to 1.2X
-            mb=$(((mb/1024)-2))            # Memory size in MB minus a bit
+            mb=$(((mb/1024)-3))            # Memory size in MB minus a bit
             if [ $mb -gt $rootfsize ]
             then
 		fram=1
-		mount -t tmpfs -o size=${rootfsize}M tmpfs /scratch
+		mount -t tmpfs -o size=${rootfsize}M tmpfs /scratch || errexit "? mount returned error ($?)"
 		pmsg "Save rootfs '$rootfs' to RAM disk"
 		pmsg "rootfs save should take less than $(printdt $(((partsize/256)/43)))"
 		xcompress=0
@@ -243,12 +241,12 @@ function save_rootfs() {
     then
 	checkdev $sdisk || return 1
 	pmsg "Create file system on '$sdisk'"
-	parted -s $sdisk mklabel gpt
+	parted -s $sdisk mklabel gpt || errexit "? parted create gpt label returned error ($?)"
 	partend=$(((partsize*8)+2048))
-	sgdisk --new 1:2048:$partend $sdisk >/dev/null
-	sgdisk --typecode 1:8300 $sdisk
-	mke2fs -F $scpart >/dev/null || exit 1
-	mount $scpart /scratch
+	sgdisk --new 1:2048:$partend $sdisk >/dev/null || errexit "? sgdisk create partition returned error ($?)"
+	sgdisk --typecode 1:8300 $sdisk || errexit "? sgdisk set typecode returned error ($?)"
+	mke2fs -F $scpart >/dev/null || errexit "? mke2fs returned error ($?)"
+	mount $scpart /scratch || errexit "? mount scratch partition returned error ($?)"
 	pmsg "Save rootfs '$rootfs' to '$sdisk'"
 	pmsg "rootfs save should take less than $(printdt $(((partsize/256)/51)))"
     fi
@@ -256,17 +254,17 @@ function save_rootfs() {
     if [ $xcompress -eq 0 ]
     then
 	# no compression
-	dd bs=16M count=$partsize if=$rootfs of=/scratch/uncompressed-rootfs.img
+	dd bs=4k count=$partsize if=$rootfs of=/scratch/uncompressed-rootfs.img || errexit "? dd returned error ($?)"
     else
 	# use compression
 	fullblocks=$((partsize/4096))   #1M blocks
 	remainder=$((partsize % 4096))  #   remainder bits
 	pmsg "Compress and save $fullblocks 16MB blocks"
-	dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /scratch/compressed-rootfs.lz4
+	dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /scratch/compressed-rootfs.lz4 || errexit "? dd returned error ($?)"
 	if [ $remainder -ne 0 ]
 	then
 	    pmsg "Compress and save $remainder 4K blocks"
-	    dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /scratch/compressed-rootfs.lz4
+	    dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /scratch/compressed-rootfs.lz4 || errexit $? "? dd returned error ($?)"
 	fi
     fi
     pmsg "rootfs Save elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
@@ -289,9 +287,7 @@ function config_keyfile() {
     then
 	pmsg "Add LUKS key '${kfn%.lek}' from file $kfl"
 	pmsg "When prompted for an existing passphrase enter the one you just created"
-	cryptsetup luksAddKey $rootfs $kfl
-	sts=$?
-	[ $sts -ne 0 ] && echo "? cryptsetup returned an error adding key '$kfn': $sts"
+	cryptsetup luksAddKey $rootfs $kfl || errexit "? cryptsetup returned an error adding key '$kfn': $?"
 	rm -f $kfl
     fi
 }
@@ -317,8 +313,9 @@ function cryptpart() {
     local dev=$1
     local cipher sts
     case "$xcrypto" in
-	xchacha)
-	    cipher="xchacha20,aes-adiantum-plain64"
+	xchacha*)
+	    [ "$xcrypto" == "xchacha" && xcha=xchacha12 || xcha=$xcrypto
+	    cipher="$xcha,aes-adiantum-plain64"
 	    ;;
 	aes)
 	    cipher="aes-xts-plain64"
@@ -389,11 +386,11 @@ function restore_rootfs() {
     then
 	pmsg "rootfs restore should take less than $(printdt $(((partsize/256)/15)))"
 	#echo "dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice"
-	dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice
+	dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice || errexit "? dd returned error ($?)"
     else
 	pmsg "rootfs restore should take less than $(printdt $(((partsize/256)/11)))"
 	#echo "dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | bs=16M dd of=/dev/mapper/$cryptdevice"
-	dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | dd bs=16M of=/dev/mapper/$cryptdevice
+	dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | dd bs=16M of=/dev/mapper/$cryptdevice || errexit "? dd returned error ($?)"
     fi
     pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     pmsg "Restore complete"
@@ -402,7 +399,7 @@ function restore_rootfs() {
     in
 	ext4)
 	    pmsg "Expand ext4 rootfs file system..."
-	    resize2fs -f /dev/mapper/$cryptdevice
+	    resize2fs -f /dev/mapper/$cryptdevice || errexit "? resize2fs returned error ($?)"
 	    cpartsize=$(blockdev --getsize64 /dev/mapper/$cryptdevice)
 	    pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
 	    ;;
@@ -410,7 +407,7 @@ function restore_rootfs() {
 	    pmsg "Expand btrfs rootfs file system..."
 	    mkdir -p /mnt
 	    mount /dev/mapper/$cryptdevice /mnt
-	    btrfs filesystem resize max /mnt
+	    btrfs filesystem resize max /mnt || errexit "? brtfs resize returned error ($?)"
 	    umount /mnt
 	    ;;
     esac
@@ -446,7 +443,7 @@ function runall() {
 	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
 	    newend=$((${zpartstart%s}-1))
 	    pmsg "Expand rootfs partition from ${rpartend%s} to $((${zpartstart%s}-1)) (increase by $((${zpartstart%s}-${rpartend%s}-1)))"
-	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed"
+	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed ($?)"
 	fi
     else
 	if [ "$fstype" == "btrfs" ]
@@ -455,7 +452,7 @@ function runall() {
 	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
 	    newend=$((${rpartend%s}+65535))
 	    pmsg "Do minimal rootfs expansion so btrfs and LUKS header both fit"
-	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed"
+	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed ($?)"
 	fi
     fi
     cryptpart $dev || return 1
@@ -498,7 +495,7 @@ fi
 xcrypto=""
 IFS=":" read lval xcrypto < <(grep xcrypto: /etc/sdmcryptctl)
 [ "$xcrypto" == "" ] && xcrypto="aes"
-[[ "aes|xchacha" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Supported cryptos: 'aes' and 'xchacha'"
+[[ "aes|xchacha|xchacha12|xchacha20" =~ $xcrypto ]] || [[ "$xcrypto" =~ aes- ]] || errexit "? Unrecognized crypto '$xcrypto'"
 
 IFS=":" read lval xnopwd < <(grep xnopwd: /etc/sdmcryptctl)
 [ "$xnopwd" == "" ] && xnopwd=0
