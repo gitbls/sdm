@@ -1,5 +1,18 @@
 # Changelog
 
+## V15.8
+
+* New Features
+* Improvements
+  * Disk encryption crypto `xchacha` now defaults to `xchacha12`. Other options are `aes`, `xchacha12`, or `xchacha20`
+  * Logging and control flow improvements in sdm-cryptconfig
+  * `disables` plugin `cloudinit` also masks the service to prevent apt updating it
+  * `raspiconfig` plugin `boot_behavior` setting properly defaults to `autologin` for B2 and B4
+  * `x11` plugin argument `noglamor` prevents installing the `gldriver-test` package
+* Bug Fixes
+  * Correct operation of `defer-plugin` to properly clean up in all cases
+  * Correct broken and improve error handling in sdmcryptfs
+
 ## V15.7
 
 * New Features
