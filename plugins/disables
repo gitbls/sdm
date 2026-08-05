@@ -81,10 +81,11 @@ EOF
 		cloudinit)
 		    if [[ -d /etc/cloud ]]
 		    then
-			logtoboth "> Plugin $pfx: Disable cloud-init services"
+			logtoboth "> Plugin $pfx: Disable cloud-init services and 'apt-mark hold cloud-init'"
 			touch /etc/cloud/cloud-init.disabled
+			apt-mark hold cloud-init
 		    else
-			logtoboth "% Plugin $pfx: 'cloudinit' skipped; Not Trixie"
+			logtoboth "% Plugin $pfx: 'cloudinit' skipped; not installed"
 		    fi
 		    ;;
 		piwiz)
