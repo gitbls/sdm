@@ -7,7 +7,6 @@
 #
 
 function errexit() {
-    cryptolog "$1" noconsole
     echo -e "$1"
     exit 1
 }
@@ -949,8 +948,6 @@ function doupdateconfig() {
 # Main code
 #
 
-[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
-
 xauthkeys=""
 xautocrypt=""
 xcrypto=""
@@ -979,6 +976,9 @@ xwifi=0
 xwifissid=""
 xwifipwd=""
 xwifipsk=0
+
+[[ ! $EUID -eq 0 ]] && errexit "? Please run as root: sudo $0 $*"
+
 src=$(dirname "$(realpath "$0")")
 parsecmd $0 "$@"
 
