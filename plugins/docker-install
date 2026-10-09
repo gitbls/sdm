@@ -49,7 +49,7 @@ then
     logtoboth "> Plugin $pfx: Install ca-certificates and curl"
     installpkgsif "ca-certificates curl"
     install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc || logtobothex "? Plugin $pfx: curl failed '$?'"
     chmod a+r /etc/apt/keyrings/docker.asc
 
     # Add the repository to Apt sources
