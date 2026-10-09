@@ -27,7 +27,7 @@ function curlgetfile() {
     logtoboth "  $srcfile"
     curl --fail --silent --show-error --location https://github.com/gitbls/pistrong/raw/master/$srcfile -o $destfile
     sts=$?
-    [ $sts -ne 0 ] && logtobothex "? Plugin $pfx: Error '$sts' downloading file '$f' from Github"
+    [ $sts -ne 0 ] && logtobothex "? Plugin $pfx: Error '$sts' downloading file '$srcfile' from GitHub"
 }
 
 function converty() {
@@ -211,7 +211,7 @@ EOF
     if [ "$makemyca" != "" ]
     then
 	logtoboth "> Plugin $pfx: Configure CA using $assetdir/$(basename $makemyca)"
-	runcaptureout "makeMyCA $assetdir/$(basename $makemyca)"
+	runcaptureout "makeMyCA $assetdir/$(basename $makemyca)" || logtobothex "? Plugin $pfx: makeMyCA failed"
     fi
 
     #
@@ -232,7 +232,7 @@ EOF
 	    hostname $hn
 	fi
 	logtoboth "> Plugin $pfx: Configure Tunnel for hostname '$hn' using $assetdir/$(basename $maketunnel)"
-	runcaptureout "makeTunnel $assetdir/$(basename $maketunnel)"
+	runcaptureout "makeTunnel $assetdir/$(basename $maketunnel)" || logtobothex "? Plugin $pfx: makeTunnel failed"
     fi
 
     #
