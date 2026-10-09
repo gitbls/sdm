@@ -77,7 +77,7 @@ function dovenv() {
 	fi
 	[ "$installoptions" != "" ] && logtoboth "  with install options '$installoptions'"
 	[ "$brq" != "" ] && logtoboth "> Plugin $pfx: Install requirements.txt '$brq'"
-	installviapip "$install" "$path/bin/$pip" "$srq $installoptions" "" || logtobothex "? Error returned from 'pip install $install' ($?)"
+	installviapip "$install" "$path/bin/$pip" "$srq $installoptions" "" || logtobothex "? Error returned from 'pip install $install' '$?'"
     fi
 
     if [ "$chown" != "" ]
@@ -88,7 +88,7 @@ function dovenv() {
     if [ "$list" != "" ]
     then
 	logtoboth "> Plugin $pfx: $pip list venv '$path'"
-	runcaptureout "$path/bin/$pip list" || logtobothex "? Error returned from '$path/bin/$pip list' ($?)"
+	runcaptureout "$path/bin/$pip list" || logtobothex "? Error returned from '$path/bin/$pip list' '$?'"
     fi
 }
 
