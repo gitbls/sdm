@@ -98,7 +98,7 @@ RestartSec=60s
 [Install]
 WantedBy=multi-user.target
 EOF
-    pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
+    systemd_running && systemctl daemon-reload
     systemctl -q enable sdm-hotspot-portal
 }
 
@@ -211,7 +211,7 @@ Type=oneshot
 [Install]
 WantedBy=multi-user.target
 EOF
-	pgrep systemd >/dev/null 2>&1 && systemctl daemon-reload
+	systemd_running && systemctl daemon-reload
 	systemctl -q enable sdm-hotspot-masquerade
     fi
 }
@@ -318,6 +318,11 @@ function cfgnetman() {
 #
 # Configure a routed hotspot on device '$device'
 #
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
 function getnwtype() {
     #
     # \$1: network device name
@@ -339,7 +344,7 @@ function getnwtype() {
     fi
 }
 
-source $SDMPT/etc/sdm/sdm-readparams
+loadparams
 bootlog "Configure routed NetworkManager-controlled hotspot"
 nwtype=\$(getnwtype $device)
 bootlog "Device: $device Network Type: \$nwtype"
@@ -404,6 +409,11 @@ EOF
 #
 # Configure a bridged hotspot on device '$device' bridging traffic to '$fwdev'
 #
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
 function getnwtype() {
     #
     # \$1: network device name
@@ -425,7 +435,7 @@ function getnwtype() {
     fi
 }
 
-source $SDMPT/etc/sdm/sdm-readparams
+loadparams
 bootlog "Configure bridged NetworkManager-controlled hotspot"
 nwtype=\$(getnwtype $device)
 bootlog "Device: $device Network Type: \$nwtype"
@@ -651,7 +661,7 @@ EOF
 	# WiFi connection; Delete WiFi disable if present
 	rm -f /etc/sdm/0piboot/055-disable-wifi.sh
     fi
-
+    add_redaction "${wifipassword//$/\\$}"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
 
