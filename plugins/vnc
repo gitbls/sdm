@@ -188,7 +188,12 @@ EOF
 	fi
 	cat > /etc/sdm/0piboot/090-wayvnc-enable.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Enable wayvnc VNC server"
 source $src/sdm-rpcsubs
 enable_wayvnc "$waywidth" "$wayheight"
@@ -223,7 +228,11 @@ EOF
 	systemctl disable vncserver-x11-serviced.service > /dev/null 2>&1
 	cat > /etc/sdm/0piboot/040-realvnc-server.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+loadparams
 bootlog "Enable RealVNC Server vncserver-x11-serviced"
 #
 # enable RealVNC server during FirstBoot service
