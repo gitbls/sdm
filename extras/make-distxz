@@ -94,6 +94,7 @@ pluglist=(apps \
 	      extractfs \
 	      gadgetmode \
 	      git-clone \
+	      ghost \
 	      graphics \
 	      hotspot \
 	      imon \
@@ -104,6 +105,7 @@ pluglist=(apps \
 	      ln \
 	      logwatch \
 	      lxde \
+	      mariadb \
 	      mkdir \
 	      modattr \
 	      nbde-server-install \
@@ -141,6 +143,7 @@ pluglist=(apps \
 	      wificonfig \
 	      wireguard \
 	      wsdd \
+	      wordpress \
 	      x11 \
 	      )
 
