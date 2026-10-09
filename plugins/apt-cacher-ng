@@ -107,7 +107,12 @@ else
     acs01="/etc/sdm/0piboot/099-enable-apt-cacher-ng.sh"
     cat > $acs01 <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source \$SDMPT/etc/sdm/sdm-readparams $arg
+}
+
+loadparams
 rm -f /etc/apt/apt.conf.d/02proxy
 bootlog  "Enable service apt-cacher-ng"
 echo "Acquire::http::proxy \"http://127.0.0.1:3142\";" >> /etc/apt/apt.conf.d/02proxy
