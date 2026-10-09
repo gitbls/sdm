@@ -195,7 +195,7 @@ then
 		    ;;
 	    esac
 	    echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/92-sdm-wireguard.conf
-	    pgrep systemd >/dev/null 2>&1 && sysctl 'net.ipv4.ip_forward=1' >/dev/null
+	    systemd_running && sysctl 'net.ipv4.ip_forward=1' >/dev/null
 	fi
 	printf "\n" >>/etc/wireguard/$wgname.conf
     fi
@@ -236,7 +236,7 @@ then
     fi
     if [ "$enablesvc" != "" ]
     then
-	pgrep systemd >/dev/null 2>&1 && now="--now" || now=""
+	systemd_running && now="--now" || now=""
 	systemctl -q enable $now wg-quick@$wgname
     fi
     #logfreespace "at end of $pfx Custom Phase post-install"
