@@ -1,5 +1,26 @@
 # Changelog
 
+## V16.0
+
+* New Features
+  * `mariadb` plugin to do a basic mariadb SQL server install
+  * Initial versions of Content Management System (CMS) plugins (not sufficiently tested yet for production)
+    * `ghost` plugin installs ghost CMS
+    * `wordpress` plugin installs WordPress CMS
+    *  See <a href="Docs/Content-Management.md">Installing Content Management Systems with sdm</a>
+* Improvements
+  * Ensure performance-oriented partition alignment when burning a GPT disk and/or using `--convert-root`
+  * rootfs and data partition encryption improvements
+    * `sdmcryptfs` restructured so no scratch disk required if rootfs fits in memory
+    * `cryptpart` plugin argument `partname` simplified and improved. See <a href="Docs/Plugins.md#cryptpoart">cryptpart plugin documentation</a>
+    * Improve `sdm-cryptconfig` logging
+  * Ensure plugin notes printed after `--runonly plugins`
+  * Default log width changed to 192
+  * Code cleanups
+* Bug Fixes
+  * Fix to enable plugin arguments with a hyphen to be required arguments
+  * Fix broken raspiconfig:boot_behavior on Desktop IMG
+
 ## V15.8
 
 * New Features
@@ -28,7 +49,9 @@
   * `videomode` argument added to `system` plugin; `graphics` plugin is deprecated and will be removed in the future
   * `pihole` plugin to install piHole
 * Improvements
+  * `--burn-plugin` argument can be a single plugin or an @pluglist
   * Ensure `fdisk` package is installed; for hosts where it's not installed by default
+  * Enhance `cryptpart` plugin argument `partname`. See <a href="Docs/Plugins.md#cryptpart">cryptpart plugin documentation</a>
 * Bug Fixes
   * Update `labwc` plugin and `sdm-collect-labwc-config` for Trixie
   * Correct `bootconfig` plugin handling of `inline` to correctly replace an existing line
