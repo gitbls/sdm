@@ -115,7 +115,7 @@ then
             if ispkginstalled $a
 	    then
 		logtoboth "  -- $a"
-		doapt "remove --yes $a" $showapt
+		doapt "remove $a" $showapt
 	    else
 		logtoboth "  -- $a (not installed)"
 	    fi
