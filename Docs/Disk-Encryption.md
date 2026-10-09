@@ -467,11 +467,14 @@ This example demonstrates:
 
 ### cryptpart partname NOTE
 
-The `partname` argument to the `cryptpart` plugin is the physical partition name that it will have when the system is running on the new disk.
+The `partname` argument to the `cryptpart` plugin specifies the partition that is to be encrypted. The partition must already exist. `partname` can be:
+* A partition name (`/dev/sdXn`)
+* A number `1-9` (for partition N on the boot disk)
+* The keyword `last` for the last partition on the boot disk
 
 Typically, disk names for RasPiOS boot disks will be: `/dev/mmcblk0` (Integrated MicroSD card reader), `/dev/sda` (a USB disk), or `/dev/nvme0n1` (an NVMe disk).
 
-This example creates partition 3, so the partname would be either `/dev/mmcblk0p3`, `/dev/sda3`, or `/dev/nvme0n1p1` as appropriate for the system configuration it is booted on, and it is only used during encryption configuration.
+This example creates partition 3, so the partname could be either `/dev/mmcblk0p3`, `/dev/sda3`, or `/dev/nvme0n1p1` as appropriate for the system configuration it is booted on, and it is only used during encryption configuration. It's also possible to specify `3` for the 3rd partition on the boot disk, or `last`, since in this case we create the disk with no partitions following the third partition.
 
 The `parted` command is useful for getting the partition numbers as well. 
 ```
@@ -499,7 +502,7 @@ This is the sample script that is discussed in the following sections to burn th
 dev=$1            # Burn device target (e.g., /dev/sda)
 img=$2            # /path/to/IMG.img
 host=$3           # host name to burn for
-part3=$4          # Name of the 3rd partition on the booted system boot disk (see above)
+part3=$4          # Identification of the 3rd partition on the booted system boot disk (see above; can be "3", "last", or less preferably "/dev/sda3" in this case)
  
 sdm --burn $dev --hostname $host $img \
     --plugin cryptroot:"crypto=aes|nopwd|keyfile=/root/521f4471-8fa2-4ac3-ab96-6e5f00f67291.lek" \
@@ -545,7 +548,7 @@ That's the high level summary. Here are the detailed steps, including the use of
   * sdmcryptfs performs the encryption
     * Read the configuration details passed from sdm-cryptconfig
     * Save the rootfs to RAM or another disk
-      * To use RAM the entire rootfs must be less than approximately 80% of physical memory
+      * To use RAM the entire rootfs must be less than approximately 80% of physical memory. <a href="Disk-Encryption.md#rootfs-encryption-optimization">Details</a>
     * Encrypt the partition
     * Unlock the now-encrypted partition
     * Expand the partition
@@ -580,6 +583,47 @@ That's the high level summary. Here are the detailed steps, including the use of
     * `journalctl | grep sdm-run-defer-pluglists` and look for errors
 * After a reboot the system has a **fully encrypted rootfs and data partition**
 
+### rootfs encryption optimization
+
+If the rootfs can fit into RAM, `sdmcryptfs` will use that instead of a scratch disk. This script, when run on the target system, will tell you how large of a rootfs can fit into the Pi's RAM.
+
+```
+#!/bin/bash
+
+function getgbstr() {
+    #
+    # $1: # of bytes in partition
+    #
+    # Returns the string "(nn.nnGB, mm.mmGiB)"
+
+    local nbytes=$1
+    local gb=1000000000 gib=1073741824 gb2=500000000 gi2=536870912
+    local ngbytes ngibytes 
+    ngbytes=$(printf %.1f "$(( ((10 * $nbytes)+$gb2) / $gb ))e-1")
+    ngibytes=$(printf %.1f "$(( ((10 * $nbytes)+$gi2) / $gib))e-1")
+    echo "(${ngbytes}GB, ${ngibytes}GiB)"
+    return
+}
+
+
+[ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
+IFS=" " read ign pimem units <<< $(grep -i MemTotal /proc/meminfo)
+
+#
+# Determine if we can use a RAM disk
+#
+if [ "$pimodel" != "" ]
+then
+    read junk mb junk < <(grep -i MemTotal /proc/meminfo)
+    mb2=$((mb*1024))
+    mbg=$(((mb-(3072*1024))*1024))
+    echo "> System memory size: $(getgbstr $mb2)"
+    echo "> Largest rootfs size for RAM scratch disk: $(getgbstr $mbg)"
+    echo "  A rootfs larger than this will require a scratch disk"
+else
+    echo "% This computer is not a Raspberry Pi"
+fi
+```
 ### NBDE and cryptpart
 
 NBDE can be used when encrypting partitions with `cryptpart`. A passphrase or keyfile must be used in conjunction with `nbde-server`. The `keyfile-location` can only be `root`; keyfile on a USB disk is not supported, which is unfortunate. The complexity of making a USB-located keyfile work correctly with NBDE appears to be insurmountable. That said, I'm still hoping for an obvious and reliable fix to magically appear to remove this restriction.
@@ -700,8 +744,6 @@ done
   * If you unlock a partition using a USB key, sdm doesn't automatically unmount that USB key. It's mounted read-only so it's safe to just unplug it without unmounting it first.
 * You must have a network connection when you run `sdm --customize`, and you must also have a network connection during "Second Boot" because sdm-cryptconfig may need to install additional packages.
 * You will not see any error messages that sdm-cryptconfig might produce at second-boot time, although they are in the system journal, so this can be difficult to debug. This is not true, however, if sdm-cryptconfig is run interactively.
-
-* Be careful when you use the parted burn-plugin with `no-expand-root=y`. The latter will override any value you may have specified with `rootexpand=nnnn`.
 
 * If you need to erase an SD card, use `parted /dev/sdX mklabel msdos`. Some versions of `rpi-imager` are known to create an invalid MBR partition block.
 
