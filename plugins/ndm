@@ -60,6 +60,7 @@ pfx="$(basename $0)"     #For messages
 args="$2"
 vldargs="|config|dhcplease|dhcpserver|dnsserver|dobuild|doinstall|enablesvcs|importnet|localsrc|"
 ndmcfgargs="dhcprange dnsfqdn domain externaldns gateway hostname mxfqdn myip netdev timeserver"
+rqdargs="|myip|"
 loadparams
 assetdir="$SDMPT/etc/sdm/assets/ndm"
 mkdir -p $assetdir
@@ -72,7 +73,7 @@ then
 
     logtoboth "* Plugin $pfx: Start Phase 0"
     addvldargs "$ndmcfgargs"
-    plugin_getargs $pfx "$args" "$vldargs" || exit
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"|| exit
     plugin_printkeys
     converty
     if [ "$dnsserver" != "" ]
@@ -126,7 +127,7 @@ then
 	logtoboth "> Plugin $pfx: download ndm from GitHub"
 	for f in ndm ndmdhcpisc.py ndmdhcpnone.py ndmdnsbind.py ndmdnsmasq.py
 	do
-	    curl -L https://raw.githubusercontent.com/gitbls/ndm/master/$f -o $SDMPT/usr/local/bin/$f
+	    curl -L https://raw.githubusercontent.com/gitbls/ndm/master/$f -o $SDMPT/usr/local/bin/$f || logtobothex "? Plugin $pfx: curl failed '$?'"
 	done
     fi
     chmod 755 $SDMPT/usr/local/bin/ndm*
@@ -138,7 +139,7 @@ then
     #
     logtoboth "* Plugin $pfx: Start Phase 1"
     addvldargs "$ndmcfgargs"
-    plugin_getargs $pfx "$args" "$vldargs" || exit
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     converty
     [ "$dnsserver" == "" ] && dnsserver="bind9"
     [ "$dhcpserver" == "" ] && dhcpserver="isc-dhcp-server"
@@ -162,7 +163,7 @@ else
     #
     logtoboth "* Plugin $pfx: Start Phase post-install"
     addvldargs "$ndmcfgargs"
-    plugin_getargs $pfx "$args" "$vldargs" || exit
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     converty
     # default a few things if needed
     [ "$dnsserver" == "" ] && dnsserver="bind9"
@@ -172,6 +173,8 @@ else
     [ "$domain" == "" ] && domain="my.sdm"
     [ "$dnsfqdn" == "" ] && dnsfqdn="${hostname}.${domain}"
     [ "$netdev" == "" ] && netdev="eth0"
+    [ "$dnsserver" == "bind9" ] && dnsserver=bind
+
     if [ "$config" != "" ]
     then
 	dobuildinstall
