@@ -1,0 +1,243 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: wordpress
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function do_apache_config() {
+    servername="$1" wwwport="$2"
+
+    logtoboth "> Plugin $pfx: Create /etc/apache2/sites-available/wordpress.conf"
+    cat > /etc/apache2/sites-available/wordpress.conf <<EOF
+<VirtualHost *:$wwwport>
+        ServerName $servername
+
+        ServerAdmin webmaster@example.com
+        DocumentRoot /var/www/html/wordpress
+
+        Alias /wp-content /var/lib/wordpress/wp-content
+        <Directory /var/www/html/wordpress>
+            Options FollowSymLinks
+            AllowOverride Limit Options FileInfo
+            DirectoryIndex index.php
+            Require all granted
+        </Directory>
+        <Directory /var/www/html/wordpress/wp-content>
+            Options FollowSymLinks
+            Require all granted
+        </Directory>
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+</VirtualHost>
+EOF
+    a2ensite wordpress.conf >/dev/null
+    if [ "$wwwport" != "80" ]
+    then
+	# Disable default website and change apache2 default Listen port
+	a2dissite 000-default >/dev/null
+	#sed -i "s/:80/:$wwwport/" /etc/apache2/sites-available/000-default.conf
+	sed -i "s/Listen 80/Listen $wwwport/" /etc/apache2/ports.conf
+    fi
+    systemd_running && systemctl -q reload apache2
+}
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+vldargs="|mysql-dbname|mysql-hostname|mysql-password|mysql-user|mysql-root-user|mysql-root-password|server-name|wpsql|wptar|www-port|wpversion|"
+rqdargs="|mysql-root-password|mysql-password|"
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_printkeys
+    if [ "$mysql__hostname" != "" ]
+    then
+	[[ "$mysql__user" == "" ]] || [[ "$mysql__password" == "" ]] && \
+	    logtobothex "? Plugin $pfx: mysql-user and mysql-password must be provided for remote database"
+    fi
+    mkdir -p $assetdir
+    if [ "$wpsql" != "" ]
+    then
+	[ -f $wpsql ] || logtobothex "? Plugin $pfx: WordPress SQL file '$wpsql' not found"
+	logtoboth "> Plugin $pfx: Copy WordPress SQL file '$wpsql' to $assetdir/wp.sql"
+	cp $wpsql $assetdir/wp.sql
+    fi
+
+    if [ "$wptar" != "" ]
+    then
+	[ -f $wptar ] || logtobothex "? Plugin $pfx: WordPress tar file '$wptar' not found"
+	logtoboth "> Plugin $pfx: Copy WordPress $wptar file '$wptar' to $assetdir"
+	cp $wptar $assetdir
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase 1"
+    #
+    wpversion=${wpversion:-latest}
+
+    if [[ -v mysql__hostname ]]
+    then
+	mariadb=""
+    else
+	mariadb=mariadb-server
+    fi
+    pkgs="apache2 php php-db libapache2-mod-php php-mysql $mariadb"
+    logtoboth "> Plugin $pfx: Install required packages: $pkgs"
+    installpkgsif "$pkgs"
+
+    mysql__dbname=${mysql__dbname:-wordpress}
+    mysql__root__user=${mysql__root__user:-root}
+    mysql__user=${mysql__user:-wordpress}
+    mysql__password=${mysql__password:-$mysql__root__password}
+    if [[ ! -v wpsql ]]
+    then
+	wpsql=$assetdir/wp.sql
+	if [[ "$mariadb" != "" ]]
+	then
+	    # We installed mariadb so must set root password
+	    logtoboth "> Plugin $pfx: Create local mariadb configuration in $wpsql"
+	    echo "ALTER USER '$mysql__root__user'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('$mysql__root__password');" > $wpsql
+	    echo "FLUSH PRIVILEGES;" >> $wpsql
+	fi
+	if [ "$mysql__user" != "$mysql__root__user" ]
+	then
+	    logtoboth "> Plugin $pfx: Update $wpsql to configure wordpress DB username '$mysql__user' with password '$mysql__password'"
+	    echo "CREATE USER '$mysql__user'@'localhost' IDENTIFIED BY '$mysql__password';" >> $wpsql
+	fi
+	logtoboth "> Plugin $pfx: Update $wpsql to configure wordpress DB"
+	echo "CREATE DATABASE $mysql__dbname DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" >> $wpsql
+	echo "GRANT ALL PRIVILEGES ON ${mysql__dbname}.* TO '$mysql__user'@'localhost';" >> $wpsql
+	echo "FLUSH PRIVILEGES;" >> $wpsql
+	echo "exit" >> $wpsql
+    fi
+
+    # Download latest or specific version of WP tar file
+    # untar it into /var/www/html
+
+    logtoboth "> Plugin $pfx: Create /var/www/html/wordpress directory"
+    mkdir -p /var/www/html/wordpress
+    if [ "$wptar" != "" ]
+    then
+	logtoboth "> Plugin $pfx: Untar WordPress tar file '$(basename $wptar)' into /var/www/html/wordpress"
+	tar -xzf $assetdir/$(basename $wptar) -C /var/www/html
+    else
+	logtoboth "> Plugin $pfx: Download WordPress version '$wpversion' tar file and untar into /var/www/html/wordpress"
+	if [ "$wpversion" == "latest" ]
+	then
+	    curl -sL https://wordpress.org/latest.tar.gz | tar -xzf - -C /var/www/html
+	else
+	    curl -sL https://github.com/WordPress/WordPress/archive/refs/tags/$wpversion.tar.gz | tar -xzf - -C /var/www/html/wordpress
+	fi
+    fi
+
+    chown -R www-data:www-data /var/www/html
+    find /var/www/html/ -type d -exec chmod 755 {} \;
+    find /var/www/html/ -type f -exec chmod 644 {} \;
+
+    #logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    #logfreespace "at start of Plugin $pfx Phase post-install"
+    #
+    #
+    # Configure apache2 for wordpress
+    #
+    server__name=${server__name:-wordpress}
+    mysql__dbname=${mysql__dbname:-wordpress}
+    mysql__root__user=${mysql__root__user:-root}
+    mysql__user=${mysql__user:-wordpress}
+    mysql__password=${mysql__password:-$mysql__root__password}
+    do_apache_config "$server__name" "${www__port:-80}"
+    systemd_running && systemctl -q daemon-reload && systemctl -q restart apache2
+    #
+    #logfreespace "at end of $pfx Custom Phase post-install"
+
+    add_redaction "${mysql__password//$/\\$}"
+    add_redaction "${mysql__root__password//$/\\$}"
+
+    plugin_addnote ""
+    plugin_addnote "*** WordPress notes"
+    plugin_addnote ""
+    wpsqlfn=$(basename ${wpsql:-wp.sql})
+    wpsql=$assetdir/$wpsqlfn
+    if [[ "$mysql__hostname" == "" ]]
+    then
+	# fresh mariadb install on system, so setting root password in $wpsql
+	if systemd_running
+	then
+	    logtoboth "> Plugin $pfx: Perform mysql configuration on new mariadb install"
+	    mariadb -u root < $wpsql || logtobothex "? Plugin $pfx: Mariadb returned an error '$?'; Check the logs"
+	else
+	    plugin_addnote " * Create the wordpress database when the system is running by:"
+	    plugin_addnote "   sudo mariadb -u root < $wpsql"
+	fi
+    else
+	if [[ "$mysql__hostname" == "127.0.0.1" ]] || [[ "$mysql__hostname" == "localhost" ]]
+	then
+	    # mysql-hostname=127.0.0.1 or localhost explicitly specified
+	    if systemd_running
+	    then
+		logtoboth "> Plugin $pfx: Perform mysql configuration on existing mariadb install to create wordpress database"
+		mariadb -u root --password="$mysql__password" < $wpsql || logtobothex "? Plugin $pfx: Mariadb returned an error '$?'; Check the logs"
+	    else
+		plugin_addnote " * Update the wordpress database on this host when booted:"
+		plugin_addnote "   sudo mariadb -u root --password=\"$mysql__password\" < $wpsql"
+	    fi
+	else
+	    # mysql-hostname on another host
+	    plugin_addnote " * Copy $wpsql to '$mysql__hostname'"
+	    plugin_addnote " * Login to host '$mysql__hostname' and update the wordpress database there:"
+	    plugin_addnote "   sudo mariadb -u root --password=\"$mysql__password\" < $wpsqlfn"
+	fi
+    fi
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+    [ "$www__port" != "" ] && port=":$www__port"
+    plugin_addnote ""
+    plugin_addnote " * Now go to a browser and open http://localhost${port}/wordpress/wp-admin/install.php"
+    plugin_addnote "   It's best to be on the same host as Wordpress unless your DNS is set up correctly so you can use"
+    plugin_addnote "      http://fqdn.url${port}/wordpress/wp-admin/install.php (use the correct fqdn.url of course)"
+    plugin_addnote ""
+    plugin_addnote " * You should see a dialog with the Wordpress language selection; Select the appropriate language"
+    plugin_addnote " * On the next screen fill in the form"
+    plugin_addnote " * Use the wordpress DB name: '${mysql__dbname}'"
+    plugin_addnote " * For the username field use the database root user '$mysql__root__user' and password '$mysql__root__password'"
+    plugin_addnote ""
+    plugin_addnote " * Wordpress would like to be able to send mail to the administrator and users"
+    plugin_addnote "   If you need email installed have a look at sdm's 'postfix' plugin"
+    plugin_addnote ""
+fi
+exit
