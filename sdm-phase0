@@ -1,9 +1,14 @@
 #!/bin/bash
 
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 #
 # Read configuration information from sdm (/etc/sdm/cparams)
 #
-source $SDMPT/etc/sdm/sdm-readparams
+loadparams
 
 logtoboth "* Start Phase 0 image customization"
 
