@@ -185,7 +185,12 @@ then
     logtoboth "> Plugin $pfx: Set trim to enable during sdm FirstBoot"
     cat > /etc/sdm/0piboot/020-trim-enable.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Enable trim"
 $sdmdir/plugins/trim-enable boot "$args"
 EOF
