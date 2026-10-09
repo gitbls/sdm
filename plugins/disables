@@ -62,20 +62,14 @@ else
 	then
 	    case "$ditem" in
 		bluetooth)
-		    fndis="/etc/sdm/0piboot/050-disable-bt.sh"
+		    fndis=/etc/modprobe.d/blacklist-sdm-bluetooth.conf
 		    if [ -f $fndis ]
 		    then
 			logtoboth "% Plugin $pfx: Bluetooth already disabled"
 		    else
-			logtoboth "> Plugin $pfx: Set Bluetooth to disable in sdm FirstBoot"
-			cat > $fndis <<EOF
-#!/bin/bash
-source /etc/sdm/sdm-readparams
-blfile="blacklist-sdm-bluetooth.conf"
-bootlog "Disable bluetooth using /etc/modprobe.d/\$blfile"
-printf "blacklist btbcm\nblacklist hci_uart\n" > /etc/modprobe.d/\$blfile
-[ -f /lib/systemd/system/hciuart.service ] && systemctl disable hciuart
-EOF
+			logtoboth "> Plugin $pfx: Disable Bluetooth and hciuart"
+			printf "blacklist btbcm\nblacklist hci_uart\n" > $fndis
+			[ -f /lib/systemd/system/hciuart.service ] && systemctl disable hciuart
 		    fi
 		    ;;
 		cloudinit)
@@ -117,14 +111,8 @@ EOF
 		    then
 			logtoboth "% Plugin $pfx: WiFi already disabled"
 		    else
-			logtoboth "> Plugin $pfx: Set WiFi to disable in sdm FirstBoot"
-			cat > $fndis <<EOF
-#!/bin/bash
-source /etc/sdm/sdm-readparams
-blfile="blacklist-sdm-wifi.conf"
-bootlog "Disable wlan0 using /etc/modprobe.d/\$blfile"
-printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/\$blfile
-EOF
+			logtoboth "> Plugin $pfx: Disable WiFi via /etc/modprobe.d"
+			printf "blacklist brcmfmac\nblacklist brcmutil\n" > /etc/modprobe.d/blacklist-sdm-wifi.conf
 		    fi
 		    ;;
 	    esac
