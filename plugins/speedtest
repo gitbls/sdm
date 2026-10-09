@@ -222,7 +222,12 @@ EOF
     #logfreespace "at end of $pfx Phase 1"
     cat >| /etc/sdm/0piboot/090-enable-speedtest.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Enable sdm-speedtest-monitor"
 systemctl enable sdm-speedtest-monitor
 EOF
