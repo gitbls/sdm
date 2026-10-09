@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|no-install-recommends|confnew|confold|confdef|nopager|nocolor|"   #"|list|of|valid|args|"
+vldargs="|no-install-recommends|confnew|confold|confdef|nocolor|nofancy|nopager|"   #"|list|of|valid|args|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -46,35 +46,42 @@ then
     #
     if [ -v no__install__recommends ]
     then
-	logtoboth "> Disable apt install recommends in /etc/apt/apt.conf.d"
+	logtoboth "> Plugin $pfx: Disable apt install recommends in /etc/apt/apt.conf.d"
 	echo "APT::Install-Recommends \"false\";" >> /etc/apt/apt.conf.d/90-sdm-norecommends
     fi
     rm -f /etc/apt/apt.conf.d/10-sdm-force
     if [ -v confnew ]
     then
-	logtoboth "> Enable apt force-confnew in /etc/apt/apt.conf.d"
+	logtoboth "> Plugin $pfx: Enable apt force-confnew in /etc/apt/apt.conf.d"
 	echo 'Dpkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90-sdm-force
     fi
     if [ -v confold ]
     then
-	logtoboth "> Enable apt force-confold in /etc/apt/apt.conf.d"
+	logtoboth "> Plugin $pfx: Enable apt force-confold in /etc/apt/apt.conf.d"
 	echo 'Dpkg::Options "--force-confold";' >> /etc/apt/apt.conf.d/90-sdm-force
     fi
     if [ -v confdef ]
     then
-	logtoboth "> Enable apt force-confdef in /etc/apt/apt.conf.d"
+	logtoboth "> Plugin $pfx: Enable apt force-confdef in /etc/apt/apt.conf.d"
 	echo 'Dpkg::Options "--force-confdef";' >> /etc/apt/apt.conf.d/90-sdm-force
+    fi
+
+    if [ -v nocolor ]
+    then
+	logtoboth "> Plugin $pfx: Disable apt color output in /etc/apt/apt.conf.d"
+	echo 'Binary::apt::APT::Color "false";' >> /etc/apt/apt.conf.d/90-sdm-nocolor
+    fi
+
+    if [ -v nofancy ]
+    then
+	logtoboth "> Plugin $pfx: Disable fancy apt output"
+	echo 'Dpkg::Progress-Fancy "0";' >> /etc/apt/apt.conf.d/90-sdm-nofancy
     fi
 
     if [ -v nopager ]
     then
-	logtoboth "> Disable apt pager in /etc/apt/apt.conf.d"
+	logtoboth "> Plugin $pfx: Disable apt pager in /etc/apt/apt.conf.d"
 	echo 'Binary::apt::Pager "false";' >> /etc/apt/apt.conf.d/90-sdm-nopager
-    fi
-    if [ -v nocolor ]
-    then
-	logtoboth "> Disable apt color output in /etc/apt/apt.conf.d"
-	echo 'Binary::apt::APT::Color "false";' >> /etc/apt/apt.conf.d/90-sdm-nocolor
     fi
     #
     #logfreespace "at end of $pfx Phase 1"
