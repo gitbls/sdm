@@ -57,7 +57,12 @@ function p0copyfile() {
 	# NOTE: can't use $assetdir in runfile b/c $SDMPT will be wrong for phase1/postinstall
 	cat > $runfile <<EOF
 #!/bin/bash
-source \$SDMPT/etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source \$SDMPT/etc/sdm/sdm-readparams
+}
+
+loadparams
 logtoboth "> Plugin $pfx: Process file '$src'"
 if [ ! -d $dest ]
 then
