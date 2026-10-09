@@ -1,0 +1,300 @@
+#!/bin/bash
+#
+# This is an sdm plugin for: ghost
+#
+# The plugin is called three times: for Phase 0, Phase 1, and post-install.
+#
+
+function loadparams() {
+    source $SDMPT/etc/sdm/sdm-readparams
+}
+
+# $1 is the phase: "0", "1", or "post-install"
+# $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
+#
+# Main code for the Plugin
+#
+phase=$1
+pfx="$(basename $0)"     #For messages
+args="$2"
+loadparams
+#
+vldargs="|db-name|db-password|ghost-dir|ghost-url|ghost-user|mysql-hostname|mysql-root-password|mysql-root-user|nodever"
+vldargs="$vldargs|mail-from|mail-host|mail-port|mail-transport|mail-secure|mail-ignoretls|mail-requiretls|mail-auth-user|mail-auth-password"
+vldargs="$vldargs|retain-script|"
+rqdargs="|ghost-user|mysql-root-password|"
+assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+if [ "$phase" == "0" ]
+then
+    #
+    # In Phase 0 all references to directories in the image must be preceded by $SDMPT
+    #
+    logtoboth "* Plugin $pfx: Start Phase 0"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
+    #
+    # Print the keys found (example usage). plugin_getargs returns the list of found keys in $foundkeys
+    #
+    plugin_printkeys
+    mkdir -p $assetdir
+    logtoboth "* Plugin $pfx: Complete Phase 0"
+elif [ "$phase" == "1" ]
+then
+    #
+    # Phase 1 (in nspawn)
+    #
+    logtoboth "* Plugin $pfx: Start Phase 1"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+    gdir=${ghost__dir:-/var/www/ghost}
+    guser=$ghost__user
+    logfreespace "at start of Plugin $pfx Phase 1"
+    getent passwd $guser >/dev/null || logtobothex "? Plugin $pfx: User '$guser' does not exist; add one manually or with the user plugin to facilitate mariadb configuration"
+    ggroup=$(id -gn $guser)
+
+    mysql__root__user=${mysql__root__user:-root}
+
+    if [ -v mysql__hostname ]
+    then
+	mariadb=""
+    else
+	#systemd_running || logtobothex "? Plugin $pfx: ghost plugin with local mariadb must be run on booted system"
+	mariadb=mariadb-server
+    fi
+
+    logtoboth "> Plugin $pfx: Install prerequisites: ca-certificates curl gnupg nginx $mariadb"
+    installpkgsif "ca-certificates curl gnupg nginx $mariadb"
+
+    NODE_MAJOR=${nodever:-22} # Use a supported version
+    logtoboth "> Plugin $pfx: Install nodejs version $NODE_MAJOR"
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --no-secmem-warning --dearmor -o /etc/apt/keyrings/nodesource.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list >/dev/null
+    doaptrpterror "update" $showapt
+    installpkgsif "nodejs python3-setuptools"
+
+    if [ "$mariadb" == "mariadb-server" ]
+    then
+	touch $assetdir/mysql-is-local
+	mysql__hostname=127.0.0.1
+	logtoboth "> Plugin $pfx: Configure mariadb database"
+	echo "ALTER USER '$mysql__root__user'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('$mysql__root__password');" > $assetdir/wp.sql
+	echo "FLUSH PRIVILEGES;" >> $assetdir/wp.sql
+	echo "exit" >> $assetdir/wp.sql
+    fi
+
+    logtoboth "> Plugin $pfx: Create directory '$gdir'"
+    mkdir -p $gdir
+    chown -R $guser:$ggroup $gdir
+
+    logtoboth "> Plugin $pfx: Install ghost-cli and handlebars"
+    runcaptureout "npm install ghost-cli@latest -g"
+    runcaptureout "npm install handlebars"
+
+    add_redaction "${db__password//$/\\$}"
+    add_redaction "${mysql__root__password//$/\\$}"
+    add_redaction "${mail__auth__password//$/\\$}"
+
+    logfreespace "at end of $pfx Phase 1"
+    logtoboth "* Plugin $pfx: Complete Phase 1"
+elif [ "$phase" == "post-install" ]
+then
+    #
+    # Plugin Post-install edits
+    #
+    logtoboth "* Plugin $pfx: Start Phase post-install"
+    plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
+# Create service to run configuration script
+    db__name=${db__name:-ghost}
+    db__password=${db__password:-StrongPass123!}
+    guser=$ghost__user
+    gdir=${ghost__dir:-/var/www/ghost}
+    ghosturl=${ghost__url:-http://localhost}
+    mail__transport=${mail__transport:-smtp}
+    mysql__hostname=${mysql__hostname:-localhost}
+    mail__port=${mail__port:-25}
+    mail__secure=${mail__secure:-false}
+    mail__ignoretls=${mail__ignoretls:-true}
+    mail__requiretls=${mail__requiretls:-false}
+    mail__auth__user=${mail__auth__user:-UnspecifiedUser}
+
+    # This script is run by the user `ghost-user`
+    cfgscriptfn="$guser-ghost-configure"
+    cfgscript="/usr/local/bin/$cfgscriptfn"
+    logtoboth "> Plugin $pfx: Create Ghost configuration script '$cfgscript'"
+    cat >| $cfgscript <<EOF
+#!/bin/bash
+#
+# Ghost configuration script created by sdm $(thisdate)
+#
+cd $gdir
+ghost install --url $ghosturl \
+      --dir $gdir \
+      --dbhost $mysql__hostname \
+      --db mysql \
+      --dbuser $mysql__root__user \
+      --dbpass $mysql__root__password \
+      --dbname $db__name \
+      --db-password "$db_password" \
+      --no-prompt \
+      --no-color \
+      --no-start || { sts=\$? ; echo "? Plugin $pfx: 'ghost install exited with error '\$sts'" ; exit \$sts ; }
+#
+# If specified configure email after ghost installed
+#
+echo "> Plugin $pfx: Configure provided mail settings"
+[ "$mail__from" == "" ]           || ghost config set mail.from $mail__from
+[ "$mail__transport" == "" ]      || ghost config set mail.transport $mail__transport
+[ "$mail__host" == "" ]           || ghost config set mail.options.host $mail__host
+[ "$mail__port" == "" ]           || ghost config set mail.options.port $mail__port
+[ "$mail__secure" == "" ]         || ghost config set mail.options.secure $mail__secure
+[ "$mail__ignoretls" == "" ]      || ghost config set mail.options.ignoreTLS $mail__ignoretls
+[ "$mail__requiretls" == "" ]     || ghost config set mail.options.requireTLS $mail__requiretls
+[ "$mail__auth__user" == "" ]     || ghost config set mail.options.auth.user $mail__auth__user
+[ "$mail__auth__password" == "" ] || ghost config set mail.options.auth.pass "$mail__auth__password"
+
+echo "> Plugin $pfx: Unquote true and false in $gdir/config.production.json"
+sed -i -e "s/\"false\"/false/" $gdir/config.production.json
+sed -i -e "s/\"true\"/true/"   $gdir/config.production.json
+
+EOF
+    chmod 755 $cfgscript
+
+    # This script is run by the service sdm-ghost-configure
+    cfgrunscriptfn="sdm-run-$cfgscriptfn"
+    cfgrunscript="/usr/local/bin/$cfgrunscriptfn"
+    cat >| $cfgrunscript <<EOF
+#!/bin/bash
+#
+# Ghost configuration script runner created by sdm $(thisdate)
+#
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+function wait_defer_complete () {
+    # \$1 is the message to write
+    local lc=0 msg=\$1
+    while [ -f /etc/sdm/control/defer-ny-complete ]
+    do
+        if [ \$lc -eq 0 ]
+        then
+	    logger "\$msg"
+	    echo "\$msg" > /dev/console
+            lc=1
+        fi
+        sleep 1
+    done
+    logger "Deferred plugin service completed"
+}
+
+function wait_mariadb_ready()
+{
+    # \$1 is the message to write
+    local lc=0 msg=\$1
+    while [[ "\$(netstat -ltpn | grep 3306)" == "" ]]
+    do
+        if [ \$lc -eq 0 ]
+        then
+	    logger "\$msg"
+	    echo "\$msg" > /dev/console
+            lc=1
+        fi
+        sleep 1
+    done
+    logger "netstat wait loop done"
+}
+
+#Main code
+loadparams
+assetdir=/etc/sdm/assets/ghost
+if [ -f $assetdir/mysql-is-local ]
+then
+    wait_mariadb_ready "Wait for mariadb to finish starting up"
+    wait_defer_complete "Wait for sdm deferred operations to complete"
+    logtoboth "> Plugin $pfx: Configure local mariadb root user"
+    mariadb -u root < $assetdir/wp.sql || logtobothex "? Plugin $pfx: Mariadb returned an error '\$?'; Check the logs"
+    logtoboth "> Plugin $pfx: Local mariadb root user configured"
+fi
+logtoboth "> Plugin $pfx: Run '$cfgscript' as user '$guser'"
+runcaptureout_asuser "$cfgscript" "" "$guser" || logtobothex "? Plugin $pfx: 'ghost install' command for user $guser failed with error '\$?'"
+logtoboth "> Plugin $pfx: Script '$cfgscript' complete"
+
+gurl="${ghosturl##http*://}"  #Strip http*://
+svcname="ghost_\${gurl//./-}"
+if [ -f /lib/systemd/system/\${svcname}.service ]
+then
+    logtoboth "> Plugin $pfx: Ghost service name: '\$svcname'"
+else
+    logtoboth "% Plugin $pfx: Cannot find Ghost systemd service \${svcname}.service"
+fi
+if systemd_running
+then
+    logtoboth "> Plugin $pfx: Enable and Start Ghost service '\$svcname'"
+    systemctl -q enable --now \${svcname}.service
+else
+    logtoboth "> Plugin $pfx: Enable Ghost service '\$svcname'"
+    systemctl -q enable \${svcname}.service
+fi
+# Cleanup
+systemctl -q disable sdm-ghost-configure
+mv /etc/systemd/system/sdm-ghost-configure.service /etc/systemd/system/.sdm-ghost-configure.service
+mv /etc/systemd/system/sdm-mariadb-wait-debian-start.service /etc/systemd/system/.sdm-mariadb-wait-debian-start.service
+# rm -f $cfgscript $cfgrunscript
+[ -d /etc/sdm/control ] && touch /etc/sdm/control/ghost-config-complete
+EOF
+    chmod 755 $cfgrunscript
+    if systemd_running
+    then
+	$cfgrunscript
+    else
+	# make a systemd service to run $cfgrunscript
+	logtoboth "> Plugin $pfx: Create sdm-mariadb-wait-debian-start.service to synchronize with mariadb startup"
+	cat > /etc/systemd/system/sdm-mariadb-wait-debian-start.service <<EOF
+[Unit]
+Description=Wait for /etc/mysql/debian-start to finish
+After=mariadb.service
+Requires=mariadb.service
+ConditionPathExists=!/etc/sdm/control/sdm-startup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash -c 'while ps -eo state,cmd | grep '/etc/mysql/debian-start' | grep -v grep | grep -qv '^Z'; do sleep 1; done'
+
+EOF
+	logtoboth "> Plugin $pfx: Create sdm-ghost-configure service to run at next reboot"
+	cat > /etc/systemd/system/sdm-ghost-configure.service <<EOF
+[Unit]
+Description=sdm Run ghost configuration service
+ConditionPathExists=!/etc/sdm/control/sdm-startup
+#After=network-online.target sdm-defer-pluglist.service
+#Wants=sdm-defer-pluglist.service
+After=sdm-mariadb-wait-debian-start.service
+Requires=sdm-mariadb-wait-debian-start.service
+
+
+[Service]
+Type=simple
+ExecStart=$cfgrunscript
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	systemctl -q enable sdm-ghost-configure
+    fi
+
+    plugin_addnote ""
+    plugin_addnote "*** ghost install notes"
+    plugin_addnote ""
+    plugin_addnote "* Ghost Site URLs"
+    plugin_addnote "  Admin: $ghost__url/ghost      # Welcome to ghost"
+    plugin_addnote "  User:  $ghost_url"
+    plugin_addnote ""
+    logtoboth "* Plugin $pfx: Complete Phase post-install"
+fi
+exit
+
+NOTES:
+* If you get "Bad Gateway" when connecting remotely
+  * Check that 'ghost config get server.port' returns 2368. If not, fix with 'ghost config set server.port 2368'
+  * Check the /etc/nginx/sites-available for the ghost site has 'proxy_pass http://127.0.0.1:2368;'
