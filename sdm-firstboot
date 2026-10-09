@@ -3,6 +3,11 @@
 # This script runs at first boot to perform desired configuration
 #
 
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 function doscripts() {
     #
     # $1: wildcard file spec
@@ -153,12 +158,12 @@ fi
 # Now running in the fork
 #
 declare -x SDMNSPAWN="FirstBoot"
-source /etc/sdm/sdm-readparams
+loadparams
 
 pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model)
 IFS=" " read ign pimem units <<< $(grep -i MemTotal /proc/meminfo)
 write_console "Start sdm FirstBoot Service on a $pimem $units '$pimodel' hostname '$hname'"
-bootlog "Start sdm FirstBoot Service on a ${pimem}GB '$pimodel' hostname '$hname'"
+bootlog "Start sdm FirstBoot Service on a ${pimem}$units '$pimodel' hostname '$hname'"
 
 #
 # Run any scripts that are must run ASAP (like network configuration)
@@ -210,7 +215,6 @@ then
 fi
 
 rm -f /etc/ssh/sshd_not_to_be_run
-rm -f /etc/sdm/control/sdm-startup
 
 if [ $reboot -eq 1 -a $noreboot -ne 1 ]
 then
@@ -223,13 +227,16 @@ then
     systemctl daemon-reload
     write_console "System restarting now\n"
     bootlog "System restarting now"
-    systemctl reboot
+    [ "$(findmnt -no FSTYPE /)" == "zfs" ] && force="--force" || force=""
+    rm -f /etc/sdm/control/sdm-startup
+    systemctl $force reboot
 else
     [ "$(systemctl is-enabled ssh)" == "enabled" -a $reboot -ne 1 ] && systemctl start ssh
     wait_startup_complete "System will continue without restarting after system startup has completed"
     [ -f /etc/sdm/assets/cryptbbh ]  && bootlog "Skip set boot behavior per cryptroot plugin" || do_delayed_boot_behavior noreboot
     dozzscripts
     write_console "System startup complete"
+    rm -f /etc/sdm/control/sdm-startup
     bootlog "System startup complete"
 fi
 exit 0
