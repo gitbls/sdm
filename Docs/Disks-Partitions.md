@@ -12,7 +12,7 @@ By default sdm `--burn` will do an image copy of the IMG file to the burn disk w
 
 There are a few switches that change the burn function with respect to disks and partitions.
 
-* `--gpt` &mdash; Convert the burned disk to GPT partition format
+* `--gpt` &mdash; Convert the burned disk to GPT partition format. Defaulted automatically for 2TB+ disks
 * `--burn-plugin parted` &mdash; Use the `parted` burn plugin to do disk partitioning functions after the burn has completed. See <a href="Plugins.md">Plugins</a>
 * `--convert-root` fmt[,[+]size] &mdash; Convert the rootfs to a different file system, rather than ext4. See the next section
 * `--convert-root-mount-options "options"` &mdash; Specify mount options for the converted rootfs (e.g., `"compress=zstd"` for btrfs)
