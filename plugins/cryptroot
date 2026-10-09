@@ -121,7 +121,12 @@ then
     cat > /etc/sdm/0piboot/$escript0 <<EOF
 #!/bin/bash
 
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Create and enable automatic disk encryption service"
 cat > /etc/systemd/system/sdm-auto-encrypt.service <<ZEOF
 [Unit]
@@ -178,7 +183,14 @@ then
 	plugin_addnote ""
 	plugin_addnote "  * Once at this prompt, connect the SSD or SD Card that will be used as a scratch drive"
 	plugin_addnote "    and find the drive name"
+	plugin_addnote "    NOTE: Don't insert the scratch drive too early to avoid boot or device name issues!"
 	plugin_addnote ""
+	#if [ "$auto__encrypt" != "" ]
+	#then
+	#plugin_addnote "        The same sequence will occur with 'auto-encrypt=$auto__encrypt'"
+	#plugin_addnote "        but you can run sdmcryptfs with no arguments as they are passed to sdmcryptfs"
+	#plugin_addnote ""
+	#fi
 	plugin_addnote "  * When you have the drive name enter the command:"
 	plugin_addnote "    (initramfs) sdmcryptfs sd /dev/sdX"
 	plugin_addnote ""
