@@ -59,6 +59,6 @@ then
     logtoboth "> Plugin $pfx: Add $fln '$linkname' target '$target'"
     ln $fx $fsym $target $linkname
     sts=$?
-    [ $sts -ne 0 ] && logtobothex "? Plugin $pfx: ln command failed ($?)"
+    [ $sts -ne 0 ] && logtobothex "? Plugin $pfx: ln command failed '$sts'"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
