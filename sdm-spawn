@@ -2,6 +2,11 @@
 # This script runs in the nspawn image
 #
 
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 function upgkeepconf() {
     #
     # Write /etc/apt/apt.conf.d/02sdm-myconf
@@ -44,7 +49,7 @@ function logfreeandexit() {
 #
 # Read configuration information from sdm
 #
-source /etc/sdm/sdm-readparams
+loadparams
 
 #
 # Handle commands which are run in the context of the container
@@ -59,9 +64,9 @@ case "$cmd" in
 	logtoboth "* Start apt maintenance"
 	logfreespace "at start of 'apt $cmdoptions'"
 	adjust_initramfs_all
-	[[ "$cmdoptions" =~ "update" ]] &&  { logtoboth "> Perform 'apt update'" && doaptrpterror "--yes update" 0 || logfreeandexit ; }
+	[[ "$cmdoptions" =~ "update" ]] &&  { logtoboth "> Perform 'apt update'" && doaptrpterror "update" 0 || logfreeandexit ; }
 	[[ "$cmdoptions" =~ "upgrade" ]] && { logtoboth "> Perform 'apt upgrade'" && upgkeepconf --yes 0 $aptdistupgrade || logfreeandexit ; }
-	[[ "$cmdoptions" =~ "autoremove" ]] && { logtoboth "> Perform 'apt autoremove'" && doaptrpterror "--yes autoremove" 0 || logfreeandexit ; }
+	[[ "$cmdoptions" =~ "autoremove" ]] && { logtoboth "> Perform 'apt autoremove'" && doaptrpterror "autoremove" 0 || logfreeandexit ; }
 	logfreespace "at end of 'apt $cmdoptions'"
 	logtoboth "* apt maintenance Completed"
 	exit 0
@@ -103,7 +108,7 @@ case "$cmd" in
     run-command)  # Run a single command in phase 1 or post-install
 	adjust_initramfs_all
 	runcmd="$(stripquotes "$cmdoptions") $3 $4 $5 $6 $7 $8"
-	$runcmd || exit
+	bash -c "$runcmd" || exit
 	unadjust_initramfs_all
 	exit
         ;;
