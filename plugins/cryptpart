@@ -44,6 +44,30 @@ function getdevuuid() {
     echo "$uuidstr"
 }
 
+function getcryptpartname() {
+    local parg=$1 devname rpartname=""
+    # if /dev/xxx use that specified partition (can be on any disk)
+    # if 'last' use last partition on system disk
+    # if number use that partition on system disk
+    if [[ "$parg" =~ "/dev" ]]
+    then
+	rpartname=$parg
+    elif [[ "$parg" == "last" ]]
+    then
+	# Get boot disk name (/dev/sdx etc)
+	devname=$(lsblk --inverse --noheadings --list -o PATH $(findmnt -no SOURCE /) | tail -1)
+	# Get /dev/sdxn name of last partition on the disk
+	rpartname=/dev/$(lsblk -ln -o NAME "$devname" | grep -E "^$(basename $devname)[0-9]+$" | sort -V | tail -1)
+    elif [[ "123456789" =~ "$parg" ]]
+    then
+	# Get boot disk name (/dev/sdx etc)
+	devname=$(lsblk --inverse --noheadings --list -o PATH $(findmnt -no SOURCE /) | tail -1)
+	# Build partition name correctly /dev/sdxn
+	rpartname=$(getspname $devname $parg)
+    fi
+    echo "$rpartname"
+}
+
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
@@ -80,7 +104,12 @@ then
     [ -v mountpoint ] && [ "$fstype" == "" ] && logtobothex "? Plugin $pfx: 'mountpoint' requires 'fstype' argument"
     [ -v nopwd ] && [ "$keyfile" ==  "" ] && logtobothex "? Plugin $pfx: 'nopwd' requires 'keyfile' argument"
     [ -v nonint ] && [ "$keyfile" == "" ] && [ "$passphrase" == "" ] && logtobothex "? Plugin $pfx: 'nonint' requires 'keyfile' or 'passphrase'"
+
+    partname=$(getcryptpartname $partname)
     [ "$(getdevuuid $partname)" == "" ] && logtobothex "? Plugin $pfx: Unable to obtain PARTUUID or UUID for '$partname'; does the device/partition exist?"
+    [ -f "/sys/class/block/$(basename $partname)/partition" ] || logtobothex "? Plugin $pfx: '$partname' is a device not a partition"
+    [ "$(blkid -o value -s TYPE $partname)" == "crypto_LUKS" ] && logtobothex "? Plugin $pfx: Partition '$partname' is already encrypted"
+
     [ "$keyfile__location" == "" ] && keyfile__location=root
     if [ "${keyfile__location,,}" == "usb" ]
     then
@@ -143,6 +172,7 @@ then
     plugin_printkeys
 
     # Partition must be empty and not mounted
+    partname=$(getcryptpartname $partname)
     grep -q -s $partname /proc/mounts && logtobothex "? Partition '$partname' must not be mounted"
 
     if [ "$keyfile" != "" ]
@@ -167,7 +197,7 @@ then
 	    logtoboth "> Plugin $pfx: Enable LUKS encryption on partition '$partname' using keyfile '$kfn'"
 	    if [ -v nonint ]
 	    then
-		printf "YES\n" | cryptsetup luksFormat --type luks2 $partname $kf || logtobthex "? Plugin $pfx: cryptsetup luksFormat failed ($?)"
+		printf "YES\n" | cryptsetup luksFormat --type luks2 $partname $kf || logtobothex "? Plugin $pfx: cryptsetup luksFormat failed '$?'"
 	    else
 		while [ 0 ]
 		do
@@ -181,7 +211,7 @@ then
 	    logtoboth "> Plugin $pfx: Enable LUKS encryption on partition '$partname' with a passphrase"
 	    if [ -v nonint ]
 	    then
-		printf "$passphrase\n$passphrase\nYES\n" | cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $partname || logtobothex "? Plugin $pfx: cryptsetup luksFormat failed ($?)"
+		printf "$passphrase\n$passphrase\nYES\n" | cryptsetup luksFormat --type luks2 --cipher $cipher --hash sha256 --iter-time 5000 --key-size 256 --pbkdf argon2i $partname || logtobothex "? Plugin $pfx: cryptsetup luksFormat failed '$?'"
 	    else
 		while [ 0 ]
 		do
@@ -194,7 +224,7 @@ then
 	    if [ "$keyfile" != "" ]
 	    then
 		logtoboth "> Plugin $pfx: Add keyfile '$kfn' to Luks partition '$partname'"
-		printf "$passphrase\n" | cryptsetup luksAddKey $partname $kf || logtobothex "? Plugin $pfx: cryptsetup luksAddKey failed ($?)"
+		printf "$passphrase\n" | cryptsetup luksAddKey $partname $kf || logtobothex "? Plugin $pfx: cryptsetup luksAddKey failed '$?'"
 	    fi
 	fi
 	if [ "$nbde__server" != "" ]
@@ -204,11 +234,11 @@ then
             if [ "$keyfile" == "" ]
             then
                 logtoboth "> Plugin $pfx: Enable NBDE using passphrase with server $nbde__server"
-                printf "$passphrase\n" | clevis luks bind -f -y -d $partname tang "{\"url\":\"$nbde__server\"}"
+                printf "$passphrase\n" | clevis luks bind -f -y -d $partname tang "{\"url\":\"$nbde__server\"}" || logtobothex "? Plugin $pfx: clivis luks bind failed '$?'"
             else
                 logtoboth "> Plugin $pfx: Enable NBDE using keyfile with server $nbde__server"
                 #logtoboth "DD kf:|$kf| partname:|$partname| nbde-server:|$nbde__server|"
-                clevis luks bind -f -y -k $kf -d $partname tang "{\"url\":\"$nbde__server\"}"
+                clevis luks bind -f -y -k $kf -d $partname tang "{\"url\":\"$nbde__server\"}" || logtobothex "? Plugin $pfx: clevis luks bind failed '$?'"
             fi
 
             uuidstr=$(getdevuuid $partname)
@@ -290,10 +320,10 @@ EOF
     if [ -v nopwd ]
     then
 	logtoboth "> Plugin $pfx: Open encrypted partition '$partname' with keyfile '$kfn'"
-	cryptsetup luksOpen $partname $cryptname --key-file $kf || logtobothex "? Plugin $pfx: Error opening encrypted partition '$partname' ($?)"
+	cryptsetup luksOpen $partname $cryptname --key-file $kf || logtobothex "? Plugin $pfx: Error opening encrypted partition '$partname' '$?'"
     else
 	logtoboth "> Plugin $pfx: Open encrypted partition '$partname' with passphrase"
-	printf "$passphrase\n" | cryptsetup luksOpen $partname $cryptname || logtobothex "? Plugin $pfx: Error opening encrypted partition '$partname' ($?)"
+	printf "$passphrase\n" | cryptsetup luksOpen $partname $cryptname || logtobothex "? Plugin $pfx: Error opening encrypted partition '$partname' '$?'"
     fi
     if [ ! -v nocreate ]
     then
@@ -308,7 +338,7 @@ EOF
 		    installpkgsif btrfs-progs
 		fi
 		logtoboth "> Plugin $pfx: Create '$fstype' file system on the encrypted partition"
-		mkfs.$fstype -q $mklabel /dev/mapper/$cryptname || logtobothex "? Plugin $pfx: mkfs.$fstype failed ($?)"
+		mkfs.$fstype -q $mklabel /dev/mapper/$cryptname || logtobothex "? Plugin $pfx: mkfs.$fstype failed '$?'"
 		;;
 	    *)
 		logtobothex "? Plugin $pfx: Unrecognized fstype '$fstype'"
