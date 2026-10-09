@@ -29,7 +29,7 @@ function warnifrc() {
     [ $1 -ne 0 ] && logtoboth "$2 ($1)"
 }
 
-function logit {
+function logit() {
     #
     # Writes message to /etc/sdm/history
     #
@@ -67,6 +67,18 @@ function logtoboth() {
 	done
     fi
     return 0
+}
+
+function logfiletoboth() {
+    # $1: file to write to log and console, blank line before and after
+    local textfile="$1" line
+
+    logtoboth "" nosplit
+    while read line
+    do
+	logtoboth "  $line" nosplit
+    done < $textfile
+    logtoboth "" nosplit
 }
 
 function logtobothex() {
@@ -204,26 +216,27 @@ function doapt() {
 	done
     }
 
-    local aptcmd="$3" sts td options="$4"
+    local aptcmd="$3" sts td options="$4" swyes
     [ "$aptcmd" == "" ] && aptcmd="apt-get -qq"
+    [[ "$aptcmd" =~ apt-file ]] || swyes="--yes"
     echo "" >> /etc/sdm/apt.log
     outlong "$aptcmd $1" "/etc/sdm/apt.log"
     echo "" >> /etc/sdm/apt.log
     adjust_initramfs_all
     if [ "$2" == "1" ]
     then
-	DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1 2>&1 | tee -a /etc/sdm/apt.log
+	DEBIAN_FRONTEND=noninteractive $aptcmd $swyes -o=Dpkg::Use-Pty=0 $options $1 2>&1 | tee -a /etc/sdm/apt.log # | sed -r 's/\033\[[0-9;]*[A-Za-z]//g'
 	sts=$?
     else
 	if [[ "$poptions" =~ "nologdates" ]]
 	then
-	    DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1 >> /etc/sdm/apt.log 2>&1
+	    DEBIAN_FRONTEND=noninteractive $aptcmd $swyes -o=Dpkg::Use-Pty=0 $options $1 >> /etc/sdm/apt.log 2>&1
 	    sts=$?
 	else
 	    # Technique from https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/73180#73180
-	    { { { { DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+	    { { { { DEBIAN_FRONTEND=noninteractive $aptcmd $swyes -o=Dpkg::Use-Pty=0 $options $1 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
 	    # This V doesn't work when passed as argument ;(
-	    #runcaptureout "DEBIAN_FRONTEND=noninteractive $aptcmd -o=Dpkg::Use-Pty=0 $options $1"
+	    #runcaptureout "DEBIAN_FRONTEND=noninteractive $aptcmd $swyes -o=Dpkg::Use-Pty=0 $options $1"
 	    sts=$?
 	fi
     fi
@@ -277,6 +290,23 @@ function bruncaptureout() {
     { { { { bash -c "$cmd 2>&1" ; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
 }
 
+function runcaptureout_asuser() {
+    #
+    # Run command, capturing output via logtoboth
+    #
+    local cmd="$1" outlog="$2" asuser="$3"
+
+    function pline() {
+        local line
+        while IFS="" read line
+        do
+            logtoboth "$line" $outlog
+        done
+    }
+
+    { { { { sudo -i -u $asuser $cmd 2>&1; echo $? >&3; } | pline >&4; } 3>&1; } | { read xs; exit $xs; } } 4>&1
+}
+
 function setfileownmode() {
     #
     # $1 is full path to file
@@ -319,7 +349,7 @@ function installpkgsif() {
     do
 	ispkginstalled $p || newpkgs="$newpkgs $p"
     done
-    [ "$newpkgs" == "" ] || doaptrpterror "install --no-install-recommends --yes $newpkgs" $showapt
+    [ "$newpkgs" == "" ] || doaptrpterror "install --no-install-recommends $newpkgs" $showapt
 }
 
 function getaptver() {
@@ -399,6 +429,11 @@ function isactive() {
     sts=$?
     echo "$sts"
     return $sts
+}
+
+function systemd_running() {
+    pgrep systemd >/dev/null 2>&1
+    return $?
 }
 
 function getfilegroup() {
@@ -724,7 +759,7 @@ function writeconfig() {
 		     dgroups myuser nowaittimesync os pi1bootconf plugindebug poptions \
 		     raspiosver reboot fredact regensshkeys noreboot rebootwait \
 		     redocustomize sdmdir sdmflist showapt src \
-		     timezone virtmode vqemu xspdev custom1 custom2 custom3 custom4 plugins allplugins
+		     timezone virtmode vqemu xspdev custom1 custom2 custom3 custom4 plugins allplugins zfsdir
     do
 	echo "$e:\"${!e}\"" >> $paramfile
     done
@@ -974,6 +1009,7 @@ function plugin_getargs() {
 	IFS="|:" read -a arglist <<< "${rqkeys#|}"
 	for c in "${arglist[@]}"
 	do
+	    [ "$c" != "${c/-/_}" ] && c="${c//-/__}"
 	    if ! [[ "${keysfound}|" =~ "|$c|" ]]
 	    then
 		logtoboth "? Plugin $pfx: Required key '$c' missing from argument list '$largs'"
@@ -1050,7 +1086,7 @@ function add_redaction() {
     #
     local pswd="$1"
 
-    printf "${pswd}\n" >> $SDMPT/etc/sdm/assets/redact-passwords
+    [ "$pswd" != "" ] && printf "${pswd}\n" >> $SDMPT/etc/sdm/assets/redact-passwords
 }
 
 function do_redactions() {
@@ -1084,6 +1120,7 @@ function printnotes() {
 	    logtoboth " $line" nosplit
 	done < $SDMPT/etc/sdm/rnotes
 	rm -f $SDMPT/etc/sdm/rnotes
+	logtoboth ""
     fi
 }
 
@@ -1418,6 +1455,24 @@ function sdm_runspawncmd() {
     return
 }
 
+function sdm_runspawncmd_env() {
+    #
+    # Run command in container context (see sdm-spawn for the commands)
+    # $1: env setting to include (NAME=VALUE)
+    # $2: SDMNSPAWN setting in nspawn
+    # $3: command (supported by sdm-spawn)
+    # $4-$8: arguments
+    #
+    # $SDMPT must point to correct img, which is mounted
+    #
+    # Commands are processed in sdm-spawn. See there.
+    #
+    local enval="$1" nspwn="$2" cmd="$3"
+    #logtoboth "sdm-runspawncmd_env: cmd=|$cmd| 4=|$4| 5=|$5| 6=|$6| 7=|$7| 8=|$8|" nosplit
+    sdm_spawn "--setenv $enval" "$nspwn" $sdmdir/sdm-spawn "$cmd" "$4" "$5" "$6" "$7" "$8"
+    return
+}
+
 function sdm_spawn() {
     #
     # $1 - nspawn switches
@@ -1454,9 +1509,11 @@ function sdm_spawn() {
         if [ "$cmd" == "/bin/bash" ]
         then
             # Bash is touchy for some reason. This works, so good for now
-	    SYSTEMD_COLORS=false systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd
+	    SYSTEMD_COLORS=false systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" \
+				 $nspawnsw $cmode $cmd $spcmd
         else
-	    SYSTEMD_COLORS=false systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" $nspawnsw $cmode $cmd $spcmd "$5" "$args"
+	    SYSTEMD_COLORS=false systemd-nspawn -q --directory=$SDMPT --setenv=SDMPT="" \
+				 $nspawnsw $cmode $cmd $spcmd "$5" "$args"
         fi
 
 	sts=$?
@@ -1494,6 +1551,7 @@ function sdm_spawn() {
 		fi
 	    else
 		logtoboth "?! Unrecognized error from systemd-nspawn"
+		logtoboth "   If this was due to other than the last command you typed exiting with an error"
 		logtoboth "   Please open an issue at https://github.com/gitbls/sdm"
 	    fi
 	fi
@@ -1708,6 +1766,12 @@ function doinstalls() {
     fi
 }
 
+function intmax() {
+    local a="${1:-0}" b="${2:-0}"
+
+    [ $a -gt $b ] && echo "$a" || echo "$b"
+}
+
 function getdisktype() {
 
     local dev=$1 junk disktype
@@ -1727,6 +1791,13 @@ function getdiskbytes() {
 function isgpt() {
     local dev=$1
     [ "$(getdisktype $dev)" == "gpt" ] && return 0 || return 1
+}
+
+function getfstype() {
+    local partname=$1
+    local fstype=$(lsblk -no FSTYPE $partname)
+    [ "$fstype" != "" ] && echo "$fstype" || echo "unknown"
+    return
 }
 
 function updategptrootfs() {
@@ -1784,8 +1855,7 @@ function extendimage() {
     imgend=${imgend%MB}
     partsize=$((imgend-partstart))
     echo "* Resize partition 2 of '$ldimg' to ${partsize}MB"
-    parted $ldimg -s resizepart 2 ${imgend}MB
-    errifrc $? "? parted resizepart failed"
+    parted $ldimg -s resizepart 2 ${imgend}MB || logtobothex "? parted resizepart error '$?'"
 }
 
 function expandpartition() {
@@ -1799,13 +1869,15 @@ function expandpartition() {
 
     pname=$(getpartname $fulldevname 2)
     part="${dev}${pname}"
+    #logtoboth "DDparted output: $(parted -ms /dev/$dev unit s print)"
+    #dbgshell "** at start of expandpartition"
     while read line
     do
-        if [[ "$line" =~ "msdos|fat32" ]]
+        if [[ "$line" =~ "msdos|fat32|msftdata" ]]
         then
             fsize=$(IFS=":" read fs bytes file n1 n2 fs <<< $line ; echo $bytes)
             fsize=${fsize%B}     #Fsize is file system size in bytes
-        elif [[ "$line" =~ "ext4" ]]
+        elif [[ "$line" =~ "ext4|zfs" ]]
         then
             IFS=":;" read partnum partstart partend partsize fstype etc etc2 etc3 <<< $line
             partstart=${partstart%B}
@@ -1847,35 +1919,34 @@ function expandpartition() {
     # root partition is always partition 2
     if isgpt $fulldevname
     then
-	parted -m /dev/$dev u s resizepart 2 $((newend-48))  # ?? 32 not enough, 48 works
-	errifrc $? "? parted resizepart failed"
+	# ?? 32 not enough, 48 works
+	#logtoboth "DDexpandpartition pre-parted: $(parted -ms /dev/$dev unit s print)"
+	parted -m /dev/$dev u s resizepart 2 $((newend-48)) || logtobothex "? parted resizepart error '$?'"
+	#logtoboth "DDexpandpartition pre-parted: $(parted -ms /dev/$dev unit s print)"
     else
-	parted -m /dev/$dev u s resizepart 2 $newend
-	errifrc $? "? parted resizepart failed"
+	parted -m /dev/$dev u s resizepart 2 $newend || logtobothex "? parted resizepart error '$?'"
     fi
-    $msgrtn "* Mount $fulldevname to resize the root file system"
-    [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
-    domount $fulldevname "Device" "$SDMPT" $rootfstype
-    $msgrtn "* Resize the $rootfstype root file system"
-    $msgrtn "% (Ignore 'on-line resizing required' message)"
+    partprobe /dev/$dev
     case "$rootfstype" in
-	ext4)
-	    resize2fs ${fulldevname}${pname}
-	    errifrc $? "? expandpartition resize2fs failed"
-	    ;;
-	btrfs)
-	    btrfs filesystem resize max $SDMPT/
-	    errifrc $? "? expandpartition btrfs filesystem resize failed"
-	    ;;
-	lvm)
-	    pvresize ${fulldevname}${pname}
-	    lvresize --extents 100%VG $(lvmfind $fulldevname vg)/$(lvmfind $fulldevname lv)
-	    errifrc $? "? expandpartition lvresize failed"
-	    resize2fs $(lvmgetmapper $fulldevname)
-	    errifrc $? "? expandpartition resize2fs failed"
-	    ;;
-	zfs)
-	    zpool online -e rpool sdb2
+	ext4|btrfs|lvm)
+	    $msgrtn "> Mount $fulldevname to resize the root file system"
+	    [ "$SDMPT" == "" ] && declare -x SDMPT=$(makemtpt)
+	    domount $fulldevname "Device" "$SDMPT" $rootfstype
+	    $msgrtn "> Resize the $rootfstype root file system"
+	    $msgrtn "% (Ignore 'on-line resizing required' message)"
+	    case "$rootfstype" in
+		ext4)
+		    resize2fs ${fulldevname}${pname} || logtobothex "? expandpartition resize2fs error '$?'"
+		    ;;
+		btrfs)
+		    btrfs filesystem resize max $SDMPT/ || logtobothex "? expandpartition btrfs filesystem resize error '$?'"
+		    ;;
+		lvm)
+		    pvresize ${fulldevname}${pname}
+		    lvresize --extents 100%VG $(lvmfind $fulldevname vg)/$(lvmfind $fulldevname lv) || logtobothex "? expandpartition lvresize error '$?'"
+		    resize2fs $(lvmgetmapper $fulldevname) || logtobothex  "? expandpartition resize2fs error '$?'"
+		    ;;
+	    esac
 	    ;;
     esac
     return 0
@@ -2003,7 +2074,7 @@ function domount() {
     # Tree will be mounted on the mountpoint, which must be set with makemtpt or makemtptX
     #
     local dmimg=$1 imgtype=$2 mpoint=${3} fstype=$4 mopts=$5
-    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0 kf=""
+    local p1="1" p2="2" pinfo csize bootstart bootsize rootstart rootsize mdir sts rootfsd lv=0 kf="" zf=0
 
     [ "$mpoint" == "" ] && mpoint=$SDMPT
     [ ! -d $mpoint ] && mkdir $mpoint
@@ -2078,15 +2149,40 @@ function domount() {
 	    if [ "$fencrypted" == "1" ]
 	    then
 		[ "$keyfile" != "" ] && kf="--key-file $keyfile"
-		cryptsetup luksOpen ${dmimg}${p2} sdmcrypt $kf
-		errifrc $? "? Cryptsetup failed to open ${dmimg}${p2}"
-		mount -v /dev/mapper/sdmcrypt $mpoint
+		cryptsetup luksOpen ${dmimg}${p2} sdmcrypt $kf || logtobothex "? Cryptsetup error opening ${dmimg}${p2} '$?'"
+		mount -v /dev/mapper/sdmcrypt $mpoint || logtobothex "? Mount error mounting /dev/mapper/sdmcrypt on $mpoint '$?'"
 	    else
-		if [ "$fstype" != "zfs" ]
+		if [ "$fstype" != "zfs" ] && [ "$(getfstype ${dmimg}${p2})" != "zfs_member" ]
 		then
 		    mount -v ${mopts:+-o $mopts} ${dmimg}${p2} $mpoint
 		else
-		    zfs mount rpool/ROOT/debian
+		    zm=$(zfs get -Ho value mounted sdmpt/ROOT/pi 2>/dev/null)
+		    if [ "$zm" != "yes" ]
+		    then
+			zimtext=$(zpool import -o cachefile=none sdmpt 2>&1)
+			zimsts=$?
+			if [ $zimsts -ne 0 ]
+			then
+			    if echo "$zimtext" | grep -q "pool was previously in use from another system"
+			    then
+				echo "% Likely unclean zfs shutdown; Retrying with -f"
+				if zpool import -f -o cachefile=none sdmpt
+				then
+				    echo "> zfs pool imported with -f"
+				else
+				    logtobothex "? Failed to import zfs pool"
+				fi
+			    fi
+			fi
+			umount $mpoint >/dev/null 2>&1
+			zfs set mountpoint=$mpoint sdmpt/ROOT/pi || logtobothex "? Error '$?' from 'zfs set'" # This mounts the dataset
+			echo "> zfs dataset sdmpt/ROOT/pi mounted on $mpoint"
+			mkdir -p $mpoint/{home,root,var,srv}
+			for dn in home root var srv
+			do
+			    mount -t zfs sdmpt/$dn $mpoint/$dn || logtobothex "? Error '$?' from 'mount -t zfs sdmpt/$dn'"
+			done
+		    fi
 		fi
 	    fi
 	fi
@@ -2104,7 +2200,7 @@ function docleanup() {
     local zfsp zfsmpt
 
     zfsp="$(type -p zfs)"
-    [ "$zfsp" != "" ] && zfsmpt="$(zfs list -o mountpoint -H rpool/ROOT/debian 2>/dev/null)"
+    [ "$zfsp" != "" ] && zfsmpt="$(zfs list -o mountpoint -H sdmpt/ROOT/pi 2>/dev/null)"
 
     for mnt in "${SDMPT:-/tmp/sdm}" "$SDMPX"
     do
@@ -2115,17 +2211,24 @@ function docleanup() {
 		# Find loop device names and delete them after dismounting if not automatically deleted
 		[ -d $mnt/boot/firmware ] && bp="$mnt/boot/firmware" || bp="$mnt/boot"
 		loopdev1=$(findmnt $bp --noheadings --output source)
-		[ "$loopdev1" != "/dev/loop1" ] && loopdev1=${loopdev1%p1}
+		loopdev1=${loopdev1%p1}
 		loopdev2=$(findmnt $mnt --noheadings --output source)
-		loopdev2=${loopdev1%p2}
+		loopdev2=${loopdev2%p2}
 		ismounted $bp && umount -v $bp
 		ismounted $mnt && umount -v $mnt
-		[ "$loopdev1" == "" ] || losetup --detach $loopdev1 >/dev/null 2>&1
-		[ "$loopdev2" == "" ] || losetup --detach $loopdev2 >/dev/null 2>&1
-		[ "$fencrypted" == "1" ] && cryptsetup luksClose /dev/mapper/sdmcrypt >/dev/null 2>&1
+		[[ "$loopdev1" == "" ]] || losetup --detach $loopdev1 >/dev/null 2>&1
+		[[ "$loopdev2" == "" ]] && [[ "$loopdev2" != "$loopdev1" ]] || losetup --detach $loopdev2 >/dev/null 2>&1
+		[ "$fencrypted" == "1" ] && { cryptsetup luksClose /dev/mapper/sdmcrypt >/dev/null 2>&1 || logtobothex "? cryptsetup luksClose error '$?'" ; }
 	    else
-		umount -v /dev/sdb1
-		zfs unmount rpool/ROOT/debian
+		# ZFS root partition
+		umount $mnt/boot/firmware || logtobothex "? Error '$?' from 'umount $mnt/boot/firmware'"
+		for name in home root var srv
+		do
+		    umount $mnt/$name
+		done
+		umount $mnt || logtobothex "? Error '$?' from 'umount $mnt'"
+		zfs set mountpoint=/ sdmpt/ROOT/pi        # So it gets mounted in the correct place for booting
+		zpool export sdmpt || logtobothex "? Error '$?' from 'zpool export'"
 	    fi
 	fi
     done
@@ -2236,8 +2339,13 @@ function delaylightdmenable() {
     logtoboth "> Plugin $pfx: Display Manager lightdm will be disabled when the system first boots"
     do_raspiconfig do_boot_behaviour B1
     systemctl set-default multi-user.target > /dev/null 2>&1
-    [ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
-    setdelayedbbh $bbh
+    if [ -f /etc/sdm/assets/gfxbbh ]
+    then
+	bbh=$(cat /etc/sdm/assets/gfxbbh)
+    else
+	[ $autologin -eq 1 ] && bbh="B4" || bbh="B3"
+	setdelayedbbh $bbh
+    fi
     logtoboth "% Plugin $pfx: Desktop Autologin setting '$bbh' will be set after sdm FirstBoot"
     #aval=$(getfinalbbh "$bbh")
     #if [ "$bbh" != "$aval" ]
@@ -2541,5 +2649,5 @@ function ckl10n() {
 	    sts=$?
 	;;
     esac
-    return $sts
+    return $tsts
 }
