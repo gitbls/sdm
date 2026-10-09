@@ -80,6 +80,11 @@ function logtoboth() {
     echo "$1"
 }
 
+function logtobothex() {
+    echo "$1"
+    exit 1
+}
+
 function addtofstab() {
     # Based on parts of writediskids() and other sdm code.
     # Ref: https://manpages.debian.org/bookworm/mount/fstab.5.en.html
@@ -149,8 +154,7 @@ function expandpartitionfile() {
     domount $dimg IMG
     write_burnmsg "> Plugin $pfx: Resize the file system"
     write_burnmsg "> Plugin $pfx: Ignore 'on-line resizing required' message"
-    pdocmd "resize2fs $(getloopdev $SDMPT)"
-    errifrc $? "? resize2fs error"
+    pdocmd "resize2fs $(getloopdev $SDMPT)" || logtobothex "? Plugin $pfx: resize2fs error '$?'"
     docleanup
 }
 
@@ -180,21 +184,20 @@ function imgmakepartition() {
     partstart=$((partend+1))
     partend=$((partstart+psize-1))
     write_burnmsg "> Plugin $pfx: Extend IMG '$dimg' by ${psize}MB"
-    pdocmd "truncate --size +$((psize+1))MiB $dimg"
+    pdocmd "truncate --size +$((psize+1))MiB $dimg" || logtobothex "? Plugin $pfx: truncate failed '$?'"
     write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum (start: ${partstart}MB end: ${partend}MB)"
     write_burnmsg "> Plugin $pfx: parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MB ${partend}MB"
     if [ "$fstype" == "vfat" ]
     then
-        pdocmd "parted -s $dimg mkpart $ptype $pname fat32 ${partstart}MiB ${partend}MiB"
+	pdocmd "parted -s $dimg mkpart $ptype $pname fat32 ${partstart}MiB ${partend}MiB" || logtobothex "? Plugin $pfx: parted mkpart failed '$?'"
     else
-        pdocmd "parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MiB ${partend}MiB"
+	pdocmd "parted -s $dimg mkpart $ptype $pname $fstype ${partstart}MiB ${partend}MiB" || logtobothex "? Plugin $pfx: parted mkpart failed '$?'"
     fi
-    errifrc $? "? parted mkpart error"
     sync ; sleep 1 ; sync
     loopdev=$(losetup --show -P -f $dimg)
     pdname="${loopdev}p${partnum}"
     write_burnmsg "> Plugin $pfx: Wipe existing file system on $pdname"
-    pdocmd "wipefs --all --force $pdname"
+    pdocmd "wipefs --all --force $pdname" || logtobothex "? Plugin $pfx: wipefs failed '$?'"
     write_burnmsg "> Plugin $pfx: Make '$fstype' file system on IMG '$dimg'"
     if [ "$fslabel" != "" ]
     then
@@ -235,9 +238,8 @@ function imgmakepartition() {
     fi
     case "$fstype" in
         linux-swap)
-            pdocmd "sgdisk -c $partnum:'$partlabel' $loopdev"
-            pdocmd "mkswap -L '$fslabel' $pdname"
-            errifrc $? "? mkswap ${fstype} creation error"
+	    pdocmd "sgdisk -c $partnum:'$partlabel' $loopdev" || logtobothex "? Plugin $pfx: sgdisk change partition name failed '$?'"
+	    pdocmd "mkswap -L '$fslabel' $pdname" || logtobothex "? Plugin $pfx: mkswap ${fstype} create error '$?'"
             ;;
 	*)
             case "$fstype" in
@@ -248,9 +250,8 @@ function imgmakepartition() {
                     altfstype="fat -F 32"
                     ;;
             esac
-	    pdocmd "mkfs.${altfstype:-$fstype} $mkfslabel $pdname"
-            errifrc $? "? mkfs.${fstype} error"
-            pdocmd "sgdisk -c $partnum:'$partlabel' $loopdev"
+	    pdocmd "mkfs.${altfstype:-$fstype} $mkfslabel $pdname" || logtobothex "? Plugin $pfx: mkfs.${fstype} error '$?'"
+	    pdocmd "sgdisk -c $partnum:'$partlabel' $loopdev" || logtobothex "? Plugin $pfx: sgdisk change partition name failed '$'"
             ;;
     esac
     losetup -d $loopdev
@@ -374,8 +375,7 @@ function makepartition() {
             extpartend=${spartend%s}
             write_burnmsg "> Plugin $pfx: Make extended partition $partnum (start: ${partstart}s end: ${extpartend}s)"
 	    write_burnmsg "  Consider using burn switch --gpt"
-            pdocmd "parted $pdev mkpart extended ${partstart}s ${extpartend}s"
-            errifrc $? "? parted mkpart error"
+            pdocmd "parted $pdev mkpart extended ${partstart}s ${extpartend}s" || logtobothex "? Plugin $pfx: parted mkpart error '$?'"
             sync ; sleep 1 ; sync
             partnum=$((partnum+1))
             pdname="$(getspname $pdev $partnum)"
@@ -385,15 +385,14 @@ function makepartition() {
     write_burnmsg "> Plugin $pfx: Make $ptype partition $partnum (start: ${partstart}s end: ${partend}s)"
     if [ "$fstype" == "vfat" ]
     then
-        pdocmd "parted $pdev mkpart $ptype $pname fat32 ${partstart}s ${partend}s"
+	pdocmd "parted $pdev mkpart $ptype $pname fat32 ${partstart}s ${partend}s" || logtobothex "? Plugin $pfx: parted mkpart error '$?'"
     else
 	[ "$fstype" == "none" ] && tfstype=ext2 || tfstype=$fstype
-	pdocmd "parted $pdev mkpart $ptype $pname $tfstype ${partstart}s ${partend}s"
+	pdocmd "parted $pdev mkpart $ptype $pname $tfstype ${partstart}s ${partend}s" || logtobothex "? Plugin $pfx: parted mkpart error '$?'"
     fi
-    errifrc $? "? parted mkpart error"
     sync ; partprobe_wait $pdname
     write_burnmsg "> Plugin $pfx: Wipe existing file system on $pdname"
-    pdocmd "wipefs --all --force $pdname"
+    pdocmd "wipefs --all --force $pdname" || logtobothex "? Plugin $pfx: wipefs failed '$?'"
     write_burnmsg "> Plugin $pfx: Make '$fstype' file system on partition $pdname"
     if [ "$fslabel" != "" ]
     then
@@ -434,9 +433,8 @@ function makepartition() {
 	    return 0
 	    ;;
         linux-swap)
-            pdocmd "sgdisk -c $partnum:'$partlabel' $pdev"
-            pdocmd "mkswap -L '$fslabel' $pdname"
-            errifrc $? "? mkswap ${fstype} creation error"
+	    pdocmd "sgdisk -c $partnum:'$partlabel' $pdev" || logtobothex "? Plugin $pfx: sgdisk change partition name failed '$?'"
+	    pdocmd "mkswap -L '$fslabel' $pdname" || logtobothex "? Plugin $pfx: mkswap ${fstype} creation error '$?'"
             ;;
 	*)
             case "$fstype" in
@@ -447,9 +445,8 @@ function makepartition() {
                     altfstype="fat -F 32"
                     ;;
             esac
-            pdocmd "mkfs.${altfstype:-$fstype} $mkfslabel $pdname"
-            errifrc $? "? mkfs.${fstype} error"
-            pdocmd "sgdisk -c $partnum:'$partlabel' $pdev"
+	    pdocmd "mkfs.${altfstype:-$fstype} $mkfslabel $pdname" || logtobothex "? Plugin $pfx: mkfs.${fstype} error '$?'"
+	    pdocmd "sgdisk -c $partnum:'$partlabel' $pdev" || logtobothex "? Plugin $pfx: sgdisk change partition name failed '$?'"
             ;;
     esac
     sync ; sleep 1 ; sync
@@ -546,7 +543,7 @@ then
 	iplugins=$(get1config ^plugins $SDMPT/etc/sdm/cparams)
 	iallplugins=$(get1config ^allplugins $SDMPT/etc/sdm/cparams)
 	docleanup
-	if ispluginselected cryptroot "${iplugins}~${iallplugins}"
+	if ispluginselected cryptroot "${iplugins}~${iallplugins}" || grep -q cryptroot $SDMPT/etc/sdm/assets/defer-plugin 2>/dev/null
 	then
 	    write_burnmsg "> Plugin $pfx: Enable 'rootfsencrypted' per --plugin cryptroot"
 	    rootfsencrypted=1
