@@ -35,9 +35,6 @@ function adjustrpizram() {
     fi
 }
 
-
-
-
 function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
@@ -240,7 +237,12 @@ EOF
 		logtoboth "> Plugin $pfx: Set rpi-eeprom to '$eeprom' during sdm FirstBoot"
 		cat > /etc/sdm/0piboot/030-rpi-eeprom.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Set rpi-eeprom to '$eeprom'"
 sed /etc/default/rpi-eeprom-update -i -e "s/^FIRMWARE_RELEASE_STATUS.*/FIRMWARE_RELEASE_STATUS=\"$eeprom\"/"
 EOF
@@ -353,7 +355,12 @@ EOF
 		shfile=/etc/sdm/zzpiboot/040-disable-services-at-boot.sh
 		cat > $shfile <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Disable at-boot services"
 EOF
 		IFS="," read -a ssvc <<< "$cval"
@@ -368,7 +375,12 @@ EOF
 		shfile=/etc/sdm/0piboot/040-enable-services-at-boot.sh
 		cat > $shfile <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Enable at-boot services"
 EOF
 		IFS="," read -a ssvc <<< "$cval"
