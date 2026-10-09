@@ -27,7 +27,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase 0"
 
     logtoboth "> Plugin $pfx: download rxapp from GitHub to /usr/local/bin/rxapp and set protection"
-    curl -L https://raw.githubusercontent.com/gitbls/rxapp/master/rxapp -o $SDMPT/usr/local/bin/rxapp
+    curl -L https://raw.githubusercontent.com/gitbls/rxapp/master/rxapp -o $SDMPT/usr/local/bin/rxapp || logtobothex "? Plugin $pfx: curl failed '$?'"
     chmod 755 $SDMPT/usr/local/bin/rxapp
 
     logtoboth "* Plugin $pfx: Complete Phase 0"
