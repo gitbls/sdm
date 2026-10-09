@@ -31,7 +31,7 @@ then
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs" || exit
     plugin_printkeys
     logtoboth "> Plugin $pfx: Create directory '$dir'"
-    mkdir -p $SDMPT/$dir
+    mkdir -p $SDMPT/$dir || logtobothex "? Plugin $pfx: mkdir failed '$?'"
     logtoboth "* Plugin $pfx: Complete Phase 0"
 
 elif [ "$phase" == "1" ]
