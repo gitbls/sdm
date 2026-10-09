@@ -100,7 +100,12 @@ else
 	[ "$domain" != "" ] && dmn=".${domain}" || dmn=""
 	cat > $pf01 <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Complete postfix configuration"
 hostname="\$(hostname)"
 hostname="\${hostname%.*}"
