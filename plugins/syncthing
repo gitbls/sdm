@@ -140,7 +140,12 @@ EOF
     # Run syncthing configuration script at end of sdm FirstBoot
     cat > /etc/sdm/0piboot/098-enable-syncthing-$runasuser.sh <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Configure and Enable syncthing for user $runasuser"
 # Use /tmp b/c runasuser can't read/write $assetdir
 cp $assetdir/cfgsyncthing /tmp/cfgsyncthing-$runasuser
@@ -168,5 +173,6 @@ exit 0
 EOF
     #
     #logfreespace "at end of $pfx Custom Phase post-install"
+    add_redaction "${gui__password//$/\\$}"
     logtoboth "* Plugin $pfx: Complete Phase post-install"
 fi
