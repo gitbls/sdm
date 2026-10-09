@@ -112,7 +112,7 @@ function installreqs() {
     if [[ $((pipdbus+pipcrypto)) -gt 0 ]]
     then
 	vpip3="$btwifidir/venv/bin/pip3"
-	$sudo python3 -m venv --system-site-packages $btwifidir/venv 
+	python3 -m venv --system-site-packages $btwifidir/venv 
 	# Install (if needed) pip-installed cryptography and dbus
 	if [ $pipcrypto -eq 1 ]
 	then
@@ -212,7 +212,12 @@ then
 #
 # Configure btwifiset password
 #
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source \$SDMPT/etc/sdm/sdm-readparams $arg
+}
+
+loadparams
 bootlog "Complete btwifiset configuration"
 pwd=\$(hostname)
 [ "$password" != "" ] && pwd="$password"
