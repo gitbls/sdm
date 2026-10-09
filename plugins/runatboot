@@ -40,7 +40,12 @@ then
 	then
 	    cat > $sfn <<EOF
 #!/bin/bash
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 bootlog "Run runatboot scripts"
 EOF
 	fi
