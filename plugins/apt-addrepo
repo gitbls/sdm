@@ -69,7 +69,7 @@ then
     else
 	[[ "$(type -p gpg)" == "" ]] && logtobothex "? Please sudo apt install gpg"
 	logtoboth "> Plugin $pfx: Download gpg key from $gpgkey and add to apt trusted keys as '$gpgkeyname.gpg'"
-	curl -sS $gpgkey | gpg --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg >/dev/null
+	curl -sS $gpgkey | gpg --no-secmem-warning --dearmor | tee $SDMPT/etc/apt/trusted.gpg.d/$gpgkeyname.gpg >/dev/null || logtobothex "? Plugin $pfx: curl failed '$?'"
     fi
     logtoboth "* Plugin $pfx: Complete Phase 0"
 elif [ "$phase" == "1" ]
