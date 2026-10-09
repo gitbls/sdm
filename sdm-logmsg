@@ -4,5 +4,10 @@
 #
 # $1: Message to write
 #
-source /etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
+loadparams
 bootlog "$1"
