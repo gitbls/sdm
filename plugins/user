@@ -364,9 +364,17 @@ function addp1user() {
 	if [ "$linger" == "y" ]
 	then
 	    logtoboth "> Plugin $pfx: Enable linger for user '$adduser'"
-	    [ ! -f /etc/sdm/0piboot/091-enable-linger.sh ] && printf "#!/bin/bash\nsource /etc/sdm/sdm-readparams\n" >/etc/sdm/0piboot/091-enable-linger.sh
-	    echo "bootlog 'Enable linger for user $adduser'" >>/etc/sdm/0piboot/091-enable-linger.sh
-	    echo "loginctl enable-linger $adduser" >>/etc/sdm/0piboot/091-enable-linger.sh
+	    [ ! -f /etc/sdm/0piboot/091-enable-linger.sh ] && cat  >/etc/sdm/0piboot/091-enable-linger.sh <<EOF
+#!/bin/bash
+function loadparams()
+{
+    local arg=\$1
+    source /etc/sdm/sdm-readparams \$arg
+}
+loadparams
+bootlog 'Enable linger for user $adduser'
+loginctl enable-linger $adduser
+EOF
 	fi
     elif [ "$deluser" != "" ]
     then
