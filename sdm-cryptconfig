@@ -6,8 +6,14 @@
 # * Manually on the booted system
 #
 
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 function errexit() {
-    echo -e "$1"
+    cryptolog "$1" noconsole
+    #echo -e "$1"
     exit 1
 }
 
@@ -69,14 +75,21 @@ function getpartname() {
 }
 
 function cryptolog() {
-    local msg="$1" opts="$2" datefmt="%Y-%m-%d %H:%M:%S" pfx="sdm-cryptconfig:" msgc
+    local msg="$1" opts="$2" datefmt="%Y-%m-%d %H:%M:%S" pfx="sdm-cryptconfig:" msgc msgt
 
     [[ "$msg" =~ "sdm-cryptconfig:" ]] && msgc="$msg" || msgc="$pfx $msg"
     if [ $xsdm -eq 1 ]
     then
 	[[ "$opts" =~ "noconsole" ]] || echo "$msgc" > /dev/console
     else
-	[ "$msg" == "" ] && echo "$msg" > /dev/tty || echo "> $msg" > /dev/tty
+	if [ "$msg" == "" ]
+	then
+	    echo "$msg" > /dev/tty
+	else
+	    # don't prefix with ">" if msg starts with "?"
+	    [ "$msg" == "${msg#?}" ] && msgt="> $msg" || msgt="$msg"
+	    echo "$msgt" > /dev/tty
+	fi
     fi
     [[ "$opts" =~ "nojournal" ]] || logger "$msgc"
     [ -f /etc/sdm/history ] && echo "$(thisdate) $msgc" >> /etc/sdm/history
@@ -501,6 +514,11 @@ EOF
     cat > /usr/local/bin/sdm-cryptfs-cleanup <<'EOF'
 #!/bin/bash
 
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 function wait_startup_complete() {
     # $1 is the message to write
     local lc=0 msg=$1
@@ -542,7 +560,7 @@ update-initramfs -u
 
 if grep -q -s xsdm:1 /etc/sdmcryptctl
 then
-    [ -f /etc/sdm/sdm-readparams ] && source /etc/sdm/sdm-readparams || echolog "% sdm-cryptfs-cleanup: Unable to find expected /etc/sdm/sdm-readparams"
+    [ -f /etc/sdm/sdm-readparams ] && loadparams || echolog "% sdm-cryptfs-cleanup: Unable to find expected /etc/sdm/sdm-readparams"
     if [ -f /etc/sdm/assets/cryptbbh ]
     then
         echolog "sdm-cryptfs-cleanup: Enable delayed boot behavior '$(cat /etc/sdm/assets/cryptbbh)'"
@@ -1146,6 +1164,6 @@ then
     reboot
     exit 0
 else
-    [ $xsdm -eq 1 ] && cryptolog "Complete. Use tty[2-8] if needed"
+    [ $xsdm -eq 1 ] && cryptolog "Complete. Use tty[2-8] (CTRL-ALT-Fx) if you need to login"
     exit 0
 fi
