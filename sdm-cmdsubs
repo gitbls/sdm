@@ -5,6 +5,11 @@
 # because it needs access to a bazillion variables defined
 # in sdm, so can only run in the context of sdm. 
 #
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 function write_burnmsg() {
     #
     # $1 has the message to write
@@ -40,6 +45,12 @@ function ddctrlc() {
     fi
 }
 
+function alignpartition() {
+    local s=$1      # original start sector
+    local u=$2      # alignment unit in sectors
+    echo $(( ( (s + u - 1) / u ) * u ))
+}
+
 function setdiskid() {
     local dev="$1" diskid="$2"
     sfdisk --disk-id $dev 0x${diskid}
@@ -53,7 +64,7 @@ i
 r
 w
 EOF
-        errifrc $? "? fdisk error"
+        errifrc $? "? fdisk error '$?'"
 	write_burnmsg "> Disk ID '$diskid' set successfully with fdisk"
     else
 	write_burnmsg "> Disk ID '$diskid' set successfully with sfdisk"
@@ -128,9 +139,16 @@ function copybypart() {
     then
 	errexit "? Expected partitions not found on $srcdev"
     fi
+
+    #declare -x SDMPT=$(makemtpt)
+    #declare -x SDMPX=$(makemtptX)
+    domount $srcdev IMG $SDMPX
+
     #
     # Derive new rootfs size if specified with --convert-root fstype,size
     #
+    devdev=${dstdev##/dev/}
+    devsize=$(cat /sys/block/$devdev/size)         # 512byte blocks
     if [[ "$fsext" != "" ]]
     then
 	extext=${fsext#+}
@@ -143,138 +161,148 @@ function copybypart() {
 	    write_burnmsg "> Burn rootfs to ${extext}MB per '--convert-root $fstype,$fsext'"
 	    extend=$((${extstart%s}+extextsectors))s
 	fi
+    else
+	# This is pretty horrible
+	sdmptsave=$SDMPT
+	declare -x SDMPT=$SDMPX
+	loadparams x # Read settings from source IMG (names prefixed by 'x')
+	declare -x SDMPT=$sdmptsave
+	yexpandroot=$((xexpandroot|expandroot))
+	ynoexpandroot=$((xfnoexpandroot|fnoexpandroot))
+	[ $ynoexpandroot -eq 1 ] || ispluginselected cryptroot "${plugins}~${allplugins}" && yexpandroot=0
+	if [ $yexpandroot -eq 1 ]
+	then
+	    devsize=$((devsize-(33*2)))            # Eliminate sgdisk -p 33 'block' complaint
+	    [ "$fstype" == "zfs" ] && devsize=$((devsize-320*(1024*1024)/512))
+	    extend=${devsize}s
+	    write_burnmsg "> Root partition '$(getspname $dstdev 2)' ($fstype) on device '$dstdev' will be created to $(getgbstr $((devsize*512)))"
+	fi
     fi
+
     #
     # Delete old partitions on destination and set disk label type
     # If lvm on the disk then delete it
     #
-    write_burnmsg "* Remove partitions on $dstdev"
-    [ "$(lvmfind $dstdev pv)" != "" ] && lvmdelete $dstdev
+    write_burnmsg "> Remove partitions on $dstdev"
+    [ "$(lvmfind $dstdev pv)" != "" ] && lvmdelete $dstdev >/dev/null 2>&1
     # Just in case
     wipefs --all ${dstdev}$p1 >/dev/null 2>&1
     wipefs --all ${dstdev}$p2 >/dev/null 2>&1
     sgdisk --zap-all $dstdev >/dev/null 2>&1
     partprobe_wait ${dstdev}$p1
+
+    write_burnmsg "> Align partitions for optimal performance on '$dstdev'"
+    opt_bytes=$(cat "/sys/block/$devdev/queue/optimal_io_size")
+    phy_bytes=$(cat "/sys/block/$devdev/queue/physical_block_size")
+    # Fallback if optimal_io_size is 0 (many devices do this)
+    [ "$opt_bytes" -eq 0 ] && opt_bytes="$phy_bytes"
+    # Convert bytes to sectors (assuming 512-byte logical sectors)
+    align_unit_s=$((opt_bytes/512))
+    [ $align_unit_s -eq 0 ] && align_unit_s=2048   # fallback: 1MiB
+    #write_burnmsg ">DD devsize:$devsize fatstart:$fatstart fatend:$fatend extstart:$extstart extend:$extend"
+    fatstart=$(alignpartition "${fatstart%s}" $align_unit_s)s
+    fatend=$((${fatstart%s} + ${fatsize%s} - 1))s
+    extstart=$(alignpartition $(intmax ${extstart%s} $((${fatend%s}+1))) $align_unit_s)s
+    extend=$((${extstart%s} + ${extsize%s} - 1))s
+    #write_burnmsg ">DD devsize:$devsize fatstart:$fatstart fatend:$fatend extstart:$extstart extend:$extend"
+
     if [ "$dsttype" == "dos" ]
     then
 	write_burnmsg "* Create MBR partition table on $dstdev"
-	echo "label:$dsttype" | sfdisk --force $dstdev >/dev/null 2>&1
-	errifrc $? "? Error creating label on $dstdev"
-	parted -s $dstdev mkpart primary fat32 ${fatstart} ${fatend}
-	errifrc $? "? Error creating boot partition on $dstdev"
-	parted -s $dstdev mkpart primary ext4 ${extstart} ${extend}
-	errifrc $? "? Error creating root partition on $dstdev"
+	echo "label:$dsttype" | sfdisk --force $dstdev >/dev/null 2>&1 || errexit "? Error '$?' creating label on $dstdev"
+	write_burnmsg "> Create fat32 partition: ${fatstart} ${fatend} on $dstdev"
+	parted -s $dstdev mkpart primary fat32 ${fatstart} ${fatend} || errexit "? Error '$?' creating boot partition on $dstdev"
+	write_burnmsg "> Create ext4 partition: ${extstart} ${extend} on $dstdev"
+	parted -s $dstdev mkpart primary ext4 ${extstart} ${extend} || errexit "? Error '$?' creating root partition on $dstdev"
 	write_burnmsg "> Set new disk ID '$newdiskid' on '$burndev'"
 	setdiskid $dstdev $newdiskid
     else
 	write_burnmsg "> Create GPT partition table on $dstdev"
-	parted -s $dstdev mklabel gpt
-	errifrc $? "? Error creating label on $dstdev"
-	sgdisk --new 1:$fatstart:$fatend $dstdev >/dev/null
-	errifrc $? "? Error creating boot partition on $dstdev"
-	sgdisk --typecode 1:0700 $dstdev >/dev/null
-	errifrc $? "? Error modifying partition 1 type on $dstdev"
-	[ "$fstype" == "zfs" ] && tc="bf00" || tc="8300"
-	sgdisk --new 2:$extstart:$extend $dstdev --typecode 2:$tc >/dev/null
-	errifrc $? "? Error creating root partition on $dstdev"
+	parted -s $dstdev mklabel gpt || errexit "? Error '$?' creating label on $dstdev"
+	write_burnmsg "> Create fat32 partition 1: ${fatstart} ${fatend} on $dstdev"
+	sgdisk --new 1:$fatstart:$fatend $dstdev >/dev/null || errexit "? Error '$?' creating boot partition on $dstdev"
+	sgdisk --typecode 1:0700 $dstdev >/dev/null || errexit "? Error '$?' modifying partition 1 type on $dstdev"
+	[ "$fstype" == "zfs" ] && { tc="bf00" ; tn="Solaris root FS (zfs)" ; }  || { tc="8300" ; tn="Linux FS ($fstype)" ; }
+	write_burnmsg "> Create $tn partition 2: Start: ${extstart} End: ${extend} on $dstdev"
+	sgdisk --new 2:$extstart:$extend $dstdev --typecode 2:$tc >/dev/null ||	errexit "? Error '$?' creating root partition on $dstdev"
     fi
     partprobe_wait ${dstdev}$p1
 
-    #declare -x SDMPT=$(makemtpt)
-    #declare -x SDMPX=$(makemtptX)
     write_burnmsg "> Create bootfs file system on $dstdev"
-    mkfs.vfat -F 32 ${dstdev}$p1 #>/dev/null 2>&1
-    errifrc $? "? Error creating bootfs file system on $dstdev"
+    mkfs.vfat -F 32 ${dstdev}$p1 #>/dev/null 2>&1 || errexit "? Error '$?' creating bootfs file system on $dstdev"
     rootdev=${dstdev}$p2
     rootfs=$rootdev
     case "$fstype" in
 	ext4)
 	    write_burnmsg "> Create 'ext4' rootfs file system on $rootdev"
-	    mkfs.ext4 -F ${dstdev}$p2 >/dev/null 2>&1
-	    #dbgshell "Point 1"
-	    errifrc $? "? Error creating ext4 rootfs file system on $dstdev"
+	    mkfs.ext4 -F ${dstdev}$p2 >/dev/null 2>&1 || errexit "? Error '$?' creating ext4 rootfs file system on $dstdev"
 	    ;;
 	btrfs)
 	    write_burnmsg "> Create 'btrfs' rootfs file system on $rootdev"
-	    mkfs.btrfs -f ${dstdev}$p2 >/dev/null
-	    errifrc $? "? Error creating btrfs rootfs file system on $dstdev"
+	    mkfs.btrfs -f ${dstdev}$p2 >/dev/null || errexit "? Error '$?' creating btrfs rootfs file system on $dstdev"
 	    ;;
 	lvm)
 	    rootfs="/dev/$vgname/rootfs"
 	    write_burnmsg "> Create 'lvm' rootfs file system on $rootdev"
-	    parted -s $dstdev set 1 boot on
-	    errifrc $? "? Error setting partition 1 'boot on' on $rootdev"
-	    parted -s $dstdev set 2 lvm on
-	    errifrc $? "? Error setting partition 2 'lvm on' on $rootdev"
+	    parted -s $dstdev set 1 boot on || errexit "? Error '$?' setting partition 1 'boot on' on $rootdev"
+	    parted -s $dstdev set 2 lvm on || errexit "? Error '$?' setting partition 2 'lvm on' on $rootdev"
 	    lvremove $rootfs --yes >/dev/null 2>&1
 	    vgremove /dev/$vgname --yes >/dev/null 2>&1
 	    pvremove $rootdev --yes >/dev/null 2>&1
 	    partprobe_wait ${dstdev}$p2
 	    write_burnmsg "> Create LVM physical volume: pvcreate $rootdev"
-	    pvcreate $rootdev --force --force --yes
-	    errifrc $? "? Error initializing partition 2 lvm on $dstdev"
+	    pvcreate $rootdev --force --force --yes || errexit "? Error '$?' initializing partition 2 lvm on $dstdev"
 	    write_burnmsg "> Create LVM volume group: vgcreate $vgname $rootdev"
-	    vgcreate $vgname $rootdev --force --force --yes
-	    errifrc $? "? Error creating volume group '$vgname' on $dstdev"
+	    vgcreate $vgname $rootdev --force --force --yes || errexit "? Error '$?' creating volume group '$vgname' on $dstdev"
 	    write_burnmsg "> Create LVM logical volume: lvcreate --name rootfs $vgname"
-	    lvcreate --name rootfs -l 100%FREE $vgname --yes
-	    errifrc $? "? Error creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
-	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null
-	    errifrc $? "? Error modifying partition 1 type on $dstdev"
+	    lvcreate --name rootfs -l 100%FREE $vgname --yes || errexit "? Error '$?' creating logical volume $(basename $rootfs) in volume group $(hostname) on $dstdev"
+	    sgdisk --mbrtogpt --typecode 1:0700 $dstdev >/dev/null || errexit "? Error '$?' modifying partition 1 type on $dstdev"
 	    partprobe_wait ${dstdev}$p1
 	    write_burnmsg "> Create 'ext4' rootfs file system on $rootfs"
-	    mkfs.ext4 -F $rootfs >/dev/null 2>&1
-	    errifrc $? "? Error creating ext4 rootfs file system on $rootfs"
+	    mkfs.ext4 -F $rootfs >/dev/null 2>&1 || errexit "? Error '$?' creating ext4 rootfs file system on $rootfs"
 	    ;;
 	zfs)
 	    write_burnmsg "> Create 'zfs' rootfs file system on $rootdev"
+	    rpool=sdmpt   # Change name to zsdm or sdmzfs or something else
 
-	    zfsoptimized=0
-	    rpool=rpool
-	    p2name="${dstdev##/dev/}${p2}"
-	    # *** NOTE *** -f
-	    zpool create -f -o ashift=12 -o autotrim=on -O acltype=posixacl -O canmount=off -O compression=lz4 -O dnodesize=auto -O normalization=formD -O relatime=on -O xattr=sa  $rpool $p2name
-	    errifrc $? "? Error creating zfs pool"
-	    zfs create -o canmount=off -o mountpoint=none $rpool/ROOT
-	    zfs create -o canmount=noauto -o mountpoint=$SDMPT $rpool/ROOT/debian
-	    zfs mount $rpool/ROOT/debian
-	    if [ $zfsoptimized -eq 1 ]
-	    then
-		zfs create $rpool/home
-		zfs create -o mountpoint=/root $rpool/home/root
-		chmod 700 $SDMPT/root
-		zfs create -o canmount=off -o mountpoint=/var $rpool/var
-		zfs create -o canmount=off  $rpool/var/lib
-		zfs create $rpool/var/log
-		zfs create $rpool/var/spool
-		zfs create -o com.sun:auto-snapshot=false $rpool/var/cache
-		zfs create -o com.sun:auto-snapshot=false $rpool/var/lib/nfs
-		zfs create -o com.sun:auto-snapshot=false $rpool/var/tmp
-		chmod 1777 $SDMPT/var/tmp
-		zfs create $rpool/srv
-		zfs create -o canmount=off $rpool/usr
-		zfs create $rpool/usr/local
-		zfs create $rpool/var/lib/AccountsService
-		zfs create $rpool/var/lib/NetworkManager
-		zfs create -o com.sun:auto-snapshot=false $rpool/var/lib/docker
-		zfs create -o com.sun:auto-snapshot=false $rpool/tmp
-		chmod 1777 $SDMPT/tmp
-		mkdir -m 755 $SDMPT/run
-		mkdir -m 1777 $SDMPT/run/lock
-		zfs create $rpool/var/mail
-		zfs create $rpool/var/lib/apt
-		zfs create $rpool/var/lib/dpkg
-		zfs create $rpool/boot
-		mkdir -p -m 755 $SDMPT/boot/firmware
-	    fi
-	    zfs unmount $rpool/ROOT/debian
+	    zpool create -f \
+		  -o ashift=12 \
+		  -O compression=lz4 \
+		  -O acltype=posixacl \
+		  -O xattr=sa \
+		  -O relatime=on \
+		  -O mountpoint=none \
+		  -O normalization=formD \
+		  -O canmount=off \
+		  $rpool $rootfs || logtobothex "? zpool create $rpool $rootfs failed '$?'"
+	    zfs create -o mountpoint=none $rpool/ROOT || logtobothex "? zfs create $rpool/ROOT failed '$?'"
+	    zfs set canmount=off $rpool/ROOT || logtobothex "? zfs set set canmount=off $rpool/ROOT failed '$?'"
+	    zfs create -o mountpoint=none $rpool/ROOT/pi || logtobothex "? zfs create $rpool/ROOT/pi failed '$?'"
+	    for dn in home root var srv
+	    do
+		zfs create -o mountpoint=legacy $rpool/$dn || logtobothex "? zfs create $rpool/$dn failed '$?'"
+	    done
+	    zfs set mountpoint=$SDMPT $rpool/ROOT/pi || logtobothex "? zfs mount failed '$?'"
+	    write_burnmsg "> zfs dataset $rpool/ROOT/pi mounted on $SDMPT"
+	    mkdir -p $SDMPT/{home,root,var,srv}
+	    for dn in home root var srv
+	    do
+		mount -t zfs $rpool/$dn $SDMPT/$dn || logtobothex "? zfs mount $rpool/$dn failed '$?'"
+	    done
+	    mkdir -p --mode 755 $SDMPT/boot/firmware
+	    write_burnmsg "> Configure zfs pool cachefile during sdm FirstBoot"
+	    z0script="/etc/sdm/0piboot/010-zfs-cachefile.sh"
+	    cat > $z0script <<EOF
+#!/bin/bash
+logger "FirstBoot: Enable zfs pool cachefile"
+zpool set cachefile=/etc/zfs/zpool.cache sdmpt
+update-initramfs -u
+EOF
 	    ;;
 	*)
 	    errexit "? Unrecognized fstype '$fstype'"
 	    ;;
     esac
-
-    domount $srcdev IMG $SDMPX
 
     [ -d $SDMPX/boot/firmware ] && msdir="$SDMPX/boot/firmware" || msdir="$SDMPX/boot"
     [ -d $SDMPX/boot/firmware ] && mddir="$SDMPT/boot/firmware" || mddir="$SDMPT/boot"
@@ -284,21 +312,25 @@ function copybypart() {
 	mount $rootfs $SDMPT
 	mkdir -p $mddir
 	umount $SDMPT
-    else
-	zfs mount rpool/ROOT/debian
-	mkdir -p $mddir
-	zfs unmount rpool/ROOT/debian
     fi
 
     domount $dstdev "Device" $SDMPT $fstype "$mopts"
     write_burnmsg "> Copy bootfs to $dstdev"
-    rsync -aH $msdir/ $mddir
-    errifrc $? "? Error copying bootfs partition to $dstdev"
+    rsync -aH $msdir/ $mddir || errexit "? Error '$?' copying bootfs partition to $dstdev"
 
     write_burnmsg "> Copy rootfs to $dstdev"
-    rsync -aH $SDMPX/ $SDMPT
-    errifrc $? "? Error copying rootfs partition to $dstdev"
+    rsync -aH $SDMPX/ $SDMPT || errexit "? Error '$?' copying rootfs partition to $dstdev"
     sync ; sync
+    case "$fstype" in
+	zfs)
+	    for dn in home root var srv
+	    do
+		echo "$rpool/$dn	/$dn	zfs	defaults	0	0" >> $SDMPT/etc/fstab
+	    done
+	    ;;
+    esac
+
+    #dbgshell "** After copies done"
     write_burnmsg "> rootfs copy complete"
 }
 
@@ -358,8 +390,7 @@ function sdm_burndevfile() {
 		setdiskid $burndev $newdiskid
 	    else
 		write_burnmsg "> Convert disk '$burndev' to GPT"
-		sgdisk --mbrtogpt --randomize-guids $burndev >/dev/null 2>&1
-		errifrc $? "? Error converting MBR to GPT"
+		sgdisk --mbrtogpt --randomize-guids $burndev >/dev/null 2>&1 || errexit "? Error '$?' converting MBR to GPT"
 		write_burnmsg "> Set boot partition boot code 0c on '$burndev'"
 		gdisk $burndev <<EOF &>/dev/null
 r
@@ -372,7 +403,7 @@ n
 w
 y
 EOF
-		errifrc $? "? Error Setting MBR hex code"
+		errifrc $? "? Error '$?' Setting MBR hex code"
 	    fi
 	else
 	    [ $fgpt -eq 0 ] && pt=dos || pt=gpt
@@ -382,14 +413,18 @@ EOF
 	    mapper="/dev/mapper/$vgname-rootfs"
 	    fpartcopy=1
 	    copybypart $dimg $burndev $pt $cvtrootfs "$cvtrootext" "$cvtrootmountoptions"
+	    #dbgshell "** After copybypart"
 	    fpartcopy=0
 	    docleanup
+	    #dbgshell "** After copybypart/docleanup"
 	    sync ; sleep 1 ; sync
 	fi
 	partprobe_wait $burndev
-	sync ; sleep 1 ; sync
+	sync ; sleep 0.25 ; sync
+	#dbgshell "** before domount"
 	declare -x SDMPT=$(makemtpt)
 	domount "$burndev" "Device" $SDMPT $cvtrootfs "$cvtrootmountoptions"
+	#dbgshell "** After domount $burndev"
     else
 	#
 	# Burning to a file
@@ -442,50 +477,45 @@ EOF
 	# Burn messages are written, all further messages written with logtoboth, which will write them to the terminal
 	# and to $SDMPT/etc/sdm/history in the mounted image or image file
 	#
-	xsettings="autologin b0script b1script bootscripts burnplugins domain expandatboot expandroot exports fchroot hname fredact fnoexpandroot myuser noreboot"
-	xsettings="$xsettings nowaittimesync plugindebug plugins reboot rebootwait regensshkeys xspdev"
-	# Save settings made with the --burn command
-	# Define variable b<varname> for each <varname>
-	for e in $xsettings
+	loadparams x  # Load params from burned IMG prefixed with 'x'
+	              # and update current settings from burned IMG
+	[ "$aptcache" == "" ] && aptcache=$xaptcache
+	aptdistupgrade=$((aptdistupgrade|xaptdistupgrade))
+	expandroot=$((expandroot|xexpandroot))
+	fchroot=$((fchroot|xfchroot))
+	fexpandatboot=$((expandatboot|xexpandatboot))
+	fnoexpandroot=$((fnoexpandroot|xfnoexpandroot))
+	regensshkeys=$((regensshkeys|xregensshkeys))
+	nowaittimesync=$((nowaittimesync|xnowaittimesync))
+	plugindebug=$((plugindebug|xplugindebug))
+	reboot=$((reboot|xreboot))
+	[ $rebootwait -eq $drebootwait ] && rebootwait=$xrebootwait
+	#
+	# Copy other important args from cparams in IMG to current
+	#
+	for pn in allplugins aptcache aptdistupgrade autologin csrc datefmt debugs domain \
+			     ecolors logwidth myuser raspiosver reboot rebootwait showapt src \
+			     timezone virtmode xspdev custom1 custom2 custom3 custom4
 	do
-	    eval b$e=\${!e}
+	    xpn=x${pn}
+	    [ "${!pn}" == "" ] && printf -v "$pn" "%s" "${!xpn}"
 	done
-	source $SDMPT/etc/sdm/sdm-readparams                   # Read settings from the SD card
-	# Update settings with settings from cmd line as appropriate
-	[ "$bb0script" != "$b0script" ] && b0script=$bb0script
-	[ "$bb1script" != "$b1script" ] && b1script=$bb1script
-	[ "$bdomain" != "" ] && domain=$bdomain
-	[ $breboot -eq 1 ] && reboot=1
-	[ $bnoreboot -eq 1 ] && reboot=0 && noreboot=1
-	[ $bbootscripts -eq 1 ] && bootscripts="$bbootscripts"
-	[ $brebootwait -ne $drebootwait ] && rebootwait=$brebootwait
-	[ "$bhname" != "" ] && hname="$bhname"
-	plugins="$bplugins"
-	[ $bautologin -eq 1 ] && autologin=1
-	[ "$bburnplugins" != "" ] && burnplugins="$bburnplugins"
-	expandroot=$((bexpandroot|expandroot))
-	fchroot=$((bfchroot|fchroot))
-	fexpandatboot=$((bexpandatboot|expandatboot))
-	fnoexpandroot=$((bfnoexpandroot|fnoexpandroot))
-	regensshkeys=$((bregensshkeys|regensshkeys))
-	nowaittimesync=$((bnowaittimesync|nowaittimesync))
-	plugindebug=$((bplugindebug|plugindebug))
-	xspdev=$bxspdev   # Pass on host setting
+
 	[ "$hname" == "" ] && write_burnmsg "% hostname not specified with --host; will not be written"
 	# --bupdate must specified on the burn command line
 	initvirt logtoboth  # Must be done after fchroot is set
 	[ "$bupdate" != "" ] && checkupdsdm update "$bupdate" || checkupdsdm check "$bupdate"
 	if ispluginselected parted "$burnplugins"
 	then
-	    write_burnmsg "> Force --no-expand-root for parted burn-plugin"
+	    write_burnmsg "> Force --no-expand-root per parted burn-plugin"
 	    fnoexpandroot=1
 	fi
 	if [ $fnoexpandroot -eq 1 ]
 	then
-	    [ $regensshkeys -eq 0 ] && write_burnmsg "> Force --regen-ssh-host-keys for --no-expand-root" && regensshkeys=1
+	    [ $regensshkeys -eq 0 ] && ! ispluginselected sshhostkey "${plugins}~${allplugins}" && { write_burnmsg "> Force --regen-ssh-host-keys for --no-expand-root" ; regensshkeys=1 ; }
 	elif [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
-	    if [ "$cvtrootfs" == "ext4" ] || [ "$cvtrootfs" == "" ] || ! ispluginselected cryptroot "${plugins}~${allplugins}"
+	    if [[ "$cvtrootfs" == "" ]] || [[ "ext4|btrfs|lvm" =~ "$cvtrootfs" ]] || ! ispluginselected cryptroot "${plugins}~${allplugins}"
 	    then
 		docleanup keep
 		expandpartition $burndev 0 logtoboth $cvtrootfs
@@ -531,8 +561,10 @@ EOF
 		sed -i 's/ext4/btrfs/' $SDMPT/boot/firmware/cmdline.txt
 		;;
 	    zfs)
-		write_burnmsg "> Configure zfs file system in cmdline.txt"
-		sed -i 's%root=.*rootwait%root=ZFS=rpool/ROOT/debian rootwait%' $SDMPT/boot/firmware/cmdline.txt
+		write_burnmsg "> Configure zfs file system in cmdline.txt and adjust /etc/fstab"
+		sed -i 's%root=.*rootwait%root=ZFS=sdmpt/ROOT/pi rootwait%' $SDMPT/boot/firmware/cmdline.txt
+		sed -i.bak '/PARTUUID=.*\/.*ext4.*/s/^/# /' $SDMPT/etc/fstab
+
 		;;
 	esac
 
@@ -621,8 +653,7 @@ EOF
 	    then
 		[ -d $SDMPT/etc/lightdm -a $xldm -eq 0 ] && sdm_runspawncmd Burn1 burn-enable-lightdm-delay
 	    fi
-	    source $SDMPT/etc/sdm/sdm-readparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
-	    plugins="$bplugins"
+	    loadparams       #Reread in case it got updated running plugins (e.g. myuser from user plugin)
 	fi
 
 	resetpluginlist
@@ -647,7 +678,7 @@ EOF
 	if [[ $expandroot -eq 1 ]] && [[ "$burndev" != "" ]]
 	then
 	    docleanup keep
-	    expandpartition $burndev 0 echo $cvtrootfs
+	    [ "cvtrootfs" != "zfs" ] && expandpartition $burndev 0 echo $cvtrootfs
 	fi
 	writediskids
 	if [[ "$cvtrootfs" != "" ]] && [[ "$cvtrootfs" != "ext4" ]]
@@ -656,7 +687,7 @@ EOF
 	fi
     fi
     #
-    # Install required packages for btrfs and lvm and do update-initramfs if needed
+    # Install required packages for different rootfs file systems and do update-initramfs if needed
     #
     case "$cvtrootfs" in
 	btrfs)
@@ -685,16 +716,74 @@ EOF
 	zfs)
 	    if [ ! -x $SDMPT/bin/zfs ]
 	    then
-		write_burnmsg "> Install zfs onto burned disk"
-		sdm_runspawncmd Burn1 run-command "debconf-set-selections <<< 'zfs-dkms zfs-dkms/note-incompatible-licenses boolean false'"
-		#sdm_runspawncmd Burn1 run-command "apt install --yes  --no-install-recommends zfsutils-linux zfs-dkms zfs-zed zfs-initramfs"
+		# Get the latest kernel version from /lib/modules/
+		# List all kernel versions found in /lib/modules
+		kernels=(/lib/modules/*)
+		# Strip path, keep only version names
+		versions=()
+		for k in "${kernels[@]}"; do
+		    versions+=("$(basename "$k")")
+		done
+		#echo "Found kernels:"
+		#printf '  %s\n' "${versions[@]}"
+		# Sort versions using natural version sort
+		sorted_versions=$(printf '%s\n' "${versions[@]}" | sort -V)
+		# Highest version is the last one
+		highest_full=$(printf '%s\n' "$sorted_versions" | tail -n 1)
+		#echo $highest_full
+		highest_base=$(echo "$highest_full" | sed 's/[^0-9.].*$//')
+		#echo "Highest base version: $highest_base"
+		# Find all kernels whose version begins with the same numeric prefix
+		matching=()
+		kh=""
+		for v in "${versions[@]}"; do
+		    if [[ "$v" == "$highest_base"* ]]; then
+			kh="$kh linux-headers-$v"
+		    fi
+		done
+
+		cat > $SDMPT/root/do-zfs-dkms <<'EOF'
+#!/bin/bash
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
+loadparams
+debconf-set-selections <<EDSS
+zfs-dkms zfs-dkms/stop-build-for-unknown-kernel boolean false
+zfs-dkms zfs-dkms/stop-build-for-32bit-kernel boolean false
+zfs-dkms zfs-dkms/note-incompatible-licenses note true
+EDSS
+declare -x DKMS_SKIP_BUILD=1
+doaptrpterror "install --yes  --no-install-recommends zfsutils-linux zfs-dkms zfs-zed zfs-initramfs $kh" 0
+# Disable audit, which is enabled bc zfs
+logtoboth "> Disable auditing enabled because of zfs rootfs"
+systemctl mask auditd
+systemctl mask systemd-journald-audit.socket
+EOF
+		chmod 755 $SDMPT/root/do-zfs-dkms
+		write_burnmsg "> Install zfs software onto burned disk"
+		write_burnmsg "  This will build and install a dkms module"
+		write_burnmsg "  Expected build time: Pi5: 6-8 minutes"
+		zfsstart=$(getcdate)
+		write_burnmsg "> zfs install start: $(thisdate)"
+		sdm_runspawncmd Burn1 run-command /root/do-zfs-dkms
+		rm -f $SDMPT/root/do-zfs-dkms
 	    else
 		write_burnmsg "> Enable zfs in initramfs"
 		sdm_runspawncmd Burn1 run-update-initramfs
 	    fi
+	    write_burnmsg "> zfs install end:   $(thisdate)"
+	    write_burnmsg "> zfs install time:  $(datediff "$zfsstart" "$(getcdate)")"
     esac
+    if [ -f $SDMPT/var/lib/systemd/timesync/clock ]
+    then
+	write_burnmsg "> Update /var/lib/systemd/timesync/clock to current time"
+	touch $SDMPT/var/lib/systemd/timesync/clock
+    fi
+    write_burnmsg "> Burn elapsed time: $(datediff "$burnstart" "$(getcdate)")"
     write_burnmsg "* Burn Completed"
-    logtoboth "> Burn elapsed time: $(datediff "$burnstart" "$(getcdate)")"
     printnotes
     [ "$extractlogdir" != "" ] && extractlogs
     #
@@ -805,7 +894,7 @@ sdm_shrink() {
     [ $plugindebug -eq 1 ] && logger "Get new partition size"
     oresize=$(resize2fs -P $loopdev)
     rc=$?
-    [ $rc -ne 0 ] && losetup -d $loopdev 2>/dev/null && errifrc $? "? resize2fs problem"
+    [ $rc -ne 0 ] && { losetup -d $loopdev 2>/dev/null || errexit "? resize2fs error ('$rc')" ; }
     # Strip everything before ": " leaving only the new partition size, then up it a bit
     newsize=${oresize##*: }
     newsize=$((newsize+(imgext/(bs/512))))
@@ -829,32 +918,29 @@ sdm_shrink() {
     [ $plugindebug -eq 1 ] && logger "Shrink the file system"
     partnewsize=$((newsize*bs))
     bcb=$((bc*bs))
-    echo "> Shrink the root file system from $bc $(getgbstr $bcb) to $newsize ${bs}-byte blocks $(getgbstr $partnewsize)"
+    #echo "> Shrink the root file system from $bc $(getgbstr $bcb) to $newsize ${bs}-byte blocks $(getgbstr $partnewsize)"
+    echo "> Shrink the root file system"
     resize2fs -M -p $loopdev $newsize
     rc=$?
-    losetup -d $loopdev 2>/dev/null
-    [ $rc -ne 0 ] && errifrc $rc "? resize2fs shrink exited with status '$rc'"
+    losetup -d $loopdev 2>/dev/null ||logtobothex "? resize2fs shrink error '$?'"
     rzp=0
     if [ $rzp -eq 0 ]
     then
 	# Shrink the partition in the file
 	partnewend=$((partstart+partnewsize-1))
 	printf "%% Ignore Warning about shrinking a partition may cause data loss\n\n"
-	printf 'Yes\n' | parted -a none $dimg unit B resizepart 2 $partnewend ---pretend-input-tty 2>&1
-	errifrc $? "? parted resize partition failed"
+	printf 'Yes\n' | parted -a none $dimg unit B resizepart 2 $partnewend ---pretend-input-tty 2>&1 || logtobothex "? parted resize partition error '$?'"
     else
 	# Shrink the partition by removing and recreating it
 	# Not used, but keep for a while
 	[ $plugindebug -eq 1 ] && logger "Remove old partition"
 	echo "> Remove old partition"
-	parted -s -a minimal $dimg rm $partnum
-	errifrc $? "? parted rm partition failed with status"
+	parted -s -a minimal $dimg rm $partnum || errexit "? parted rm partition error '$?'"
 	[ $plugindebug -eq 1 ] && logger "Make new partition"
 	echo "> Make new partition"
 	partnewend=$((partstart+partnewsize-1))
 	parttype="primary"
-	parted -s $dimg unit B mkpart $parttype $partstart $partnewend
-	errifrc $? "? parted mkpart failed with status"
+	parted -s $dimg unit B mkpart $parttype $partstart $partnewend || errexit "? parted mkpart error '$?'"
     fi
     #
     # Shrink the IMG
@@ -862,8 +948,7 @@ sdm_shrink() {
     [ $plugindebug -eq 1 ] && logger "Shrink the IMG"
     newfilesize=$((partnewsize+partstart))
     echo "> Shrink the image by truncating to $newfilesize $(getgbstr $newfilesize)"
-    truncate -s ${newfilesize%B} $dimg
-    errifrc $? "? Truncate failed with status "
+    truncate -s ${newfilesize%B} $dimg || errexit "? Truncate error '$?'"
     echo "* Shrink complete"
     asize=$(stat --printf %s $dimg)
     echo "  IMG '$dimg' was $(getgbstr $bsize) now $(getgbstr $asize)"
@@ -972,7 +1057,7 @@ function sdm_do_ext_command() {
 	    echo "> Copy '$SDMPT/$arg1' to '$arg2'"
 	    cp $SDMPT/$arg1 $arg2
 	    sts=$?
-	    [ $? -ne 0 ] && errexit "? Copy failed ($?)"
+	    [ $? -ne 0 ] && errexit "? Copy failed '$?'"
 	    ;;
 	#get-sdm-logs)
 	#    ;;
@@ -997,13 +1082,13 @@ function sdm_do_ext_command() {
 	    echo "> Copy '$arg1' to '$SDMPT/${arg2#/}'"
 	    cp $arg1 $SDMPT/$arg2
 	    sts=$?
-	    [ $? -ne 0 ] && errexit "? Copy failed ($?)"
+	    [ $? -ne 0 ] && errexit "? Copy failed '$?'"
 	    ;;
 	rm)
 	    if [ -f $SDMPT/$arg1 ]
 	    then
 		rm -f $SDMPT/$arg1
-		[ $? -ne 0 ] && errexit "? Remove failed (?$)"
+		[ $? -ne 0 ] && errexit "? Remove failed '$?'"
 	    else
 		errexit "? File '$arg1' not found"
 	    fi
@@ -1013,7 +1098,7 @@ function sdm_do_ext_command() {
 	    then
 		echo "found dir"
 		rm -rf $SDMPT/$arg1
-		[ $? -ne 0 ] && errexit "? Remove failed (?$)"
+		[ $? -ne 0 ] && errexit "? Remove failed '$?'"
 	    else
 		[ -f $SDMPT/$arg1 ] && errexit "? Directory '$arg1' is a file" # || errexit "? Directory '$arg1' not found"
 	    fi
