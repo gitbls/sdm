@@ -45,6 +45,14 @@ function dbgprint() {
     [ $fdebug -eq 1 ] && pmsg "D! $1"
 }
 
+function dbgshell() {
+    local msg="${1:-Debug}" tty="/dev/console"
+    [ $fssh -eq 1 ] && tty="/dev/tty"
+    echo "dbgshell: $msg"
+    bash <$tty >$tty
+    echo "dbgexit: $msg"
+}
+
 function getcbbdate() {
     #
     # Returns date in busybox canonical format
@@ -148,9 +156,9 @@ function expandpartition() {
     $msgrtn "Expand root partition '$partname' ($rootfstype) on device '$fulldevname' from $(getgbstr $pbytes) to $(getgbstr $nbytes)"
     if isgpt ${fulldevname}
     then
-	parted -m /dev/$phydev u s resizepart 2 $((newend-48))  || errexit "? parted resizepart failed ($?)" # ?? 32 not enough, 48 works
+	parted -m /dev/$phydev u s resizepart 2 $((newend-48))  || errexit "? parted resizepart error '$?'" # ?? 32 not enough, 48 works
     else
-	parted -m /dev/$phydev u s resizepart 2 $newend || errexit "? parted resizepart failed ($?)"
+	parted -m /dev/$phydev u s resizepart 2 $newend || errexit "? parted resizepart error '$?'"
     fi
 }
 
@@ -197,11 +205,11 @@ function wipescratch() {
     then
 	pmsg "> Write random data on '$sdisk'"
 	starttime="$(getcbbdate)"
-	dd bs=4k count=$partsize if=/dev/random of=$sdisk || errexit "? dd write random data returned error ($?)"
+	dd bs=4k count=$partsize if=/dev/random of=$sdisk || errexit "? dd write random data error '$?'"
 	pmsg "rootfs Wipe elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     else
 	pmsg "> Zap partitions on scratch disk '$sdisk'"
-	sgdisk --zap-all $sdisk >/dev/null 2>&1 || errexit "? sgdisk zap all returned error ($?)"
+	sgdisk --zap-all $sdisk >/dev/null 2>&1 || errexit "? sgdisk zap all error '$?'"
 	pmsg "> The partition table on '$sdisk' has been zapped"
 	pmsg "> Scratch disk '$sdisk' still has unencrypted blocks of rootfs on the disk"
 	pmsg "  Clean it up after rootfs encryption completes if that concerns you"
@@ -214,39 +222,27 @@ function save_rootfs() {
     local rootfs=$(getpartname $dev 2)
     local scpart=$(getpartname $sdisk 1)
     local partend fullblocks remainder rootfsize mb
-
     local starttime endtime pbytes pgb
 
     mkdir -p /scratch
     pmsg "** NOTE: save and restore time estimates are pessimistic"
     pmsg "** Exact speed measurements dependent on CPU, memory, and disk speeds of this system"
-    if [ -f /sys/firmware/devicetree/base/compatible ]
+
+    if [ $fram -eq 1 ]
     then
-	if [[ "$(tr -d '\0' < /sys/firmware/devicetree/base/compatible)" =~ raspberrypi ]]
-	then
-            read junk mb junk < <(grep -i MemTotal /proc/meminfo)
-            rootfsize=$((((partsize/256)*6)/5))    # convert to MB and scale to 1.2X
-            mb=$(((mb/1024)-3))            # Memory size in MB minus a bit
-            if [ $mb -gt $rootfsize ]
-            then
-		fram=1
-		mount -t tmpfs -o size=${rootfsize}M tmpfs /scratch || errexit "? mount returned error ($?)"
-		pmsg "Save rootfs '$rootfs' to RAM disk"
-		pmsg "rootfs save should take less than $(printdt $(((partsize/256)/43)))"
-		xcompress=0
-	    fi
-	fi
-    fi
-    if ! grep -q -s /scratch /proc/mounts
-    then
+	mount -t tmpfs -o size=${rootfsize}M tmpfs /scratch || errexit "? mount error '$?'"
+	pmsg "Save rootfs '$rootfs' to RAM disk"
+	pmsg "rootfs save should take less than $(printdt $(((partsize/256)/43)))"
+	xcompress=0
+    else
 	checkdev $sdisk || return 1
 	pmsg "Create file system on '$sdisk'"
-	parted -s $sdisk mklabel gpt || errexit "? parted create gpt label returned error ($?)"
+	parted -s $sdisk mklabel gpt || errexit "? parted create gpt label error '$?'"
 	partend=$(((partsize*8)+2048))
-	sgdisk --new 1:2048:$partend $sdisk >/dev/null || errexit "? sgdisk create partition returned error ($?)"
-	sgdisk --typecode 1:8300 $sdisk || errexit "? sgdisk set typecode returned error ($?)"
-	mke2fs -F $scpart >/dev/null || errexit "? mke2fs returned error ($?)"
-	mount $scpart /scratch || errexit "? mount scratch partition returned error ($?)"
+	sgdisk --new 1:2048:$partend $sdisk >/dev/null || errexit "? sgdisk create partition error '$?'"
+	sgdisk --typecode 1:8300 $sdisk || errexit "? sgdisk set typecode error '$?'"
+	mke2fs -F $scpart >/dev/null || errexit "? mke2fs error '$?'"
+	mount $scpart /scratch || errexit "? mount scratch partition error '$?'"
 	pmsg "Save rootfs '$rootfs' to '$sdisk'"
 	pmsg "rootfs save should take less than $(printdt $(((partsize/256)/51)))"
     fi
@@ -254,17 +250,17 @@ function save_rootfs() {
     if [ $xcompress -eq 0 ]
     then
 	# no compression
-	dd bs=4k count=$partsize if=$rootfs of=/scratch/uncompressed-rootfs.img || errexit "? dd returned error ($?)"
+	dd bs=4k count=$partsize if=$rootfs of=/scratch/uncompressed-rootfs.img || errexit "? dd error '$?'"
     else
 	# use compression
 	fullblocks=$((partsize/4096))   #1M blocks
 	remainder=$((partsize % 4096))  #   remainder bits
 	pmsg "Compress and save $fullblocks 16MB blocks"
-	dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /scratch/compressed-rootfs.lz4 || errexit "? dd returned error ($?)"
+	dd bs=16M count=$fullblocks if=$rootfs | lz4 -c --fast=1 > /scratch/compressed-rootfs.lz4 || errexit "? dd error '$?'"
 	if [ $remainder -ne 0 ]
 	then
 	    pmsg "Compress and save $remainder 4K blocks"
-	    dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /scratch/compressed-rootfs.lz4 || errexit $? "? dd returned error ($?)"
+	    dd bs=4k if=$rootfs skip=$((fullblocks*4096)) count=$remainder | lz4 -c --fast=1 >> /scratch/compressed-rootfs.lz4 || errexit $? "? dd error '$?'"
 	fi
     fi
     pmsg "rootfs Save elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
@@ -287,7 +283,7 @@ function config_keyfile() {
     then
 	pmsg "Add LUKS key '${kfn%.lek}' from file $kfl"
 	pmsg "When prompted for an existing passphrase enter the one you just created"
-	cryptsetup luksAddKey $rootfs $kfl || errexit "? cryptsetup returned an error adding key '$kfn': $?"
+	cryptsetup luksAddKey $rootfs $kfl || errexit "? cryptsetup add key '$kfn' error: '$?'"
 	rm -f $kfl
     fi
 }
@@ -295,7 +291,7 @@ function config_keyfile() {
 function cpoptions() {
     local sts=$1
 
-    pmsg "% cryptsetup returned an error ($sts)"
+    pmsg "% cryptsetup error ($sts)"
     pmsg "% If you mis-typed 'YES' or want to try again enter Y or y"
     pmsg "% Power off the system if you do not want to retry"
     pmsg "%  (Disks will be OK since none are mounted)"
@@ -379,18 +375,20 @@ function restore_rootfs() {
     local rootfs=$(getpartname $dev 2)
     local cpartnum cpartstart cpartend cpartsize etc
     local starttime endtime pbytes pgb
-    checkdev $sdisk || return 1
-    [ $fram -eq 0 ] && pmsg "Restore '$rootfs' from '$sdisk'" || pmsg "Restore '$rootfs' from RAM disk"
+
+    [ $fram -eq 0 ] && { checkdev $sdisk || return 1 ; }
+    pmsg "Restore '$rootfs' from '$sdisk'"
+
     starttime="$(getcbbdate)"
     if [ $xcompress -eq 0 ]
     then
 	pmsg "rootfs restore should take less than $(printdt $(((partsize/256)/15)))"
 	#echo "dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice"
-	dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice || errexit "? dd returned error ($?)"
+	dd bs=16M if=/scratch/uncompressed-rootfs.img of=/dev/mapper/$cryptdevice || errexit "? dd error '$?'"
     else
 	pmsg "rootfs restore should take less than $(printdt $(((partsize/256)/11)))"
 	#echo "dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | bs=16M dd of=/dev/mapper/$cryptdevice"
-	dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | dd bs=16M of=/dev/mapper/$cryptdevice || errexit "? dd returned error ($?)"
+	dd bs=16M if=/scratch/compressed-rootfs.lz4 | lz4 -d | dd bs=16M of=/dev/mapper/$cryptdevice || errexit "? dd error '$?'"
     fi
     pmsg "rootfs Restore elapsed time: $(datediff "$starttime" "$(getcbbdate)")"
     pmsg "Restore complete"
@@ -399,15 +397,16 @@ function restore_rootfs() {
     in
 	ext4)
 	    pmsg "Expand ext4 rootfs file system..."
-	    resize2fs -f /dev/mapper/$cryptdevice || errexit "? resize2fs returned error ($?)"
+	    resize2fs -f /dev/mapper/$cryptdevice || errexit "? resize2fs error '$?'"
 	    cpartsize=$(blockdev --getsize64 /dev/mapper/$cryptdevice)
 	    pmsg "rootfs partition size: $cpartsize Bytes $(getgbstr $cpartsize)"
 	    ;;
 	btrfs)
 	    pmsg "Expand btrfs rootfs file system..."
 	    mkdir -p /mnt
-	    mount /dev/mapper/$cryptdevice /mnt
-	    btrfs filesystem resize max /mnt || errexit "? brtfs resize returned error ($?)"
+	    #dbgshell "restore_rootfs before btrfs expand"
+	    mount -t btrfs /dev/mapper/$cryptdevice /mnt
+	    btrfs filesystem resize max /mnt || errexit "? brtfs resize error '$?'"
 	    umount /mnt
 	    ;;
     esac
@@ -422,7 +421,7 @@ function runall() {
     local rootfs=$(getpartname $dev 2)
     fstype=$(lsblk --noheadings --output fstype $rootfs)
     checkdev $dev || return 1
-    checkdev $sdisk || return 1
+    [ $fram -eq 0 ] && { checkdev $sdisk || return 1 ; }
     [ "$fstype" == "ext4" ] && pmsg "Shrink partition '$rootfs' and get its size"
     partsize=$(getpartsize $rootfs)
     pbytes=$((partsize*4096))
@@ -442,8 +441,10 @@ function runall() {
 	    IFS=":" read zpartnum zpartstart zpartend zpartsize etc < <(parted -ms $dev unit s print | grep ^3:)
 	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
 	    newend=$((${zpartstart%s}-1))
+	    #pmsg "DD2 rpartnum:|$rpartnum| rpartstart:|$rpartstart| rpartend:|$rpartend| rpartsize:|$rpartsize|"
+	    #pmsg "DD3 zpartnum:|$zpartnum| zpartstart:|$zpartstart| zpartend:|$zpartend| zpartsize:|$zpartsize|"
 	    pmsg "Expand rootfs partition from ${rpartend%s} to $((${zpartstart%s}-1)) (increase by $((${zpartstart%s}-${rpartend%s}-1)))"
-	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed ($?)"
+	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition error '$?'"
 	fi
     else
 	if [ "$fstype" == "btrfs" ]
@@ -451,8 +452,9 @@ function runall() {
 	    # Do minimal expansion (so there's room for btrfs + LUKS header) using space allocated in parted or bc it's the rest of the disk
 	    IFS=":" read rpartnum rpartstart rpartend rpartsize etc < <(parted -ms $dev unit s print | grep ^2:)
 	    newend=$((${rpartend%s}+65535))
+	    #pmsg "DD4 rpartnum:|$rpartnum| rpartstart:|$rpartstart| rpartend:|$rpartend| rpartsize:|$rpartsize| newend:|$newend|"
 	    pmsg "Do minimal rootfs expansion so btrfs and LUKS header both fit"
-	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition failed ($?)"
+	    parted -m $dev u s resizepart 2 $newend || errexit "? parted resize partition error '$?'"
 	fi
     fi
     cryptpart $dev || return 1
@@ -462,6 +464,7 @@ function runall() {
 
 fauto=0
 fram=0
+fispi=0
 fdebug=1
 dev="$1"
 sdisk="$2"
@@ -472,7 +475,6 @@ then
     fauto=1
     IFS=":" read label dev < <(grep autosysdisk: /etc/sdmcryptctl)
     IFS=":" read label sdisk < <(grep autoscratch: /etc/sdmcryptctl)
-    pmsg "Auto: |$dev| |$sdisk|"
 fi
 [[ "$dev" == "" ]] || [[ "$sdisk" == "" ]] && usage
 
@@ -480,16 +482,43 @@ fi
 IFS=" " read ign pimem units <<< $(grep -i MemTotal /proc/meminfo)
 [ "$pimodel" != "" ] && [ "$pimem" != "" ] && pmsg "Start sdmcryptfs on a $pimem $units '$pimodel'"
 
+#
+# Determine if we can use a RAM disk
+#
+if [ "$pimodel" != "" ]
+then
+    fispi=1
+    read junk mb junk < <(grep -i MemTotal /proc/meminfo)
+    partsize=$(getpartsize $(getpartname $dev 2))
+    rootfsize=$((((partsize/256)*6)/5))    # convert to MB and scale to 1.2X
+    mb=$(((mb/1024)-3))            # Memory size in MB minus a bit
+    [ $mb -gt $rootfsize ] && fram=1 && xcompress=0 && sdisk=RAM
+fi
+
 if [ $fauto -eq 1 ]
 then
     pmsg ""
     pmsg "************"
-    pmsg "Automatic sdmcryptfs conversion on '$dev' with scratch disk '$sdisk'"
+    pmsg "Automatic sdmcryptfs conversion on '$dev' with '$sdisk' as scratch disk"
     pmsg "sdm Disk Encryption process will continue automatically when sdmcryptfs completes"
-    pmsg "Conversion will start in 10 seconds"
-    pmsg "************"
-    pmsg ""
-    sleep 10
+    if [ $fram -eq 0 ]
+    then
+	cdelay=15
+	pmsg "Conversion will start in $cdelay seconds"
+	pmsg "*** Ensure that the scratch disk '$sdisk' is inserted ***"
+	pmsg "    If it's not inserted, we'll wait for it"
+	pmsg "************"
+	pmsg ""
+	sleep $cdelay
+	until [ -b $sdisk ]
+	do
+	    pmsg "Waiting for scratch disk '$sdisk'"
+	    sleep 1
+	done
+    else
+	pmsg "************"
+	pmsg ""
+    fi
 fi
 
 xcrypto=""
@@ -506,13 +535,17 @@ IFS=":" read lval xcompress < <(grep xcompress: /etc/sdmcryptctl)
 partsize=""
 IFS=":" read lval cryptdevice < <(grep mappername: /etc/sdmcryptctl)
 [ "$cryptdevice" == "" ] && cryptdevice="nomappername"
+
 runall $dev $sdisk || exit 1
+
 if [ $fauto -eq 1 ]
 then
-    if [ $fram -eq 0 ]
-    then
-	wipescratch $partsize
-    fi
+    [ $fram -eq 0 ] && wipescratch $partsize
+    echo $"
+Encryption complete. System boot will continue automatically in 5 seconds
+"
+    sleep 5
+    exit 0
 fi
 
 sleepsecs=10
@@ -522,7 +555,6 @@ then
 Enter the 'exit' command to resume the system boot process
 "
 else
-    [ $fauto -eq 1 ] && sleep 5 && exit 0
     echo $"
 Encryption complete. System boot will continue in $sleepsecs seconds
 "
