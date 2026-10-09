@@ -6,7 +6,7 @@ function readparams() {
     #
     # Restores the global variables from /etc/sdm/cparams
     #
-    local rpifun value cf="$SDMPT/etc/sdm/cparams" snolq
+    local pfx="$1" rpifun value cf="$SDMPT/etc/sdm/cparams" snolq
     if [ -f $cf ]
     then
 	while IFS=":" read -r rpifun value
@@ -28,8 +28,7 @@ function readparams() {
 		    value=$snolq
 		    value="${value%\'}"
 		fi
-		printf -v "$rpifun" "%s" "$value"     #eval "${rpifun}=\"$value\""
-
+		printf -v "${pfx}${rpifun}" "%s" "$value"     #eval "${rpifun}=\"$value\""
 	    fi
 	done < $cf
     fi
@@ -37,4 +36,4 @@ function readparams() {
     return
 }
 # Call the function after we've been sourced
-readparams
+readparams "$1"
