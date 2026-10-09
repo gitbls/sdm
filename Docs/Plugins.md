@@ -160,8 +160,9 @@ apt-config provides some control over apt in the customized IMG
 * `confnew` &mdash; &mdash; always replace a config file without prompting
 * `confold` &mdash; &mdash; always keep old unmodified copy of a config file without prompting
 * `confdef` &mdash; prefer the default method in the package for handling config file conflicts. If no default action specified by a package, falls back to `confold` if specified
-* `nopager` &mdash; Disable use of pager in `apt` listing commands
 * `nocolor` &mdash; Disable use of color in `apt` listing commands
+* `nofancy` &mdash; Disable use of fancy graphics in `apt` listing commands
+* `nopager` &mdash; Disable use of pager in `apt` listing commands
 
 #### Examples
 
@@ -384,7 +385,13 @@ Encrypts an already-created partition. The partition must not be the rootfs, and
 * **nocreate** &mdash; Do not encrypt the partition nor make a file system on it. See Notes below.
 * **nonint** &mdash; Perform the encryption non-interactive. Requires `keyfile` or `passphrase`
 * **nopwd** &mdash; Do not add an unlock passphrase. Requires `keyfile`
-* **partname** &mdash; Partition to encrypt [/dev/sdXn, e.g., /dev/sda3]. Required. See <a href="Disk-Encryption.md#encrypting-other-partitions">Encrypting Other Partitions</a> for details.
+* **partname** &mdash; Partition to encrypt. Required. Partition must already exist. `partname` can be:
+  * The keyword `last` for the last partition on the boot disk
+  * A number `1-9`, representing partition `N` on the boot disk
+  * A partition name (`/dev/sdXn`) on any connected disk
+
+  See <a href="Disk-Encryption.md#encrypting-other-partitions">Encrypting Other Partitions</a> for details.
+
 * **passphrase** &mdash; Unlock passphrase. Must be specified if `nonint` and no keyfile provided.
 
 `cryptname`, `fstype`, and `partname` arguments are required. if `nonint` is specified, one of `keyfile` or `passphrase` is required.
@@ -444,7 +451,7 @@ These are discussed further in the above-mentioned Disk Encryption page.
 
 #### Examples
 
-* `--plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|ssh` Configures the rootfs for encryption and enables SSH into the initramfs with keys authorized in the named authorized_keys file.
+* `--plugin cryptroot:"authkeys=/home/bls/.ssh/authorized_keys|ssh"` Configures the rootfs for encryption and enables SSH into the initramfs with keys authorized in the named authorized_keys file.
 
 #### Notes
 
@@ -577,7 +584,7 @@ Configures a Pi to be in gadget mode so it can connect via USB to a gadget mode 
 #### Examples
 
 * `--plugin gadgetmode:"static-mac=aa:bb:cc:dd:ee:ff"` &mdash; Configure simple gadget mode with a static MAC address
-* `--plugin gadgetmode:"gadget-mode=libcomposite|static-mac=fa:ce:fe:ed:00" &mdash; Configure shared gadget mode with a static MAC address
+* `--plugin gadgetmode:"gadget-mode=libcomposite|static-mac=fa:ce:fe:ed:00"` &mdash; Configure shared gadget mode with a static MAC address
 
 #### Notes
 
@@ -822,7 +829,7 @@ Use the `logwatch` plugin to install the logwatch package.
 
 #### Examples
 
-* `--plugin logwatch:"sendto=myname\<myuser@myemail.com\>|sendfrom=myhost-logwatch\<myuser@myemail.com\>"
+* `--plugin logwatch:"sendto=myname\<myuser@myemail.com\>|sendfrom=myhost-logwatch\<myuser@myemail.com\>"`
 
 ### lxde
 
@@ -840,6 +847,29 @@ Use the `lxde` plugin with `wayfire` to establish your preferred settings, such 
 
 * `--plugin lxde:"lxde-config=libfm:/path/to/libfm.conf,pcmanfm=/path/to/pcmanfm.conf,lxterminal=/path/to/lxterminal.conf"`
 * `--plugin lxde:"lhmouse|user=someuser"`
+
+### mariadb
+
+Install and perform  minimal mariadb SQL database configuration.
+
+#### Arguments
+
+* **mysql-dbadd** &mdash; Add a new database to an already-installed mariadb. The value for `mysql-dbadd` is  four fields, separated by commas: dbname,dbuser,dbpwd,remoteip. These specify
+  * **dbname** &mdash; The database name
+  * **dbuser** &mdash; The username that will have access to the database
+  * **dbpwd** &mdash; The password for the username/remoteip combination
+  * **remoteip** &mdash; The remote ip from which the user is enabled. If not specified, the default `%` is used.
+
+* **mysql-install** &mdash; Specifies that mariadb should be installed
+* **listen-all** &mdash; Listen on all network interfaces. If not specified, mariadb will only listen to the local host (127.0.0.1)
+* **mysql-root-password** &mdash; Specifies the root password for mariadb
+
+`mysql-root-password` is required. All other arguments are optional, but if neither `mysql-dbadd` or `mysql-install` is specified, `mysql-install` is assumed.
+
+#### Examples
+
+* `mariadb:mysql-install|mysql-root-password=foobar|listen-all` &mdash; Install mariadb with the specified root password and enable mariadb to listen on all network interfaces
+* `mariadb:mysql-root-password=foobar|mysql-dbadd=ghost2,ghostuser2,ghostpwd` &mdash;Add the database `ghost2` to the already-installed mariadb configuration. User `ghostuser2` with the password `ghostpwd` will have access to the database from all IP addresses.
 
 ### mkdir
 
@@ -1395,9 +1425,9 @@ These configuration items affect the SSH service.
 
 #### Examples
 
-* `--plugin sshd:"enablesvc=no" &mdash; Disable the SSH service
-* `--plugin sshd:"port=22222|listen-address=192.168.16.16" &mdash; Enable the SSH service, which will listen on port 2222 and only on the IP address 192.168.16.16 (which must be an IP address on the target system)
-* `--plugin sshd:"password-authentication=no" &mdash; Disable password authentication
+* `--plugin sshd:"enablesvc=no"` &mdash; Disable the SSH service
+* `--plugin sshd:"port=22222|listen-address=192.168.16.16"` &mdash; Enable the SSH service, which will listen on port 2222 and only on the IP address 192.168.16.16 (which must be an IP address on the target system)
+* `--plugin sshd:"password-authentication=no"` &mdash; Disable password authentication
 
 ### sshhostkey
 
@@ -1883,7 +1913,7 @@ The `x11` plugin installs the core X11 packages, and optionally installs a Displ
 
 #### Examples
 
-* `--plugin x11:"dm=xdm|wm=icewm" &mdash; Install X11 with the default set of fonts with the xdm display manager and icewm window manager.
+* `--plugin x11:"dm=xdm|wm=icewm"` &mdash; Install X11 with the default set of fonts with the xdm display manager and icewm window manager.
 
 <br>
 <form>
