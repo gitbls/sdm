@@ -2,6 +2,11 @@
 # This script runs in the nspawn image
 #
 
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
+
 function p1exit() {
     #
     # Clean up when Phase 1 (or any of the container commands) exits
@@ -25,12 +30,17 @@ function logfreeandexit() {
 #
 # Read configuration information from sdm
 #
-source /etc/sdm/sdm-readparams
+loadparams
 
 trap "doctrlcp1" SIGINT
 trap p1exit EXIT
 logtoboth "* Start Phase 1 image customization"
 logfreespace "at start of Phase 1 image customization"
+#
+# Set sdm startup-in-progress flag
+#
+touch /etc/sdm/control/sdm-startup
+
 runoneplugin sdm.phaseops 1 "ops=update-apt-cacher,apt-conf,apt-update" || exit
 
 if [ "$cscript" != "" ]
@@ -73,10 +83,6 @@ runoneplugin sdm.phaseops 1 "ops=apt-xautoremove,config-defer,config-firstboot,g
 #
 customizeend="$(getcdate)"
 logtoboth "> Customize elapsed time: $(datediff $customizestart $customizeend)"
-#
-# Set sdm startup-in-progress flag
-#
-touch /etc/sdm/control/sdm-startup
 
 if grep -q ' % ' /etc/sdm/history
 then
