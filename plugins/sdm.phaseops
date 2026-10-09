@@ -109,7 +109,7 @@ then
 		apt-autoremove)
 		    logtoboth "> Start 'apt autoremove'"
 		    logfreespace "at start of 'apt autoremove'"
-		    doaptrpterror "--yes autoremove" $showapt
+		    doaptrpterror "autoremove" $showapt
 		    logfreespace "at end of 'apt autoremove'"
 		    ;;
 		apt-xautoremove)
@@ -117,7 +117,7 @@ then
 		    then
 			logtoboth "> Start 'apt autoremove'"
 			logfreespace "at start of 'apt autoremove'"
-			doaptrpterror "--yes autoremove" $showapt
+			doaptrpterror "autoremove" $showapt
 			logfreespace "at end of 'apt autoremove'"
 		    else
 			logtoboth "> Skip 'apt autoremove' per --apt-options noautoremove"
@@ -196,12 +196,18 @@ EOF
 #
 # Process apps plugin deferred app installs
 #
+function loadparams() {
+    local arg="$1"
+    source $SDMPT/etc/sdm/sdm-readparams $arg
+}
 
 function defer_cleanup() {
-    logtoboth "* Dot-hide /etc/systemd/system/sdm-defer-pluglist.service and /usr/local/bin/sdm-run-defer-pluglists"
+    logtoboth "> Dot-hide /etc/systemd/system/sdm-defer-pluglist.service and /usr/local/bin/sdm-run-defer-pluglists"
     systemctl disable sdm-defer-pluglist
+    rm -f /etc/sdm/control/defer-ny-complete
     mv /etc/systemd/system/sdm-defer-pluglist.service /etc/systemd/system/.sdm-defer-pluglist.service
     mv /usr/local/bin/sdm-run-defer-pluglists /usr/local/bin/.sdm-run-defer-pluglists
+    logtoboth "* Deferred processing complete"
 }
 
 if [ "$1" == "" ]
@@ -210,17 +216,21 @@ then
     exit
 fi
 
-source /etc/sdm/sdm-readparams
+loadparams
 assetdir=/etc/sdm/assets/defer-plugin
 
+logtoboth "* Begin deferred processing"
 if [ -f $assetdir/defer-pluglist ]
 then
     logtoboth "* Start Run Defer Pluglists"
     sdm --runonly plugins --oklive --logwidth 256 --plugin @$assetdir/defer-pluglist
     logtoboth "* Complete Run Defer Pluglists"
+else
+    logtoboth "> No deferred plugins found"
 fi
 if [ -f $assetdir/defer-done-options ]
 then
+    logtoboth "> Process defer-done options"
     while read line
     do
         logtoboth "> Found Command '$line'"
@@ -229,25 +239,35 @@ then
             defer-command)
                 logtoboth "* Run Defer Command '$value'"
                 $value
-                [ $? -ne 0 ] && logtoboth "% Command '$value' returned error ($?)"
+                [ $? -ne 0 ] && logtoboth "% Command '$value' returned error '$?'"
                 ;;
             defer-reboot)
                 value=${value:-5}
-                logtoboth "* Reboot in $value seconds after Defer Pluglist completion"
-                logger "Rebooting system in $value seconds per 'defer-reboot'"
+                msg="%% Host '$(hostname)' will reboot in $value seconds"
+                printf "\n\n$msg\n\n" >/dev/console
+                for t in /dev/pts/{0..6}
+                do
+                    [ -c $t ] && printf "\n\n$msg\n\n" >$t
+                done
+                logtoboth "* $msg"
+                logger "Reboot system in $value seconds per 'defer-reboot'"
                 sleep $value
 		defer_cleanup
                 reboot
+                exit 0
                 ;;
         esac
     done < $assetdir/defer-done-options
     defer_cleanup
     exit 0
+else
+    logtoboth "> No deferred actions found"
 fi
 defer_cleanup
 exit 0
 EOF
 		    chmod 755 /usr/local/bin/sdm-run-defer-pluglists
+		    touch /etc/sdm/control/defer-ny-complete
 		    ;;
 		graphics)
 		    #
@@ -312,7 +332,12 @@ EOF
 		    cat >| /etc/sdm/xpiboot/010-l10n-setup.sh <<EOF
 #!/bin/bash
 
-source $SDMPT/etc/sdm/sdm-readparams
+function loadparams() {
+    local arg="\$1"
+    source /etc/sdm/sdm-readparams \$arg
+}
+
+loadparams
 
 # wificountry done first so network can come up a wee bit faster
 for kn in wificountry timezone keymap locale
