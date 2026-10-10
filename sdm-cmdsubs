@@ -162,20 +162,23 @@ function copybypart() {
 	    extend=$((${extstart%s}+extextsectors))s
 	fi
     else
-	# This is pretty horrible
-	sdmptsave=$SDMPT
-	declare -x SDMPT=$SDMPX
-	loadparams x # Read settings from source IMG (names prefixed by 'x')
-	declare -x SDMPT=$sdmptsave
-	yexpandroot=$((xexpandroot|expandroot))
-	ynoexpandroot=$((xfnoexpandroot|fnoexpandroot))
-	[ $ynoexpandroot -eq 1 ] || ispluginselected cryptroot "${plugins}~${allplugins}" && yexpandroot=0
-	if [ $yexpandroot -eq 1 ]
+	if [ "$fstype" == "zfs" ]
 	then
-	    devsize=$((devsize-(33*2)))            # Eliminate sgdisk -p 33 'block' complaint
-	    [ "$fstype" == "zfs" ] && devsize=$((devsize-320*(1024*1024)/512))
-	    extend=${devsize}s
-	    write_burnmsg "> Root partition '$(getspname $dstdev 2)' ($fstype) on device '$dstdev' will be created to $(getgbstr $((devsize*512)))"
+	    # This is pretty horrible
+	    sdmptsave=$SDMPT
+	    declare -x SDMPT=$SDMPX
+	    loadparams x # Read settings from source IMG (names prefixed by 'x')
+	    declare -x SDMPT=$sdmptsave
+	    yexpandroot=$((xexpandroot|expandroot))
+	    ynoexpandroot=$((xfnoexpandroot|fnoexpandroot))
+	    [ $ynoexpandroot -eq 1 ] || ispluginselected cryptroot "${plugins}~${allplugins}" && yexpandroot=0
+	    if [ $yexpandroot -eq 1 ]
+	    then
+		devsize=$((devsize-(33*2)))            # Eliminate sgdisk -p 33 'block' complaint
+		[ "$fstype" == "zfs" ] && devsize=$((devsize-320*(1024*1024)/512))
+		extend=${devsize}s
+		write_burnmsg "> Root partition '$(getspname $dstdev 2)' ($fstype) on device '$dstdev' will be created to $(getgbstr $((devsize*512)))"
+	    fi
 	fi
     fi
 
@@ -191,20 +194,23 @@ function copybypart() {
     sgdisk --zap-all $dstdev >/dev/null 2>&1
     partprobe_wait ${dstdev}$p1
 
-    write_burnmsg "> Align partitions for optimal performance on '$dstdev'"
-    opt_bytes=$(cat "/sys/block/$devdev/queue/optimal_io_size")
-    phy_bytes=$(cat "/sys/block/$devdev/queue/physical_block_size")
-    # Fallback if optimal_io_size is 0 (many devices do this)
-    [ "$opt_bytes" -eq 0 ] && opt_bytes="$phy_bytes"
-    # Convert bytes to sectors (assuming 512-byte logical sectors)
-    align_unit_s=$((opt_bytes/512))
-    [ $align_unit_s -eq 0 ] && align_unit_s=2048   # fallback: 1MiB
-    #write_burnmsg ">DD devsize:$devsize fatstart:$fatstart fatend:$fatend extstart:$extstart extend:$extend"
-    fatstart=$(alignpartition "${fatstart%s}" $align_unit_s)s
-    fatend=$((${fatstart%s} + ${fatsize%s} - 1))s
-    extstart=$(alignpartition $(intmax ${extstart%s} $((${fatend%s}+1))) $align_unit_s)s
-    extend=$((${extstart%s} + ${extsize%s} - 1))s
-    #write_burnmsg ">DD devsize:$devsize fatstart:$fatstart fatend:$fatend extstart:$extstart extend:$extend"
+    if [ "$fstype" == "btrfs" ]
+    then
+	write_burnmsg "> Align partitions for optimal performance on '$dstdev'"
+	opt_bytes=$(cat "/sys/block/$devdev/queue/optimal_io_size")
+	phy_bytes=$(cat "/sys/block/$devdev/queue/physical_block_size")
+	# Fallback if optimal_io_size is 0 (many devices do this)
+	[ "$opt_bytes" -eq 0 ] && opt_bytes="$phy_bytes"
+	# Convert bytes to sectors (assuming 512-byte logical sectors)
+	align_unit_s=$((opt_bytes/512))
+	[ $align_unit_s -eq 0 ] && align_unit_s=2048   # fallback: 1MiB
+	#write_burnmsg ">DD devsize:$devsize fatstart:$fatstart fatend:$fatend extstart:$extstart extend:$extend"
+	fatstart=$(alignpartition "${fatstart%s}" $align_unit_s)s
+	fatend=$((${fatstart%s} + ${fatsize%s} - 1))s
+	extstart=$(alignpartition $(intmax ${extstart%s} $((${fatend%s}+1))) $align_unit_s)s
+	extend=$((${extstart%s} + ${extsize%s} - 1))s
+	#write_burnmsg ">DD devsize:$devsize fatstart:$fatstart fatend:$fatend extstart:$extstart extend:$extend"
+    fi
 
     if [ "$dsttype" == "dos" ]
     then
