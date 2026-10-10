@@ -194,7 +194,7 @@ function copybypart() {
     sgdisk --zap-all $dstdev >/dev/null 2>&1
     partprobe_wait ${dstdev}$p1
 
-    if [ "$fstype" == "btrfs" ]
+    if [ "$dsttype" == "dos" ]
     then
 	write_burnmsg "> Align partitions for optimal performance on '$dstdev'"
 	opt_bytes=$(cat "/sys/block/$devdev/queue/optimal_io_size")
