@@ -1,5 +1,10 @@
 # Changelog
 
+## V16.1
+
+* Bug Fixes
+  * Correct partition handling for gpt disks and btrfs rootfs
+
 ## V16.0
 
 * New Features
