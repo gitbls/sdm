@@ -1899,21 +1899,25 @@ The `x11` plugin installs the core X11 packages, and optionally installs a Displ
 #### Arguments
 
 * **apps=*list,of,packages*** &mdash; List of additional packages to install
+* **desktop=*desktop-name*** &mdash; Install the specified desktop, which can be one of `cinnamon`, `gnome`, `gnome-flashback`, `kde`, `mate`, or `xfce`
 * **dm=*displaymanager*** &mdash; Name of display manager package. Known display managers include `lightdm`, `wdm`, and `xdm`, but this is not checked
 * **fonts=*list,of,font,packages*** &mdash; List of X11 font packages to install in addition to the default font packages (`xfonts-base,xfonts-100dpi,xfonts-75dpi,xfonts-scalable`)
 * **nodmconsole** &mdash; Do not enable the display manager on the system console
-* **noglamor** &mdash; Do not install `glamor-test`, needed on Pi5 for proper X11 operation; literally no impact on other Pis
+* **noglamor** &mdash; Do not install `gldriver-test`, needed on Pi5 for proper X11 operation; literally no impact on other Pis
 * **wm=*windowmanager*** &mdash; name of window manager package. There are many to choose from!
 
 #### Notes
 
-* If either `dm` or `wm` is not specified, `nodmconsole` will be set.
-* The x11 plugin ensures a non-graphical console mode for FirstBoot if a known display manager (`lightdm`, `wdm`, and `xdm`) is installed, and then enables graphical console (if requested), providing more visbility into the first boot process.
-* The x11 plugin does not do any special configuration for any display manager beyond delaying the graphical console to after Firstboot for `lightdm`, `wdm`, and `xdm`. Both wdm and xdm *just work*. It appears that furher `lightdm` configuration is required beyond the basic install, and is not provided by this plugin.
+* `desktop` and `wm` are mutually exclusive. Only one can be specified
+* If `desktop` is specified but `dm` is not, `dm` will be defaulted to `lightdm`
+* If either `dm` or neither of `desktop` or `wm` are not specified, `nodmconsole` will be set
+* The x11 plugin ensures a non-graphical console mode for FirstBoot if a known display manager (`lightdm`, `wdm`, and `xdm`) is installed, and then enables graphical console (if requested), providing more visbility into the first boot process
+* The x11 plugin does not do any special configuration for any display manager beyond delaying the graphical console to after Firstboot for `lightdm`, `wdm`, and `xdm`. Both wdm and xdm *just work*. This plugin does no further configuration of `lightdm` beyond the basic install.
 
 #### Examples
 
 * `--plugin x11:"dm=xdm|wm=icewm"` &mdash; Install X11 with the default set of fonts with the xdm display manager and icewm window manager.
+* `--plugin x11:"desktop=mate"` &mdash; Install X11 and the `mate` desktop
 
 <br>
 <form>
