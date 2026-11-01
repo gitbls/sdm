@@ -310,7 +310,7 @@ function cryptpart() {
     local cipher sts
     case "$xcrypto" in
 	xchacha*)
-	    [ "$xcrypto" == "xchacha" && xcha=xchacha12 || xcha=$xcrypto
+	    [ "$xcrypto" == "xchacha" ] && xcha=xchacha12 || xcha=$xcrypto
 	    cipher="$xcha,aes-adiantum-plain64"
 	    ;;
 	aes)
