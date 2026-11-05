@@ -99,6 +99,8 @@ function timesyncwait() {
     #
     # Skip if --nowait-timesync
     #
+    local kicked=0
+
     if [ $nowaittimesync -eq 1 ]
     then
 	write_console "Skip wait for time synchronization per --nowait-timesync"
@@ -121,6 +123,14 @@ function timesyncwait() {
 	then
 	    write_console "Waiting $secs/$swait seconds for system time synchronization"
 	    bootlog "Waiting $secs/$swait seconds for system time synchronization"
+	    # Every once in a while systemd-timesyncd has trouble syncing. It's nothing a good swift kick can't fix
+	    if [ $kicked -eq 0 ]
+	    then
+		write_console "Restart systemd-timesyncd"
+		bootlog "Restart systemd-timesyncd"
+		systemctl restart systemd-timesyncd
+		kicked=1
+	    fi
 	fi
 	sleep 1
     done
