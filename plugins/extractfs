@@ -7,10 +7,6 @@ function loadparams() {
     source $SDMPT/etc/sdm/sdm-readparams
 }
 
-function logtoboth() {
-    echo "$1"
-}
-
 # $1 is the phase: "0", "1", or "post-install"
 # $2 is the argument list: arg1=val1|arg2=val2|arg3=val3| ...
 #
@@ -24,7 +20,16 @@ vldargs="|bootfs|rootfs|burndev|burnfilefile|imgtype|" #"|list|of|valid|args|"
 rqdargs="|imgtype|"                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
-[[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
+function logtoboth() {
+    echo "$1"
+}
+
+function logtobothex() {
+    echo "$1"
+    exit 1
+}
+
+[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
 
 if [[ "$phase" == "burn-complete" ]]
 then
