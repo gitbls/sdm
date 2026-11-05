@@ -18,7 +18,7 @@ phase=$1
 pfx="$(basename $0)"     #For messages
 args="$2"
 loadparams
-vldargs="|apps|desktop|dm|nodmconsole|noglamor|wm|"
+vldargs="|apps|dm|nodmconsole|noglamor|wm|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
@@ -34,10 +34,6 @@ then
     if [ "$dm" != "" ]
     then
 	[[ "lightdm|wdm|xdm" =~ "$dm" ]] || logtoboth "% Plugin $pfx: Unrecognized display manager '$dm'; no boot behavior handling done"
-    fi
-    if [[ "$desktop" != "" ]]
-    then
-	[[ "gnome|xfce|gnome-flashback|kde|cinnamon|mate" =~ $desktop ]] || logtobothex "? Plugin $pfx: Unknown desktop '$desktop'"
     fi
     name=x11-apps
     if [ "$apps" != "" ]
@@ -74,14 +70,7 @@ then
     if [ ! -x /bin/Xorg ]
     then
 	[ -v noglamor ] && gldriver="" || gldriver="gldriver-test"
-	if [ "$desktop" == "" ]
-	then
-	    pwm=$wm
-	else
-	    pwm="task-$desktop-desktop plymouth plymouth-x11"
-	    dm=${dm:-lightdm} #Default if not specified
-	fi
-	x11pkgs="xserver-xorg xserver-xorg-core xserver-common $gldriver x11-apps x11-xserver-utils $basefonts $dm $pwm $svapps"
+	x11pkgs="xserver-xorg xserver-xorg-core xserver-common $gldriver x11-apps x11-xserver-utils $basefonts $dm $wm $svapps"
 	doinstalls "$x11pkgs" "X11 Install"
     fi
 
@@ -95,10 +84,7 @@ then
     logtoboth "* Plugin $pfx: Start Phase post-install"
     plugin_getargs $pfx "$args" "$vldargs" "$rqdargs"
     [ -v nodmconsole ] && nodmconsole=yes
-    if [ "$desktop" == "" ]
-    then
-	[[ "$dm" == "" ]] || [[ "$wm" == "" ]] && nodmconsole=yes
-    fi
+    [[ "$dm" == "" ]] || [[ "$wm" == "" ]] && nodmconsole=yes
 
     gfxcfgpostinstall $nodmconsole
     logtoboth "* Plugin $pfx: Complete Phase post-install"
