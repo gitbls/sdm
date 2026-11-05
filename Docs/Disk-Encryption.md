@@ -445,11 +445,13 @@ When the system reboots at the end of sdm-cryptfs-cleanup, the system boots norm
 
 If tangd responds successfully and provides valid data, clevis unlocks the rootfs and the system boot continues. If there is no response or it is otherwise unsuccessful, the system will use the other mechanisms you configured: passphrase, keydisk, or Yubikey.
 
+sdm does not provide any automation assistance for rotating tang server keys, a security feature described in `man tang` on the system where tang is installed.
+
 #### NBDE Further Reading
 
-<a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/configuring-automated-unlocking-of-encrypted-volumes-using-policy-based-decryption_security-hardening"> This page describes NBDE</a> and the clevis/tang implementation. sdm automates the configuration described in this document.
+There are many internet-available documents that discuss NBDE and `clevis` (NBDE client) and `tang` (NBDE server). A search for "nbde clevis tang" (without the quotes) will help you find them.
 
-sdm does not provide any assistance for rotating tang server keys, which is described on the above linked page or `man tang` on the system where tang is installed.
+NBDE was developed by RedHat. <a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/configuring-automated-unlocking-of-encrypted-volumes-using-policy-based-decryption_security-hardening"> This page describes NBDE</a> and the clevis/tang implementation. sdm automates the configuration described in this document.
 
 ## Encrypting other partitions
 
