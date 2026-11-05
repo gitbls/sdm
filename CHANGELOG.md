@@ -1,5 +1,17 @@
 # Changelog
 
+## V16.2
+
+* New Features
+  * `desktop` plugin to install desktop environments on RasPiOS Lite: `cinnamon`, `gnome`, `gnome-flashback`, `kde`, `mate`, or `xfce`
+* Improvements
+  * Add `--run-note "string"` command switch which logs the provided string at the top of the /etc/sdm/history file
+  * sdm-firstboot restarts systemd-timesyncd if it's having trouble syncing after 10 seconds
+* Bug Fixes
+  * Some of the burn plugins were erroneously logging to the host's /etc/sdm/history. Not any more
+  * `quietness` plugin reliability improved
+  * Typo in sdmcryptfs xchacha handling. Thanks @roman-ks
+
 ## V16.1
 
 * Bug Fixes

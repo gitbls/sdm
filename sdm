@@ -256,6 +256,7 @@ Command Switches for --customize and --burn or as noted
  --redo-customize    If image already customized, redo without prompting
  --regen-ssh-host-keys Regenerate system SSH keys at end of FirstBoot after system time sync
  --restart           20 seconds after first boot has completed restart the system
+ --run-note string   Provide a string to be entered in /etc/sdm/history
  --runonly plugins   Do no customization, ony run requested plugins
  --sdmdir /path/to/sdm Put sdm here instead of /usr/local/sdm when customizing an IMG
  --sdmprep           Install sdm into the IMG or Device but do not customize it
@@ -268,7 +269,7 @@ Command Switches for --customize and --burn or as noted
 # Initialize and Parse the command
 #
 #
-version="V16.1"
+version="V16.2"
 aptcache=""                 #IP address of apt-cacher-ng server
 aptdistupgrade=0            #1=Use apt-get dist-upgrade instead of upgrade
 aptmaint=""                 #--aptmaint switch values
@@ -301,6 +302,7 @@ domain=""                   #--domain name
 ecolors="blue:gray:red"     #fg:bg:cursor
 expandatboot=0              #1=expand rootfs at boot time (Trixie)
 expandroot=0                #1=Expand root after burning it to a device
+falign=0                    #1=Align partitions when burning by-partition
 fchroot=0                   #1=Use chroot instead of systemd-nspawn
 fcustomize=0                #True if customizing an image (either --customize or lack of burn,mount,explore)
 fbatch=0                    #1=nspawn "batch" mode (non-interactive). Do Phase1 and exit
@@ -345,6 +347,7 @@ fredact=0                   #1=redact passwords in /etc/sdm/{cparams,history}
 reboot=0                    #1=Reboot from First Boot
 rebootwait=20               #Number of seconds to wait after systemd thinks system is fully booted to reboot
 regensshkeys=0              #1=Regenerate SSH keys at end of FirstBoot
+runnote=""                  #User-provided string to add to start of history
 runonly=""                  #Keyword specified for --runonly
 drebootwait=$rebootwait     # Used to see if rebootwait should be modified on burn
 redocustomize=0             #1=Don't prompt if image already customized
@@ -375,13 +378,13 @@ source $src/sdm-cparse           # Get function defs
 # Parse the command line
 #
 cmdline="$0 $*"
-longopts="help,1piboot:,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
+longopts="help,1piboot:,align,aptcache:,apt-dist-upgrade,aptmaint:,apt-options:,\
 autologin,b0script:,b1script:,batch,bootscripts,burn:,burnfile:,burn-plugin:,chroot,cscript:,convert-root:,convert-root-mount-options:,csrc:,\
 customize,datefmt:,ddextend,ddsw:,debug:,directory,domain:,ecolors:,encrypted,explore,expand-at-boot,expand-root,extend,\
 extract-log:,extract-logs:,extract-script:,gpt,groups:,host:,hostname:,info,keyfile:,loadlocal:,logwidth:,\
 mcolors:,mount,no-expand-root,norestart,noreboot,nowait-timesync,nspawnsw:,oklive,os:,plugin-debug,\
 plugin:,plugins:,poptions:,ppart,reboot:,redact,redo-customize,\
-regen-ssh-host-keys,restart,runonly:,sdmdir:,sdmprep,showapt,shrink,\
+regen-ssh-host-keys,restart,run-note:,runonly:,sdmdir:,sdmprep,showapt,shrink,\
 bupdate:,xmb:,custom1:,custom2:,custom3:,custom4:,version"
 
 case "$1" in
@@ -426,6 +429,7 @@ do
     case "${1,,}" in
 	# 'shift 2' if switch has argument, else 'shift 1'
 	--1piboot)     pi1bootconf=$2; shift 2 ;;
+	--align)       falign=1      ; shift 1 ;;
 	--aptcache)    aptcache=$2   ; shift 2 ;;
 	--apt-dist-upgrade) aptdistupgrade=1 ; shift 1 ;;
 	--aptmaint)    aptmaint="${2,,}"; shift 2 ;;
@@ -484,6 +488,7 @@ do
 	--redo-customize) redocustomize=1 ; shift 1 ;;
 	--regen-ssh-host-keys) regensshkeys=1  ; shift 1 ;;
 	--restart)     reboot=1      ; shift 1 ;;
+	--run-note)    runnote="$2"  ; shift 2 ;;
 	--runonly)     runonly="${2,,}" ; shift 2 ;;
 	--sdmdir)      sdmdir=$2     ; shift 2 ;;
 	--sdmprep)     fsdmprep=1    ;
@@ -976,7 +981,7 @@ else
 
     # Log info
     raspiosver="$(getosinfo VERSION_ID $SDMPT)"
-    loginfo logtoboth "$cmdline" "$dimg"
+    loginfo logtoboth "$cmdline" "$dimg" "" "$runnote"
 
     # Flush accumulated messages
     if [ ${#cmsgs[@]} -gt 0 ]
