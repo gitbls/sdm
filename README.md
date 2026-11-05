@@ -108,11 +108,11 @@ The most important new user docs are: <a href="Docs/Command-Details.md">Command 
 
 Here are a few examples:
 
-* **Install applications**  &mdash; Editors (emacs, vim, zile, etc), and any other packages (browsers, etc) you always install in a new system. Direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps">the apps plugin</a> for details.
+* **Install applications**  &mdash; Editors (emacs, vim, zile, etc), and any other packages (browsers, etc) you always install in a new system. Direct sdm to install apps using the `apps` plugin. See <a href="Docs/Plugins.md#apps">the apps plugin</a> for details
 
-* **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">the VNC plugin</a>.
+* **Install and configure VNC** &mdash; Have every system or only selected systems come up with VNC installed and configured, using either RealVNC on the console, or TightVNC or TigerVNC virtual desktops. Or a combination of RealVNC on the console AND virtual desktops. See <a href="Docs/Plugins.md#vnc">the VNC plugin</a>
 
-* **Install and configure a WiFi Access Point (hotspot)** &mdash; Install a customizable, fully operational WiFi hotspot in any of three modes: *local*, *routed*, or *bridged*.
+* **Install and configure a WiFi Access Point (hotspot)** &mdash; Install a customizable, fully operational WiFi hotspot in any of three modes: *local*, *routed*, or *bridged*
 
 * **Install and configure a USB hotspot** &mdash; Enable the Pi to provide USB-tethered network connections via USB to another computer
 
@@ -120,25 +120,27 @@ Here are a few examples:
 
 * **Enable Pi-specific devices** &mdash; Easily enable camera, i2c, etc, via raspi-config automation. See <a href="Docs/Plugins.md#raspiconfig">raspiconfig plugin </a>.
 
-* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system. This can be done easily using <a href="Docs/Plugins.md#copyfile">the `copyfile` plugin</a> or with a personal Plugin. See <a href="Docs/Example-Plugin.md">my personal plugin</a> for an example.
+* **Personal customizations** &mdash; Have every system come up running with your own customizations such as your favorite .bashrc and any other files that you always want on your system. This can be done easily using <a href="Docs/Plugins.md#copyfile">the `copyfile` plugin</a> or with a personal Plugin. See <a href="Docs/Example-Plugin.md">my personal plugin</a> for an example
 
-* **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab. See <a href="Docs/Plugins.md#system">system plugin for details</a>.
+* **Append Custom fstab file to /etc/fstab** &mdash; Automatically append your site-specific fstab entries to /etc/fstab. See <a href="Docs/Plugins.md#system">system plugin for details</a>
 
-* **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm. See the description of the `service-disable` and `service-enable` arguments to <a href="Docs/Plugins.md#system">the system plugin</a>.
+* **systemd service configuration and management** &mdash; If there are services that you always enable or disable, you can easily configure them with sdm. See the description of the `service-disable` and `service-enable` arguments to <a href="Docs/Plugins.md#system">the system plugin</a>
 
-* **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>.
+* **Other customizations** &mdash; Done through a simple batch script called a <a href="Docs/Plugins.md">Plugin</a>. sdm-plugin-example is a skeleton Plugin that you can copy, modify, and use. See <a href="Docs/Programming-Plugins-and-Custom-Phase-Scripts.md">Programming Plugins</a>
 
-* **Automatic disk encryption** &mdash; Make your system more secure with an encrypted root file system and/or additional data partitions and using only a few commands.
+* **Automatic disk encryption** &mdash; Make your system more secure with an encrypted root file system and/or additional data partitions and using only a few commands
 
-* **Burn SD Card Image for network distribution** &mdash; You can also burn a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet.
+* **Advanced disk burn capabilities** &mdash; Burn disks with GPT partition tables (automatically for >2TB disks); burn a BTRFS or LVM rootfs; create additional partitions on newly burned disk
 
-    The recipient can burn the SD Card using any one of a number of tools on Linux ([Installing Operating System Images](https://www.raspberrypi.org/documentation/installation/installing-images/)), Windows ([Installing Operating System Images Using Windows](https://www.raspberrypi.org/documentation/installation/installing-images/windows.md)), or MacOS ([Installing Operating System Images Using MacOS](https://www.raspberrypi.org/documentation/installation/installing-images/mac.md)).
+* **Burn SD Card Image for network distribution** &mdash; You can also burn a customized SD Card Image to distribute via a mechanism other than an actual SD Card, such as the Internet
 
-* **Choose from a wide selection of sdm plugins** &mdash; sdm Plugins are <a href="Docs/Plugins.md">fully documented</a> and provide a broad set of functionality including: copy files into the IMG, install IPSEC or Wireguard VPNs, configure SSH host and user keys, install PiApps, etc.
+    The recipient can burn the SD Card using any one of a number of tools on Linux ([Installing Operating System Images](https://www.raspberrypi.org/documentation/installation/installing-images/)), Windows ([Installing Operating System Images Using Windows](https://www.raspberrypi.org/documentation/installation/installing-images/windows.md)), or MacOS ([Installing Operating System Images Using MacOS](https://www.raspberrypi.org/documentation/installation/installing-images/mac.md))
+
+* **Choose from a wide selection of sdm plugins** &mdash; sdm Plugins are <a href="Docs/Plugins.md">fully documented</a> and provide a broad set of functionality including: copy files into the IMG, install IPSEC or Wireguard VPNs, configure SSH host and user keys, install PiApps, etc
 
 * **Update an already-burned RasPiOS SD Card or SSD** &mdash; use the `--explore` command switch to nspawn into the SD Card or SSD. While in the nspawn you can take care of system management activities in a near-online manner, such as changing the password for an account, installing additional packages, etc.
 
-    This can be VERY handy if you forget the password to your user account on your favorite SD Card, for instance. You can boot up a second SD Card, install sdm on it, and then use `sdm --explore` to update the account password on that favorite SD Card.
+    This can be VERY handy if you forget the password to your user account on your favorite SD Card, for instance. You can boot up a second SD Card, install sdm on it, and then use `sdm --explore` to update the account password on that favorite SD Card
 
 ## Complete sdm Documentation
 
