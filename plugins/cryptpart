@@ -85,6 +85,16 @@ vldargs="|burndev|burnfilefile|cryptname|fslabel|fstype|keydisk-id|keyfile|keyfi
 rqdargs="|cryptname|fstype|partname|"
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
 
+# Redefine these after loadparams since there is no $SDMPT available
+function logtoboth() {
+    echo "$1"
+}
+
+function logtobothex() {
+    echo "$1"
+    exit 1
+}
+
 if [ "$phase" == "0" ]
 then
     #
