@@ -495,6 +495,22 @@ Here are a couple of examples of the `defer-command` and `defer-reboot`
 * `--plugin defer-plugin:defer-reboot` &mdash; Reboot the system in 5 seconds
 * `--plugin defer-plugin:defer-reboot:20`&mdash; Reboot the system in 20 seconds
 
+### desktop
+
+Install one of the 6 desktop environments available in RasPiOS/Debian 13. This should only be applied on a RasPiOS Lite IMG.
+
+#### Arguments
+
+* **desktop=*desktop-name*** &mdash; Install the specified desktop, which can be one of `cinnamon`, `gnome`, `gnome-flashback`, `kde`, `mate`, or `xfce`
+
+#### Examples
+
+* `--plugin desktop:desktop=mate` &mdash; Install the `mate` desktop environment
+
+#### Notes
+
+* `gnome` and `kde` are Wayland-based, while `cinnamon`, `gnome-flashback`, `mate`, and `xfce` are X11-based
+
 ### disables
 
 The disables plugin makes it easy to disable a few *complex* functions.
@@ -1190,6 +1206,11 @@ The quietness plugin controls the quiet and splash settings in /boot/firmware/cm
 
 * `--plugin quietness:"consoleblank|noquiet=keep|nosplash=keep"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt and do not re-enable them. Console blanking timeout set to 300 seconds (5 minutes)
 * `--plugin quietness:"consoleblank=600|noquiet|nosplash|noplymouth"` &mdash; Remove 'quiet' and 'splash' from cmdline.txt, and disable plymouth. All will be re-enabled after the First Boot. Console blanking timeout set to 600 seconds (10 minutes).
+* `--plugin quietness:"consoleblank=600|quiet|splash|plymouth"` &mdash; Make the boot as chatter-free. Console blanking timeout set to 600 seconds (10 minutes).
+
+#### Notes
+
+* With `quiet|splash|plymouth` and a graphical desktop, there will still be 4 messages from sdm-firstboot during FirstBoot only so that the reboot is understood
 
 ### raspiconfig
 
@@ -1899,7 +1920,6 @@ The `x11` plugin installs the core X11 packages, and optionally installs a Displ
 #### Arguments
 
 * **apps=*list,of,packages*** &mdash; List of additional packages to install
-* **desktop=*desktop-name*** &mdash; Install the specified desktop, which can be one of `cinnamon`, `gnome`, `gnome-flashback`, `kde`, `mate`, or `xfce`
 * **dm=*displaymanager*** &mdash; Name of display manager package. Known display managers include `lightdm`, `wdm`, and `xdm`, but this is not checked
 * **fonts=*list,of,font,packages*** &mdash; List of X11 font packages to install in addition to the default font packages (`xfonts-base,xfonts-100dpi,xfonts-75dpi,xfonts-scalable`)
 * **nodmconsole** &mdash; Do not enable the display manager on the system console
@@ -1908,16 +1928,13 @@ The `x11` plugin installs the core X11 packages, and optionally installs a Displ
 
 #### Notes
 
-* `desktop` and `wm` are mutually exclusive. Only one can be specified
-* If `desktop` is specified but `dm` is not, `dm` will be defaulted to `lightdm`
-* If either `dm` or neither of `desktop` or `wm` are not specified, `nodmconsole` will be set
+* If either `dm` or `wm` is not specified, `nodmconsole` will be set
 * The x11 plugin ensures a non-graphical console mode for FirstBoot if a known display manager (`lightdm`, `wdm`, and `xdm`) is installed, and then enables graphical console (if requested), providing more visbility into the first boot process
 * The x11 plugin does not do any special configuration for any display manager beyond delaying the graphical console to after Firstboot for `lightdm`, `wdm`, and `xdm`. Both wdm and xdm *just work*. This plugin does no further configuration of `lightdm` beyond the basic install.
 
 #### Examples
 
 * `--plugin x11:"dm=xdm|wm=icewm"` &mdash; Install X11 with the default set of fonts with the xdm display manager and icewm window manager.
-* `--plugin x11:"desktop=mate"` &mdash; Install X11 and the `mate` desktop
 
 <br>
 <form>
