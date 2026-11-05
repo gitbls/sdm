@@ -87,6 +87,7 @@ pluglist=(apps \
 	      cryptpart \
 	      cryptroot \
 	      defer-plugin \
+	      desktop \
 	      disables \
 	      docker-install \
 	      dovecot-imap \
