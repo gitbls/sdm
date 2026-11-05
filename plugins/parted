@@ -76,15 +76,6 @@ function flush_burnmsgsex() {
     exit 1
 }
 
-function logtoboth() {
-    echo "$1"
-}
-
-function logtobothex() {
-    echo "$1"
-    exit 1
-}
-
 function addtofstab() {
     # Based on parts of writediskids() and other sdm code.
     # Ref: https://manpages.debian.org/bookworm/mount/fstab.5.en.html
@@ -525,6 +516,16 @@ loadparams
 vldargs="|burndev|burnfilefile|rootfsencrypted|imgtype|rootexpand|addpartition|"
 rqdargs=""                   # |list|of|required|args|or|nullstring|
 assetdir="$SDMPT/etc/sdm/assets/$pfx"
+
+# Redefine these after loadparams since there is no $SDMPT available
+function logtoboth() {
+    echo "$1"
+}
+
+function logtobothex() {
+    echo "$1"
+    exit 1
+}
 
 [[ "|0|1|post-install|" =~ "|$phase|" ]] && logtobothex "? Plugin $pfx: This plugin is a burn plugin for use with --burn-plugin rather than --plugin"
 
