@@ -53,91 +53,93 @@ function loadparams() {
 }
 loadparams
 EOF
-    if [ -v consoleblank ]
+
+    if [ -f $cfgdir/cmdline.txt ]
     then
-	[ "$consoleblank" == "" ] && consoleblank=300
-	logtoboth "> Plugin $pfx: Set console blank timeout to $consoleblank seconds"
-	[ -f $cfgdir/cmdline.txt ] && sed -i "s/root=/consoleblank=$consoleblank root=/" $cfgdir/cmdline.txt
-    fi
-    if [ -v quiet ]
-    then
-	logtoboth "> Plugin $pfx: Enable quiet in $cfgdir/cmdline.txt"
-	if [ -f $cfgdir/cmdline.txt ]
+	if [ -v consoleblank ]
 	then
-	    sed -i "s/ quiet//g" $cfgdir/cmdline.txt
-	    sed -i "s/rootwait/rootwait quiet/g" $cfgdir/cmdline.txt
+	    [ "$consoleblank" == "" ] && consoleblank=300
+	    logtoboth "> Plugin $pfx: Set console blank timeout to $consoleblank seconds"
+	    sed -i "s/$/ consoleblank=$consoleblank/" $cfgdir/cmdline.txt
 	fi
-    fi
-    
-    if [ -v noquiet ]
-    then
-	if grep -qs quiet $cfgdir/cmdline.txt
+	if [ -v quiet ]
 	then
-	    logtoboth "> Plugin $pfx: Disable quiet in $cfgdir/cmdline.txt"
-	    [ -f $cfgdir/cmdline.txt ] && sed -i "s/ quiet//g" $cfgdir/cmdline.txt
+	    logtoboth "> Plugin $pfx: Enable quiet in $cfgdir/cmdline.txt"
+	    sed -i "s/ quiet//g" $cfgdir/cmdline.txt
+	    sed -i "s/$/ quiet/" $cfgdir/cmdline.txt
+	fi
+
+	if [ -v noquiet ]
+	then
+	    if grep -qs quiet $cfgdir/cmdline.txt
+	    then
+		logtoboth "> Plugin $pfx: Disable quiet in $cfgdir/cmdline.txt"
+		sed -i "s/ quiet//g" $cfgdir/cmdline.txt
+	    fi
 	    if [ "$noquiet" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 bootlog "Re-add 'quiet' to $cfgdir/cmdline.txt"
 sed -i "s/ quiet//g" $cfgdir/cmdline.txt
-sed -i "s/rootwait/rootwait quiet/g" $cfgdir/cmdline.txt
+sed -i "s/$/ quiet/g" $cfgdir/cmdline.txt
 EOF
 	    fi
 	fi
-    fi
-    
-    if [ -v splash ]
-    then
-	logtoboth "> Plugin $pfx: Enable splash in $cfgdir/cmdline.txt"
-	if [ -f $cfgdir/cmdline.txt ]
+
+	if [ -v splash ]
 	then
+	    logtoboth "> Plugin $pfx: Enable splash in $cfgdir/cmdline.txt"
 	    sed -i "s/splash //g" $cfgdir/cmdline.txt
-	    sed -i "s/rootwait/rootwait splash/g" $cfgdir/cmdline.txt
+	    sed -i "s/$/ splash/g" $cfgdir/cmdline.txt
 	fi
-    fi
-    
-    if [ -v nosplash ]
-    then
-	if grep -qs splash $cfgdir/cmdline.txt
+
+	if [ -v nosplash ]
 	then
-	    logtoboth "> Plugin $pfx: Disable splash in $cfgdir/cmdline.txt"
-	    sed -i "s/splash //g" $cfgdir/cmdline.txt
+	    if grep -qs splash $cfgdir/cmdline.txt
+	    then
+		logtoboth "> Plugin $pfx: Disable splash in $cfgdir/cmdline.txt"
+		sed -i "s/splash //g" $cfgdir/cmdline.txt
+	    fi
 	    if [ "$nosplash" != "keep" ]
 	    then
 		cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
 bootlog "Re-add 'splash' to $cfgdir/cmdline.txt"
 sed -i "s/ splash//g" $cfgdir/cmdline.txt
-sed -i "s/rootwait/rootwait splash/g" $cfgdir/cmdline.txt
+sed -i "s/$/ splash/g" $cfgdir/cmdline.txt
 EOF
+	    fi
+	fi
+    
+	if [ -v plymouth ]
+	then
+	    if [ -f $cfgdir/cmdline.txt ]
+	    then
+		sed -i "s/ plymouth.ignore-serial-consoles//g" $cfgdir/cmdline.txt
+		sed -i "s/$/ plymouth.ignore-serial-consoles/g" $cfgdir/cmdline.txt
 	    fi
 	fi
     fi
     
-    if [ -v plymouth ]
-    then
-	logtoboth "> Plugin $pfx: Enable Plymouth NYI"
-    fi
-    
     if [ -v noplymouth ]
     then
-	if [ -f /etc/systemd/system/plymouth-start.service ]
+	logtoboth "> Plugin $pfx: Disable Plymouth for first system boot"
+	for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
+	do
+	    systemctl mask $svc >/dev/null 2>&1
+	done
+	if [ "$noplymouth" != "keep" ]
 	then
-	    logtoboth "> Plugin $pfx: Disable Plymouth for first system boot"
-	    #[ -f /etc/systemd/system/plymouth-start.service ] && mv /etc/systemd/system/plymouth-start.service /etc/systemd/system/.sdm.plymouth-start.service 
-	    for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
-	    do
-		systemctl mask $svc >/dev/null 2>&1
-	    done
 	    cat >> /etc/sdm/0piboot/090-reset-quietness.sh <<EOF
-bootlog "Re-enable Plymouth services"
+bootlog "Re-enable Plymouth boot-time services"
 for svc in plymouth-start plymouth-read-write plymouth-quit plymouth-quit-wait plymouth-reboot
 do
     systemctl unmask $svc >/dev/null 2>&1
 done
-#[ -f /etc/systemd/system/.sdm.plymouth-start.service ] && mv /etc/systemd/system/.sdm.plymouth-start.service /etc/systemd/system/plymouth-start.service 
+sed -i "s/ plymouth.ignore-serial-consoles//g" $cfgdir/cmdline.txt
+sed -i "s/$/ plymouth.ignore-serial-consoles/g" $cfgdir/cmdline.txt
 EOF
 	fi
-    fi    
+    fi
     #
     #logfreespace "at end of $pfx Phase 1"
     logtoboth "> Plugin $pfx: Final cmdline.txt: $(cat $cfgdir/cmdline.txt)"
