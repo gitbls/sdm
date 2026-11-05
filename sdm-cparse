@@ -113,6 +113,12 @@ function write_console() {
     # $1 string to write
     # Written to /dev/console as "$(thisdate) sdm FirstBoot: $1"
     echo -e "$(thisdate) sdm FirstBoot: $1" > /dev/console
+    return
+    # Reboot in quiet/plymouth/graphical mode gets no message at all. Jarring. But keep code
+    if [ -f /boot/firmware/cmdline.txt ]
+    then
+	! grep -q quiet /boot/firmware/cmdline.txt && ! grep -q plymouth /boot/firmware/cmdline.txt && echo -e "$(thisdate) sdm FirstBoot: $1" > /dev/console
+    fi
 }
 
 function write_console0() {
@@ -503,8 +509,9 @@ function loginfo() {
     # $2: cmdline
     # $3: dimg
     # $4: mods [notty]
+    # $5: [optional] note to add
 
-    local logsub="$1" cmdline="$2" dimg="$3" mods="$4"
+    local logsub="$1" cmdline="$2" dimg="$3" mods="$4" lognote="$5"
     local pimodel memline memsize os_name os_version os_codename os_like hostarch raspiosver
 
     [ -e /sys/firmware/devicetree/base/model ] && pimodel=$(tr -d '\0' < /sys/firmware/devicetree/base/model) || pimodel=""
@@ -518,6 +525,7 @@ function loginfo() {
     fi
     is64bit && hostarch="64-bit aarch64" || hostarch="32-bit armhf"
     raspiosver="$(getosinfo VERSION_ID $SDMPT)"
+    [ "$lognote" == "" ] || $logsub "* Note: $lognote" "" "$mods"
     $logsub "* Command: $cmdline" "" "$mods"
     $logsub "* Host Information" "" "$mods"
     $logsub "   Hostname:  $(hostname)" "" "$mods"
@@ -1746,7 +1754,7 @@ function doinstalls() {
     #
     if [ "$1" != "" ]
     then
-	logtoboth "* Start $2"
+	logtoboth "> Start $2"
 	logtoboth "> ${2}: $1"
 	if [[ "$debugs" =~ "apt" ]]
 	then
@@ -1760,7 +1768,7 @@ function doinstalls() {
 	else
 	    installpkgsif "$1"
 	fi
-	logtoboth "* $2 Completed"
+	logtoboth "> $2 Completed"
     else
 	logtoboth "> Skip $2 per empty package list"
     fi
